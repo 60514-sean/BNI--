@@ -637,9 +637,7 @@ async function manualSave(btn) {
     ]);
     _lsSave();
     showToast('已儲存');
-  } catch {
-    showToast('儲存失敗，請重試');
-  }
+  } catch {}
   if (btn) { btn.disabled = false; btn.textContent = '儲存'; }
 }
 </script>
