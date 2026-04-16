@@ -187,9 +187,9 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .toast.show { display: block; opacity: 1; transform: translateX(-50%) translateY(0); }
 
 /* SAVE BUTTON */
-.fab-save { position: fixed; bottom: 28px; right: 24px; z-index: 1000; width: 56px; height: 56px; border-radius: 50%; background: var(--red); color: white; border: none; box-shadow: 0 4px 16px rgba(192,57,43,0.45); cursor: pointer; font-size: 22px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
-.fab-save:hover { background: var(--red-dark); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(192,57,43,0.55); }
-.fab-save:active { transform: translateY(0); }
+.page-save-btn { width: 100%; padding: 14px; background: var(--red); color: white; border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 16px; transition: all 0.2s; }
+.page-save-btn:hover { background: var(--red-dark); }
+.page-save-btn:disabled { opacity: 0.6; cursor: default; }
 
 @media(max-width: 640px) {
   .content { padding: 12px; }
@@ -225,7 +225,6 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
       <span class="user-chip" id="userChip"></span>
       <button class="hbtn" id="adminBtn" style="display:none" onclick="renderAdmin()">總覽</button>
       <button class="hbtn" id="settingsBtn" style="display:none" onclick="showSettings()">設定</button>
-      <button class="hbtn" id="headerSaveBtn" style="display:none;background:white;color:var(--red);font-weight:700;" onclick="manualSave()">儲存</button>
       <button class="hbtn" onclick="doLogout()">登出</button>
     </div>
   </div>
@@ -233,7 +232,6 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 </div>
 
 <div class="toast" id="toast"></div>
-<button class="fab-save" id="fabSave" style="display:none" onclick="manualSave()" title="儲存">💾</button>
 
 <script>
 // ===== API =====
@@ -333,10 +331,9 @@ const TASK_DATA = [
   { day:'星期二', owner:'康康',    task:'每週確認上週財務紀錄表',                              cat:'財務',    freq:'每週' },
   { day:'星期二', owner:'康康',    task:'在三長會議回報三個月內續約會員進度',                   cat:'續約',    freq:'每週' },
   { day:'星期三', owner:'康康',    task:'練習秘財（簡報者/締結）',                             cat:'例會',    freq:'每週' },
-  { day:'星期三', owner:'簡報顧問', task:'21:00 與下兩週簡報講者最終re稿',                    cat:'簡報',    freq:'每週' },
+  { day:'星期四', owner:'簡報顧問', task:'21:00 與下兩週簡報講者最終re稿',                    cat:'簡報',    freq:'每週' },
   { day:'星期四', owner:'康康',    task:'群組提醒例會前注意事項',                              cat:'例會',    freq:'每週' },
   { day:'星期四', owner:'報到組員', task:'印會員/來賓簽到表',                                  cat:'例會',    freq:'每週' },
-  { day:'星期四', owner:'康康',    task:'key 來賓資料到 Connect',                             cat:'例會',    freq:'每週' },
   { day:'星期四', owner:'報到組員', task:'印流程表 x7份、slogan表',                            cat:'例會',    freq:'每週' },
   { day:'星期四', owner:'報到組員', task:'印來賓桌牌',                                         cat:'例會',    freq:'每週' },
   { day:'星期四', owner:'康康',    task:'月底早上提醒明天繳錢',                                cat:'財務',    freq:'月底' },
@@ -344,6 +341,7 @@ const TASK_DATA = [
   { day:'星期五', owner:'康康',    task:'群組例會後提醒或表揚',                                cat:'例會',    freq:'每週' },
   { day:'星期五', owner:'報到組員', task:'資金費用請款（場餐費700元）',                         cat:'財務',    freq:'每週' },
   { day:'星期五', owner:'報到組員', task:'資金費用收入記錄',                                   cat:'財務',    freq:'每週' },
+  { day:'星期六', owner:'康康',    task:'key 來賓資料到 Connect',                             cat:'例會',    freq:'每週' },
   { day:'星期六', owner:'康康',    task:'基礎建設日（一對一主題簡報、續約關心、基礎建設）',      cat:'基礎建設', freq:'每週' },
   { day:'星期六', owner:'康康',    task:'跟新會員要照片、名片放相簿',                           cat:'會員',    freq:'視需要' },
   { day:'星期六', owner:'康康',    task:'導生畢業確認通知 ➔ 導師群組',                         cat:'會員',    freq:'視需要' },
@@ -373,20 +371,6 @@ async function doLogin() {
   const name = document.getElementById('nameInput').value.trim();
   if (!name) return;
 
-  if (Object.keys(cache).length === 0) {
-    showLoader(true, '連線中...');
-    try {
-      const r = await fetch(API_URL);
-      const j = await r.json();
-      cache = j.data || {};
-      _lsSave();
-    } catch {
-      // 連線失敗：使用預設設定，以離線模式繼續（資料不會同步）
-      cache = {};
-    }
-    showLoader(false);
-  }
-
   const cfg = getConfig();
   const isAdmin = name === cfg.adminPassword;
   const isUser  = cfg.users.includes(name) || isAdmin;
@@ -395,8 +379,6 @@ async function doLogin() {
   CU = name; CR = isAdmin ? 'admin' : 'user';
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'flex';
-  document.getElementById('fabSave').style.display = 'flex';
-  document.getElementById('headerSaveBtn').style.display = 'inline-block';
   document.getElementById('userChip').textContent = name;
   document.getElementById('adminBtn').style.display    = isAdmin ? 'inline-block' : 'none';
   document.getElementById('settingsBtn').style.display = isAdmin ? 'inline-block' : 'none';
@@ -409,8 +391,6 @@ function doLogout() {
   CU = null; CR = null;
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('appPage').style.display = 'none';
-  document.getElementById('fabSave').style.display = 'none';
-  document.getElementById('headerSaveBtn').style.display = 'none';
   document.getElementById('nameInput').value = '';
   document.getElementById('loginError').textContent = '';
 }
@@ -501,6 +481,7 @@ function renderMain() {
     });
   }
   html += '</div>';
+  html += `<button class="page-save-btn" onclick="manualSave(this)">儲存</button>`;
   document.getElementById('mainContent').innerHTML = html;
 }
 
@@ -585,6 +566,7 @@ function renderAdmin() {
     html += '</div></div>';
   });
 
+  html += `<button class="page-save-btn" onclick="manualSave(this)">儲存</button>`;
   document.getElementById('mainContent').innerHTML = html;
 }
 
@@ -645,20 +627,21 @@ function showToast(msg) {
 }
 
 // ===== MANUAL SAVE =====
-async function manualSave() {
-  const btn = document.getElementById('fabSave');
-  btn.textContent = '⏳';
-  btn.style.pointerEvents = 'none';
+async function manualSave(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '儲存中...'; }
   try {
-    const r = await fetch(API_URL);
-    const j = await r.json();
-    if (j?.data) { cache = j.data; _lsSave(); }
-    showToast('已同步最新資料');
+    const prog  = getProgData();
+    const notes = getNoteData();
+    await Promise.all([
+      fetch(API_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ key: `__prog_${WEEK_KEY}__`, data: prog }) }),
+      fetch(API_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ key: '__notes__', data: notes }) })
+    ]);
+    _lsSave();
+    showToast('已儲存');
   } catch {
-    showToast('⚠️ 同步失敗，請重試');
+    showToast('⚠️ 儲存失敗，請重試');
   }
-  btn.textContent = '💾';
-  btn.style.pointerEvents = '';
+  if (btn) { btn.disabled = false; btn.textContent = '儲存'; }
 }
 </script>
 </body>
