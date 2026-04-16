@@ -225,6 +225,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
       <span class="user-chip" id="userChip"></span>
       <button class="hbtn" id="adminBtn" style="display:none" onclick="renderAdmin()">總覽</button>
       <button class="hbtn" id="settingsBtn" style="display:none" onclick="showSettings()">設定</button>
+      <button class="hbtn" id="headerSaveBtn" style="display:none;background:white;color:var(--red);font-weight:700;" onclick="manualSave()">儲存</button>
       <button class="hbtn" onclick="doLogout()">登出</button>
     </div>
   </div>
@@ -395,6 +396,7 @@ async function doLogin() {
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'flex';
   document.getElementById('fabSave').style.display = 'flex';
+  document.getElementById('headerSaveBtn').style.display = 'inline-block';
   document.getElementById('userChip').textContent = name;
   document.getElementById('adminBtn').style.display    = isAdmin ? 'inline-block' : 'none';
   document.getElementById('settingsBtn').style.display = isAdmin ? 'inline-block' : 'none';
@@ -408,6 +410,7 @@ function doLogout() {
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('appPage').style.display = 'none';
   document.getElementById('fabSave').style.display = 'none';
+  document.getElementById('headerSaveBtn').style.display = 'none';
   document.getElementById('nameInput').value = '';
   document.getElementById('loginError').textContent = '';
 }
