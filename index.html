@@ -481,7 +481,6 @@ function renderMain() {
     });
   }
   html += '</div>';
-  html += `<button class="page-save-btn" onclick="manualSave(this)">儲存</button>`;
   document.getElementById('mainContent').innerHTML = html;
 }
 
@@ -633,13 +632,13 @@ async function manualSave(btn) {
     const prog  = getProgData();
     const notes = getNoteData();
     await Promise.all([
-      fetch(API_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ key: `__prog_${WEEK_KEY}__`, data: prog }) }),
-      fetch(API_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ key: '__notes__', data: notes }) })
+      fetch(API_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ key: `__prog_${WEEK_KEY}__`, data: prog }) }),
+      fetch(API_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ key: '__notes__', data: notes }) })
     ]);
     _lsSave();
     showToast('已儲存');
   } catch {
-    showToast('⚠️ 儲存失敗，請重試');
+    showToast('儲存失敗，請重試');
   }
   if (btn) { btn.disabled = false; btn.textContent = '儲存'; }
 }
