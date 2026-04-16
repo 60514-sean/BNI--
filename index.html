@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每週工事追蹤系統</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --red: #c0392b; --red-dark: #922b21; --red-light: #f9ecec;
+  --green: #27ae60; --gray: #7f8c8d;
+  --gray-light: #f4f6f8; --gray-border: #e8ecf0;
+  --text: #1a1a2e; --text-soft: #6b7280;
+  --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+  --radius: 14px; --radius-sm: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(--text); min-height: 100vh; }
+
+/* LOADER */
+.loader-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.85); display: none; align-items: center; justify-content: center; z-index: 9999; flex-direction: column; gap: 12px; }
+.loader-overlay.show { display: flex; }
+.loader-spinner { width: 36px; height: 36px; border: 4px solid #eee; border-top-color: var(--red); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loader-text { color: var(--red); font-size: 15px; }
+
+/* LOGIN */
+.login-page {
+  display: flex; min-height: 100vh;
+  background: linear-gradient(135deg, #c0392b 0%, #6d1414 100%);
+  align-items: center; justify-content: center; padding: 20px;
+  position: relative; overflow: hidden;
+}
+.login-page::before {
+  content: ''; position: absolute; inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+.login-box {
+  background: white; border-radius: 24px; padding: 44px 36px;
+  width: 100%; max-width: 400px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.3); position: relative; z-index: 1;
+}
+.login-box h1 { font-size: 22px; font-weight: 900; color: var(--red); text-align: center; margin-bottom: 6px; }
+.login-box p { color: var(--text-soft); font-size: 14px; text-align: center; margin-bottom: 32px; }
+.login-box input {
+  width: 100%; padding: 14px 18px; border: 2px solid var(--gray-border);
+  border-radius: var(--radius-sm); font-size: 16px; font-family: inherit;
+  outline: none; transition: border 0.2s; margin-bottom: 14px;
+}
+.login-box input:focus { border-color: var(--red); }
+.btn-login {
+  width: 100%; padding: 14px; background: var(--red); color: white;
+  border: none; border-radius: var(--radius-sm); font-size: 16px; font-weight: 700;
+  cursor: pointer; font-family: inherit; transition: all 0.2s; letter-spacing: 0.5px;
+}
+.btn-login:hover { background: var(--red-dark); transform: translateY(-1px); }
+.login-error { color: var(--red); font-size: 13px; margin-top: 8px; text-align: center; min-height: 20px; }
+
+/* APP */
+.app { display: none; min-height: 100vh; flex-direction: column; }
+.header {
+  background: var(--red); color: white; padding: 14px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 16px rgba(192,57,43,0.35);
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header h2 { font-size: 17px; font-weight: 700; }
+.header-right { display: flex; align-items: center; gap: 8px; }
+.user-chip { background: rgba(255,255,255,0.2); border-radius: 20px; padding: 5px 14px; font-size: 13px; font-weight: 500; }
+.hbtn { background: rgba(255,255,255,0.18); border: none; color: white; padding: 6px 13px; border-radius: 7px; cursor: pointer; font-size: 13px; font-family: inherit; }
+.hbtn:hover { background: rgba(255,255,255,0.28); }
+.content { padding: 18px; max-width: 900px; margin: 0 auto; width: 100%; }
+
+/* DATE BANNER */
+.date-banner {
+  background: white; border-radius: var(--radius);
+  padding: 16px 22px; margin-bottom: 12px; box-shadow: var(--shadow);
+  display: flex; align-items: baseline; gap: 12px;
+}
+.date-main { font-size: 20px; font-weight: 900; color: var(--red); font-family: 'DM Mono', monospace; }
+.date-weekday { font-size: 14px; color: var(--text-soft); font-weight: 500; }
+
+/* SUMMARY */
+.summary-row {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px; margin-bottom: 16px;
+}
+.summary-card {
+  background: white; border-radius: var(--radius);
+  padding: 18px 20px; box-shadow: var(--shadow);
+}
+.summary-label {
+  font-size: 12px; color: var(--text-soft);
+  margin-bottom: 8px; font-weight: 500; letter-spacing: 0.3px;
+}
+.summary-value {
+  font-size: 30px; font-weight: 900; color: var(--red);
+  font-family: 'DM Mono', monospace; line-height: 1;
+}
+.summary-bar-wrap { background: #f0f0f0; border-radius: 4px; height: 6px; margin-top: 10px; }
+.summary-bar-fill { height: 6px; border-radius: 4px; background: linear-gradient(90deg, var(--red), #e74c3c); transition: width 0.5s; }
+
+/* DAY TABS */
+.day-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.day-tab {
+  padding: 7px 14px; border-radius: 20px;
+  border: 2px solid var(--gray-border);
+  background: white; color: var(--text-soft);
+  cursor: pointer; font-size: 13px; font-weight: 500;
+  transition: all 0.2s; font-family: inherit;
+}
+.day-tab:hover { border-color: var(--red); color: var(--red); }
+.day-tab.active { border-color: var(--red); background: var(--red); color: white; }
+.day-tab.today-tab {
+  border: 2.5px solid var(--red); color: var(--red); font-weight: 700;
+  box-shadow: 0 0 0 2px rgba(192,57,43,0.15);
+}
+.day-tab.today-tab.active {
+  background: var(--red); color: white;
+  box-shadow: 0 0 0 3px rgba(192,57,43,0.25);
+}
+.dot-count { display: inline-block; background: rgba(255,255,255,0.3); border-radius: 10px; padding: 0 6px; font-size: 11px; margin-left: 4px; }
+.day-tab:not(.active) .dot-count { background: var(--gray-border); color: var(--text-soft); }
+.today-badge { font-size: 9px; background: var(--red); color: white; border-radius: 6px; padding: 1px 5px; margin-left: 3px; vertical-align: middle; }
+.day-tab.active .today-badge { background: rgba(255,255,255,0.35); }
+
+/* TASKS */
+.tasks-section { display: flex; flex-direction: column; gap: 10px; }
+.task-card { background: white; border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; transition: box-shadow 0.2s; }
+.task-card:hover { box-shadow: var(--shadow-lg); }
+.task-card.done-card { opacity: 0.7; }
+.task-card-header { padding: 14px 18px 10px; display: flex; align-items: flex-start; gap: 12px; }
+.task-cb { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--red); cursor: pointer; margin-top: 2px; }
+.task-cb:disabled { opacity: 0.4; cursor: default; }
+.task-main { flex: 1; }
+.task-title { font-size: 15px; font-weight: 500; line-height: 1.5; color: var(--text); }
+.task-title.done { text-decoration: line-through; color: #bbb; }
+.task-meta { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.tag { font-size: 11px; padding: 2px 10px; border-radius: 12px; font-weight: 500; }
+.tag-owner { background: #eaf4fd; color: #1a6fa0; }
+.tag-category { background: var(--red-light); color: var(--red); }
+.tag-freq { background: #eefaf2; color: #1e8449; }
+.task-expand-btn { background: none; border: none; cursor: pointer; color: var(--text-soft); font-size: 16px; padding: 4px; transition: transform 0.2s; flex-shrink: 0; }
+.task-expand-btn.open { transform: rotate(180deg); }
+.task-detail { padding: 0 18px 14px 52px; display: none; }
+.task-detail.open { display: block; }
+.task-note-label { font-size: 12px; color: var(--text-soft); margin-bottom: 5px; font-weight: 500; }
+.task-note { width: 100%; padding: 9px 12px; border: 1.5px solid var(--gray-border); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; resize: none; outline: none; min-height: 60px; background: var(--gray-light); color: var(--text); }
+.task-note:focus { border-color: var(--red); background: white; }
+.task-note::placeholder { color: #c0c0c0; }
+.task-done-info { font-size: 12px; color: var(--green); margin-top: 6px; }
+
+/* ADMIN */
+.admin-user-card { background: white; border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden; }
+.admin-user-header { padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; background: var(--gray-light); border-bottom: 1px solid var(--gray-border); }
+.admin-user-name { font-size: 16px; font-weight: 700; }
+.admin-user-pct { font-size: 14px; font-weight: 700; color: var(--red); }
+.admin-user-bar { height: 4px; background: #f0f0f0; }
+.admin-user-bar-fill { height: 4px; background: var(--red); }
+.admin-user-body { padding: 16px 20px; display: none; }
+.admin-user-body.open { display: block; }
+.admin-day-group { margin-bottom: 14px; }
+.admin-day-title { font-size: 12px; font-weight: 700; color: var(--red); margin-bottom: 6px; letter-spacing: 0.4px; }
+.admin-task-row { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--gray-border); align-items: flex-start; }
+.admin-task-row:last-child { border-bottom: none; }
+.admin-task-text { font-size: 13px; line-height: 1.5; }
+.admin-task-text.done { text-decoration: line-through; color: #bbb; }
+
+/* SETTINGS */
+.card { background: white; border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px; margin-bottom: 16px; }
+.card-title { font-size: 15px; font-weight: 700; color: var(--red); margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--gray-border); }
+.form-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.form-row input { flex: 1; min-width: 120px; padding: 9px 13px; border: 1.5px solid var(--gray-border); border-radius: var(--radius-sm); font-size: 14px; font-family: inherit; outline: none; }
+.form-row input:focus { border-color: var(--red); }
+.hint { font-size: 12px; color: #aaa; margin-top: 4px; }
+.btn { border: none; padding: 10px 22px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.btn-primary { background: var(--red); color: white; }
+.btn-secondary { background: var(--gray); color: white; }
+.btn-danger { background: none; border: 1.5px solid #e0e0e0; color: #e74c3c; padding: 7px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; font-family: inherit; }
+.add-btn { display: flex; align-items: center; gap: 6px; background: none; border: 2px dashed var(--red); color: var(--red); padding: 8px 16px; border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; font-family: inherit; margin-top: 6px; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+
+/* TOAST */
+.toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(20px); background: #1a1a2e; color: white; padding: 12px 24px; border-radius: 10px; font-size: 14px; z-index: 9999; display: none; opacity: 0; transition: all 0.3s; white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,0.25); }
+.toast.show { display: block; opacity: 1; transform: translateX(-50%) translateY(0); }
+
+@media(max-width: 640px) {
+  .content { padding: 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div class="loader-overlay" id="loader">
+  <div class="loader-spinner"></div>
+  <div class="loader-text" id="loaderText">載入中...</div>
+</div>
+
+<!-- LOGIN -->
+<div class="login-page" id="loginPage">
+  <div class="login-box">
+    <h1>每週工事追蹤</h1>
+    <p>請輸入您的名稱登入</p>
+    <input type="text" id="nameInput" placeholder="輸入姓名（如：康康）" autocomplete="off">
+    <button class="btn-login" onclick="doLogin()">登 入</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="appPage">
+  <div class="header">
+    <div class="header-left">
+      <h2 id="headerTitle">每週工事追蹤</h2>
+    </div>
+    <div class="header-right">
+      <span class="user-chip" id="userChip"></span>
+      <button class="hbtn" id="adminBtn" style="display:none" onclick="renderAdmin()">總覽</button>
+      <button class="hbtn" id="settingsBtn" style="display:none" onclick="showSettings()">設定</button>
+      <button class="hbtn" onclick="doLogout()">登出</button>
+    </div>
+  </div>
+  <div class="content" id="mainContent"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== API =====
+const API_URL = 'https://script.google.com/macros/s/AKfycbzwn_oKfa0vs21GlWdqtjz0oFJYyNwhVGJQPz_GHRaDGmk6jxHIqs7U0yqrVxyzkwK-/exec';
+const LS_KEY  = 'bni_weekly_v1';
+
+let cache = {};
+try { const s = localStorage.getItem(LS_KEY); if (s) cache = JSON.parse(s); } catch {}
+
+function _lsSave() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(cache)); } catch {}
+}
+
+async function _bgRefresh() {
+  try {
+    const r = await fetch(API_URL);
+    const j = await r.json();
+    if (j?.data) { cache = j.data; _lsSave(); }
+  } catch {}
+}
+_bgRefresh();
+
+const _saveQueue = new Map();
+let _saveRunning = false;
+
+async function _drainSaveQueue() {
+  if (_saveRunning || _saveQueue.size === 0) return;
+  _saveRunning = true;
+  const [[key, data]] = _saveQueue;
+  _saveQueue.delete(key);
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ key, data })
+    });
+  } catch {
+    showToast('⚠️ 儲存失敗，請重試');
+  }
+  _saveRunning = false;
+  _drainSaveQueue();
+}
+
+async function apiSave(key, data) {
+  cache[key] = data;
+  _lsSave();
+  _saveQueue.set(key, data);
+  _drainSaveQueue();
+}
+
+// ===== WEEK KEY（每週自動重置進度）=====
+function getWeekKey() {
+  const d = new Date();
+  const jan1 = new Date(d.getFullYear(), 0, 1);
+  const wk = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+  return `${d.getFullYear()}-W${String(wk).padStart(2, '0')}`;
+}
+const WEEK_KEY = getWeekKey();
+
+// ===== CONFIG =====
+const DEFAULT_USERS = ['康康', '麥莉', '報到組員', '簡報顧問'];
+const DEFAULT_ADMIN = '康康';
+
+function getConfig() {
+  const c = cache['__config__'];
+  if (c && c.adminPassword) return c;
+  return { adminPassword: DEFAULT_ADMIN, users: [...DEFAULT_USERS] };
+}
+async function saveConfigData(cfg) { await apiSave('__config__', cfg); }
+
+// ===== PROGRESS & NOTES =====
+function getProgData()  { return cache[`__prog_${WEEK_KEY}__`] || {}; }
+async function saveProgData(d)  { await apiSave(`__prog_${WEEK_KEY}__`, d); }
+
+function getNoteData()  { return cache['__notes__'] || {}; }
+async function saveNoteData(d)  { await apiSave('__notes__', d); }
+
+// ===== TASK DATA =====
+const TASK_DATA = [
+  { day:'星期日', owner:'康康',    task:'提醒EDM手：週一要繳交3張PPT圖',                    cat:'例會',    freq:'每週' },
+  { day:'星期日', owner:'康康',    task:'查看三個月內會員有誰，並提醒續約',                   cat:'續約',    freq:'每週' },
+  { day:'星期日', owner:'簡報顧問', task:'每週簡報工作進度回報',                              cat:'簡報',    freq:'每週' },
+  { day:'星期日', owner:'簡報顧問', task:'提醒顧問於22:00前填寫顧問輔導表',                   cat:'簡報',    freq:'每週' },
+  { day:'星期日', owner:'康康',    task:'確認八週內皆有簡報人選',                             cat:'簡報',    freq:'每週' },
+  { day:'星期日', owner:'麥莉',    task:'提醒EDM手PO出下兩週的主題簡報EDM',                   cat:'簡報',    freq:'每週' },
+  { day:'星期一', owner:'康康',    task:'請執秘印每週主題簡報感謝狀（每月最後一週印當月）',    cat:'例會',    freq:'每月末週' },
+  { day:'星期一', owner:'康康',    task:'領導團隊論壇簡報準備（每月第一週）',                  cat:'例會',    freq:'每月首週' },
+  { day:'星期一', owner:'康康',    task:'PO出本週例會流程表（領導團隊群、秘財群組）',           cat:'例會',    freq:'每週' },
+  { day:'星期一', owner:'康康',    task:'五冠王獎狀 ➔ 副主席、執秘',                         cat:'例會',    freq:'每週' },
+  { day:'星期一', owner:'康康',    task:'提醒五長隔天繳交簡報',                               cat:'例會',    freq:'每週' },
+  { day:'星期一', owner:'康康',    task:'買續約黑緞帶，告知並安排上台',                        cat:'續約',    freq:'視需要' },
+  { day:'星期一', owner:'簡報顧問', task:'確認簡報進度/繳交資料',                             cat:'簡報',    freq:'每週' },
+  { day:'星期一', owner:'康康',    task:'加準備群（+新簡報人選）',                             cat:'簡報',    freq:'每週' },
+  { day:'星期一', owner:'康康',    task:'每週簡報進度公告',                                   cat:'簡報',    freq:'每週' },
+  { day:'星期一', owner:'康康',    task:'更新續約進度',                                       cat:'續約',    freq:'每週' },
+  { day:'星期二', owner:'康康',    task:'繳交秘財簡報內容，新人放入八大產業 ➔ DJ手',           cat:'例會',    freq:'每週' },
+  { day:'星期二', owner:'康康',    task:'每週確認上週財務紀錄表',                              cat:'財務',    freq:'每週' },
+  { day:'星期二', owner:'康康',    task:'在三長會議回報三個月內續約會員進度',                   cat:'續約',    freq:'每週' },
+  { day:'星期三', owner:'康康',    task:'練習秘財（簡報者/締結）',                             cat:'例會',    freq:'每週' },
+  { day:'星期三', owner:'簡報顧問', task:'21:00 與下兩週簡報講者最終re稿',                    cat:'簡報',    freq:'每週' },
+  { day:'星期四', owner:'康康',    task:'群組提醒例會前注意事項',                              cat:'例會',    freq:'每週' },
+  { day:'星期四', owner:'報到組員', task:'印會員/來賓簽到表',                                  cat:'例會',    freq:'每週' },
+  { day:'星期四', owner:'康康',    task:'key 來賓資料到 Connect',                             cat:'例會',    freq:'每週' },
+  { day:'星期四', owner:'報到組員', task:'印流程表 x7份、slogan表',                            cat:'例會',    freq:'每週' },
+  { day:'星期四', owner:'報到組員', task:'印來賓桌牌',                                         cat:'例會',    freq:'每週' },
+  { day:'星期四', owner:'康康',    task:'月底早上提醒明天繳錢',                                cat:'財務',    freq:'月底' },
+  { day:'星期五', owner:'康康',    task:'開例會/報告',                                        cat:'例會',    freq:'每週' },
+  { day:'星期五', owner:'康康',    task:'群組例會後提醒或表揚',                                cat:'例會',    freq:'每週' },
+  { day:'星期五', owner:'報到組員', task:'資金費用請款（場餐費700元）',                         cat:'財務',    freq:'每週' },
+  { day:'星期五', owner:'報到組員', task:'資金費用收入記錄',                                   cat:'財務',    freq:'每週' },
+  { day:'星期六', owner:'康康',    task:'基礎建設日（一對一主題簡報、續約關心、基礎建設）',      cat:'基礎建設', freq:'每週' },
+  { day:'星期六', owner:'康康',    task:'跟新會員要照片、名片放相簿',                           cat:'會員',    freq:'視需要' },
+  { day:'星期六', owner:'康康',    task:'導生畢業確認通知 ➔ 導師群組',                         cat:'會員',    freq:'視需要' },
+];
+
+const DAYS = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+const TODAY_DAY = DAYS[new Date().getDay()];
+
+function getTodayStr() {
+  const now = new Date();
+  return `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
+}
+
+// ===== LOADER =====
+function showLoader(show, text) {
+  const el = document.getElementById('loader');
+  if (show) { el.classList.add('show'); document.getElementById('loaderText').textContent = text || '載入中...'; }
+  else { el.classList.remove('show'); }
+}
+
+// ===== LOGIN =====
+let CU = null, CR = null;
+let currentDay = TODAY_DAY;
+let cfgUsers = [];  // 設定頁暫存
+
+async function doLogin() {
+  const name = document.getElementById('nameInput').value.trim();
+  if (!name) return;
+
+  if (Object.keys(cache).length === 0) {
+    showLoader(true, '連線中...');
+    try {
+      const r = await fetch(API_URL);
+      const j = await r.json();
+      cache = j.data || {};
+      _lsSave();
+    } catch {
+      // 連線失敗：使用預設設定，以離線模式繼續（資料不會同步）
+      cache = {};
+    }
+    showLoader(false);
+  }
+
+  const cfg = getConfig();
+  const isAdmin = name === cfg.adminPassword;
+  const isUser  = cfg.users.includes(name) || isAdmin;
+  if (!isUser) { document.getElementById('loginError').textContent = '找不到此姓名，請確認後重試'; return; }
+
+  CU = name; CR = isAdmin ? 'admin' : 'user';
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('appPage').style.display = 'flex';
+  document.getElementById('userChip').textContent = name;
+  document.getElementById('adminBtn').style.display    = isAdmin ? 'inline-block' : 'none';
+  document.getElementById('settingsBtn').style.display = isAdmin ? 'inline-block' : 'none';
+  currentDay = TODAY_DAY;
+  renderMain();
+  _bgRefresh();
+}
+
+function doLogout() {
+  CU = null; CR = null;
+  document.getElementById('loginPage').style.display = 'flex';
+  document.getElementById('appPage').style.display = 'none';
+  document.getElementById('nameInput').value = '';
+  document.getElementById('loginError').textContent = '';
+}
+
+document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+// ===== MAIN =====
+function renderMain() {
+  document.getElementById('headerTitle').textContent = '每週工事追蹤';
+  const prog  = getProgData();
+  const notes = getNoteData();
+
+  const visibleTasks  = CR === 'admin' ? TASK_DATA : TASK_DATA.filter(t => t.owner === CU);
+  const filteredByDay = currentDay === '全部' ? visibleTasks : visibleTasks.filter(t => t.day === currentDay);
+  const total = visibleTasks.length;
+  const done  = visibleTasks.filter(t => prog[TASK_DATA.indexOf(t)]).length;
+  const pct   = total ? Math.round(done / total * 100) : 0;
+
+  let html = `
+  <div class="date-banner">
+    <span class="date-main">${getTodayStr()}</span>
+    <span class="date-weekday">${TODAY_DAY}</span>
+  </div>
+  <div class="summary-row">
+    <div class="summary-card">
+      <div class="summary-label">完成</div>
+      <div class="summary-value" id="valDone">${done}</div>
+      <div class="summary-bar-wrap"><div class="summary-bar-fill" id="progBar" style="width:${pct}%"></div></div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">待辦</div>
+      <div class="summary-value" id="valPend">${total - done}</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">完成率</div>
+      <div class="summary-value" id="valPct">${pct}%</div>
+    </div>
+  </div>`;
+
+  html += `<div class="day-tabs">`;
+  ['全部', ...DAYS].forEach(d => {
+    const count = d === '全部' ? visibleTasks.length : visibleTasks.filter(t => t.day === d).length;
+    if (count === 0 && d !== '全部') return;
+    const isActive = currentDay === d;
+    const isToday  = d === TODAY_DAY;
+    let cls = 'day-tab';
+    if (isActive) cls += ' active';
+    if (isToday)  cls += ' today-tab';
+    const todayBadge = isToday ? `<span class="today-badge">今天</span>` : '';
+    html += `<button class="${cls}" onclick="filterDay('${d}')">${d === '全部' ? '全部' : d}${todayBadge}<span class="dot-count">${count}</span></button>`;
+  });
+  html += `</div><div class="tasks-section">`;
+
+  if (filteredByDay.length === 0) {
+    html += `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">
+      <div style="font-size:15px;">今天沒有任務</div>
+    </div>`;
+  } else {
+    filteredByDay.forEach(t => {
+      const gi      = TASK_DATA.indexOf(t);
+      const isDone  = !!prog[gi];
+      const note    = notes[gi] || '';
+      const canEdit = CR === 'admin' || t.owner === CU;
+      html += `
+      <div class="task-card ${isDone ? 'done-card' : ''}" id="tc_${gi}">
+        <div class="task-card-header">
+          <input type="checkbox" class="task-cb" ${isDone ? 'checked' : ''} ${canEdit ? '' : 'disabled'} onchange="toggleTask(${gi}, this)">
+          <div class="task-main">
+            <div class="task-title ${isDone ? 'done' : ''}" id="ttl_${gi}">${t.task}</div>
+            <div class="task-meta">
+              <span class="tag tag-owner">${t.owner}</span>
+              <span class="tag tag-category">${t.cat}</span>
+              <span class="tag tag-freq">${t.freq}</span>
+            </div>
+            ${isDone ? `<div class="task-done-info">已完成</div>` : ''}
+          </div>
+          <button class="task-expand-btn" id="eb_${gi}" onclick="toggleExpand(${gi})">▾</button>
+        </div>
+        <div class="task-detail" id="det_${gi}">
+          <div class="task-note-label">備註</div>
+          ${canEdit
+            ? `<textarea class="task-note" placeholder="新增備註..." onchange="saveNote(${gi}, this.value)">${note}</textarea>`
+            : (note
+                ? `<div style="font-size:13px;color:var(--text-soft);padding:8px 12px;background:var(--gray-light);border-radius:8px;border-left:3px solid var(--gray-border);">${note}</div>`
+                : `<div style="font-size:13px;color:#ccc;">無備註</div>`)}
+        </div>
+      </div>`;
+    });
+  }
+  html += '</div>';
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+function filterDay(day) { currentDay = day; renderMain(); }
+
+function toggleExpand(idx) {
+  document.getElementById('det_' + idx)?.classList.toggle('open');
+  document.getElementById('eb_'  + idx)?.classList.toggle('open');
+}
+
+async function toggleTask(idx, cb) {
+  const prog = getProgData();
+  prog[idx] = cb.checked;
+  await saveProgData(prog);
+
+  document.getElementById('ttl_' + idx).className = 'task-title' + (cb.checked ? ' done' : '');
+  document.getElementById('tc_'  + idx).className = 'task-card'  + (cb.checked ? ' done-card' : '');
+
+  const vt    = CR === 'admin' ? TASK_DATA : TASK_DATA.filter(t => t.owner === CU);
+  const fresh = getProgData();
+  const total = vt.length;
+  const done  = vt.filter(t => fresh[TASK_DATA.indexOf(t)]).length;
+  const pct   = total ? Math.round(done / total * 100) : 0;
+  document.getElementById('progBar').style.width  = pct + '%';
+  document.getElementById('valDone').textContent  = done;
+  document.getElementById('valPend').textContent  = total - done;
+  document.getElementById('valPct').textContent   = pct + '%';
+  showToast(cb.checked ? '已完成' : '已取消');
+}
+
+async function saveNote(idx, val) {
+  const notes = getNoteData();
+  notes[idx] = val;
+  await saveNoteData(notes);
+}
+
+// ===== ADMIN =====
+function renderAdmin() {
+  document.getElementById('headerTitle').textContent = '進度總覽';
+  const prog  = getProgData();
+  const owners = [...new Set(TASK_DATA.map(t => t.owner))];
+  let html = `
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+    <div style="font-size:18px;font-weight:700;">本週進度總覽</div>
+    <button style="background:var(--red);color:white;border:none;padding:7px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;" onclick="renderMain()">返回</button>
+  </div>`;
+
+  owners.forEach(owner => {
+    const ot  = TASK_DATA.map((t, i) => ({...t, idx: i})).filter(t => t.owner === owner);
+    const dc  = ot.filter(t => prog[t.idx]).length;
+    const pct = ot.length ? Math.round(dc / ot.length * 100) : 0;
+    const byDay = {};
+    ot.forEach(t => { if (!byDay[t.day]) byDay[t.day] = []; byDay[t.day].push(t); });
+
+    html += `
+    <div class="admin-user-card">
+      <div class="admin-user-header" onclick="toggleAdminUser('au_${owner}', this)">
+        <div class="admin-user-name">${owner}</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="admin-user-pct">${dc}/${ot.length}　${pct}%</span>
+          <span id="arr_${owner}">▾</span>
+        </div>
+      </div>
+      <div class="admin-user-bar"><div class="admin-user-bar-fill" style="width:${pct}%"></div></div>
+      <div class="admin-user-body" id="au_${owner}">`;
+
+    DAYS.forEach(day => {
+      const dt = byDay[day] || [];
+      if (!dt.length) return;
+      const isToday = day === TODAY_DAY;
+      html += `<div class="admin-day-group">
+        <div class="admin-day-title" style="${isToday ? 'border-left:3px solid var(--red);padding-left:6px;' : ''}">${day}${isToday ? '　今天' : ''}</div>`;
+      dt.forEach(t => {
+        const isDone = !!prog[t.idx];
+        html += `<div class="admin-task-row">
+          <span style="font-size:14px;flex-shrink:0;color:${isDone ? 'var(--green)' : '#ccc'};">${isDone ? '●' : '○'}</span>
+          <span class="admin-task-text ${isDone ? 'done' : ''}">${t.task}</span>
+        </div>`;
+      });
+      html += '</div>';
+    });
+    html += '</div></div>';
+  });
+
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+function toggleAdminUser(id, header) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const isOpen = el.classList.toggle('open');
+  const arr = document.getElementById('arr_' + id.replace('au_', ''));
+  if (arr) arr.textContent = isOpen ? '▴' : '▾';
+}
+
+// ===== SETTINGS =====
+function showSettings() {
+  document.getElementById('headerTitle').textContent = '系統設定';
+  const cfg = getConfig();
+  cfgUsers = [...cfg.users];
+
+  const usersHtml = cfgUsers.map((u, i) => `
+    <div class="form-row" id="ur_${i}">
+      <input type="text" value="${u}" id="usr_${i}" placeholder="使用者名稱">
+      <button class="btn-danger" onclick="removeUser(${i})">刪除</button>
+    </div>`).join('');
+
+  document.getElementById('mainContent').innerHTML = `
+    <div class="card">
+      <div class="card-title">管理員名稱</div>
+      <div class="form-row"><input type="text" id="adminPw" value="${cfg.adminPassword}" placeholder="管理員名稱"></div>
+      <p class="hint">用此名稱登入可查看總覽及修改設定</p>
+    </div>
+    <div class="card">
+      <div class="card-title">使用者名單</div>
+      <p class="hint" style="margin-bottom:12px;">名稱即為登入密碼</p>
+      <div id="usersContainer">${usersHtml}</div>
+      <button class="add-btn" onclick="addUser()">+ 新增使用者</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveSettings()">儲存設定</button>
+      <button class="btn btn-secondary" onclick="renderMain()">取消</button>
+    </div>`;
+}
+
+function addUser()     { cfgUsers.push(''); showSettings(); }
+function removeUser(i) { cfgUsers.splice(i, 1); showSettings(); }
+
+async function saveSettings() {
+  const adminPw = document.getElementById('adminPw').value.trim();
+  const users   = cfgUsers.map((_, i) => document.getElementById(`usr_${i}`)?.value.trim() || '').filter(Boolean);
+  await saveConfigData({ adminPassword: adminPw, users });
+  showToast('設定已儲存');
+  setTimeout(() => renderMain(), 600);
+}
+
+// ===== TOAST =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>
