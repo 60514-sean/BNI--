@@ -186,6 +186,11 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(20px); background: #1a1a2e; color: white; padding: 12px 24px; border-radius: 10px; font-size: 14px; z-index: 9999; display: none; opacity: 0; transition: all 0.3s; white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,0.25); }
 .toast.show { display: block; opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* SAVE BUTTON */
+.fab-save { position: fixed; bottom: 28px; right: 24px; z-index: 1000; width: 56px; height: 56px; border-radius: 50%; background: var(--red); color: white; border: none; box-shadow: 0 4px 16px rgba(192,57,43,0.45); cursor: pointer; font-size: 22px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.fab-save:hover { background: var(--red-dark); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(192,57,43,0.55); }
+.fab-save:active { transform: translateY(0); }
+
 @media(max-width: 640px) {
   .content { padding: 12px; }
 }
@@ -227,6 +232,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 </div>
 
 <div class="toast" id="toast"></div>
+<button class="fab-save" id="fabSave" style="display:none" onclick="manualSave()" title="儲存">💾</button>
 
 <script>
 // ===== API =====
@@ -388,6 +394,7 @@ async function doLogin() {
   CU = name; CR = isAdmin ? 'admin' : 'user';
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'flex';
+  document.getElementById('fabSave').style.display = 'flex';
   document.getElementById('userChip').textContent = name;
   document.getElementById('adminBtn').style.display    = isAdmin ? 'inline-block' : 'none';
   document.getElementById('settingsBtn').style.display = isAdmin ? 'inline-block' : 'none';
@@ -400,6 +407,7 @@ function doLogout() {
   CU = null; CR = null;
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('appPage').style.display = 'none';
+  document.getElementById('fabSave').style.display = 'none';
   document.getElementById('nameInput').value = '';
   document.getElementById('loginError').textContent = '';
 }
@@ -631,6 +639,23 @@ function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ===== MANUAL SAVE =====
+async function manualSave() {
+  const btn = document.getElementById('fabSave');
+  btn.textContent = '⏳';
+  btn.style.pointerEvents = 'none';
+  try {
+    const r = await fetch(API_URL);
+    const j = await r.json();
+    if (j?.data) { cache = j.data; _lsSave(); }
+    showToast('已同步最新資料');
+  } catch {
+    showToast('⚠️ 同步失敗，請重試');
+  }
+  btn.textContent = '💾';
+  btn.style.pointerEvents = '';
 }
 </script>
 </body>
