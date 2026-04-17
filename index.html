@@ -7,7 +7,9 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>BNI-秘財週行程</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
 :root {
   --red: #c0392b; --red-dark: #922b21; --red-light: #f9ecec;
@@ -155,21 +157,6 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .task-note::placeholder { color: #c0c0c0; }
 .task-done-info { font-size: 12px; color: var(--green); margin-top: 6px; }
 
-/* ADMIN */
-.admin-user-card { background: white; border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden; }
-.admin-user-header { padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; background: var(--gray-light); border-bottom: 1px solid var(--gray-border); }
-.admin-user-name { font-size: 16px; font-weight: 700; }
-.admin-user-pct { font-size: 14px; font-weight: 700; color: var(--red); }
-.admin-user-bar { height: 4px; background: #f0f0f0; }
-.admin-user-bar-fill { height: 4px; background: var(--red); }
-.admin-user-body { padding: 16px 20px; display: none; }
-.admin-user-body.open { display: block; }
-.admin-day-group { margin-bottom: 14px; }
-.admin-day-title { font-size: 12px; font-weight: 700; color: var(--red); margin-bottom: 6px; letter-spacing: 0.4px; }
-.admin-task-row { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--gray-border); align-items: flex-start; }
-.admin-task-row:last-child { border-bottom: none; }
-.admin-task-text { font-size: 13px; line-height: 1.5; }
-.admin-task-text.done { text-decoration: line-through; color: #bbb; }
 
 /* SETTINGS */
 .card { background: white; border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px; margin-bottom: 16px; }
@@ -384,7 +371,6 @@ async function doLogin() {
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'flex';
   document.getElementById('userChip').textContent = name;
-  document.getElementById('adminBtn').style.display    = isAdmin ? 'inline-block' : 'none';
   document.getElementById('settingsBtn').style.display = isAdmin ? 'inline-block' : 'none';
   currentDay = TODAY_DAY;
   renderMain();
@@ -401,8 +387,8 @@ function doLogout() {
 
 document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
-const CAT_ORDER  = ['例會','簡報','續約','財務','會員','基礎建設'];
-const CAT_COLORS = { '例會':'#c0392b','簡報':'#c0392b','續約':'#c0392b','財務':'#c0392b','會員':'#c0392b','基礎建設':'#c0392b' };
+const CAT_ORDER = ['例會','簡報','續約','財務','會員','基礎建設'];
+const CAT_COLOR = '#c0392b';
 
 // ===== MAIN =====
 function renderMain() {
@@ -464,7 +450,7 @@ function renderMain() {
         <div onclick="toggleCat('${dayId}')" style="padding:13px 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border-left:4px solid var(--red);">
           <div style="display:flex;align-items:center;gap:10px;">
             <span style="font-size:14px;font-weight:700;color:var(--red);">${day}${isToday?'　<span style="font-size:11px;background:var(--red);color:white;border-radius:6px;padding:1px 7px;">今天</span>':''}</span>
-            <span id="catbadge_${dayId}" style="font-size:12px;background:#c0392b18;color:var(--red);padding:2px 8px;border-radius:10px;">${dayDone}/${dayTasks.length}</span>
+            <span id="catbadge_day_${day}" style="font-size:12px;background:#c0392b18;color:var(--red);padding:2px 8px;border-radius:10px;">${dayDone}/${dayTasks.length}</span>
           </div>
           <span id="arr_${dayId}" style="color:#bbb;font-size:12px;">▾</span>
         </div>
@@ -515,7 +501,7 @@ function renderCatGroups(tasks, prog, notes, dayKey) {
   CAT_ORDER.forEach(cat => {
     const catTasks = tasks.filter(t => t.cat === cat);
     if (!catTasks.length) return;
-    const color   = CAT_COLORS[cat] || 'var(--red)';
+    const color   = CAT_COLOR;
     const catDone = catTasks.filter(t => prog[TASK_DATA.indexOf(t)]).length;
     const catId   = `cat_${dayKey}_${cat}`;
     html += `<div style="background:white;border-radius:14px;box-shadow:var(--shadow);margin-bottom:10px;overflow:hidden;">
@@ -577,7 +563,7 @@ function toggleExpand(idx) {
 async function toggleTask(idx, cb) {
   const prog = getProgData();
   prog[idx] = cb.checked;
-  await saveProgData(prog);
+  saveProgData(prog);
 
   const ttl = document.getElementById('ttl_' + idx);
   if (ttl) {
@@ -585,20 +571,24 @@ async function toggleTask(idx, cb) {
     ttl.style.color = cb.checked ? '#bbb' : 'var(--text)';
   }
 
-  // 更新分類徽章
-  const t = TASK_DATA[idx];
+  const t      = TASK_DATA[idx];
   const dayKey = currentDay === '全部' ? t.day : currentDay;
-  const catId  = `cat_${dayKey}_${t.cat}`;
-  const visForCat = CR === 'admin' ? TASK_DATA : TASK_DATA.filter(t2 => t2.owner === CU);
-  const catTasks  = visForCat.filter(t2 => t2.cat === t.cat && t2.day === t.day);
-  const fresh = getProgData();
-  const catDone = catTasks.filter(t2 => fresh[TASK_DATA.indexOf(t2)]).length;
-  const badge = document.getElementById('catbadge_' + catId);
+  const vis    = CR === 'admin' ? TASK_DATA : TASK_DATA.filter(t2 => t2.owner === CU);
+  const catTasks = vis.filter(t2 => t2.cat === t.cat && t2.day === t.day);
+  const catDone  = catTasks.filter(t2 => prog[TASK_DATA.indexOf(t2)]).length;
+  const badge = document.getElementById(`catbadge_cat_${dayKey}_${t.cat}`);
   if (badge) badge.textContent = `${catDone}/${catTasks.length}`;
 
-  const vt    = CR === 'admin' ? TASK_DATA : TASK_DATA.filter(t2 => t2.owner === CU);
-  const total = vt.length;
-  const done  = vt.filter(t2 => fresh[TASK_DATA.indexOf(t2)]).length;
+  // 全部頁同步更新日期徽章
+  if (currentDay === '全部') {
+    const dayTasks = vis.filter(t2 => t2.day === t.day);
+    const dayDone  = dayTasks.filter(t2 => prog[TASK_DATA.indexOf(t2)]).length;
+    const dayBadge = document.getElementById(`catbadge_day_${t.day}`);
+    if (dayBadge) dayBadge.textContent = `${dayDone}/${dayTasks.length}`;
+  }
+
+  const total = vis.length;
+  const done  = vis.filter(t2 => prog[TASK_DATA.indexOf(t2)]).length;
   const pct   = total ? Math.round(done / total * 100) : 0;
   document.getElementById('progBar').style.width  = pct + '%';
   document.getElementById('valDone').textContent  = done;
@@ -607,69 +597,14 @@ async function toggleTask(idx, cb) {
   showToast(cb.checked ? '已完成' : '已取消');
 }
 
-async function saveNote(idx, val) {
-  const notes = getNoteData();
-  notes[idx] = val;
-  await saveNoteData(notes);
-}
-
-// ===== ADMIN =====
-function renderAdmin() {
-  document.getElementById('headerTitle').textContent = '進度總覽';
-  const prog  = getProgData();
-  const owners = [...new Set(TASK_DATA.map(t => t.owner))];
-  let html = `
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
-    <div style="font-size:18px;font-weight:700;">本週進度總覽</div>
-    <button style="background:var(--red);color:white;border:none;padding:7px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;" onclick="renderMain()">返回</button>
-  </div>`;
-
-  owners.forEach(owner => {
-    const ot  = TASK_DATA.map((t, i) => ({...t, idx: i})).filter(t => t.owner === owner);
-    const dc  = ot.filter(t => prog[t.idx]).length;
-    const pct = ot.length ? Math.round(dc / ot.length * 100) : 0;
-    const byDay = {};
-    ot.forEach(t => { if (!byDay[t.day]) byDay[t.day] = []; byDay[t.day].push(t); });
-
-    html += `
-    <div class="admin-user-card">
-      <div class="admin-user-header" onclick="toggleAdminUser('au_${owner}', this)">
-        <div class="admin-user-name">${owner}</div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span class="admin-user-pct">${dc}/${ot.length}　${pct}%</span>
-          <span id="arr_${owner}">▾</span>
-        </div>
-      </div>
-      <div class="admin-user-bar"><div class="admin-user-bar-fill" style="width:${pct}%"></div></div>
-      <div class="admin-user-body" id="au_${owner}">`;
-
-    DAYS.forEach(day => {
-      const dt = byDay[day] || [];
-      if (!dt.length) return;
-      const isToday = day === TODAY_DAY;
-      html += `<div class="admin-day-group">
-        <div class="admin-day-title" style="${isToday ? 'border-left:3px solid var(--red);padding-left:6px;' : ''}">${day}${isToday ? '　今天' : ''}</div>`;
-      dt.forEach(t => {
-        const isDone = !!prog[t.idx];
-        html += `<div class="admin-task-row">
-          <span style="font-size:14px;flex-shrink:0;color:${isDone ? 'var(--green)' : '#ccc'};">${isDone ? '●' : '○'}</span>
-          <span class="admin-task-text ${isDone ? 'done' : ''}">${t.task}</span>
-        </div>`;
-      });
-      html += '</div>';
-    });
-    html += '</div></div>';
-  });
-
-  document.getElementById('mainContent').innerHTML = html;
-}
-
-function toggleAdminUser(id, header) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const isOpen = el.classList.toggle('open');
-  const arr = document.getElementById('arr_' + id.replace('au_', ''));
-  if (arr) arr.textContent = isOpen ? '▴' : '▾';
+const _noteTimer = {};
+function saveNote(idx, val) {
+  clearTimeout(_noteTimer[idx]);
+  _noteTimer[idx] = setTimeout(async () => {
+    const notes = getNoteData();
+    notes[idx] = val;
+    await saveNoteData(notes);
+  }, 600);
 }
 
 // ===== SETTINGS =====
