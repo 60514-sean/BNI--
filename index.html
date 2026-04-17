@@ -390,7 +390,7 @@ async function doLogin() {
   document.getElementById('settingsBtn').style.display = isAdmin ? 'inline-block' : 'none';
   currentDay = TODAY_DAY;
   renderMain();
-  _bgRefresh();
+  _bgRefresh().then(() => { if (CU) renderMain(); });
 }
 
 function doLogout() {
