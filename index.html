@@ -469,7 +469,7 @@ function renderMain() {
           </div>
           <span id="arr_${dayId}" style="color:#bbb;font-size:12px;">▾</span>
         </div>
-        <div id="${dayId}" style="display:none;">${renderCatGroups(dayTasks, prog, notes, day)}</div>
+        <div id="${dayId}" style="display:none;">${renderFlatTasks(dayTasks, prog, notes)}</div>
       </div>`;
     });
   } else {
@@ -478,6 +478,37 @@ function renderMain() {
 
   html += '</div>';
   document.getElementById('mainContent').innerHTML = html;
+}
+
+function renderFlatTasks(tasks, prog, notes) {
+  let html = '';
+  tasks.forEach(t => {
+    const gi      = TASK_DATA.indexOf(t);
+    const isDone  = !!prog[gi];
+    const note    = notes[gi] || '';
+    const canEdit = CR === 'admin' || t.owner === CU;
+    html += `<div style="border-top:1px solid #f5f5f5;" id="tc_${gi}">
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 18px;">
+        <input type="checkbox" class="task-cb" ${isDone?'checked':''} ${canEdit?'':'disabled'} onchange="toggleTask(${gi},this)" style="margin-top:3px;">
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:500;line-height:1.5;color:${isDone?'#bbb':'var(--text)'};${isDone?'text-decoration:line-through;':''}" id="ttl_${gi}">${t.task}</div>
+          <div style="display:flex;gap:6px;margin-top:3px;">
+            <span class="tag tag-freq">${t.freq}</span>
+          </div>
+        </div>
+        <button class="task-expand-btn" id="eb_${gi}" onclick="toggleExpand(${gi})">▾</button>
+      </div>
+      <div class="task-detail" id="det_${gi}" style="padding:0 18px 12px 48px;">
+        <div class="task-note-label">備註</div>
+        ${canEdit
+          ? `<textarea class="task-note" placeholder="新增備註..." onchange="saveNote(${gi},this.value)">${note}</textarea>`
+          : (note
+              ? `<div style="font-size:13px;color:var(--text-soft);padding:8px 12px;background:var(--gray-light);border-radius:8px;border-left:3px solid var(--gray-border);">${note}</div>`
+              : `<div style="font-size:13px;color:#ccc;">無備註</div>`)}
+      </div>
+    </div>`;
+  });
+  return html;
 }
 
 function renderCatGroups(tasks, prog, notes, dayKey) {
