@@ -476,7 +476,7 @@ function renderMain() {
     html += renderCatGroups(filteredByDay, prog, notes, currentDay);
   }
 
-  html += '</div>';
+  html += `</div><button class="page-save-btn" onclick="manualSave(this)" style="margin-bottom:24px;">儲存</button>`;
   document.getElementById('mainContent').innerHTML = html;
 }
 
