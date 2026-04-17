@@ -243,6 +243,21 @@ async function _bgRefresh() {
 }
 _bgRefresh();
 
+async function _syncAndRender() {
+  const before = JSON.stringify(cache[`__prog_${WEEK_KEY}__`] || {});
+  await _bgRefresh();
+  const after  = JSON.stringify(cache[`__prog_${WEEK_KEY}__`] || {});
+  if (CU && before !== after) renderMain();
+}
+
+// 切回頁面時自動同步
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && CU) _syncAndRender();
+});
+
+// 每 45 秒定時同步
+setInterval(() => { if (CU && !document.hidden) _syncAndRender(); }, 45000);
+
 const _saveQueue = new Map();
 let _saveRunning = false;
 
