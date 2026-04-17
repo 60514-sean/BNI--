@@ -269,11 +269,13 @@ async function _drainSaveQueue() {
   _saveQueue.delete(key);
   try {
     await fetch(API_URL, {
-      method: 'POST', mode: 'no-cors',
+      method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ key, data })
     });
-  } catch {}
+  } catch {
+    showToast('儲存失敗，請重試');
+  }
   _saveRunning = false;
   _drainSaveQueue();
 }
