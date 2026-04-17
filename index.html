@@ -466,7 +466,6 @@ function renderMain() {
           <div class="task-main">
             <div class="task-title ${isDone ? 'done' : ''}" id="ttl_${gi}">${t.task}</div>
             <div class="task-meta">
-              ${t.owner !== '康康' ? `<span class="tag tag-owner">${t.owner}</span>` : ''}
               <span class="tag tag-category">${t.cat}</span>
               <span class="tag tag-freq">${t.freq}</span>
             </div>
