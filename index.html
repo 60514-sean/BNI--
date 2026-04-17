@@ -624,8 +624,9 @@ function saveNote(idx, val) {
 }
 
 // ===== SETTINGS =====
-function showSettings() {
+async function showSettings() {
   document.getElementById('headerTitle').textContent = '系統設定';
+  await _bgRefresh();
   const cfg = getConfig();
   cfgUsers = [...cfg.users];
 
@@ -660,6 +661,7 @@ async function saveSettings() {
   const adminPw = document.getElementById('adminPw').value.trim();
   const users   = cfgUsers.map((_, i) => document.getElementById(`usr_${i}`)?.value.trim() || '').filter(Boolean);
   await saveConfigData({ adminPassword: adminPw, users });
+  await _bgRefresh();
   showToast('設定已儲存');
   setTimeout(() => renderMain(), 600);
 }
