@@ -402,6 +402,9 @@ function doLogout() {
 
 document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
+const CAT_ORDER  = ['例會','簡報','續約','財務','會員','基礎建設'];
+const CAT_COLORS = { '例會':'#c0392b','簡報':'#2980b9','續約':'#27ae60','財務':'#8e44ad','會員':'#e67e22','基礎建設':'#16a085' };
+
 // ===== MAIN =====
 function renderMain() {
   document.getElementById('headerTitle').textContent = '每週工事追蹤';
@@ -450,42 +453,78 @@ function renderMain() {
   html += `</div><div class="tasks-section">`;
 
   if (filteredByDay.length === 0) {
-    html += `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">
-      <div style="font-size:15px;">今天沒有任務</div>
-    </div>`;
+    html += `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);"><div style="font-size:15px;">今天沒有任務</div></div>`;
+  } else if (currentDay === '全部') {
+    DAYS.forEach(day => {
+      const dayTasks = filteredByDay.filter(t => t.day === day);
+      if (!dayTasks.length) return;
+      const isToday = day === TODAY_DAY;
+      html += `<div style="font-size:13px;font-weight:700;color:${isToday?'var(--red)':'var(--text-soft)'};margin:16px 0 8px;${isToday?'border-left:3px solid var(--red);padding-left:8px;':'padding-left:2px;'}">${day}${isToday?' · 今天':''}</div>`;
+      html += renderCatGroups(dayTasks, prog, notes, day);
+    });
   } else {
-    filteredByDay.forEach(t => {
+    html += renderCatGroups(filteredByDay, prog, notes, currentDay);
+  }
+
+  html += '</div>';
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+function renderCatGroups(tasks, prog, notes, dayKey) {
+  let html = '';
+  CAT_ORDER.forEach(cat => {
+    const catTasks = tasks.filter(t => t.cat === cat);
+    if (!catTasks.length) return;
+    const color   = CAT_COLORS[cat] || 'var(--red)';
+    const catDone = catTasks.filter(t => prog[TASK_DATA.indexOf(t)]).length;
+    const catId   = `cat_${dayKey}_${cat}`;
+    html += `<div style="background:white;border-radius:14px;box-shadow:var(--shadow);margin-bottom:10px;overflow:hidden;">
+      <div onclick="toggleCat('${catId}')" style="padding:12px 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border-left:4px solid ${color};">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:14px;font-weight:700;color:${color};">${cat}</span>
+          <span id="catbadge_${catId}" style="font-size:12px;background:${color}18;color:${color};padding:2px 8px;border-radius:10px;">${catDone}/${catTasks.length}</span>
+        </div>
+        <span id="arr_${catId}" style="color:#bbb;font-size:12px;">▲</span>
+      </div>
+      <div id="${catId}">`;
+    catTasks.forEach(t => {
       const gi      = TASK_DATA.indexOf(t);
       const isDone  = !!prog[gi];
       const note    = notes[gi] || '';
       const canEdit = CR === 'admin' || t.owner === CU;
-      html += `
-      <div class="task-card ${isDone ? 'done-card' : ''}" id="tc_${gi}">
-        <div class="task-card-header">
-          <input type="checkbox" class="task-cb" ${isDone ? 'checked' : ''} ${canEdit ? '' : 'disabled'} onchange="toggleTask(${gi}, this)">
-          <div class="task-main">
-            <div class="task-title ${isDone ? 'done' : ''}" id="ttl_${gi}">${t.task}</div>
-            <div class="task-meta">
-              <span class="tag tag-category">${t.cat}</span>
+      html += `<div style="border-top:1px solid #f5f5f5;" id="tc_${gi}">
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 18px;">
+          <input type="checkbox" class="task-cb" ${isDone?'checked':''} ${canEdit?'':'disabled'} onchange="toggleTask(${gi},this)" style="margin-top:3px;">
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:500;line-height:1.5;color:${isDone?'#bbb':'var(--text)'};${isDone?'text-decoration:line-through;':''}" id="ttl_${gi}">${t.task}</div>
+            <div style="display:flex;gap:6px;margin-top:3px;">
               <span class="tag tag-freq">${t.freq}</span>
             </div>
-            ${isDone ? `<div class="task-done-info">已完成</div>` : ''}
           </div>
           <button class="task-expand-btn" id="eb_${gi}" onclick="toggleExpand(${gi})">▾</button>
         </div>
-        <div class="task-detail" id="det_${gi}">
+        <div class="task-detail" id="det_${gi}" style="padding:0 18px 12px 48px;">
           <div class="task-note-label">備註</div>
           ${canEdit
-            ? `<textarea class="task-note" placeholder="新增備註..." onchange="saveNote(${gi}, this.value)">${note}</textarea>`
+            ? `<textarea class="task-note" placeholder="新增備註..." onchange="saveNote(${gi},this.value)">${note}</textarea>`
             : (note
                 ? `<div style="font-size:13px;color:var(--text-soft);padding:8px 12px;background:var(--gray-light);border-radius:8px;border-left:3px solid var(--gray-border);">${note}</div>`
                 : `<div style="font-size:13px;color:#ccc;">無備註</div>`)}
         </div>
       </div>`;
     });
-  }
-  html += '</div>';
-  document.getElementById('mainContent').innerHTML = html;
+    html += `</div></div>`;
+  });
+  return html;
+}
+
+function toggleCat(id) {
+  const el  = document.getElementById(id);
+  const arr = document.getElementById('arr_' + id);
+  if (!el) return;
+  const isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : '';
+  if (arr) arr.textContent = isOpen ? '▾' : '▲';
 }
 
 function filterDay(day) { currentDay = day; renderMain(); }
@@ -500,13 +539,26 @@ async function toggleTask(idx, cb) {
   prog[idx] = cb.checked;
   await saveProgData(prog);
 
-  document.getElementById('ttl_' + idx).className = 'task-title' + (cb.checked ? ' done' : '');
-  document.getElementById('tc_'  + idx).className = 'task-card'  + (cb.checked ? ' done-card' : '');
+  const ttl = document.getElementById('ttl_' + idx);
+  if (ttl) {
+    ttl.style.textDecoration = cb.checked ? 'line-through' : '';
+    ttl.style.color = cb.checked ? '#bbb' : 'var(--text)';
+  }
 
-  const vt    = CR === 'admin' ? TASK_DATA : TASK_DATA.filter(t => t.owner === CU);
+  // 更新分類徽章
+  const t = TASK_DATA[idx];
+  const dayKey = currentDay === '全部' ? t.day : currentDay;
+  const catId  = `cat_${dayKey}_${t.cat}`;
+  const visForCat = CR === 'admin' ? TASK_DATA : TASK_DATA.filter(t2 => t2.owner === CU);
+  const catTasks  = visForCat.filter(t2 => t2.cat === t.cat && t2.day === t.day);
   const fresh = getProgData();
+  const catDone = catTasks.filter(t2 => fresh[TASK_DATA.indexOf(t2)]).length;
+  const badge = document.getElementById('catbadge_' + catId);
+  if (badge) badge.textContent = `${catDone}/${catTasks.length}`;
+
+  const vt    = CR === 'admin' ? TASK_DATA : TASK_DATA.filter(t2 => t2.owner === CU);
   const total = vt.length;
-  const done  = vt.filter(t => fresh[TASK_DATA.indexOf(t)]).length;
+  const done  = vt.filter(t2 => fresh[TASK_DATA.indexOf(t2)]).length;
   const pct   = total ? Math.round(done / total * 100) : 0;
   document.getElementById('progBar').style.width  = pct + '%';
   document.getElementById('valDone').textContent  = done;
