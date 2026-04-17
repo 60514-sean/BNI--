@@ -244,10 +244,11 @@ async function _bgRefresh() {
 _bgRefresh();
 
 async function _syncAndRender() {
-  const before = JSON.stringify(cache);
   await _bgRefresh();
-  const after = JSON.stringify(cache);
-  if (CU && before !== after) renderMain();
+  if (!CU) return;
+  const active = document.activeElement;
+  if (active && active.tagName === 'TEXTAREA') return;
+  renderMain();
 }
 
 // 切回頁面時自動同步
