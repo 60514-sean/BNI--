@@ -234,29 +234,29 @@ function _lsSave() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(cache)); } catch {}
 }
 
+let _refreshP = null;
 async function _bgRefresh() {
-  try {
-    const r = await fetch(API_URL);
-    const j = await r.json();
-    if (j?.data) { cache = j.data; _lsSave(); }
-  } catch {}
+  if (_refreshP) return _refreshP;
+  _refreshP = fetch(API_URL, { signal: AbortSignal.timeout(8000) })
+    .then(r => r.json())
+    .then(j => { if (j?.data) { cache = j.data; _lsSave(); } })
+    .catch(() => {})
+    .finally(() => { _refreshP = null; });
+  return _refreshP;
 }
 _bgRefresh();
 
 async function _syncAndRender() {
   await _bgRefresh();
   if (!CU) return;
-  const active = document.activeElement;
-  if (active && active.tagName === 'TEXTAREA') return;
+  if (document.activeElement?.tagName === 'TEXTAREA') return;
   renderMain();
 }
 
-// 切回頁面時自動同步
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && CU) _syncAndRender();
 });
 
-// 每 30 秒定時同步
 setInterval(() => { if (CU && !document.hidden) _syncAndRender(); }, 30000);
 
 const _saveQueue = new Map();
@@ -354,6 +354,8 @@ const TASK_DATA = [
   { day:'星期一', owner:'康康',    task:'導生畢業確認通知 ➔ 導師群組',                         cat:'會員',    freq:'視需要' },
 ];
 
+const TASK_IDX = new Map(TASK_DATA.map((t, i) => [t, i]));
+
 const DAYS = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
 const TODAY_DAY = DAYS[new Date().getDay()];
 
@@ -377,12 +379,11 @@ let cfgUsers = [];  // 設定頁暫存
 async function doLogin() {
   const name = document.getElementById('nameInput').value.trim();
   if (!name) return;
-
+  await Promise.race([_bgRefresh(), new Promise(r => setTimeout(r, 2000))]);
   const cfg = getConfig();
   const isAdmin = name === cfg.adminPassword;
   const isUser  = cfg.users.includes(name) || isAdmin;
   if (!isUser) { document.getElementById('loginError').textContent = '找不到此姓名，請確認後重試'; return; }
-
   CU = name; CR = isAdmin ? 'admin' : 'user';
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'flex';
@@ -390,7 +391,6 @@ async function doLogin() {
   document.getElementById('settingsBtn').style.display = isAdmin ? 'inline-block' : 'none';
   currentDay = TODAY_DAY;
   renderMain();
-  _bgRefresh().then(() => { if (CU) renderMain(); });
 }
 
 function doLogout() {
@@ -415,7 +415,7 @@ function renderMain() {
   const visibleTasks  = CR === 'admin' ? TASK_DATA : TASK_DATA.filter(t => t.owner === CU);
   const filteredByDay = currentDay === '全部' ? visibleTasks : visibleTasks.filter(t => t.day === currentDay);
   const total = visibleTasks.length;
-  const done  = visibleTasks.filter(t => prog[TASK_DATA.indexOf(t)]).length;
+  const done  = visibleTasks.filter(t => prog[TASK_IDX.get(t)]).length;
   const pct   = total ? Math.round(done / total * 100) : 0;
 
   let html = `
@@ -460,7 +460,7 @@ function renderMain() {
       const dayTasks = filteredByDay.filter(t => t.day === day);
       if (!dayTasks.length) return;
       const isToday = day === TODAY_DAY;
-      const dayDone = dayTasks.filter(t => prog[TASK_DATA.indexOf(t)]).length;
+      const dayDone = dayTasks.filter(t => prog[TASK_IDX.get(t)]).length;
       const dayId   = `day_${day}`;
       html += `<div style="background:white;border-radius:14px;box-shadow:var(--shadow);margin-bottom:10px;overflow:hidden;">
         <div onclick="toggleCat('${dayId}')" style="padding:13px 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border-left:4px solid var(--red);">
@@ -484,7 +484,7 @@ function renderMain() {
 function renderFlatTasks(tasks, prog, notes) {
   let html = '';
   tasks.forEach(t => {
-    const gi      = TASK_DATA.indexOf(t);
+    const gi      = TASK_IDX.get(t);
     const isDone  = !!prog[gi];
     const note    = notes[gi] || '';
     const canEdit = CR === 'admin' || t.owner === CU;
@@ -502,7 +502,7 @@ function renderFlatTasks(tasks, prog, notes) {
       <div class="task-detail" id="det_${gi}" style="padding:0 18px 12px 48px;">
         <div class="task-note-label">備註</div>
         ${canEdit
-          ? `<textarea class="task-note" placeholder="新增備註..." onchange="saveNote(${gi},this.value)">${note}</textarea>`
+          ? `<textarea class="task-note" placeholder="新增備註..." oninput="saveNote(${gi},this.value)">${note}</textarea>`
           : (note
               ? `<div style="font-size:13px;color:var(--text-soft);padding:8px 12px;background:var(--gray-light);border-radius:8px;border-left:3px solid var(--gray-border);">${note}</div>`
               : `<div style="font-size:13px;color:#ccc;">無備註</div>`)}
@@ -518,7 +518,7 @@ function renderCatGroups(tasks, prog, notes, dayKey) {
     const catTasks = tasks.filter(t => t.cat === cat);
     if (!catTasks.length) return;
     const color   = CAT_COLOR;
-    const catDone = catTasks.filter(t => prog[TASK_DATA.indexOf(t)]).length;
+    const catDone = catTasks.filter(t => prog[TASK_IDX.get(t)]).length;
     const catId   = `cat_${dayKey}_${cat}`;
     html += `<div style="background:white;border-radius:14px;box-shadow:var(--shadow);margin-bottom:10px;overflow:hidden;">
       <div onclick="toggleCat('${catId}')" style="padding:12px 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border-left:4px solid ${color};">
@@ -530,7 +530,7 @@ function renderCatGroups(tasks, prog, notes, dayKey) {
       </div>
       <div id="${catId}" style="display:none;">`;
     catTasks.forEach(t => {
-      const gi      = TASK_DATA.indexOf(t);
+      const gi      = TASK_IDX.get(t);
       const isDone  = !!prog[gi];
       const note    = notes[gi] || '';
       const canEdit = CR === 'admin' || t.owner === CU;
@@ -548,7 +548,7 @@ function renderCatGroups(tasks, prog, notes, dayKey) {
         <div class="task-detail" id="det_${gi}" style="padding:0 18px 12px 48px;">
           <div class="task-note-label">備註</div>
           ${canEdit
-            ? `<textarea class="task-note" placeholder="新增備註..." onchange="saveNote(${gi},this.value)">${note}</textarea>`
+            ? `<textarea class="task-note" placeholder="新增備註..." oninput="saveNote(${gi},this.value)">${note}</textarea>`
             : (note
                 ? `<div style="font-size:13px;color:var(--text-soft);padding:8px 12px;background:var(--gray-light);border-radius:8px;border-left:3px solid var(--gray-border);">${note}</div>`
                 : `<div style="font-size:13px;color:#ccc;">無備註</div>`)}
@@ -591,20 +591,20 @@ async function toggleTask(idx, cb) {
   const dayKey = currentDay === '全部' ? t.day : currentDay;
   const vis    = CR === 'admin' ? TASK_DATA : TASK_DATA.filter(t2 => t2.owner === CU);
   const catTasks = vis.filter(t2 => t2.cat === t.cat && t2.day === t.day);
-  const catDone  = catTasks.filter(t2 => prog[TASK_DATA.indexOf(t2)]).length;
+  const catDone  = catTasks.filter(t2 => prog[TASK_IDX.get(t2)]).length;
   const badge = document.getElementById(`catbadge_cat_${dayKey}_${t.cat}`);
   if (badge) badge.textContent = `${catDone}/${catTasks.length}`;
 
   // 全部頁同步更新日期徽章
   if (currentDay === '全部') {
     const dayTasks = vis.filter(t2 => t2.day === t.day);
-    const dayDone  = dayTasks.filter(t2 => prog[TASK_DATA.indexOf(t2)]).length;
+    const dayDone  = dayTasks.filter(t2 => prog[TASK_IDX.get(t2)]).length;
     const dayBadge = document.getElementById(`catbadge_day_${t.day}`);
     if (dayBadge) dayBadge.textContent = `${dayDone}/${dayTasks.length}`;
   }
 
   const total = vis.length;
-  const done  = vis.filter(t2 => prog[TASK_DATA.indexOf(t2)]).length;
+  const done  = vis.filter(t2 => prog[TASK_IDX.get(t2)]).length;
   const pct   = total ? Math.round(done / total * 100) : 0;
   document.getElementById('progBar').style.width  = pct + '%';
   document.getElementById('valDone').textContent  = done;
@@ -626,7 +626,6 @@ function saveNote(idx, val) {
 // ===== SETTINGS =====
 async function showSettings() {
   document.getElementById('headerTitle').textContent = '系統設定';
-  await _bgRefresh();
   const cfg = getConfig();
   cfgUsers = [...cfg.users];
 
