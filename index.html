@@ -285,14 +285,17 @@ async function apiSave(key, data) {
   _drainSaveQueue();
 }
 
-// ===== WEEK KEY（每週自動重置進度）=====
+// ===== WEEK KEY（每週六深夜自動重置，週日 00:00 起為新週）=====
 function getWeekKey() {
   const d = new Date();
-  const jan1 = new Date(d.getFullYear(), 0, 1);
-  const wk = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
-  return `${d.getFullYear()}-W${String(wk).padStart(2, '0')}`;
+  // 找本週週日（day=0），以週日日期為週次識別碼
+  const sunday = new Date(d);
+  sunday.setDate(d.getDate() - d.getDay());
+  const y  = sunday.getFullYear();
+  const m  = String(sunday.getMonth() + 1).padStart(2, '0');
+  const dd = String(sunday.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
 }
-const WEEK_KEY = getWeekKey();
 
 // ===== CONFIG =====
 const DEFAULT_USERS = ['康康', '麥莉', '報到組員', '簡報顧問'];
@@ -306,11 +309,11 @@ function getConfig() {
 async function saveConfigData(cfg) { await apiSave('__config__', cfg); }
 
 // ===== PROGRESS & NOTES =====
-function getProgData()  { return cache[`__prog_${WEEK_KEY}__`] || {}; }
-async function saveProgData(d)  { await apiSave(`__prog_${WEEK_KEY}__`, d); }
+function getProgData()  { return cache[`__prog_${getWeekKey()}__`] || {}; }
+async function saveProgData(d)  { await apiSave(`__prog_${getWeekKey()}__`, d); }
 
-function getNoteData()  { return cache['__notes__'] || {}; }
-async function saveNoteData(d)  { await apiSave('__notes__', d); }
+function getNoteData()  { return cache[`__notes_${getWeekKey()}__`] || {}; }
+async function saveNoteData(d)  { await apiSave(`__notes_${getWeekKey()}__`, d); }
 
 // ===== TASK DATA =====
 const TASK_DATA = [
@@ -704,8 +707,8 @@ async function manualSave(btn) {
     const prog  = getProgData();
     const notes = getNoteData();
     await Promise.all([
-      fetch(API_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ key: `__prog_${WEEK_KEY}__`, data: prog }) }),
-      fetch(API_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ key: '__notes__', data: notes }) })
+      fetch(API_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ key: `__prog_${getWeekKey()}__`, data: prog }) }),
+      fetch(API_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ key: `__notes_${getWeekKey()}__`, data: notes }) })
     ]);
     _lsSave();
     showToast('已儲存');
