@@ -108,7 +108,9 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .summary-bar-fill { height: 6px; border-radius: 4px; background: linear-gradient(90deg, var(--red), #e74c3c); transition: width 0.5s; }
 
 /* DAY TABS */
-.day-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.day-tabs { display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.day-tabs::-webkit-scrollbar { display: none; }
+.day-tab { flex-shrink: 0; }
 .day-tab {
   padding: 7px 14px; border-radius: 20px;
   border: 2px solid var(--gray-border);
