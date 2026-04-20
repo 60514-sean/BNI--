@@ -385,10 +385,22 @@ let cfgUsers = [];  // 設定頁暫存
 async function doLogin() {
   const name = document.getElementById('nameInput').value.trim();
   if (!name) return;
-  await Promise.race([_bgRefresh(), new Promise(r => setTimeout(r, 2000))]);
-  const cfg = getConfig();
-  const isAdmin = name === cfg.adminPassword;
-  const isUser  = cfg.users.includes(name) || isAdmin;
+
+  // 先用 localStorage cache 即時驗證，不等 API
+  let cfg = getConfig();
+  let isAdmin = name === cfg.adminPassword;
+  let isUser  = cfg.users.includes(name) || isAdmin;
+
+  // cache 找不到時才等 API（新使用者或首次開啟）
+  if (!isUser) {
+    await Promise.race([_bgRefresh(), new Promise(r => setTimeout(r, 3000))]);
+    cfg     = getConfig();
+    isAdmin = name === cfg.adminPassword;
+    isUser  = cfg.users.includes(name) || isAdmin;
+  } else {
+    _bgRefresh(); // 背景靜默更新，不阻塞登入
+  }
+
   if (!isUser) { document.getElementById('loginError').textContent = '找不到此姓名，請確認後重試'; return; }
   CU = name; CR = isAdmin ? 'admin' : 'user';
   document.getElementById('loginPage').style.display = 'none';
