@@ -533,12 +533,12 @@ function renderFlatTasks(tasks, prog, notes) {
             <span class="tag tag-freq">${t.freq}</span>
           </div>
         </div>
-        <button class="task-expand-btn" id="eb_${gi}" onclick="toggleExpand(${gi})">▾</button>
+        <button class="task-expand-btn" id="eb_${gi}" onclick="toggleExpand(${gi})" style="${note?'color:var(--red);':''}">▾</button>
       </div>
       <div class="task-detail" id="det_${gi}" style="padding:0 18px 12px 48px;">
         <div class="task-note-label">備註</div>
         ${canEdit
-          ? `<textarea class="task-note" placeholder="新增備註..." oninput="saveNote(${gi},this.value)">${note}</textarea>`
+          ? `<textarea class="task-note" placeholder="新增備註..." oninput="saveNote(${gi},this.value);document.getElementById('eb_${gi}').style.color=this.value?'var(--red)':'';">${note}</textarea>`
           : (note
               ? `<div style="font-size:13px;color:var(--text-soft);padding:8px 12px;background:var(--gray-light);border-radius:8px;border-left:3px solid var(--gray-border);">${note}</div>`
               : `<div style="font-size:13px;color:#ccc;">無備註</div>`)}
@@ -576,12 +576,12 @@ function renderCatGroups(tasks, prog, notes, dayKey) {
               <span class="tag tag-freq">${t.freq}</span>
             </div>
           </div>
-          <button class="task-expand-btn" id="eb_${gi}" onclick="toggleExpand(${gi})">▾</button>
+          <button class="task-expand-btn" id="eb_${gi}" onclick="toggleExpand(${gi})" style="${note?'color:var(--red);':''}">▾</button>
         </div>
         <div class="task-detail" id="det_${gi}" style="padding:0 18px 12px 48px;">
           <div class="task-note-label">備註</div>
           ${canEdit
-            ? `<textarea class="task-note" placeholder="新增備註..." oninput="saveNote(${gi},this.value)">${note}</textarea>`
+            ? `<textarea class="task-note" placeholder="新增備註..." oninput="saveNote(${gi},this.value);document.getElementById('eb_${gi}').style.color=this.value?'var(--red)':'';">${note}</textarea>`
             : (note
                 ? `<div style="font-size:13px;color:var(--text-soft);padding:8px 12px;background:var(--gray-light);border-radius:8px;border-left:3px solid var(--gray-border);">${note}</div>`
                 : `<div style="font-size:13px;color:#ccc;">無備註</div>`)}
