@@ -465,16 +465,14 @@ function renderMain() {
       if (!dayTasks.length) return;
       const isToday = day === TODAY_DAY;
       const dayDone = dayTasks.filter(t => prog[TASK_IDX.get(t)]).length;
-      const dayId   = `day_${day}`;
       html += `<div style="background:white;border-radius:14px;box-shadow:var(--shadow);margin-bottom:10px;overflow:hidden;">
-        <div onclick="toggleCat('${dayId}')" style="padding:13px 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border-left:4px solid var(--red);">
+        <div style="padding:13px 18px;display:flex;align-items:center;justify-content:space-between;border-left:4px solid var(--red);">
           <div style="display:flex;align-items:center;gap:10px;">
             <span style="font-size:14px;font-weight:700;color:var(--red);">${day}${isToday?'　<span style="font-size:11px;background:var(--red);color:white;border-radius:6px;padding:1px 7px;">今天</span>':''}</span>
             <span id="catbadge_day_${day}" style="font-size:12px;background:#c0392b18;color:var(--red);padding:2px 8px;border-radius:10px;">${dayDone}/${dayTasks.length}</span>
           </div>
-          <span id="arr_${dayId}" style="color:#bbb;font-size:12px;">▾</span>
         </div>
-        <div id="${dayId}" style="display:none;">${renderFlatTasks(dayTasks, prog, notes)}</div>
+        <div>${renderFlatTasks(dayTasks, prog, notes)}</div>
       </div>`;
     });
   } else {
@@ -483,30 +481,21 @@ function renderMain() {
 
   html += `</div><button class="page-save-btn" onclick="manualSave(this)" style="margin-bottom:24px;">儲存</button>`;
 
-  // 記憶展開狀態
-  const openIds = new Set();
-  document.querySelectorAll('[id]').forEach(el => {
-    if (el.style.display !== 'none' && (el.id.startsWith('cat_') || el.id.startsWith('day_') || el.id.startsWith('det_'))) {
-      openIds.add(el.id);
-    }
+  // 記憶任務備註展開狀態
+  const openDets = new Set();
+  document.querySelectorAll('[id^="det_"]').forEach(el => {
+    if (el.classList.contains('open')) openDets.add(el.id);
   });
 
   document.getElementById('mainContent').innerHTML = html;
 
-  // 還原展開狀態
-  openIds.forEach(id => {
+  // 還原任務備註展開狀態
+  openDets.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.style.display = '';
-    if (id.startsWith('det_')) {
-      el.classList.add('open');
-      const idx = id.replace('det_', '');
-      const eb = document.getElementById('eb_' + idx);
-      if (eb) eb.classList.add('open');
-    } else {
-      const arr = document.getElementById('arr_' + id);
-      if (arr) arr.textContent = '▲';
-    }
+    el.classList.add('open');
+    const eb = document.getElementById('eb_' + id.replace('det_', ''));
+    if (eb) eb.classList.add('open');
   });
 }
 
@@ -550,14 +539,11 @@ function renderCatGroups(tasks, prog, notes, dayKey) {
     const catDone = catTasks.filter(t => prog[TASK_IDX.get(t)]).length;
     const catId   = `cat_${dayKey}_${cat}`;
     html += `<div style="background:white;border-radius:14px;box-shadow:var(--shadow);margin-bottom:10px;overflow:hidden;">
-      <div onclick="toggleCat('${catId}')" style="padding:12px 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border-left:4px solid ${color};">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:14px;font-weight:700;color:${color};">${cat}</span>
-          <span id="catbadge_${catId}" style="font-size:12px;background:${color}18;color:${color};padding:2px 8px;border-radius:10px;">${catDone}/${catTasks.length}</span>
-        </div>
-        <span id="arr_${catId}" style="color:#bbb;font-size:12px;">▾</span>
+      <div style="padding:12px 18px;display:flex;align-items:center;gap:10px;border-left:4px solid ${color};">
+        <span style="font-size:14px;font-weight:700;color:${color};">${cat}</span>
+        <span id="catbadge_${catId}" style="font-size:12px;background:${color}18;color:${color};padding:2px 8px;border-radius:10px;">${catDone}/${catTasks.length}</span>
       </div>
-      <div id="${catId}" style="display:none;">`;
+      <div>`;
     catTasks.forEach(t => {
       const gi      = TASK_IDX.get(t);
       const isDone  = !!prog[gi];
