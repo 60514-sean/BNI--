@@ -478,7 +478,32 @@ function renderMain() {
   }
 
   html += `</div><button class="page-save-btn" onclick="manualSave(this)" style="margin-bottom:24px;">儲存</button>`;
+
+  // 記憶展開狀態
+  const openIds = new Set();
+  document.querySelectorAll('[id]').forEach(el => {
+    if (el.style.display !== 'none' && (el.id.startsWith('cat_') || el.id.startsWith('day_') || el.id.startsWith('det_'))) {
+      openIds.add(el.id);
+    }
+  });
+
   document.getElementById('mainContent').innerHTML = html;
+
+  // 還原展開狀態
+  openIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = '';
+    if (id.startsWith('det_')) {
+      el.classList.add('open');
+      const idx = id.replace('det_', '');
+      const eb = document.getElementById('eb_' + idx);
+      if (eb) eb.classList.add('open');
+    } else {
+      const arr = document.getElementById('arr_' + id);
+      if (arr) arr.textContent = '▲';
+    }
+  });
 }
 
 function renderFlatTasks(tasks, prog, notes) {
