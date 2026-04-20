@@ -149,8 +149,9 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .tag-owner { background: #eaf4fd; color: #1a6fa0; }
 .tag-category { background: var(--red-light); color: var(--red); }
 .tag-freq { background: #f0f0f0; color: #888; }
-.task-expand-btn { background: none; border: none; cursor: pointer; color: var(--text-soft); font-size: 16px; padding: 4px; transition: transform 0.2s; flex-shrink: 0; }
+.task-expand-btn { background: none; border: 2px solid transparent; border-radius: 50%; cursor: pointer; color: var(--text-soft); font-size: 16px; padding: 3px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; transition: transform 0.2s, color 0.2s, border-color 0.2s; flex-shrink: 0; }
 .task-expand-btn.open { transform: rotate(180deg); }
+.task-expand-btn.has-note { color: var(--red); border-color: var(--red); }
 .task-detail { padding: 0 18px 14px 52px; display: none; }
 .task-detail.open { display: block; }
 .task-note-label { font-size: 12px; color: var(--text-soft); margin-bottom: 5px; font-weight: 500; }
@@ -533,12 +534,12 @@ function renderFlatTasks(tasks, prog, notes) {
             <span class="tag tag-freq">${t.freq}</span>
           </div>
         </div>
-        <button class="task-expand-btn" id="eb_${gi}" onclick="toggleExpand(${gi})" style="${note?'color:var(--red);':''}">▾</button>
+        <button class="task-expand-btn${note?' has-note':''}" id="eb_${gi}" onclick="toggleExpand(${gi})">▾</button>
       </div>
       <div class="task-detail" id="det_${gi}" style="padding:0 18px 12px 48px;">
         <div class="task-note-label">備註</div>
         ${canEdit
-          ? `<textarea class="task-note" placeholder="新增備註..." oninput="saveNote(${gi},this.value);document.getElementById('eb_${gi}').style.color=this.value?'var(--red)':'';">${note}</textarea>`
+          ? `<textarea class="task-note" placeholder="新增備註..." oninput="saveNote(${gi},this.value);document.getElementById('eb_${gi}').classList.toggle('has-note',!!this.value);">${note}</textarea>`
           : (note
               ? `<div style="font-size:13px;color:var(--text-soft);padding:8px 12px;background:var(--gray-light);border-radius:8px;border-left:3px solid var(--gray-border);">${note}</div>`
               : `<div style="font-size:13px;color:#ccc;">無備註</div>`)}
@@ -576,12 +577,12 @@ function renderCatGroups(tasks, prog, notes, dayKey) {
               <span class="tag tag-freq">${t.freq}</span>
             </div>
           </div>
-          <button class="task-expand-btn" id="eb_${gi}" onclick="toggleExpand(${gi})" style="${note?'color:var(--red);':''}">▾</button>
+          <button class="task-expand-btn${note?' has-note':''}" id="eb_${gi}" onclick="toggleExpand(${gi})">▾</button>
         </div>
         <div class="task-detail" id="det_${gi}" style="padding:0 18px 12px 48px;">
           <div class="task-note-label">備註</div>
           ${canEdit
-            ? `<textarea class="task-note" placeholder="新增備註..." oninput="saveNote(${gi},this.value);document.getElementById('eb_${gi}').style.color=this.value?'var(--red)':'';">${note}</textarea>`
+            ? `<textarea class="task-note" placeholder="新增備註..." oninput="saveNote(${gi},this.value);document.getElementById('eb_${gi}').classList.toggle('has-note',!!this.value);">${note}</textarea>`
             : (note
                 ? `<div style="font-size:13px;color:var(--text-soft);padding:8px 12px;background:var(--gray-light);border-radius:8px;border-left:3px solid var(--gray-border);">${note}</div>`
                 : `<div style="font-size:13px;color:#ccc;">無備註</div>`)}
