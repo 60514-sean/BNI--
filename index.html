@@ -482,13 +482,18 @@ function renderMain() {
 
   html += `</div><button class="page-save-btn" onclick="manualSave(this)" style="margin-bottom:24px;">儲存</button>`;
 
-  // 記憶任務備註展開狀態
+  // 記憶頁籤捲動位置與任務備註展開狀態
+  const tabsScrollLeft = document.querySelector('.day-tabs')?.scrollLeft || 0;
   const openDets = new Set();
   document.querySelectorAll('[id^="det_"]').forEach(el => {
     if (el.classList.contains('open')) openDets.add(el.id);
   });
 
   document.getElementById('mainContent').innerHTML = html;
+
+  // 還原頁籤捲動位置
+  const tabsEl = document.querySelector('.day-tabs');
+  if (tabsEl) tabsEl.scrollLeft = tabsScrollLeft;
 
   // 還原任務備註展開狀態
   openDets.forEach(id => {
