@@ -940,7 +940,10 @@ function openEditMember(sheetRow) {
   overlay.id = 'memberModal';
   overlay.innerHTML = `
     <div class="modal-box">
-      <div class="modal-title">編輯會員資料</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div class="modal-title" style="margin-bottom:0;">編輯會員資料</div>
+        <button onclick="confirmDeleteMemberByRow(${sheetRow},'${_escH(m.name)}')" style="padding:5px 12px;background:white;border:1.5px solid #e74c3c;color:#e74c3c;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">刪除</button>
+      </div>
       <div class="modal-field"><div class="modal-label">姓名</div><input class="modal-input" id="mf_name" value="${_escH(m.name)}"></div>
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" value="${_escH(m.specialty)}"></div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" value="${_escH(m.company)}"></div>
@@ -952,6 +955,11 @@ function openEditMember(sheetRow) {
       </div>
     </div>`;
   document.body.appendChild(overlay);
+}
+
+function confirmDeleteMemberByRow(sheetRow, name) {
+  closeEditMember();
+  deleteMember(parseInt(sheetRow), name);
 }
 
 function closeEditMember() {
