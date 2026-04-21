@@ -892,17 +892,22 @@ async function renderMembers() {
   html += `<div class="member-grid">`;
   list.forEach(m => {
     html += `<div class="member-card">
-      <div class="member-info">
-        <div class="member-name">${_escH(m.name)}</div>
-        <div><span class="member-specialty">${_escH(m.specialty)}</span></div>
-        <div class="member-row">${_escH(m.company)}</div>
-        <div class="member-row"><a class="member-phone-link" href="tel:${_escH(m.phone)}">${_escH(m.phone)}</a></div>
-        <div class="member-row">${_escH(m.service)}</div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;">
+        <div class="member-info">
+          <div class="member-name">${_escH(m.name)}</div>
+          <div><span class="member-specialty">${_escH(m.specialty)}</span></div>
+          <div class="member-row">${_escH(m.company)}</div>
+          <div class="member-row"><a class="member-phone-link" href="tel:${_escH(m.phone)}">${_escH(m.phone)}</a></div>
+          <div class="member-row">${_escH(m.service)}</div>
+        </div>
+        ${m.renewDate || m.renewDays ? `<div style="margin-top:8px;display:flex;align-items:center;justify-content:flex-end;gap:6px;">
+          ${m.renewDate ? `<span style="font-size:12px;color:var(--text-soft);">到期：${_escH(m.renewDate)}</span>` : ''}
+          ${m.renewDays ? `<span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px;background:${parseInt(m.renewDays)>=120?'#eaf7ee':parseInt(m.renewDays)>=90?'#fef9e7':'#fdecea'};color:${parseInt(m.renewDays)>=120?'#27ae60':parseInt(m.renewDays)>=90?'#d4ac0d':'#c0392b'};">${_escH(m.renewDays)}天</span>` : ''}
+        </div>` : ''}
       </div>
-      <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px;">
-        ${m.renewDays ? `<span style="font-size:13px;font-weight:700;padding:4px 10px;border-radius:20px;background:${parseInt(m.renewDays)>=120?'#eaf7ee':parseInt(m.renewDays)>=90?'#fef9e7':'#fdecea'};color:${parseInt(m.renewDays)>=120?'#27ae60':parseInt(m.renewDays)>=90?'#d4ac0d':'#c0392b'};">${_escH(m.renewDays)}天</span>` : ''}
-        ${canEdit ? `<button class="member-edit-btn" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>` : ''}
-      </div>
+      ${canEdit ? `<div style="flex-shrink:0;margin-left:10px;">
+        <button class="member-edit-btn" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>
+      </div>` : ''}
     </div>`;
   });
   html += `</div>`;
