@@ -894,7 +894,7 @@ async function renderMembers() {
     const days = parseInt(m.renewDays);
     const daysBg    = days>=120?'#eaf7ee':days>=90?'#fef9e7':'#fdecea';
     const daysColor = days>=120?'#27ae60':days>=90?'#d4ac0d':'#c0392b';
-    html += `<div class="member-card" style="flex-direction:column;gap:0;padding:0;overflow:hidden;">
+    html += `<div class="member-card" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
       <!-- 上半：主資訊 -->
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 12px;">
         <div style="min-width:0;">
