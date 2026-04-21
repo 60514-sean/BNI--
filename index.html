@@ -831,7 +831,7 @@ function _parseCSV(text) {
 async function fetchMembers() {
   document.getElementById('memberContent').innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
   try {
-    const r = await fetch(MEMBER_CSV);
+    const r = await fetch(MEMBER_CSV + '&t=' + Date.now());
     const text = await r.text();
     const rows = _parseCSV(text);
     if (rows.length < 2) { _memberData = []; return; }
@@ -961,7 +961,6 @@ async function addMember() {
       body: JSON.stringify(payload)
     });
     showToast('已新增');
-    setTimeout(async () => { _memberData = null; await renderMembers(); }, 3000);
   } catch { showToast('新增失敗，請重試'); }
 }
 
@@ -996,7 +995,6 @@ async function deleteMember(sheetRow) {
       body: JSON.stringify({ action: 'deleteMember', name: memberName })
     });
     showToast('已刪除');
-    setTimeout(async () => { _memberData = null; await renderMembers(); }, 3000);
   } catch { showToast('刪除失敗，請重試'); }
 }
 
