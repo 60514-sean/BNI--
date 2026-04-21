@@ -800,7 +800,7 @@ function switchTab(tab) {
   document.getElementById('ptab_main').classList.toggle('active',   tab === 'main');
   document.getElementById('ptab_member').classList.toggle('active', tab === 'member');
   if (tab === 'main')   { document.getElementById('headerTitle').textContent = '每週工事追蹤'; renderMain(); }
-  if (tab === 'member') { document.getElementById('headerTitle').textContent = '會員資料'; _memberData = null; renderMembers(); }
+  if (tab === 'member') { document.getElementById('headerTitle').textContent = '會員資料'; renderMembers(); }
 }
 
 // ===== MEMBER =====
