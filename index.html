@@ -804,7 +804,8 @@ function switchTab(tab) {
 }
 
 // ===== MEMBER =====
-const MEMBER_CSV = 'https://docs.google.com/spreadsheets/d/1vaunMiu-soVacqsbvRxY1dDQ2ZLBghv0t9rTer3KdP0/export?format=csv&gid=466594149';
+const MEMBER_CSV  = 'https://docs.google.com/spreadsheets/d/1vaunMiu-soVacqsbvRxY1dDQ2ZLBghv0t9rTer3KdP0/export?format=csv&gid=466594149';
+const RENEWAL_CSV = 'https://docs.google.com/spreadsheets/d/1bTLtjQpaN8VdA4s6thz0ocK8aJ1q0JHc/export?format=csv&gid=191365952';
 let _memberData = null;
 
 function _parseCSV(text) {
@@ -831,22 +832,52 @@ function _parseCSV(text) {
 async function fetchMembers() {
   document.getElementById('memberContent').innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
   try {
-    const r = await fetch(MEMBER_CSV + '&t=' + Date.now());
-    const text = await r.text();
-    const rows = _parseCSV(text);
+    const t = Date.now();
+    const [r1, r2] = await Promise.all([
+      fetch(MEMBER_CSV  + '&t=' + t),
+      fetch(RENEWAL_CSV + '&t=' + t).catch(() => null)
+    ]);
+    const rows = _parseCSV(await r1.text());
     if (rows.length < 2) { _memberData = []; return; }
     const headers = rows[0];
     const idx = name => headers.findIndex(h => h.includes(name));
     const iName = idx('姓名'), iSpec = idx('專業別'), iComp = idx('公司'), iPhone = idx('電話'), iServ = idx('服務');
+
+    // 建立續約資料 map（姓名去空白作為 key）
+    const renewalMap = {};
+    if (r2) {
+      const rrows = _parseCSV(await r2.text());
+      if (rrows.length > 1) {
+        const rh = rrows[0];
+        const ri = n => rh.findIndex(h => h.includes(n));
+        const riName = ri('姓名'), riDays = ri('到期續約天數'), riStatus = ri('續約狀態'), riDate = ri('到期日');
+        rrows.slice(1).forEach(r => {
+          const key = (r[riName] || '').replace(/\s/g, '').trim();
+          if (key) renewalMap[key] = {
+            renewDays:   r[riDays]?.trim()   || '',
+            renewStatus: r[riStatus]?.trim() || '',
+            renewDate:   r[riDate]?.trim()   || '',
+          };
+        });
+      }
+    }
+
     _memberData = rows.slice(1)
-      .map((r, i) => ({
-        sheetRow: i + 2,
-        name:     r[iName]?.trim()  || '',
-        specialty:r[iSpec]?.trim()  || '',
-        company:  r[iComp]?.trim()  || '',
-        phone:    r[iPhone]?.trim() || '',
-        service:  r[iServ]?.trim()  || '',
-      }))
+      .map((r, i) => {
+        const name = r[iName]?.trim() || '';
+        const rv   = renewalMap[name.replace(/\s/g, '')] || {};
+        return {
+          sheetRow:    i + 2,
+          name,
+          specialty:   r[iSpec]?.trim()  || '',
+          company:     r[iComp]?.trim()  || '',
+          phone:       r[iPhone]?.trim() || '',
+          service:     r[iServ]?.trim()  || '',
+          renewDays:   rv.renewDays   || '',
+          renewStatus: rv.renewStatus || '',
+          renewDate:   rv.renewDate   || '',
+        };
+      })
       .filter(m => m.name);
   } catch(e) {
     document.getElementById('memberContent').innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試</div>`;
@@ -881,6 +912,11 @@ async function renderMembers() {
         <div class="member-row">${_escH(m.company)}</div>
         <div class="member-row"><a class="member-phone-link" href="tel:${_escH(m.phone)}">${_escH(m.phone)}</a></div>
         <div class="member-row">${_escH(m.service)}</div>
+        ${m.renewDate || m.renewDays || m.renewStatus ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--gray-border);display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+          ${m.renewDate   ? `<span style="font-size:12px;color:var(--text-soft);">到期：${_escH(m.renewDate)}</span>` : ''}
+          ${m.renewDays   ? `<span style="font-size:12px;padding:2px 8px;border-radius:20px;background:${parseInt(m.renewDays)<60?'#fdecea':'#eaf7ee'};color:${parseInt(m.renewDays)<60?'#c0392b':'#27ae60'};font-weight:700;">${_escH(m.renewDays)} 天</span>` : ''}
+          ${m.renewStatus.toLowerCase()==='v' ? `<span style="font-size:12px;padding:2px 8px;border-radius:20px;background:#eaf7ee;color:#27ae60;font-weight:700;">已續約</span>` : m.renewStatus ? '' : `<span style="font-size:12px;padding:2px 8px;border-radius:20px;background:#fdecea;color:#c0392b;font-weight:700;">未續約</span>`}
+        </div>` : ''}
       </div>
       ${canEdit ? `<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
         <button class="member-edit-btn" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>
