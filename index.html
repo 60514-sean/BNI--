@@ -1102,7 +1102,7 @@ async function saveMemberEdit(sheetRow) {
       fetch(API_URL, {
         method: 'POST', mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'updateMember', originalName, name: m.name, specialty: m.specialty, company: m.company, phone: m.phone, service: m.service })
+        body: JSON.stringify({ action: 'updateMember', sheetRow, originalName, name: m.name, specialty: m.specialty, company: m.company, phone: m.phone, service: m.service })
       }),
       fetch(API_URL, {
         method: 'POST', mode: 'no-cors',
