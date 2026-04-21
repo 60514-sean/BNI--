@@ -899,7 +899,7 @@ async function renderMembers() {
         <div class="member-row"><a class="member-phone-link" href="tel:${_escH(m.phone)}">${_escH(m.phone)}</a></div>
         <div class="member-row">${_escH(m.service)}</div>
       </div>
-      <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:6px;">
+      <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:6px;align-self:stretch;">
         ${canEdit ? `<button class="member-edit-btn" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>` : '<div></div>'}
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
           ${m.renewDays ? `<span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px;background:${parseInt(m.renewDays)>=120?'#eaf7ee':parseInt(m.renewDays)>=90?'#fef9e7':'#fdecea'};color:${parseInt(m.renewDays)>=120?'#27ae60':parseInt(m.renewDays)>=90?'#d4ac0d':'#c0392b'};">${_escH(m.renewDays)}天</span>` : ''}
