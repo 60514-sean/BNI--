@@ -899,7 +899,7 @@ async function renderMembers() {
     html += `<div class="member-card" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
       <!-- 上半：主資訊 -->
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 12px;">
-        <div style="min-width:0;">
+        <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
             <span class="member-name" style="margin:0;">${_escH(m.name)}</span>
             ${m.specialty ? `<span class="member-specialty">${_escH(m.specialty)}</span>` : ''}
