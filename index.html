@@ -958,9 +958,8 @@ async function addMember() {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
     });
-    _memberData = null;
-    await renderMembers();
     showToast('已新增');
+    setTimeout(async () => { _memberData = null; await renderMembers(); }, 3000);
   } catch { showToast('新增失敗，請重試'); }
 }
 
@@ -983,6 +982,9 @@ function confirmDeleteMember(sheetRow, name) {
 
 async function deleteMember(sheetRow) {
   closeEditMember();
+  // 樂觀更新：先從本地移除
+  if (_memberData) _memberData = _memberData.filter(x => x.sheetRow !== sheetRow);
+  renderMembers();
   showToast('刪除中...');
   try {
     await fetch(API_URL, {
@@ -990,9 +992,9 @@ async function deleteMember(sheetRow) {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'deleteMember', row: sheetRow })
     });
-    _memberData = null;
-    await renderMembers();
     showToast('已刪除');
+    // 等 GAS 處理完畢後重抓雲端資料確認同步
+    setTimeout(async () => { _memberData = null; await renderMembers(); }, 3000);
   } catch { showToast('刪除失敗，請重試'); }
 }
 
