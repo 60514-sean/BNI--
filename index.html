@@ -947,6 +947,16 @@ function openEditMember(sheetRow) {
         <div class="modal-title" style="margin-bottom:0;">編輯會員資料</div>
         <button onclick="confirmDeleteMemberByRow(${sheetRow},'${_escH(m.name)}')" style="padding:5px 12px;background:white;border:1.5px solid #e74c3c;color:#e74c3c;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">刪除</button>
       </div>
+      <div class="modal-field">
+        <div class="modal-label">大頭照</div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <img id="mf_photo_preview" src="${_escH(m.photo)}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2.5px solid #c0392b;background:#eee;flex-shrink:0;" onerror="this.style.visibility='hidden'">
+          <div>
+            <input type="file" id="mf_photo_file" accept="image/*" style="display:none" onchange="previewPhoto(this,'mf_photo_preview')">
+            <button onclick="document.getElementById('mf_photo_file').click()" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;">更換照片</button>
+          </div>
+        </div>
+      </div>
       <div class="modal-field"><div class="modal-label">姓名</div><input class="modal-input" id="mf_name" value="${_escH(m.name)}"></div>
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" value="${_escH(m.specialty)}"></div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" value="${_escH(m.company)}"></div>
@@ -987,6 +997,16 @@ function openAddMember() {
   overlay.innerHTML = `
     <div class="modal-box">
       <div class="modal-title">新增會員</div>
+      <div class="modal-field">
+        <div class="modal-label">大頭照</div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div id="mf_photo_preview" style="width:72px;height:72px;border-radius:50%;background:#e8ecf0;border:2.5px solid #c0392b;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:28px;flex-shrink:0;">?</div>
+          <div>
+            <input type="file" id="mf_photo_file" accept="image/*" style="display:none" onchange="previewPhotoNew(this)">
+            <button onclick="document.getElementById('mf_photo_file').click()" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;">上傳照片</button>
+          </div>
+        </div>
+      </div>
       <div class="modal-field"><div class="modal-label">姓名</div><input class="modal-input" id="mf_name" placeholder="輸入姓名"></div>
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" placeholder="輸入專業別"></div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" placeholder="輸入公司或品牌名稱"></div>
@@ -1007,25 +1027,34 @@ function openAddMember() {
 async function addMember() {
   const name = document.getElementById('mf_name').value.trim();
   if (!name) { showToast('請輸入姓名'); return; }
+  const photoFile = document.getElementById('mf_photo_file')?.files[0];
   const payload = {
-    action:        'addMember',
+    action:    'addMember',
     name,
-    specialty:     document.getElementById('mf_spec').value.trim(),
-    company:       document.getElementById('mf_comp').value.trim(),
-    phone:         document.getElementById('mf_phone').value.trim(),
-    service:       document.getElementById('mf_serv').value.trim(),
-    renewDate:     document.getElementById('mf_renewDate').value.trim(),
+    specialty: document.getElementById('mf_spec').value.trim(),
+    company:   document.getElementById('mf_comp').value.trim(),
+    phone:     document.getElementById('mf_phone').value.trim(),
+    service:   document.getElementById('mf_serv').value.trim(),
+    renewDate: document.getElementById('mf_renewDate').value.trim(),
     renewStatus: 'FALSE', renewApply: 'FALSE', renewPay: 'FALSE', renewComplete: 'FALSE', renewRibbon: 'FALSE',
   };
   closeEditMember();
   showToast('新增中...');
   try {
-    await fetch(API_URL, {
-      method: 'POST', mode: 'no-cors',
+    const r = await fetch(API_URL, {
+      method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
     });
+    const j = await r.json().catch(() => ({}));
+    if (photoFile && j.sheetRow) {
+      showToast('上傳照片中...');
+      await uploadMemberPhoto(j.sheetRow, photoFile);
+    }
+    _memberData = null;
     showToast('已新增');
+    if (_activeTab === 'member') renderMembers();
+    if (_activeTab === 'dm') renderDM();
   } catch { showToast('新增失敗，請重試'); }
 }
 
@@ -1083,6 +1112,7 @@ async function saveMemberEdit(sheetRow) {
   const m = _memberData.find(x => x.sheetRow === sheetRow);
   if (!m) return;
   const originalName = m.name;
+  const photoFile = document.getElementById('mf_photo_file')?.files[0];
   m.name         = document.getElementById('mf_name').value.trim();
   m.specialty    = document.getElementById('mf_spec').value.trim();
   m.company      = document.getElementById('mf_comp').value.trim();
@@ -1099,7 +1129,7 @@ async function saveMemberEdit(sheetRow) {
   renderMembers();
   showToast('儲存中...');
   try {
-    await Promise.all([
+    const tasks = [
       fetch(API_URL, {
         method: 'POST', mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
@@ -1110,7 +1140,13 @@ async function saveMemberEdit(sheetRow) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ action: 'updateRenewal', sheetRow, renewDate: m.renewDate, renewStatus: m.renewStatus, renewApply: m.renewApply, renewPay: m.renewPay, renewComplete: m.renewComplete, renewRibbon: m.renewRibbon })
       })
-    ]);
+    ];
+    if (photoFile) {
+      showToast('上傳照片中...');
+      const newUrl = await uploadMemberPhoto(sheetRow, photoFile);
+      if (newUrl) { m.photo = newUrl; renderMembers(); }
+    }
+    await Promise.all(tasks);
     showToast('已儲存');
   } catch { showToast('儲存失敗，請重試'); }
 }
@@ -1136,6 +1172,54 @@ async function manualSave(btn) {
     showToast('已儲存');
   } catch {}
   if (btn) { btn.disabled = false; btn.textContent = '儲存'; }
+}
+
+// ===== PHOTO UPLOAD =====
+function previewPhoto(input, previewId) {
+  if (!input.files[0]) return;
+  const img = document.getElementById(previewId);
+  if (img) { img.src = URL.createObjectURL(input.files[0]); img.style.visibility = ''; }
+}
+
+function previewPhotoNew(input) {
+  if (!input.files[0]) return;
+  const el = document.getElementById('mf_photo_preview');
+  if (!el) return;
+  const img = document.createElement('img');
+  img.id = 'mf_photo_preview';
+  img.src = URL.createObjectURL(input.files[0]);
+  img.style.cssText = 'width:72px;height:72px;border-radius:50%;object-fit:cover;border:2.5px solid #c0392b;background:#eee;flex-shrink:0;';
+  el.replaceWith(img);
+}
+
+async function resizeImage(file, maxPx = 400) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.src = url;
+  });
+}
+
+async function uploadMemberPhoto(sheetRow, file) {
+  try {
+    const base64 = await resizeImage(file, 400);
+    const r = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'uploadPhoto', sheetRow, base64 })
+    });
+    const j = await r.json().catch(() => ({}));
+    return j.url || null;
+  } catch { return null; }
 }
 
 // ===== DM =====
