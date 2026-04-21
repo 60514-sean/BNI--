@@ -906,7 +906,7 @@ async function renderMembers() {
           </div>
           <div class="member-row" style="margin-bottom:3px;">${_escH(m.company)}</div>
           <div class="member-row" style="margin-bottom:3px;"><a class="member-phone-link" href="tel:${_escH(m.phone)}">${_escH(m.phone)}</a></div>
-          <div class="member-row">${_escH(m.service)}</div>
+          <div class="member-row" style="font-size:12px;">${_escH(m.service)}</div>
         </div>
         ${canEdit ? `<button class="member-edit-btn" style="flex-shrink:0;" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>` : ''}
       </div>
