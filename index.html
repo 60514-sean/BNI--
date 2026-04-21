@@ -1005,7 +1005,7 @@ async function deleteMember(sheetRow, memberName) {
     await fetch(API_URL, {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'deleteMember', name: memberName })
+      body: JSON.stringify({ action: 'deleteMember', sheetRow: sheetRow, name: memberName })
     });
     showToast('已刪除');
   } catch { showToast('刪除失敗，請重試'); }
