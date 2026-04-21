@@ -867,10 +867,21 @@ async function fetchMembers() {
       }
     }
 
+    // 讀取本地覆蓋資料（優先於 BNI Connect CSV）
+    const localRenew = {};
+    for (const k in cache) {
+      if (k.startsWith('__renew_') && k.endsWith('__')) {
+        const name = k.slice(8, -2);
+        localRenew[name] = cache[k];
+      }
+    }
+
     _memberData = rows.slice(1)
       .map((r, i) => {
         const name = r[iName]?.trim() || '';
-        const rv   = renewalMap[name.replace(/\s/g, '')] || {};
+        const key  = name.replace(/\s/g, '');
+        const rv   = renewalMap[key] || {};
+        const lv   = localRenew[key] || {};
         return {
           sheetRow:    i + 2,
           name,
@@ -879,12 +890,12 @@ async function fetchMembers() {
           phone:       r[iPhone]?.trim() || '',
           service:     r[iServ]?.trim()  || '',
           renewDays:     rv.renewDays     || '',
-          renewStatus:   rv.renewStatus   || '',
-          renewDate:     rv.renewDate     || '',
-          renewApply:    rv.renewApply    || '',
-          renewPay:      rv.renewPay      || '',
-          renewComplete: rv.renewComplete || '',
-          renewRibbon:   rv.renewRibbon   || '',
+          renewStatus:   lv.renewStatus   ?? rv.renewStatus   ?? '',
+          renewDate:     lv.renewDate     ?? rv.renewDate     ?? '',
+          renewApply:    lv.renewApply    ?? rv.renewApply    ?? '',
+          renewPay:      lv.renewPay      ?? rv.renewPay      ?? '',
+          renewComplete: lv.renewComplete ?? rv.renewComplete ?? '',
+          renewRibbon:   lv.renewRibbon   ?? rv.renewRibbon   ?? '',
         };
       })
       .filter(m => m.name);
