@@ -867,21 +867,10 @@ async function fetchMembers() {
       }
     }
 
-    // 讀取本地覆蓋資料（優先於 BNI Connect CSV）
-    const localRenew = {};
-    for (const k in cache) {
-      if (k.startsWith('__renew_') && k.endsWith('__')) {
-        const name = k.slice(8, -2);
-        localRenew[name] = cache[k];
-      }
-    }
-
     _memberData = rows.slice(1)
       .map((r, i) => {
         const name = r[iName]?.trim() || '';
-        const key  = name.replace(/\s/g, '');
-        const rv   = renewalMap[key] || {};
-        const lv   = localRenew[key] || {};
+        const rv   = renewalMap[name.replace(/\s/g, '')] || {};
         return {
           sheetRow:    i + 2,
           name,
@@ -890,12 +879,12 @@ async function fetchMembers() {
           phone:       r[iPhone]?.trim() || '',
           service:     r[iServ]?.trim()  || '',
           renewDays:     rv.renewDays     || '',
-          renewStatus:   lv.renewStatus   ?? rv.renewStatus   ?? '',
-          renewDate:     lv.renewDate     ?? rv.renewDate     ?? '',
-          renewApply:    lv.renewApply    ?? rv.renewApply    ?? '',
-          renewPay:      lv.renewPay      ?? rv.renewPay      ?? '',
-          renewComplete: lv.renewComplete ?? rv.renewComplete ?? '',
-          renewRibbon:   lv.renewRibbon   ?? rv.renewRibbon   ?? '',
+          renewStatus:   rv.renewStatus   || '',
+          renewDate:     rv.renewDate     || '',
+          renewApply:    rv.renewApply    || '',
+          renewPay:      rv.renewPay      || '',
+          renewComplete: rv.renewComplete || '',
+          renewRibbon:   rv.renewRibbon   || '',
         };
       })
       .filter(m => m.name);
@@ -1105,11 +1094,6 @@ async function saveMemberEdit(sheetRow) {
   m.renewPay     = document.getElementById('mf_renewPay').checked     ? 'TRUE' : 'FALSE';
   m.renewComplete= document.getElementById('mf_renewComplete').checked ? 'TRUE' : 'FALSE';
   m.renewRibbon  = document.getElementById('mf_renewRibbon').checked  ? 'TRUE' : 'FALSE';
-
-  // 同步到雲端（與任務資料相同機制）
-  const _renewKey  = '__renew_' + originalName.replace(/\s/g,'') + '__';
-  const _renewData = { renewStatus: m.renewStatus, renewDate: m.renewDate, renewApply: m.renewApply, renewPay: m.renewPay, renewComplete: m.renewComplete, renewRibbon: m.renewRibbon };
-  apiSave(_renewKey, _renewData);
 
   closeEditMember();
   renderMembers();
