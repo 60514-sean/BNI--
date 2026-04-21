@@ -800,7 +800,7 @@ function switchTab(tab) {
   document.getElementById('ptab_main').classList.toggle('active',   tab === 'main');
   document.getElementById('ptab_member').classList.toggle('active', tab === 'member');
   if (tab === 'main')   { document.getElementById('headerTitle').textContent = '每週工事追蹤'; renderMain(); }
-  if (tab === 'member') { document.getElementById('headerTitle').textContent = '會員資料'; renderMembers(); }
+  if (tab === 'member') { document.getElementById('headerTitle').textContent = '會員資料'; _memberData = null; renderMembers(); }
 }
 
 // ===== MEMBER =====
@@ -862,7 +862,10 @@ async function renderMembers() {
     ? _memberData.filter(m => m.name.includes(q) || m.specialty.includes(q) || m.company.includes(q))
     : _memberData;
   const canEdit = CR === 'admin';
-  let html = `<input class="member-search" type="text" placeholder="搜尋姓名、專業別、公司..." value="${_escH(_memberSearch)}" oninput="_memberSearch=this.value;renderMembers()" autocomplete="off">`;
+  let html = `<div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
+    <input class="member-search" type="text" placeholder="搜尋姓名、專業別、公司..." value="${_escH(_memberSearch)}" oninput="_memberSearch=this.value;renderMembers()" autocomplete="off" style="margin-bottom:0;flex:1;">
+    <button onclick="_memberData=null;renderMembers()" style="flex-shrink:0;padding:11px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">重整</button>
+  </div>`;
   html += `<div style="font-size:13px;color:var(--text-soft);margin-bottom:10px;">${list.length} 位會員</div>`;
   html += `<div class="member-grid">`;
   list.forEach(m => {
@@ -874,11 +877,14 @@ async function renderMembers() {
         <div class="member-row"><a class="member-phone-link" href="tel:${_escH(m.phone)}">${_escH(m.phone)}</a></div>
         <div class="member-row">${_escH(m.service)}</div>
       </div>
-      ${canEdit ? `<button class="member-edit-btn" onclick="openEditMember(${m.sheetRow})">編輯</button>` : ''}
+      ${canEdit ? `<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+        <button class="member-edit-btn" onclick="openEditMember(${m.sheetRow})">編輯</button>
+        <button class="member-edit-btn" style="color:#e74c3c;border-color:#e74c3c;" onclick="confirmDeleteMember(${m.sheetRow},'${_escH(m.name)}')">刪除</button>
+      </div>` : ''}
     </div>`;
   });
   html += `</div>`;
-  if (list.length === 0) html = `<input class="member-search" type="text" placeholder="搜尋姓名、專業別、公司..." value="${_escH(_memberSearch)}" oninput="_memberSearch=this.value;renderMembers()" autocomplete="off"><div style="text-align:center;padding:48px 20px;color:var(--text-soft);">查無結果</div>`;
+  if (list.length === 0 && _memberData.length > 0) html = `<div style="display:flex;gap:8px;margin-bottom:14px;"><input class="member-search" type="text" placeholder="搜尋姓名、專業別、公司..." value="${_escH(_memberSearch)}" oninput="_memberSearch=this.value;renderMembers()" autocomplete="off" style="margin-bottom:0;flex:1;"><button onclick="_memberData=null;renderMembers()" style="flex-shrink:0;padding:11px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">重整</button></div><div style="text-align:center;padding:48px 20px;color:var(--text-soft);">查無結果</div>`;
   document.getElementById('memberContent').innerHTML = html;
 }
 
@@ -908,6 +914,38 @@ function openEditMember(sheetRow) {
 
 function closeEditMember() {
   document.getElementById('memberModal')?.remove();
+}
+
+function confirmDeleteMember(sheetRow, name) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'memberModal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-title" style="color:#e74c3c;">確認刪除</div>
+      <p style="font-size:15px;margin-bottom:8px;">確定要刪除 <strong>${_escH(name)}</strong> 的資料嗎？</p>
+      <p style="font-size:13px;color:var(--text-soft);">刪除後雲端試算表中的該筆資料也會一併移除，無法復原。</p>
+      <div class="modal-btns" style="margin-top:24px;">
+        <button class="modal-save" style="background:#e74c3c;" onclick="deleteMember(${sheetRow})">確認刪除</button>
+        <button class="modal-cancel" onclick="closeEditMember()">取消</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function deleteMember(sheetRow) {
+  closeEditMember();
+  showToast('刪除中...');
+  try {
+    await fetch(API_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'deleteMember', row: sheetRow })
+    });
+    _memberData = null;
+    await renderMembers();
+    showToast('已刪除');
+  } catch { showToast('刪除失敗，請重試'); }
 }
 
 async function saveMemberEdit(sheetRow) {
