@@ -896,9 +896,8 @@ async function renderMembers() {
           ${m.renewStatus==='TRUE' ? `<span style="font-size:12px;padding:2px 8px;border-radius:20px;background:#eaf7ee;color:#27ae60;font-weight:700;">已續約</span>` : `<span style="font-size:12px;padding:2px 8px;border-radius:20px;background:#fdecea;color:#c0392b;font-weight:700;">未續約</span>`}
         </div>` : ''}
       </div>
-      ${canEdit ? `<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+      ${canEdit ? `<div style="flex-shrink:0;">
         <button class="member-edit-btn" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>
-        <button class="member-edit-btn" style="color:#e74c3c;border-color:#e74c3c;" data-row="${m.sheetRow}" data-name="${_escH(m.name)}" onclick="confirmDeleteMember(this)">刪除</button>
       </div>` : ''}
     </div>`;
   });
