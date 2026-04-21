@@ -998,7 +998,10 @@ async function deleteMember(sheetRow, memberName) {
     memberName = m?.name || '';
   }
   closeEditMember();
-  if (_memberData) _memberData = _memberData.filter(x => x.sheetRow !== sheetRow);
+  if (_memberData) {
+    _memberData = _memberData.filter(x => x.sheetRow !== sheetRow);
+    _memberData.forEach(m => { if (m.sheetRow > sheetRow) m.sheetRow--; });
+  }
   renderMembers();
   showToast('刪除中...');
   try {
