@@ -873,17 +873,14 @@ async function renderMembers() {
     ${canEdit ? `<button onclick="openAddMember()" style="padding:7px 16px;background:var(--red);color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ 新增會員</button>` : ''}
   </div>`;
   html += `<div class="member-grid">`;
-  list.forEach((m, i) => {
+  list.forEach(m => {
     html += `<div class="member-card">
-      <div style="display:flex;align-items:flex-start;gap:12px;flex:1;min-width:0;">
-      <div style="flex-shrink:0;width:28px;height:28px;background:var(--red);color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-top:2px;">${i+1}</div>
       <div class="member-info">
         <div class="member-name">${_escH(m.name)}</div>
         <div><span class="member-specialty">${_escH(m.specialty)}</span></div>
         <div class="member-row">${_escH(m.company)}</div>
         <div class="member-row"><a class="member-phone-link" href="tel:${_escH(m.phone)}">${_escH(m.phone)}</a></div>
         <div class="member-row">${_escH(m.service)}</div>
-      </div>
       </div>
       ${canEdit ? `<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
         <button class="member-edit-btn" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>
