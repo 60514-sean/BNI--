@@ -890,15 +890,11 @@ async function renderMembers() {
         <div class="member-row">${_escH(m.company)}</div>
         <div class="member-row"><a class="member-phone-link" href="tel:${_escH(m.phone)}">${_escH(m.phone)}</a></div>
         <div class="member-row">${_escH(m.service)}</div>
-        ${m.renewDate || m.renewDays || m.renewStatus ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--gray-border);display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-          ${m.renewDate   ? `<span style="font-size:12px;color:var(--text-soft);">到期：${_escH(m.renewDate)}</span>` : ''}
-          ${m.renewDays   ? `<span style="font-size:12px;padding:2px 8px;border-radius:20px;background:${parseInt(m.renewDays)<60?'#fdecea':'#eaf7ee'};color:${parseInt(m.renewDays)<60?'#c0392b':'#27ae60'};font-weight:700;">${_escH(m.renewDays)} 天</span>` : ''}
-          ${m.renewStatus==='TRUE' ? `<span style="font-size:12px;padding:2px 8px;border-radius:20px;background:#eaf7ee;color:#27ae60;font-weight:700;">已續約</span>` : `<span style="font-size:12px;padding:2px 8px;border-radius:20px;background:#fdecea;color:#c0392b;font-weight:700;">未續約</span>`}
-        </div>` : ''}
       </div>
-      ${canEdit ? `<div style="flex-shrink:0;">
-        <button class="member-edit-btn" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>
-      </div>` : ''}
+      <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px;">
+        ${m.renewDays ? `<span style="font-size:13px;font-weight:700;padding:4px 10px;border-radius:20px;background:${parseInt(m.renewDays)<60?'#fdecea':'#eaf7ee'};color:${parseInt(m.renewDays)<60?'#c0392b':'#27ae60'};">${_escH(m.renewDays)}天</span>` : ''}
+        ${canEdit ? `<button class="member-edit-btn" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>` : ''}
+      </div>
     </div>`;
   });
   html += `</div>`;
