@@ -1105,6 +1105,12 @@ async function saveMemberEdit(sheetRow) {
   m.renewPay     = document.getElementById('mf_renewPay').checked     ? 'TRUE' : 'FALSE';
   m.renewComplete= document.getElementById('mf_renewComplete').checked ? 'TRUE' : 'FALSE';
   m.renewRibbon  = document.getElementById('mf_renewRibbon').checked  ? 'TRUE' : 'FALSE';
+
+  // 即時寫入 cache，確保重整後仍保留
+  const _renewKey = '__renew_' + originalName.replace(/\s/g,'') + '__';
+  cache[_renewKey] = { renewStatus: m.renewStatus, renewDate: m.renewDate, renewApply: m.renewApply, renewPay: m.renewPay, renewComplete: m.renewComplete, renewRibbon: m.renewRibbon };
+  _lsSave();
+
   closeEditMember();
   renderMembers();
   showToast('儲存中...');
