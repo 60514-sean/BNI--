@@ -329,7 +329,7 @@ async function _bgRefresh() {
   if (_refreshP) return _refreshP;
   _refreshP = fetch(API_URL, { signal: AbortSignal.timeout(8000) })
     .then(r => r.json())
-    .then(j => { if (j?.data) { cache = j.data; _lsSave(); } })
+    .then(j => { if (j && typeof j === 'object' && !j.error) { Object.assign(cache, j); _lsSave(); } })
     .catch(() => {})
     .finally(() => { _refreshP = null; });
   return _refreshP;
@@ -339,6 +339,7 @@ _bgRefresh();
 async function _syncAndRender() {
   await _bgRefresh();
   if (!CU) return;
+  if (_activeTab !== 'main') return;
   if (document.activeElement?.tagName === 'TEXTAREA') return;
   renderMain();
 }
@@ -712,7 +713,8 @@ async function toggleTask(idx, cb) {
     ttl.style.color = cb.checked ? '#bbb' : 'var(--text)';
   }
 
-  const t      = TASK_DATA[idx];
+  const t      = TASK_DATA.find(t => t.id === idx);
+  if (!t) return;
   const dayKey = currentDay === '全部' ? t.day : currentDay;
   const vis    = CR === 'admin' ? TASK_DATA : TASK_DATA.filter(t2 => t2.owner === CU);
   const catTasks = vis.filter(t2 => t2.cat === t.cat && t2.day === t.day);
