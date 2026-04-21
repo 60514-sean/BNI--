@@ -1028,6 +1028,9 @@ async function addMember() {
   const name = document.getElementById('mf_name').value.trim();
   if (!name) { showToast('請輸入姓名'); return; }
   const photoFile = document.getElementById('mf_photo_file')?.files[0];
+  const predictedRow = (_memberData && _memberData.length > 0)
+    ? Math.max(..._memberData.map(m => m.sheetRow)) + 1
+    : 2;
   const payload = {
     action:    'addMember',
     name,
@@ -1041,15 +1044,14 @@ async function addMember() {
   closeEditMember();
   showToast('新增中...');
   try {
-    const r = await fetch(API_URL, {
-      method: 'POST',
+    await fetch(API_URL, {
+      method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
     });
-    const j = await r.json().catch(() => ({}));
-    if (photoFile && j.sheetRow) {
+    if (photoFile) {
       showToast('上傳照片中...');
-      await uploadMemberPhoto(j.sheetRow, photoFile);
+      await uploadMemberPhoto(predictedRow, photoFile);
     }
     _memberData = null;
     showToast('已新增');
@@ -1143,11 +1145,10 @@ async function saveMemberEdit(sheetRow) {
     ];
     if (photoFile) {
       showToast('上傳照片中...');
-      const newUrl = await uploadMemberPhoto(sheetRow, photoFile);
-      if (newUrl) { m.photo = newUrl; renderMembers(); }
+      await uploadMemberPhoto(sheetRow, photoFile);
     }
     await Promise.all(tasks);
-    showToast('已儲存');
+    showToast('已儲存，照片重新整理後生效');
   } catch { showToast('儲存失敗，請重試'); }
 }
 
@@ -1212,13 +1213,12 @@ async function resizeImage(file, maxPx = 400) {
 async function uploadMemberPhoto(sheetRow, file) {
   try {
     const base64 = await resizeImage(file, 400);
-    const r = await fetch(API_URL, {
-      method: 'POST',
+    await fetch(API_URL, {
+      method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'uploadPhoto', sheetRow, base64 })
     });
-    const j = await r.json().catch(() => ({}));
-    return j.url || null;
+    return null;
   } catch { return null; }
 }
 
