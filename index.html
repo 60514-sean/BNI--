@@ -883,8 +883,8 @@ async function renderMembers() {
         <div class="member-row">${_escH(m.service)}</div>
       </div>
       ${canEdit ? `<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
-        <button class="member-edit-btn" onclick="openEditMember(${m.sheetRow})">編輯</button>
-        <button class="member-edit-btn" style="color:#e74c3c;border-color:#e74c3c;" onclick="confirmDeleteMember(${m.sheetRow},'${_escH(m.name)}')">刪除</button>
+        <button class="member-edit-btn" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>
+        <button class="member-edit-btn" style="color:#e74c3c;border-color:#e74c3c;" data-row="${m.sheetRow}" data-name="${_escH(m.name)}" onclick="confirmDeleteMember(this)">刪除</button>
       </div>` : ''}
     </div>`;
   });
@@ -964,21 +964,32 @@ async function addMember() {
   } catch { showToast('新增失敗，請重試'); }
 }
 
-function confirmDeleteMember(sheetRow, name) {
+function confirmDeleteMember(btn) {
+  const sheetRow = parseInt(btn.dataset.row);
+  const name = btn.dataset.name;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'memberModal';
+  overlay.dataset.delRow = sheetRow;
+  overlay.dataset.delName = name;
   overlay.innerHTML = `
     <div class="modal-box">
       <div class="modal-title" style="color:#e74c3c;">確認刪除</div>
       <p style="font-size:15px;margin-bottom:8px;">確定要刪除 <strong>${_escH(name)}</strong> 的資料嗎？</p>
       <p style="font-size:13px;color:var(--text-soft);">刪除後雲端試算表中的該筆資料也會一併移除，無法復原。</p>
       <div class="modal-btns" style="margin-top:24px;">
-        <button class="modal-save" style="background:#e74c3c;" onclick="deleteMember(${sheetRow},'${_escH(name)}')">確認刪除</button>
+        <button class="modal-save" style="background:#e74c3c;" onclick="deleteMemberFromModal()">確認刪除</button>
         <button class="modal-cancel" onclick="closeEditMember()">取消</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
+}
+
+function deleteMemberFromModal() {
+  const overlay = document.getElementById('memberModal');
+  const sheetRow = parseInt(overlay.dataset.delRow);
+  const memberName = overlay.dataset.delName;
+  deleteMember(sheetRow, memberName);
 }
 
 async function deleteMember(sheetRow, memberName) {
