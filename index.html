@@ -892,7 +892,7 @@ async function renderMembers() {
         <div class="member-row">${_escH(m.service)}</div>
       </div>
       <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px;">
-        ${m.renewDays ? `<span style="font-size:13px;font-weight:700;padding:4px 10px;border-radius:20px;background:${parseInt(m.renewDays)<60?'#fdecea':'#eaf7ee'};color:${parseInt(m.renewDays)<60?'#c0392b':'#27ae60'};">${_escH(m.renewDays)}天</span>` : ''}
+        ${m.renewDays ? `<span style="font-size:13px;font-weight:700;padding:4px 10px;border-radius:20px;background:${parseInt(m.renewDays)>=120?'#eaf7ee':parseInt(m.renewDays)>=90?'#fef9e7':'#fdecea'};color:${parseInt(m.renewDays)>=120?'#27ae60':parseInt(m.renewDays)>=90?'#d4ac0d':'#c0392b'};">${_escH(m.renewDays)}天</span>` : ''}
         ${canEdit ? `<button class="member-edit-btn" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>` : ''}
       </div>
     </div>`;
