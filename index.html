@@ -1115,11 +1115,18 @@ async function saveMemberEdit(sheetRow) {
   renderMembers();
   showToast('儲存中...');
   try {
-    await fetch(API_URL, {
-      method: 'POST', mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'updateMember', sheetRow, originalName, name: m.name, specialty: m.specialty, company: m.company, phone: m.phone, service: m.service })
-    });
+    await Promise.all([
+      fetch(API_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'updateMember', sheetRow, originalName, name: m.name, specialty: m.specialty, company: m.company, phone: m.phone, service: m.service })
+      }),
+      fetch(API_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'updateRenewal', name: originalName, renewDate: m.renewDate, renewStatus: m.renewStatus, renewApply: m.renewApply, renewPay: m.renewPay, renewComplete: m.renewComplete, renewRibbon: m.renewRibbon })
+      })
+    ]);
     showToast('已儲存');
   } catch { showToast('儲存失敗，請重試'); }
 }
