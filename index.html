@@ -932,6 +932,7 @@ async function renderMembers() {
 function _escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function openEditMember(sheetRow) {
+  sheetRow = parseInt(sheetRow);
   const m = _memberData.find(x => x.sheetRow === sheetRow);
   if (!m) return;
   const overlay = document.createElement('div');
