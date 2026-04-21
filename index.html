@@ -838,14 +838,16 @@ async function fetchMembers() {
     const headers = rows[0];
     const idx = name => headers.findIndex(h => h.includes(name));
     const iName = idx('姓名'), iSpec = idx('專業別'), iComp = idx('公司'), iPhone = idx('電話'), iServ = idx('服務');
-    _memberData = rows.slice(1).filter(r => r[iName]?.trim()).map((r, i) => ({
-      sheetRow: i + 2,
-      name:     r[iName]?.trim()  || '',
-      specialty:r[iSpec]?.trim()  || '',
-      company:  r[iComp]?.trim()  || '',
-      phone:    r[iPhone]?.trim() || '',
-      service:  r[iServ]?.trim()  || '',
-    }));
+    _memberData = rows.slice(1)
+      .map((r, i) => ({
+        sheetRow: i + 2,
+        name:     r[iName]?.trim()  || '',
+        specialty:r[iSpec]?.trim()  || '',
+        company:  r[iComp]?.trim()  || '',
+        phone:    r[iPhone]?.trim() || '',
+        service:  r[iServ]?.trim()  || '',
+      }))
+      .filter(m => m.name);
   } catch(e) {
     document.getElementById('memberContent').innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試</div>`;
     _memberData = null;
