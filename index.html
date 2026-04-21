@@ -866,7 +866,10 @@ async function renderMembers() {
     <input class="member-search" type="text" placeholder="搜尋姓名、專業別、公司..." value="${_escH(_memberSearch)}" oninput="_memberSearch=this.value;renderMembers()" autocomplete="off" style="margin-bottom:0;flex:1;">
     <button onclick="_memberData=null;renderMembers()" style="flex-shrink:0;padding:11px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">重整</button>
   </div>`;
-  html += `<div style="font-size:13px;color:var(--text-soft);margin-bottom:10px;">${list.length} 位會員</div>`;
+  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <span style="font-size:13px;color:var(--text-soft);">${list.length} 位會員</span>
+    ${canEdit ? `<button onclick="openAddMember()" style="padding:7px 16px;background:var(--red);color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ 新增會員</button>` : ''}
+  </div>`;
   html += `<div class="member-grid">`;
   list.forEach(m => {
     html += `<div class="member-card">
@@ -914,6 +917,51 @@ function openEditMember(sheetRow) {
 
 function closeEditMember() {
   document.getElementById('memberModal')?.remove();
+}
+
+function openAddMember() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'memberModal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-title">新增會員</div>
+      <div class="modal-field"><div class="modal-label">姓名</div><input class="modal-input" id="mf_name" placeholder="輸入姓名"></div>
+      <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" placeholder="輸入專業別"></div>
+      <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" placeholder="輸入公司或品牌名稱"></div>
+      <div class="modal-field"><div class="modal-label">電話</div><input class="modal-input" id="mf_phone" type="tel" placeholder="輸入電話"></div>
+      <div class="modal-field"><div class="modal-label">服務項目</div><input class="modal-input" id="mf_serv" placeholder="輸入服務項目（20字內）"></div>
+      <div class="modal-btns">
+        <button class="modal-save" onclick="addMember()">新增</button>
+        <button class="modal-cancel" onclick="closeEditMember()">取消</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function addMember() {
+  const name = document.getElementById('mf_name').value.trim();
+  if (!name) { showToast('請輸入姓名'); return; }
+  const payload = {
+    action:    'addMember',
+    name,
+    specialty: document.getElementById('mf_spec').value.trim(),
+    company:   document.getElementById('mf_comp').value.trim(),
+    phone:     document.getElementById('mf_phone').value.trim(),
+    service:   document.getElementById('mf_serv').value.trim(),
+  };
+  closeEditMember();
+  showToast('新增中...');
+  try {
+    await fetch(API_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    _memberData = null;
+    await renderMembers();
+    showToast('已新增');
+  } catch { showToast('新增失敗，請重試'); }
 }
 
 function confirmDeleteMember(sheetRow, name) {
