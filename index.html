@@ -864,22 +864,30 @@ async function fetchMembers() {
 }
 
 let _memberSearch = '';
+let _memberFilter = ''; // '' | '120' | '90'
 
 async function renderMembers() {
   if (!_memberData) await fetchMembers();
   if (!_memberData) return;
   const q = _memberSearch.toLowerCase();
-  const list = q
+  let list = q
     ? _memberData.filter(m => m.name.includes(q) || m.specialty.includes(q) || m.company.includes(q))
     : _memberData;
+  if (_memberFilter === '120') list = list.filter(m => { const d = parseInt(m.renewDays); return d >= 90 && d <= 119; });
+  if (_memberFilter === '90')  list = list.filter(m => parseInt(m.renewDays) <= 89);
   const canEdit = CR === 'admin';
+  const btnStyle = (f, bg, color) => `padding:7px 12px;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;background:${_memberFilter===f?bg:'white'};color:${_memberFilter===f?color:bg};border:1.5px solid ${bg};`;
   let html = `<div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
     <input class="member-search" type="text" placeholder="搜尋姓名、專業別、公司..." value="${_escH(_memberSearch)}" oninput="_memberSearch=this.value;renderMembers()" autocomplete="off" style="margin-bottom:0;flex:1;">
     <button onclick="_memberData=null;renderMembers()" style="flex-shrink:0;padding:11px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">重整</button>
   </div>`;
-  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
     <span style="font-size:13px;color:var(--text-soft);">${list.length} 位會員</span>
-    ${canEdit ? `<button onclick="openAddMember()" style="padding:7px 16px;background:var(--red);color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ 新增會員</button>` : ''}
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <button onclick="_memberFilter=_memberFilter==='120'?'':'120';renderMembers()" style="${btnStyle('120','#d4ac0d','white')}">120天</button>
+      <button onclick="_memberFilter=_memberFilter==='90'?'':'90';renderMembers()"  style="${btnStyle('90','#c0392b','white')}">90天</button>
+      ${canEdit ? `<button onclick="openAddMember()" style="padding:7px 16px;background:var(--red);color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ 新增會員</button>` : ''}
+    </div>
   </div>`;
   html += `<div class="member-grid">`;
   list.forEach(m => {
