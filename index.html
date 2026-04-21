@@ -983,8 +983,9 @@ function confirmDeleteMember(sheetRow, name) {
 }
 
 async function deleteMember(sheetRow) {
+  const m = _memberData?.find(x => x.sheetRow === sheetRow);
+  const memberName = m?.name || '';
   closeEditMember();
-  // 樂觀更新：先從本地移除
   if (_memberData) _memberData = _memberData.filter(x => x.sheetRow !== sheetRow);
   renderMembers();
   showToast('刪除中...');
@@ -992,10 +993,9 @@ async function deleteMember(sheetRow) {
     await fetch(API_URL, {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'deleteMember', row: sheetRow })
+      body: JSON.stringify({ action: 'deleteMember', name: memberName })
     });
     showToast('已刪除');
-    // 等 GAS 處理完畢後重抓雲端資料確認同步
     setTimeout(async () => { _memberData = null; await renderMembers(); }, 3000);
   } catch { showToast('刪除失敗，請重試'); }
 }
@@ -1003,6 +1003,7 @@ async function deleteMember(sheetRow) {
 async function saveMemberEdit(sheetRow) {
   const m = _memberData.find(x => x.sheetRow === sheetRow);
   if (!m) return;
+  const originalName = m.name;
   m.name      = document.getElementById('mf_name').value.trim();
   m.specialty = document.getElementById('mf_spec').value.trim();
   m.company   = document.getElementById('mf_comp').value.trim();
@@ -1015,7 +1016,7 @@ async function saveMemberEdit(sheetRow) {
     await fetch(API_URL, {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'updateMember', row: sheetRow, name: m.name, specialty: m.specialty, company: m.company, phone: m.phone, service: m.service })
+      body: JSON.stringify({ action: 'updateMember', originalName, name: m.name, specialty: m.specialty, company: m.company, phone: m.phone, service: m.service })
     });
     showToast('已儲存');
   } catch { showToast('儲存失敗，請重試'); }
