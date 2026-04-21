@@ -977,13 +977,6 @@ function openAddMember() {
       <div style="border-top:1px solid var(--gray-border);margin:14px 0 10px;padding-top:12px;">
         <div class="modal-label" style="margin-bottom:10px;">續約資訊</div>
         <div class="modal-field"><div class="modal-label">到期日</div><input class="modal-input" id="mf_renewDate" placeholder="例：2027/2/1"></div>
-        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:4px;">
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" id="mf_renewApply">申請書</label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" id="mf_renewPay">繳費</label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" id="mf_renewComplete">完成續約</label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" id="mf_renewRibbon">綢帶/頒獎</label>
-          <input type="hidden" id="mf_renewStatus" value="FALSE">
-        </div>
       </div>
       <div class="modal-btns">
         <button class="modal-save" onclick="addMember()">新增</button>
@@ -1004,11 +997,7 @@ async function addMember() {
     phone:         document.getElementById('mf_phone').value.trim(),
     service:       document.getElementById('mf_serv').value.trim(),
     renewDate:     document.getElementById('mf_renewDate').value.trim(),
-    renewStatus:   'FALSE',
-    renewApply:    document.getElementById('mf_renewApply').checked    ? 'TRUE' : 'FALSE',
-    renewPay:      document.getElementById('mf_renewPay').checked      ? 'TRUE' : 'FALSE',
-    renewComplete: document.getElementById('mf_renewComplete').checked ? 'TRUE' : 'FALSE',
-    renewRibbon:   document.getElementById('mf_renewRibbon').checked   ? 'TRUE' : 'FALSE',
+    renewStatus: 'FALSE', renewApply: 'FALSE', renewPay: 'FALSE', renewComplete: 'FALSE', renewRibbon: 'FALSE',
   };
   closeEditMember();
   showToast('新增中...');
