@@ -891,20 +891,29 @@ async function renderMembers() {
   </div>`;
   html += `<div class="member-grid">`;
   list.forEach(m => {
-    html += `<div class="member-card">
-      <div class="member-info" style="flex:1;min-width:0;">
-        <div class="member-name">${_escH(m.name)}</div>
-        <div><span class="member-specialty">${_escH(m.specialty)}</span></div>
-        <div class="member-row">${_escH(m.company)}</div>
-        <div class="member-row"><a class="member-phone-link" href="tel:${_escH(m.phone)}">${_escH(m.phone)}</a></div>
-        <div class="member-row">${_escH(m.service)}</div>
+    const days = parseInt(m.renewDays);
+    const daysBg    = days>=120?'#eaf7ee':days>=90?'#fef9e7':'#fdecea';
+    const daysColor = days>=120?'#27ae60':days>=90?'#d4ac0d':'#c0392b';
+    html += `<div class="member-card" style="flex-direction:column;gap:0;padding:0;overflow:hidden;">
+      <!-- 上半：主資訊 -->
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 12px;">
+        <div style="min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+            <span class="member-name" style="margin:0;">${_escH(m.name)}</span>
+            ${m.specialty ? `<span class="member-specialty">${_escH(m.specialty)}</span>` : ''}
+          </div>
+          <div class="member-row" style="margin-bottom:3px;">${_escH(m.company)}</div>
+          <div class="member-row" style="margin-bottom:3px;"><a class="member-phone-link" href="tel:${_escH(m.phone)}">${_escH(m.phone)}</a></div>
+          <div class="member-row">${_escH(m.service)}</div>
+        </div>
+        ${canEdit ? `<button class="member-edit-btn" style="flex-shrink:0;" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>` : ''}
       </div>
-      <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:6px;align-self:stretch;">
-        ${canEdit ? `<button class="member-edit-btn" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>` : '<div></div>'}
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
-          ${m.renewDays ? `<span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px;background:${parseInt(m.renewDays)>=120?'#eaf7ee':parseInt(m.renewDays)>=90?'#fef9e7':'#fdecea'};color:${parseInt(m.renewDays)>=120?'#27ae60':parseInt(m.renewDays)>=90?'#d4ac0d':'#c0392b'};">${_escH(m.renewDays)}天</span>` : ''}
-          ${m.renewStatus==='TRUE' ? `<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:#eaf7ee;color:#27ae60;">已續約</span>` : `<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:#fdecea;color:#c0392b;">未續約</span>`}
-          ${m.renewDate ? `<span style="font-size:11px;color:var(--text-soft);white-space:nowrap;">到期：${_escH(m.renewDate)}</span>` : ''}
+      <!-- 下半：續約資訊 -->
+      <div style="border-top:1px solid var(--gray-border);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fafbfc;flex-wrap:wrap;">
+        <span style="font-size:12px;color:var(--text-soft);">${m.renewDate ? '到期：'+_escH(m.renewDate) : ''}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          ${m.renewDays ? `<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:${daysBg};color:${daysColor};">${_escH(m.renewDays)}天</span>` : ''}
+          ${m.renewStatus==='TRUE' ? `<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:#eaf7ee;color:#27ae60;">已續約</span>` : `<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:#fdecea;color:#c0392b;">未續約</span>`}
         </div>
       </div>
     </div>`;
