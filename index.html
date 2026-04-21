@@ -804,8 +804,7 @@ function switchTab(tab) {
 }
 
 // ===== MEMBER =====
-const MEMBER_CSV  = 'https://docs.google.com/spreadsheets/d/1vaunMiu-soVacqsbvRxY1dDQ2ZLBghv0t9rTer3KdP0/export?format=csv&gid=466594149';
-const RENEWAL_CSV = 'https://docs.google.com/spreadsheets/d/1l4CjqF57M3zQMShC0Iypf3kk2vo7L74_ULSZUy26TaE/export?format=csv&gid=0';
+const MEMBER_CSV = 'https://docs.google.com/spreadsheets/d/1vaunMiu-soVacqsbvRxY1dDQ2ZLBghv0t9rTer3KdP0/export?format=csv&gid=466594149';
 let _memberData = null;
 
 function _parseCSV(text) {
@@ -832,61 +831,31 @@ function _parseCSV(text) {
 async function fetchMembers() {
   document.getElementById('memberContent').innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
   try {
-    const t = Date.now();
-    const [r1, r2] = await Promise.all([
-      fetch(MEMBER_CSV  + '&t=' + t),
-      fetch(RENEWAL_CSV + '&t=' + t).catch(() => null)
-    ]);
-    const rows = _parseCSV(await r1.text());
+    const r = await fetch(MEMBER_CSV + '&t=' + Date.now());
+    const rows = _parseCSV(await r.text());
     if (rows.length < 2) { _memberData = []; return; }
     const headers = rows[0];
     const idx = name => headers.findIndex(h => h.includes(name));
     const iName = idx('姓名'), iSpec = idx('專業別'), iComp = idx('公司'), iPhone = idx('電話'), iServ = idx('服務');
-
-    // 建立續約資料 map（姓名去空白作為 key）
-    const renewalMap = {};
-    if (r2) {
-      const rrows = _parseCSV(await r2.text());
-      if (rrows.length > 1) {
-        const rh = rrows[0];
-        const ri = n => rh.findIndex(h => h.includes(n));
-        const riName = ri('姓名'), riDays = ri('到期續約天數'), riStatus = ri('續約狀態'), riDate = ri('到期日');
-        const riApply = ri('申請書'), riPay = ri('繳費'), riComplete = ri('完成續約'), riRibbon = ri('綢帶');
-        rrows.slice(1).forEach(r => {
-          const key = (r[riName] || '').replace(/\s/g, '').trim();
-          if (key) renewalMap[key] = {
-            renewDays:     r[riDays]?.trim()     || '',
-            renewStatus:   r[riStatus]?.trim()   || '',
-            renewDate:     r[riDate]?.trim()     || '',
-            renewApply:    r[riApply]?.trim()    || '',
-            renewPay:      r[riPay]?.trim()      || '',
-            renewComplete: r[riComplete]?.trim() || '',
-            renewRibbon:   r[riRibbon]?.trim()   || '',
-          };
-        });
-      }
-    }
+    const iDays = idx('到期續約天數'), iStatus = idx('續約狀態'), iDate = idx('到期日');
+    const iApply = idx('申請書'), iPay = idx('繳費'), iComplete = idx('完成續約'), iRibbon = idx('綢帶');
 
     _memberData = rows.slice(1)
-      .map((r, i) => {
-        const name = r[iName]?.trim() || '';
-        const rv   = renewalMap[name.replace(/\s/g, '')] || {};
-        return {
-          sheetRow:    i + 2,
-          name,
-          specialty:   r[iSpec]?.trim()  || '',
-          company:     r[iComp]?.trim()  || '',
-          phone:       r[iPhone]?.trim() || '',
-          service:     r[iServ]?.trim()  || '',
-          renewDays:     rv.renewDays     || '',
-          renewStatus:   rv.renewStatus   || '',
-          renewDate:     rv.renewDate     || '',
-          renewApply:    rv.renewApply    || '',
-          renewPay:      rv.renewPay      || '',
-          renewComplete: rv.renewComplete || '',
-          renewRibbon:   rv.renewRibbon   || '',
-        };
-      })
+      .map((r, i) => ({
+        sheetRow:    i + 2,
+        name:        r[iName]?.trim()     || '',
+        specialty:   r[iSpec]?.trim()     || '',
+        company:     r[iComp]?.trim()     || '',
+        phone:       r[iPhone]?.trim()    || '',
+        service:     r[iServ]?.trim()     || '',
+        renewDays:   r[iDays]?.trim()     || '',
+        renewStatus: r[iStatus]?.trim()   || '',
+        renewDate:   r[iDate]?.trim()     || '',
+        renewApply:  r[iApply]?.trim()    || '',
+        renewPay:    r[iPay]?.trim()      || '',
+        renewComplete: r[iComplete]?.trim() || '',
+        renewRibbon: r[iRibbon]?.trim()   || '',
+      }))
       .filter(m => m.name);
   } catch(e) {
     document.getElementById('memberContent').innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試</div>`;
@@ -924,7 +893,7 @@ async function renderMembers() {
         ${m.renewDate || m.renewDays || m.renewStatus ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--gray-border);display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
           ${m.renewDate   ? `<span style="font-size:12px;color:var(--text-soft);">到期：${_escH(m.renewDate)}</span>` : ''}
           ${m.renewDays   ? `<span style="font-size:12px;padding:2px 8px;border-radius:20px;background:${parseInt(m.renewDays)<60?'#fdecea':'#eaf7ee'};color:${parseInt(m.renewDays)<60?'#c0392b':'#27ae60'};font-weight:700;">${_escH(m.renewDays)} 天</span>` : ''}
-          ${m.renewStatus.toLowerCase()==='v' ? `<span style="font-size:12px;padding:2px 8px;border-radius:20px;background:#eaf7ee;color:#27ae60;font-weight:700;">已續約</span>` : m.renewStatus ? '' : `<span style="font-size:12px;padding:2px 8px;border-radius:20px;background:#fdecea;color:#c0392b;font-weight:700;">未續約</span>`}
+          ${m.renewStatus==='TRUE' ? `<span style="font-size:12px;padding:2px 8px;border-radius:20px;background:#eaf7ee;color:#27ae60;font-weight:700;">已續約</span>` : `<span style="font-size:12px;padding:2px 8px;border-radius:20px;background:#fdecea;color:#c0392b;font-weight:700;">未續約</span>`}
         </div>` : ''}
       </div>
       ${canEdit ? `<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
@@ -962,7 +931,7 @@ function openEditMember(sheetRow) {
         <div class="modal-label" style="margin-bottom:10px;">續約資訊</div>
         <div class="modal-field"><div class="modal-label">到期日</div><input class="modal-input" id="mf_renewDate" value="${_escH(m.renewDate)}"></div>
         <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:4px;">
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" id="mf_renewStatus"   ${m.renewStatus.toLowerCase()==='v'?'checked':''}>續約狀態</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" id="mf_renewStatus"   ${m.renewStatus==='TRUE'?'checked':''}>續約狀態</label>
           <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" id="mf_renewApply"    ${m.renewApply==='TRUE'?'checked':''}>申請書</label>
           <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" id="mf_renewPay"      ${m.renewPay==='TRUE'?'checked':''}>繳費</label>
           <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" id="mf_renewComplete" ${m.renewComplete==='TRUE'?'checked':''}>完成續約</label>
@@ -1089,7 +1058,7 @@ async function saveMemberEdit(sheetRow) {
   m.phone        = document.getElementById('mf_phone').value.trim();
   m.service      = document.getElementById('mf_serv').value.trim();
   m.renewDate    = document.getElementById('mf_renewDate').value.trim();
-  m.renewStatus  = document.getElementById('mf_renewStatus').checked ? 'v' : '';
+  m.renewStatus  = document.getElementById('mf_renewStatus').checked ? 'TRUE' : 'FALSE';
   m.renewApply   = document.getElementById('mf_renewApply').checked   ? 'TRUE' : 'FALSE';
   m.renewPay     = document.getElementById('mf_renewPay').checked     ? 'TRUE' : 'FALSE';
   m.renewComplete= document.getElementById('mf_renewComplete').checked ? 'TRUE' : 'FALSE';
