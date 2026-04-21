@@ -974,16 +974,18 @@ function confirmDeleteMember(sheetRow, name) {
       <p style="font-size:15px;margin-bottom:8px;">確定要刪除 <strong>${_escH(name)}</strong> 的資料嗎？</p>
       <p style="font-size:13px;color:var(--text-soft);">刪除後雲端試算表中的該筆資料也會一併移除，無法復原。</p>
       <div class="modal-btns" style="margin-top:24px;">
-        <button class="modal-save" style="background:#e74c3c;" onclick="deleteMember(${sheetRow})">確認刪除</button>
+        <button class="modal-save" style="background:#e74c3c;" onclick="deleteMember(${sheetRow},'${_escH(name)}')">確認刪除</button>
         <button class="modal-cancel" onclick="closeEditMember()">取消</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
 }
 
-async function deleteMember(sheetRow) {
-  const m = _memberData?.find(x => x.sheetRow === sheetRow);
-  const memberName = m?.name || '';
+async function deleteMember(sheetRow, memberName) {
+  if (!memberName) {
+    const m = _memberData?.find(x => x.sheetRow === sheetRow);
+    memberName = m?.name || '';
+  }
   closeEditMember();
   if (_memberData) _memberData = _memberData.filter(x => x.sheetRow !== sheetRow);
   renderMembers();
