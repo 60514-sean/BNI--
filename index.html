@@ -1397,31 +1397,38 @@ function _dmDistribute() {
   return { panels, colorMap };
 }
 
-function _dmCardNew(m, bc) {
+// cardH: fixed height per card (px, pre-zoom). Photo & font scale within it.
+function _dmCardNew(m, bc, cardH) {
+  const ps = Math.max(22, Math.min(36, cardH - 8)); // photo size
   const ph = m.photo
-    ? `<img style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${bc};display:block;" src="${_escH(m.photo)}" onerror="this.style.display='none'">`
-    : `<div style="width:36px;height:36px;border-radius:50%;flex-shrink:0;border:2px solid ${bc};background:#e8ecf0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:10px;font-weight:900;">?</div>`;
-  return `<div style="display:flex;gap:4px;align-items:flex-start;padding:3px 2px;border-bottom:1px solid rgba(0,0,0,0.07);overflow:hidden;">
+    ? `<img style="width:${ps}px;height:${ps}px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${bc};display:block;" src="${_escH(m.photo)}" onerror="this.style.display='none'">`
+    : `<div style="width:${ps}px;height:${ps}px;border-radius:50%;flex-shrink:0;border:2px solid ${bc};background:#e8ecf0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:${Math.round(ps*0.3)}px;font-weight:900;">?</div>`;
+  return `<div style="display:flex;gap:4px;align-items:center;border-bottom:1px solid rgba(0,0,0,0.07);overflow:hidden;height:${cardH}px;box-sizing:border-box;padding:0 2px;">
     ${ph}
-    <div style="flex:1;min-width:0;">
+    <div style="flex:1;min-width:0;overflow:hidden;">
       <div style="display:flex;align-items:baseline;gap:3px;justify-content:space-between;">
-        <span style="font-size:8.5px;font-weight:900;color:#1a1a2e;line-height:1.2;">${_escH(m.name)}</span>
+        <span style="font-size:8.5px;font-weight:900;color:#1a1a2e;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.name)}</span>
         ${m.specialty?`<span style="font-size:6.5px;font-weight:700;color:${bc};flex-shrink:0;">${_escH(m.specialty)}</span>`:''}
       </div>
       ${m.company?`<div style="font-size:7px;color:#777;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.company)}</div>`:''}
       ${m.phone?`<div style="font-size:7px;color:#555;font-weight:600;">${_escH(m.phone)}</div>`:''}
-      ${m.service?`<div style="font-size:7px;font-weight:700;color:#222;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:1px;">${_escH(m.service)}</div>`:''}
+      ${m.service?`<div style="font-size:7px;font-weight:700;color:#222;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${_escH(m.service)}</div>`:''}
     </div>
   </div>`;
 }
 
-function _renderPanelHtml(panelData, colorMap) {
+// availHPreZoom: overlay height before zoom; maxCap: max members for this panel type
+function _renderPanelHtml(panelData, colorMap, availHPreZoom, maxCap) {
   if (!panelData || !panelData.length) return '';
+  const numGroups = panelData.length;
+  const hdrH = 14; // header height px pre-zoom
+  // Card height fixed so max-capacity panel fills exactly; fewer-member panels leave whitespace at bottom
+  const cardH = Math.max(30, Math.floor((availHPreZoom - numGroups * hdrH) / maxCap));
   return panelData.map(({spec, members}) => {
     const bc = colorMap[spec] || '#888';
-    return `<div style="margin-bottom:3px;">
-      <div style="display:block;width:100%;font-size:7.5px;font-weight:900;color:white;padding:2px 5px;margin-bottom:2px;border-radius:2px;background:${bc};">${_escH(spec)}</div>
-      ${members.map(m => _dmCardNew(m, colorMap[m.industry||m.specialty||'其他']||bc)).join('')}
+    return `<div>
+      <div style="height:${hdrH}px;display:flex;align-items:center;font-size:7.5px;font-weight:900;color:white;padding:0 5px;border-radius:2px;background:${bc};margin-bottom:0;">${_escH(spec)}</div>
+      ${members.map(m => _dmCardNew(m, colorMap[m.industry||m.specialty||'其他']||bc, cardH)).join('')}
     </div>`;
   }).join('');
 }
@@ -1435,10 +1442,12 @@ async function renderDM() {
   const { panels, colorMap } = _dmDistribute();
   // Pages 1-2: zoom 1.1 (較大卡片，7-8人容量)；Pages 5-8: zoom 1.0 (較小，9-11人容量)
   const zLg = 1.1, zSm = 1.0;
-  // 紅色禁區: 21.8mm/297mm * 636px ≈ 47px；覆蓋高度計算
+  // 紅色禁區: 21.8mm/297mm * 636px ≈ 47px
   const h12 = 576, h58 = 620, pw = 217;
+  const preZ12 = Math.round(h12 / zLg); // pre-zoom height for P1-2
+  const preZ58 = Math.round(h58 / zSm); // pre-zoom height for P5-8
   const dividers = [25,50,75].map(p=>`<div style="position:absolute;left:${p}%;top:0;width:1px;height:100%;background:rgba(0,0,0,0.15);z-index:5;"></div>`).join('');
-  const ov = (pi, xi, h, z) => `<div style="position:absolute;left:${xi*225+4}px;top:8px;width:${pw}px;height:${h}px;overflow:hidden;zoom:${z};">${_renderPanelHtml(panels[pi], colorMap)}</div>`;
+  const ov = (pi, xi, h, z, preZH, maxCap) => `<div style="position:absolute;left:${xi*225+4}px;top:8px;width:${pw}px;height:${h}px;overflow:hidden;zoom:${z};">${_renderPanelHtml(panels[pi], colorMap, preZH, maxCap)}</div>`;
 
   el.innerHTML = `<div class="dm-wrapper">
     <div class="card" style="margin-bottom:14px;padding:16px 20px;">
@@ -1462,7 +1471,7 @@ async function renderDM() {
         <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p3.png" alt="">
         <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p4.png" alt="">
         ${dividers}
-        ${ov(0,0,h12,zLg)}${ov(1,1,h12,zLg)}
+        ${ov(0,0,h12,zLg,preZ12,8)}${ov(1,1,h12,zLg,preZ12,8)}
       </div>
     </div>
 
@@ -1474,7 +1483,7 @@ async function renderDM() {
         <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p7.png" alt="">
         <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p8.png" alt="">
         ${dividers}
-        ${ov(2,0,h58,zSm)}${ov(3,1,h58,zSm)}${ov(4,2,h58,zSm)}${ov(5,3,h58,zSm)}
+        ${ov(2,0,h58,zSm,preZ58,10)}${ov(3,1,h58,zSm,preZ58,10)}${ov(4,2,h58,zSm,preZ58,10)}${ov(5,3,h58,zSm,preZ58,10)}
       </div>
     </div>
   </div>`;
@@ -1486,37 +1495,43 @@ function printDM() {
   const { panels, colorMap } = _dmDistribute();
   const base = location.origin + location.pathname.replace(/[^/]*$/, '');
 
-  const pCard = (m, bc) => {
+  // Print card: cardH in mm
+  const pCard = (m, bc, cardH) => {
+    const ps = Math.max(7, Math.min(11, cardH - 2));
     const ph = m.photo
-      ? `<img style="width:10mm;height:10mm;border-radius:50%;object-fit:cover;flex-shrink:0;border:1.5pt solid ${bc};display:block;" src="${_escH(m.photo)}" onerror="this.style.display='none'">`
-      : `<div style="width:10mm;height:10mm;border-radius:50%;flex-shrink:0;border:1.5pt solid ${bc};background:#e8ecf0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:7pt;font-weight:900;">?</div>`;
-    return `<div style="display:flex;gap:1.5mm;align-items:flex-start;padding:1mm 0.5mm;border-bottom:0.3pt solid rgba(0,0,0,0.1);overflow:hidden;">
+      ? `<img style="width:${ps}mm;height:${ps}mm;border-radius:50%;object-fit:cover;flex-shrink:0;border:1pt solid ${bc};display:block;" src="${_escH(m.photo)}" onerror="this.style.display='none'">`
+      : `<div style="width:${ps}mm;height:${ps}mm;border-radius:50%;flex-shrink:0;border:1pt solid ${bc};background:#e8ecf0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:6pt;font-weight:900;">?</div>`;
+    return `<div style="display:flex;gap:1.5mm;align-items:center;border-bottom:0.3pt solid rgba(0,0,0,0.1);overflow:hidden;height:${cardH}mm;box-sizing:border-box;padding:0 0.5mm;">
       ${ph}
-      <div style="flex:1;min-width:0;">
+      <div style="flex:1;min-width:0;overflow:hidden;">
         <div style="display:flex;align-items:baseline;gap:1mm;justify-content:space-between;">
-          <span style="font-size:7pt;font-weight:900;color:#1a1a2e;line-height:1.2;">${_escH(m.name)}</span>
-          ${m.specialty?`<span style="font-size:5.5pt;font-weight:700;color:${bc};flex-shrink:0;">${_escH(m.specialty)}</span>`:''}
+          <span style="font-size:7pt;font-weight:900;color:#1a1a2e;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.name)}</span>
+          ${m.specialty?`<span style="font-size:5pt;font-weight:700;color:${bc};flex-shrink:0;">${_escH(m.specialty)}</span>`:''}
         </div>
-        ${m.company?`<div style="font-size:5.5pt;color:#777;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.company)}</div>`:''}
-        ${m.phone?`<div style="font-size:5.5pt;color:#555;font-weight:600;">${_escH(m.phone)}</div>`:''}
-        ${m.service?`<div style="font-size:5.5pt;font-weight:700;color:#222;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-top:0.3mm;">${_escH(m.service)}</div>`:''}
+        ${m.company?`<div style="font-size:5pt;color:#777;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.company)}</div>`:''}
+        ${m.phone?`<div style="font-size:5pt;color:#555;font-weight:600;">${_escH(m.phone)}</div>`:''}
+        ${m.service?`<div style="font-size:5pt;font-weight:700;color:#222;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${_escH(m.service)}</div>`:''}
       </div>
     </div>`;
   };
-  const pPanel = (pi) => {
+  // availHmm: overlay height in mm; maxCap: panel capacity
+  const pPanel = (pi, availHmm, maxCap) => {
     if (!panels[pi] || !panels[pi].length) return '';
+    const numGroups = panels[pi].length;
+    const hdrH = 5; // mm per header
+    const cardH = Math.max(8, (availHmm - numGroups * hdrH) / maxCap);
     return panels[pi].map(({spec, members}) => {
       const bc = colorMap[spec] || '#888';
-      return `<div style="margin-bottom:1.5mm;">
-        <div style="display:block;width:100%;font-size:6pt;font-weight:900;color:white;padding:0.8mm 2mm;margin-bottom:1mm;border-radius:1mm;background:${bc};">${_escH(spec)}</div>
-        ${members.map(m => pCard(m, colorMap[m.industry||m.specialty||'其他']||bc)).join('')}
+      return `<div>
+        <div style="height:${hdrH}mm;display:flex;align-items:center;font-size:6pt;font-weight:900;color:white;padding:0 2mm;border-radius:1mm;background:${bc};">${_escH(spec)}</div>
+        ${members.map(m => pCard(m, colorMap[m.industry||m.specialty||'其他']||bc, cardH)).join('')}
       </div>`;
     }).join('');
   };
   const bg = (n,x) => `<img style="position:absolute;left:${x}%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${base}dm_p${n}.png">`;
   const dv = (p) => `<div style="position:absolute;left:${p}%;top:0;width:0.2mm;height:100%;background:rgba(0,0,0,0.1);"></div>`;
-  const ov12 = (pi,x) => `<div style="position:absolute;left:${x}%;top:3mm;width:24%;height:269mm;overflow:hidden;">${pPanel(pi)}</div>`;
-  const ov58 = (pi,x) => `<div style="position:absolute;left:${x}%;top:3mm;width:24%;height:289mm;overflow:hidden;">${pPanel(pi)}</div>`;
+  const ov12 = (pi,x) => `<div style="position:absolute;left:${x}%;top:3mm;width:24%;height:269mm;overflow:hidden;">${pPanel(pi,269,8)}</div>`;
+  const ov58 = (pi,x) => `<div style="position:absolute;left:${x}%;top:3mm;width:24%;height:289mm;overflow:hidden;">${pPanel(pi,289,10)}</div>`;
 
   const w = window.open('', '_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
