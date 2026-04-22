@@ -191,8 +191,8 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 /* DM */
 .dm-wrapper { padding: 16px; max-width: 980px; margin: 0 auto; }
 .dm-panel-label { font-size:11px; color:var(--text-soft); margin-bottom:6px; font-weight:600; }
-.dm-bg-wrap { position:relative; width:100%; border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow-lg); margin-bottom:14px; background:#f0f0f0; }
-.dm-bg-wrap::before { content:''; display:block; padding-top:70.71%; }
+.dm-scale-outer { overflow:hidden; margin-bottom:14px; }
+.dm-bg-wrap { position:relative; width:900px; height:636px; border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow-lg); background:#f0f0f0; transform-origin:top left; }
 .dm-bg-img { position:absolute; top:0; left:0; width:100%; height:100%; object-fit:fill; display:block; }
 .dm-overlay { position:absolute; overflow:hidden; }
 .dmc { display:flex; gap:6px; align-items:flex-start; padding:5px 2px 5px; border-bottom:1px solid rgba(0,0,0,0.07); break-inside:avoid; overflow:hidden; }
@@ -1351,6 +1351,22 @@ async function uploadMemberPhoto(sheetRow, file) {
 }
 
 // ===== DM =====
+function _scaleDM() {
+  const content = document.getElementById('dmContent');
+  if (!content) return;
+  const availW = content.offsetWidth - 32;
+  const baseW = 900, baseH = 636;
+  const scale = Math.min(1, availW / baseW);
+  [['dmOuter1','dmSide1'],['dmOuter2','dmSide2']].forEach(([outerId, wrапId]) => {
+    const outer = document.getElementById(outerId);
+    const wrap  = document.getElementById(wrапId);
+    if (!outer || !wrap) return;
+    wrap.style.transform = `scale(${scale})`;
+    outer.style.height   = Math.round(baseH * scale) + 'px';
+  });
+}
+window.addEventListener('resize', _scaleDM);
+
 const DM_CAT_COLORS = ['#c0392b','#7b6914','#2e6e8e','#7b3f6a','#2e7d52','#b5631a','#5a4a8a','#4a7a5a','#8e3a3a','#3a6a7a'];
 
 function setCoverImage(input) {
@@ -1383,21 +1399,26 @@ async function renderDM() {
     </div>
 
     <div class="dm-panel-label">正面 — 左：封底會員名單 ／ 右：BNI封面</div>
-    <div class="dm-bg-wrap" id="dmSide1">
-      <img class="dm-bg-img" src="dm_page1.png" alt="">
-      <div class="dm-overlay" style="left:1%;top:2%;width:47%;height:94%;columns:2;column-gap:4px;padding:4px 6px;">
-        ${_dmGroupsHtml(gBack, colorMap)}
+    <div class="dm-scale-outer" id="dmOuter1">
+      <div class="dm-bg-wrap" id="dmSide1">
+        <img class="dm-bg-img" src="dm_page1.png" alt="">
+        <div class="dm-overlay" style="left:9px;top:13px;width:422px;height:598px;columns:2;column-gap:4px;padding:4px 6px;">
+          ${_dmGroupsHtml(gBack, colorMap)}
+        </div>
       </div>
     </div>
 
     <div class="dm-panel-label">背面 — 內頁展開會員名單</div>
-    <div class="dm-bg-wrap" id="dmSide2">
-      <img class="dm-bg-img" src="dm_page2.png" alt="">
-      <div class="dm-overlay" style="left:1%;top:2%;width:98%;height:94%;columns:4;column-gap:4px;padding:4px 6px;">
-        ${_dmGroupsHtml(gInner, colorMap)}
+    <div class="dm-scale-outer" id="dmOuter2">
+      <div class="dm-bg-wrap" id="dmSide2">
+        <img class="dm-bg-img" src="dm_page2.png" alt="">
+        <div class="dm-overlay" style="left:9px;top:13px;width:882px;height:598px;columns:4;column-gap:4px;padding:4px 6px;">
+          ${_dmGroupsHtml(gInner, colorMap)}
+        </div>
       </div>
     </div>
   </div>`;
+  _scaleDM();
 }
 
 function _dmGroups() {
