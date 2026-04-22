@@ -195,17 +195,19 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .dm-bg-wrap::before { content:''; display:block; padding-top:70.71%; }
 .dm-bg-img { position:absolute; top:0; left:0; width:100%; height:100%; object-fit:fill; display:block; }
 .dm-overlay { position:absolute; overflow:hidden; }
-.dmc { display:flex; gap:6px; align-items:flex-start; padding:4px 2px; border-bottom:1px solid rgba(0,0,0,0.08); break-inside:avoid; }
+.dmc { display:flex; gap:6px; align-items:flex-start; padding:5px 2px 5px; border-bottom:1px solid rgba(0,0,0,0.07); break-inside:avoid; }
 .dmc:last-child { border-bottom:none; }
-.dmc-photo { width:34px; height:34px; border-radius:50%; object-fit:cover; flex-shrink:0; border:1.5px solid white; box-shadow:0 1px 3px rgba(0,0,0,0.15); background:#eee; display:block; }
+.dmc-photo { width:36px; height:36px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid #ccc; box-shadow:0 1px 3px rgba(0,0,0,0.12); background:#eee; display:block; }
 .dmc-nophoto { display:flex; align-items:center; justify-content:center; background:#e8ecf0; color:#ccc; font-size:12px; }
 .dmc-body { flex:1; min-width:0; }
-.dmc-name-row { display:flex; align-items:baseline; justify-content:space-between; gap:4px; margin-bottom:1px; }
-.dmc-name { font-size:9px; font-weight:900; color:#1a1a2e; line-height:1.3; }
+.dmc-name-row { display:flex; align-items:baseline; justify-content:space-between; gap:3px; }
+.dmc-name { font-size:9.5px; font-weight:900; color:#1a1a2e; line-height:1.3; }
 .dmc-spec { font-size:7px; font-weight:700; flex-shrink:0; }
-.dmc-company { font-size:7px; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.dmc-phone { font-size:7px; color:#777; }
-.dmc-service { font-size:6.5px; color:#888; line-height:1.3; margin-top:1px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.dmc-sep { height:1px; background:#e0e0e0; margin:2px 0 3px; position:relative; }
+.dmc-sep::after { content:''; position:absolute; right:0; top:-3px; width:7px; height:7px; border-radius:50%; background:var(--dc, #ccc); }
+.dmc-company { font-size:6.5px; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dmc-phone { font-size:6.5px; color:#777; }
+.dmc-service { font-size:7px; font-weight:700; color:#222; line-height:1.4; margin-top:1px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .dmc-group { break-inside:avoid; margin-bottom:6px; }
 .dmc-cat { font-size:7.5px; font-weight:900; color:white; padding:3px 14px 3px 6px; margin-bottom:4px; display:inline-block; letter-spacing:0.5px; border-radius:0 20px 20px 0; }
 
@@ -1419,8 +1421,9 @@ function _dmCard(m, colorMap) {
     <div class="dmc-body">
       <div class="dmc-name-row">
         <span class="dmc-name">${_escH(m.name)}</span>
-        ${m.specialty?`<span class="dmc-spec" style="color:${colorMap[ind]};">${_escH(m.specialty)}</span>`:''}
+        ${m.specialty?`<span class="dmc-spec" style="color:${borderColor};">${_escH(m.specialty)}</span>`:''}
       </div>
+      <div class="dmc-sep" style="--dc:${borderColor};"></div>
       ${m.company?`<div class="dmc-company">${_escH(m.company)}</div>`:''}
       ${m.phone?`<div class="dmc-phone">${_escH(m.phone)}</div>`:''}
       ${m.service?`<div class="dmc-service">${_escH(m.service)}</div>`:''}
@@ -1452,16 +1455,19 @@ function printDM() {
       .dm-page:last-child { page-break-after: avoid; }
       .dm-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; display: block; }
       .dm-overlay { position: absolute; overflow: hidden; }
-      .dmc { display:flex; gap:3px; align-items:flex-start; padding:2px 1px; border-bottom:1px solid rgba(0,0,0,0.06); break-inside:avoid; }
+      .dmc { display:flex; gap:4px; align-items:flex-start; padding:4px 1px; border-bottom:1px solid rgba(0,0,0,0.07); break-inside:avoid; }
       .dmc:last-child { border-bottom:none; }
-      .dmc-photo { width:24px; height:24px; border-radius:50%; object-fit:cover; flex-shrink:0; border:1px solid white; background:#eee; display:block; }
+      .dmc-photo { width:28px; height:28px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid #ccc; background:#eee; display:block; }
       .dmc-nophoto { display:flex; align-items:center; justify-content:center; background:#e8ecf0; color:#ccc; font-size:9px; }
       .dmc-body { flex:1; min-width:0; }
-      .dmc-name { font-size:6.5px; font-weight:900; color:#1a1a2e; line-height:1.2; }
-      .dmc-spec { font-size:5.5px; font-weight:700; margin-top:0.5px; }
-      .dmc-company { font-size:5.5px; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .dmc-name-row { display:flex; align-items:baseline; justify-content:space-between; gap:3px; }
+      .dmc-name { font-size:7px; font-weight:900; color:#1a1a2e; line-height:1.3; }
+      .dmc-spec { font-size:5.5px; font-weight:700; flex-shrink:0; }
+      .dmc-sep { height:1px; background:#e0e0e0; margin:1.5px 0 2px; position:relative; }
+      .dmc-sep::after { content:''; position:absolute; right:0; top:-2.5px; width:6px; height:6px; border-radius:50%; background:var(--dc,#ccc); }
+      .dmc-company { font-size:5.5px; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .dmc-phone { font-size:5.5px; color:#777; }
-      .dmc-service { font-size:5px; color:#999; line-height:1.3; margin-top:1px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+      .dmc-service { font-size:5.5px; font-weight:700; color:#222; line-height:1.3; margin-top:1px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       .dmc-group { break-inside:avoid; margin-bottom:3px; }
       .dmc-cat { font-size:6px; font-weight:900; color:white; padding:1.5px 12px 1.5px 4px; border-radius:0 14px 14px 0; margin-bottom:2px; display:inline-block; }
     </style>
