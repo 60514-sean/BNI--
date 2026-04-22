@@ -941,10 +941,11 @@ async function fetchMembers() {
 let _memberSearch = '';
 let _memberFilter = ''; // '' | '120' | '90'
 let _defaultIndustry = '';
-let _industries = JSON.parse(localStorage.getItem('bni_industries') || '[]');
+// 優先從 API cache 讀取（跨裝置同步），fallback 到舊 localStorage
+let _industries = cache['__industries__'] || JSON.parse(localStorage.getItem('bni_industries') || '[]');
 
 function _saveIndustries() {
-  localStorage.setItem('bni_industries', JSON.stringify(_industries));
+  apiSave('__industries__', _industries);
 }
 
 function _getIndustryOptions(selected) {
@@ -955,6 +956,7 @@ function _getIndustryOptions(selected) {
 }
 
 function openManageIndustries() {
+  if (cache['__industries__']) _industries = cache['__industries__'];
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'industryModal';
