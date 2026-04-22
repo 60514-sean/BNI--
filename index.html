@@ -1447,7 +1447,15 @@ async function renderDM() {
   const preZ12 = Math.round(h12 / zLg); // pre-zoom height for P1-2
   const preZ58 = Math.round(h58 / zSm); // pre-zoom height for P5-8
   const dividers = [25,50,75].map(p=>`<div style="position:absolute;left:${p}%;top:0;width:1px;height:100%;background:rgba(0,0,0,0.15);z-index:5;"></div>`).join('');
-  const ov = (pi, xi, h, z, preZH, maxCap) => `<div style="position:absolute;left:${xi*225+4}px;top:8px;width:${pw}px;height:${h}px;overflow:hidden;zoom:${z};">${_renderPanelHtml(panels[pi], colorMap, preZH, maxCap)}</div>`;
+  // 外框固定裁切，內層 zoom：防止 zoom 放大後溢出到相鄰面板
+  const ov = (pi, xi, h, z, preZH, maxCap) => {
+    const innerW = Math.round(pw / z);
+    return `<div style="position:absolute;left:${xi*225+4}px;top:8px;width:${pw}px;height:${h}px;overflow:hidden;">
+      <div style="width:${innerW}px;height:${preZH}px;zoom:${z};">
+        ${_renderPanelHtml(panels[pi], colorMap, preZH, maxCap)}
+      </div>
+    </div>`;
+  };
 
   el.innerHTML = `<div class="dm-wrapper">
     <div class="card" style="margin-bottom:14px;padding:16px 20px;">
