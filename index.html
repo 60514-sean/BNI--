@@ -897,6 +897,67 @@ async function fetchMembers() {
 let _memberSearch = '';
 let _memberFilter = ''; // '' | '120' | '90'
 let _defaultIndustry = '';
+let _industries = JSON.parse(localStorage.getItem('bni_industries') || '[]');
+
+function _saveIndustries() {
+  localStorage.setItem('bni_industries', JSON.stringify(_industries));
+}
+
+function _getIndustryOptions(selected) {
+  const fromData = _memberData ? [...new Set(_memberData.map(m => m.industry).filter(Boolean))] : [];
+  const merged = [...new Set([..._industries, ...fromData])];
+  return `<option value="">-- 選擇產業鏈 --</option>` +
+    merged.map(ind => `<option value="${_escH(ind)}"${ind===selected?' selected':''}>${_escH(ind)}</option>`).join('');
+}
+
+function openManageIndustries() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'industryModal';
+  overlay.innerHTML = `
+    <div class="modal-box" style="max-width:340px;">
+      <div class="modal-title">產業鏈管理</div>
+      <div id="industryList" style="margin-bottom:14px;max-height:280px;overflow-y:auto;"></div>
+      <div style="display:flex;gap:8px;">
+        <input class="modal-input" id="industryNewInput" placeholder="輸入新產業鏈名稱" style="margin-bottom:0;flex:1;" onkeydown="if(event.key==='Enter')addIndustry()">
+        <button onclick="addIndustry()" style="padding:10px 16px;background:var(--red);color:white;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">新增</button>
+      </div>
+      <div class="modal-btns" style="margin-top:16px;">
+        <button class="modal-cancel" style="width:100%;" onclick="document.getElementById('industryModal').remove()">關閉</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  _renderIndustryList();
+}
+
+function _renderIndustryList() {
+  const el = document.getElementById('industryList');
+  if (!el) return;
+  if (_industries.length === 0) {
+    el.innerHTML = `<div style="color:var(--text-soft);font-size:13px;text-align:center;padding:12px;">尚無產業鏈，請新增</div>`;
+    return;
+  }
+  el.innerHTML = _industries.map((ind, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-border);">
+      <span style="font-size:14px;">${_escH(ind)}</span>
+      <button onclick="removeIndustry(${i})" style="padding:3px 10px;background:white;border:1.5px solid #e74c3c;color:#e74c3c;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;">刪除</button>
+    </div>`).join('');
+}
+
+function addIndustry() {
+  const val = document.getElementById('industryNewInput')?.value.trim();
+  if (!val || _industries.includes(val)) return;
+  _industries.push(val);
+  _saveIndustries();
+  document.getElementById('industryNewInput').value = '';
+  _renderIndustryList();
+}
+
+function removeIndustry(i) {
+  _industries.splice(i, 1);
+  _saveIndustries();
+  _renderIndustryList();
+}
 
 async function renderMembers() {
   if (!_memberData) await fetchMembers();
@@ -918,7 +979,7 @@ async function renderMembers() {
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
       <button onclick="_memberFilter=_memberFilter==='120'?'':'120';renderMembers()" style="${btnStyle('120','#d4ac0d','white')}">120天</button>
       <button onclick="_memberFilter=_memberFilter==='90'?'':'90';renderMembers()"  style="${btnStyle('90','#c0392b','white')}">90天</button>
-      ${canEdit ? `<input type="text" value="${_escH(_defaultIndustry)}" oninput="_defaultIndustry=this.value" placeholder="產業鏈名稱" style="padding:7px 10px;border:1.5px solid var(--gray-border);border-radius:7px;font-size:13px;font-family:inherit;width:130px;outline:none;" title="新增會員時預填的產業鏈">
+      ${canEdit ? `<button onclick="openManageIndustries()" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text-soft);">產業鏈設定</button>
         <button onclick="openAddMember()" style="padding:7px 16px;background:var(--red);color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ 新增會員</button>` : ''}
     </div>
   </div>`;
@@ -982,7 +1043,7 @@ function openEditMember(sheetRow) {
         </div>
       </div>
       <div class="modal-field"><div class="modal-label">姓名</div><input class="modal-input" id="mf_name" value="${_escH(m.name)}"></div>
-      <div class="modal-field"><div class="modal-label">產業鏈（DM分組標題）</div><input class="modal-input" id="mf_ind" value="${_escH(m.industry)}" placeholder="例：大健康產業"></div>
+      <div class="modal-field"><div class="modal-label">產業鏈（DM分組標題）</div><select class="modal-input" id="mf_ind" style="appearance:auto;background:white;">${_getIndustryOptions(m.industry)}</select></div>
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" value="${_escH(m.specialty)}"></div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" value="${_escH(m.company)}"></div>
       <div class="modal-field"><div class="modal-label">電話</div><input class="modal-input" id="mf_phone" type="tel" value="${_escH(m.phone)}"></div>
@@ -1033,7 +1094,7 @@ function openAddMember() {
         </div>
       </div>
       <div class="modal-field"><div class="modal-label">姓名</div><input class="modal-input" id="mf_name" placeholder="輸入姓名"></div>
-      <div class="modal-field"><div class="modal-label">產業鏈（DM分組標題）</div><input class="modal-input" id="mf_ind" value="${_escH(_defaultIndustry)}" placeholder="例：大健康產業"></div>
+      <div class="modal-field"><div class="modal-label">產業鏈（DM分組標題）</div><select class="modal-input" id="mf_ind" style="appearance:auto;background:white;">${_getIndustryOptions(_defaultIndustry)}</select></div>
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" placeholder="輸入專業別"></div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" placeholder="輸入公司或品牌名稱"></div>
       <div class="modal-field"><div class="modal-label">電話</div><input class="modal-input" id="mf_phone" type="tel" placeholder="輸入電話"></div>
