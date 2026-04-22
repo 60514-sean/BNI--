@@ -964,8 +964,7 @@ function _getIndustryOptions(selected) {
     merged.map(ind => `<option value="${_escH(ind)}"${ind===selected?' selected':''}>${_escH(ind)}</option>`).join('');
 }
 
-async function openManageIndustries() {
-  await _bgRefresh();
+function openManageIndustries() {
   if (cache['__industries__'] && cache['__industries__'].length) _industries = cache['__industries__'];
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -984,6 +983,13 @@ async function openManageIndustries() {
     </div>`;
   document.body.appendChild(overlay);
   _renderIndustryList();
+  // 背景取得最新伺服器資料，如有更新則重新渲染清單
+  _bgRefresh().then(() => {
+    if (cache['__industries__'] && cache['__industries__'].length) {
+      _industries = cache['__industries__'];
+      _renderIndustryList();
+    }
+  });
 }
 
 function _renderIndustryList() {
