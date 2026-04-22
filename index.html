@@ -207,7 +207,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .dmc-phone { font-size:7px; color:#777; }
 .dmc-service { font-size:6.5px; color:#888; line-height:1.3; margin-top:1px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .dmc-group { break-inside:avoid; margin-bottom:6px; }
-.dmc-cat { font-size:7.5px; font-weight:900; color:white; padding:3px 16px 3px 6px; margin-bottom:4px; display:inline-block; letter-spacing:0.5px; clip-path:polygon(0 0,calc(100% - 8px) 0,100% 50%,calc(100% - 8px) 100%,0 100%); }
+.dmc-cat { font-size:7.5px; font-weight:900; color:white; padding:3px 14px 3px 6px; margin-bottom:4px; display:inline-block; letter-spacing:0.5px; border-radius:0 20px 20px 0; }
 
 /* PAGE TABS */
 .page-tabs {
@@ -1410,9 +1410,10 @@ function _dmGroups() {
 
 function _dmCard(m, colorMap) {
   const ind = m.industry || m.specialty || '其他';
+  const borderColor = colorMap[ind] || '#ccc';
   const ph = m.photo
-    ? `<img class="dmc-photo" src="${_escH(m.photo)}" onerror="this.style.display='none'">`
-    : `<div class="dmc-photo dmc-nophoto">?</div>`;
+    ? `<img class="dmc-photo" src="${_escH(m.photo)}" style="border-color:${borderColor};" onerror="this.style.display='none'">`
+    : `<div class="dmc-photo dmc-nophoto" style="border-color:${borderColor};">?</div>`;
   return `<div class="dmc">
     ${ph}
     <div class="dmc-body">
@@ -1462,7 +1463,7 @@ function printDM() {
       .dmc-phone { font-size:5.5px; color:#777; }
       .dmc-service { font-size:5px; color:#999; line-height:1.3; margin-top:1px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       .dmc-group { break-inside:avoid; margin-bottom:3px; }
-      .dmc-cat { font-size:6px; font-weight:900; color:white; padding:1.5px 6px 1.5px 4px; border-radius:0 7px 7px 0; margin-bottom:2px; display:block; margin-left:-3px; }
+      .dmc-cat { font-size:6px; font-weight:900; color:white; padding:1.5px 12px 1.5px 4px; border-radius:0 14px 14px 0; margin-bottom:2px; display:inline-block; }
     </style>
   </head><body>
     <div class="dm-page">
