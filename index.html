@@ -813,6 +813,11 @@ function saveNote(idx, val) {
 // ===== SETTINGS =====
 async function showSettings() {
   document.getElementById('headerTitle').textContent = '系統設定';
+  document.getElementById('mainContent').style.display   = '';
+  document.getElementById('memberContent').style.display = 'none';
+  document.getElementById('dmContent').style.display     = 'none';
+  ['ptab_main','ptab_member','ptab_dm'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+  _activeTab = 'settings';
   const cfg = getConfig();
   cfgUsers = [...cfg.users];
 
