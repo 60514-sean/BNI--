@@ -188,6 +188,17 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   .content { padding: 12px; }
 }
 
+/* 回到頂端按鈕 */
+#backToTop {
+  position: fixed; right: 20px; bottom: 24px; z-index: 999;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--red); color: white; border: none;
+  font-size: 20px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  display: none; align-items: center; justify-content: center;
+  transition: opacity 0.2s, transform 0.2s;
+}
+#backToTop:hover { transform: translateY(-3px); }
+
 /* DM */
 .dm-wrapper { padding: 16px; max-width: 980px; margin: 0 auto; }
 .dm-panel-label { font-size:11px; color:var(--text-soft); margin-bottom:6px; font-weight:600; }
@@ -354,6 +365,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   <div class="content" id="memberContent" style="display:none"></div>
   <div class="content" id="dmContent" style="display:none"></div>
 </div>
+<button id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到頂端">&#8679;</button>
 
 <div class="toast" id="toast"></div>
 
@@ -1368,6 +1380,11 @@ function _scaleDM() {
   });
 }
 window.addEventListener('resize', _scaleDM);
+window.addEventListener('scroll', () => {
+  const btn = document.getElementById('backToTop');
+  if (!btn) return;
+  btn.style.display = window.scrollY > 300 ? 'flex' : 'none';
+});
 
 const DM_CAT_COLORS = ['#c0392b','#7b6914','#2e6e8e','#7b3f6a','#2e7d52','#b5631a','#5a4a8a','#4a7a5a','#8e3a3a','#3a6a7a'];
 
