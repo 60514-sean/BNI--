@@ -1384,21 +1384,15 @@ function _dmDistribute() {
   Object.keys(groups).forEach((k, i) => { colorMap[k] = DM_CAT_COLORS[i % DM_CAT_COLORS.length]; });
 
   const total = _memberData.length;
-  // 各面板 pre-zoom 可用高度(px)：P1-2 zoom=1.1 → preZH≈516；P5-8 zoom=1.0 → preZH=594
-  const PH = [516, 516, 594, 594, 594, 594];
-  const sumH = PH.reduce((s, h) => s + h, 0);
-  // 按比例計算每格目標人數，確保各格卡片高度視覺均等
-  const TARGETS = PH.map(h => Math.max(1, Math.round(total * h / sumH)));
-  let diff = total - TARGETS.reduce((s, t) => s + t, 0);
-  for (let i = 0; diff !== 0; i = (i + 1) % 6) {
-    TARGETS[i] += diff > 0 ? 1 : -1;
-    diff       += diff > 0 ? -1 : 1;
-  }
+  // 等量分配：6 格目標人數相近，餘數從 P1 開始補
+  const base = Math.floor(total / 6);
+  const extra = total % 6;
+  const TARGETS = Array.from({ length: 6 }, (_, i) => base + (i < extra ? 1 : 0));
 
   const panels = Array.from({ length: 6 }, () => []);
   let pi = 0;
 
-  // Phase 1：初始分配，面板 ≥75% 滿才允許跳格保群組
+  // Phase 1：逐格填入，整組放得下就不切，放不下才切分
   for (const [spec, members] of Object.entries(groups)) {
     let offset = 0;
     while (offset < members.length) {
@@ -1414,35 +1408,29 @@ function _dmDistribute() {
       if (rem <= 0) { pi++; continue; }
 
       if (left <= rem) {
+        // 整組放得進：直接放，不切
         panels[pi].push({ spec, members: members.slice(offset) });
         offset = members.length;
         if (used + left >= TARGETS[pi]) pi++;
-      } else if (used === 0 || left > TARGETS[Math.min(pi + 1, 5)]) {
-        // 面板空的或下一格也放不下 → 切分
-        panels[pi].push({ spec, members: members.slice(offset, offset + rem) });
-        offset += rem; pi++;
-      } else if (used >= Math.floor(TARGETS[pi] * 0.75)) {
-        // 面板已達 75%，整組移到下一格
-        pi++;
       } else {
-        // 面板未達 75%，切分填滿才跳格
+        // 放不下：切分填滿當前格，剩餘繼續下一格
         panels[pi].push({ spec, members: members.slice(offset, offset + rem) });
         offset += rem; pi++;
       }
     }
   }
 
-  // Phase 2：重新平衡 — 把過滿面板的小群組移到空間較多的面板
-  for (let iter = 0; iter < 12; iter++) {
+  // Phase 2：重新平衡 — 把過滿格的完整群組搬到有空間的格子
+  for (let iter = 0; iter < 15; iter++) {
     let improved = false;
     for (let from = 5; from >= 1 && !improved; from--) {
       const fromCount = panels[from].reduce((s, g) => s + g.members.length, 0);
-      if (fromCount <= TARGETS[from]) continue; // 未超量，不需移動
-      for (let to = 0; to < from && !improved; to++) {
-        const toCount  = panels[to].reduce((s, g) => s + g.members.length, 0);
-        const avail    = TARGETS[to] - toCount;
+      if (fromCount <= TARGETS[from]) continue;
+      for (let to = 0; to < 6 && !improved; to++) {
+        if (to === from) continue;
+        const toCount = panels[to].reduce((s, g) => s + g.members.length, 0);
+        const avail   = TARGETS[to] - toCount;
         if (avail <= 0) continue;
-        // 找最大但放得進 to 格的群組
         const movable = panels[from]
           .filter(g => g.members.length <= avail)
           .sort((a, b) => b.members.length - a.members.length);
