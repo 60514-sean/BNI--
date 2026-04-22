@@ -195,19 +195,19 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .dm-bg-wrap { position:relative; width:900px; height:636px; border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow-lg); background:#f0f0f0; transform-origin:top left; }
 .dm-bg-img { position:absolute; top:0; left:0; width:100%; height:100%; object-fit:fill; display:block; }
 .dm-overlay { position:absolute; overflow:hidden; }
-.dmc { display:flex; gap:calc(5px * var(--ds,1)); align-items:flex-start; padding:calc(4px * var(--ds,1)) 2px; border-bottom:1px solid rgba(0,0,0,0.07); break-inside:avoid; overflow:hidden; }
+.dmc { display:flex; gap:5px; align-items:flex-start; padding:4px 2px; border-bottom:1px solid rgba(0,0,0,0.07); break-inside:avoid; overflow:hidden; }
 .dmc:last-child { border-bottom:none; }
-.dmc-photo { width:calc(32px * var(--ds,1)); height:calc(32px * var(--ds,1)); border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid #ccc; background:#eee; display:block; }
-.dmc-nophoto { display:flex; align-items:center; justify-content:center; background:#e8ecf0; color:#ccc; font-size:calc(11px * var(--ds,1)); }
+.dmc-photo { width:32px; height:32px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid #ccc; background:#eee; display:block; }
+.dmc-nophoto { display:flex; align-items:center; justify-content:center; background:#e8ecf0; color:#ccc; font-size:11px; }
 .dmc-body { flex:1; min-width:0; }
 .dmc-name-row { display:flex; align-items:baseline; justify-content:space-between; gap:3px; }
-.dmc-name { font-size:calc(8.5px * var(--ds,1)); font-weight:900; color:#1a1a2e; line-height:1.25; }
-.dmc-spec { font-size:calc(6.5px * var(--ds,1)); font-weight:700; flex-shrink:0; }
-.dmc-company { font-size:calc(6.5px * var(--ds,1)); color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.dmc-phone { font-size:calc(6.5px * var(--ds,1)); color:#777; }
-.dmc-service { font-size:calc(6.5px * var(--ds,1)); font-weight:700; color:#222; line-height:1.35; margin-top:calc(1px * var(--ds,1)); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.dmc-group { margin-bottom:calc(5px * var(--ds,1)); }
-.dmc-cat { font-size:calc(7.5px * var(--ds,1)); font-weight:900; color:white; padding:calc(2px * var(--ds,1)) calc(13px * var(--ds,1)) calc(2px * var(--ds,1)) calc(6px * var(--ds,1)); margin-bottom:calc(4px * var(--ds,1)); display:inline-block; letter-spacing:0.5px; border-radius:0 20px 20px 0; }
+.dmc-name { font-size:8.5px; font-weight:900; color:#1a1a2e; line-height:1.25; }
+.dmc-spec { font-size:6.5px; font-weight:700; flex-shrink:0; }
+.dmc-company { font-size:6.5px; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dmc-phone { font-size:6.5px; color:#777; }
+.dmc-service { font-size:6.5px; font-weight:700; color:#222; line-height:1.35; margin-top:1px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.dmc-group { margin-bottom:5px; }
+.dmc-cat { font-size:7.5px; font-weight:900; color:white; padding:2px 13px 2px 6px; margin-bottom:4px; display:inline-block; letter-spacing:0.5px; border-radius:0 20px 20px 0; }
 
 /* PAGE TABS */
 .page-tabs {
@@ -1402,7 +1402,7 @@ async function renderDM() {
     <div class="dm-scale-outer" id="dmOuter1">
       <div class="dm-bg-wrap" id="dmSide1">
         <img class="dm-bg-img" src="dm_page1.png" alt="">
-        <div class="dm-overlay" style="left:9px;top:13px;width:422px;height:598px;columns:2;column-gap:4px;padding:4px 6px;--ds:${ds};">
+        <div class="dm-overlay" style="left:9px;top:13px;width:422px;height:598px;columns:2;column-gap:4px;padding:4px 6px;zoom:${ds};">
           ${_dmGroupsHtml(gBack, colorMap)}
         </div>
       </div>
@@ -1412,7 +1412,7 @@ async function renderDM() {
     <div class="dm-scale-outer" id="dmOuter2">
       <div class="dm-bg-wrap" id="dmSide2">
         <img class="dm-bg-img" src="dm_page2.png" alt="">
-        <div class="dm-overlay" style="left:9px;top:13px;width:882px;height:598px;columns:4;column-gap:4px;padding:4px 6px;--ds:${ds};">
+        <div class="dm-overlay" style="left:9px;top:13px;width:882px;height:598px;columns:4;column-gap:4px;padding:4px 6px;zoom:${ds};">
           ${_dmGroupsHtml(gInner, colorMap)}
         </div>
       </div>
@@ -1476,30 +1476,30 @@ function printDM() {
       .dm-page:last-child { page-break-after: avoid; }
       .dm-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; display: block; }
       .dm-overlay { position: absolute; overflow: hidden; }
-      .dmc { display:flex; gap:calc(5px * var(--ds,1)); align-items:flex-start; padding:calc(4px * var(--ds,1)) 1px; border-bottom:1px solid rgba(0,0,0,0.07); break-inside:avoid; overflow:hidden; }
+      .dmc { display:flex; gap:5px; align-items:flex-start; padding:4px 1px; border-bottom:1px solid rgba(0,0,0,0.07); break-inside:avoid; overflow:hidden; }
       .dmc:last-child { border-bottom:none; }
-      .dmc-photo { width:calc(28px * var(--ds,1)); height:calc(28px * var(--ds,1)); border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid #ccc; background:#eee; display:block; }
-      .dmc-nophoto { display:flex; align-items:center; justify-content:center; background:#e8ecf0; color:#ccc; font-size:calc(9px * var(--ds,1)); }
+      .dmc-photo { width:28px; height:28px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid #ccc; background:#eee; display:block; }
+      .dmc-nophoto { display:flex; align-items:center; justify-content:center; background:#e8ecf0; color:#ccc; font-size:9px; }
       .dmc-body { flex:1; min-width:0; }
       .dmc-name-row { display:flex; align-items:baseline; justify-content:space-between; gap:3px; }
-      .dmc-name { font-size:calc(7px * var(--ds,1)); font-weight:900; color:#1a1a2e; line-height:1.25; }
-      .dmc-spec { font-size:calc(5.5px * var(--ds,1)); font-weight:700; flex-shrink:0; }
-      .dmc-company { font-size:calc(5.5px * var(--ds,1)); color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-      .dmc-phone { font-size:calc(5.5px * var(--ds,1)); color:#777; }
-      .dmc-service { font-size:calc(5.5px * var(--ds,1)); font-weight:700; color:#222; line-height:1.3; margin-top:calc(1px * var(--ds,1)); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      .dmc-group { margin-bottom:calc(3px * var(--ds,1)); }
-      .dmc-cat { font-size:calc(6px * var(--ds,1)); font-weight:900; color:white; padding:calc(1.5px * var(--ds,1)) calc(12px * var(--ds,1)) calc(1.5px * var(--ds,1)) calc(4px * var(--ds,1)); border-radius:0 14px 14px 0; margin-bottom:calc(2px * var(--ds,1)); display:inline-block; }
+      .dmc-name { font-size:7px; font-weight:900; color:#1a1a2e; line-height:1.25; }
+      .dmc-spec { font-size:5.5px; font-weight:700; flex-shrink:0; }
+      .dmc-company { font-size:5.5px; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .dmc-phone { font-size:5.5px; color:#777; }
+      .dmc-service { font-size:5.5px; font-weight:700; color:#222; line-height:1.3; margin-top:1px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+      .dmc-group { margin-bottom:3px; }
+      .dmc-cat { font-size:6px; font-weight:900; color:white; padding:1.5px 12px 1.5px 4px; border-radius:0 14px 14px 0; margin-bottom:2px; display:inline-block; }
     </style>
   </head><body>
     <div class="dm-page">
       <img class="dm-bg" src="${base}dm_page1.png">
-      <div class="dm-overlay" style="left:1%;top:2%;width:47%;height:94%;columns:2;column-gap:3mm;padding:3mm 4mm;--ds:${pds};">
+      <div class="dm-overlay" style="left:1%;top:2%;width:47%;height:94%;columns:2;column-gap:3mm;padding:3mm 4mm;zoom:${pds};">
         ${_dmGroupsHtml(gBack, colorMap)}
       </div>
     </div>
     <div class="dm-page">
       <img class="dm-bg" src="${base}dm_page2.png">
-      <div class="dm-overlay" style="left:1%;top:2%;width:98%;height:94%;columns:4;column-gap:3mm;padding:3mm 4mm;--ds:${pds};">
+      <div class="dm-overlay" style="left:1%;top:2%;width:98%;height:94%;columns:4;column-gap:3mm;padding:3mm 4mm;zoom:${pds};">
         ${_dmGroupsHtml(gInner, colorMap)}
       </div>
     </div>
