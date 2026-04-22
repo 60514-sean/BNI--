@@ -416,11 +416,7 @@ async function _drainSaveQueue() {
   const [[key, data]] = _saveQueue;
   _saveQueue.delete(key);
   try {
-    await fetch(API_URL, {
-      method: 'POST', mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ key, data })
-    });
+    await _apiPost({ key, data });
   } catch {}
   _saveRunning = false;
   _drainSaveQueue();
@@ -431,6 +427,14 @@ async function apiSave(key, data) {
   _lsSave();
   _saveQueue.set(key, data);
   _drainSaveQueue();
+}
+
+function _apiPost(payload) {
+  return fetch(API_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(payload)
+  });
 }
 
 // ===== WEEK KEY（每週六深夜自動重置，週日 00:00 起為新週）=====
@@ -1185,11 +1189,7 @@ async function addMember() {
   closeEditMember();
   showToast('新增中...');
   try {
-    await fetch(API_URL, {
-      method: 'POST', mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(payload)
-    });
+    await _apiPost(payload);
     if (photoFile) {
       showToast('上傳照片中...');
       await uploadMemberPhoto(predictedRow, photoFile);
@@ -1242,11 +1242,7 @@ async function deleteMember(sheetRow, memberName) {
   renderMembers();
   showToast('刪除中...');
   try {
-    await fetch(API_URL, {
-      method: 'POST', mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'deleteMember', sheetRow: sheetRow, name: memberName })
-    });
+    await _apiPost({ action: 'deleteMember', sheetRow: sheetRow, name: memberName });
     showToast('已刪除');
   } catch { showToast('刪除失敗，請重試'); }
 }
@@ -1274,16 +1270,8 @@ async function saveMemberEdit(sheetRow) {
   showToast('儲存中...');
   try {
     const tasks = [
-      fetch(API_URL, {
-        method: 'POST', mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, company: m.company, phone: m.phone, service: m.service })
-      }),
-      fetch(API_URL, {
-        method: 'POST', mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'updateRenewal', sheetRow, renewDate: m.renewDate, renewStatus: m.renewStatus, renewApply: m.renewApply, renewPay: m.renewPay, renewComplete: m.renewComplete, renewRibbon: m.renewRibbon })
-      })
+      _apiPost({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, company: m.company, phone: m.phone, service: m.service }),
+      _apiPost({ action: 'updateRenewal', sheetRow, renewDate: m.renewDate, renewStatus: m.renewStatus, renewApply: m.renewApply, renewPay: m.renewPay, renewComplete: m.renewComplete, renewRibbon: m.renewRibbon })
     ];
     if (photoFile) {
       showToast('上傳照片中...');
@@ -1308,8 +1296,8 @@ async function manualSave(btn) {
     const prog  = getProgData();
     const notes = getNoteData();
     await Promise.all([
-      fetch(API_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ key: `__prog_${getWeekKey()}__`, data: prog }) }),
-      fetch(API_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ key: `__notes_${getWeekKey()}__`, data: notes }) })
+      _apiPost({ key: `__prog_${getWeekKey()}__`, data: prog }),
+      _apiPost({ key: `__notes_${getWeekKey()}__`, data: notes })
     ]);
     _lsSave();
     showToast('已儲存');
@@ -1355,11 +1343,7 @@ async function resizeImage(file, maxPx = 400) {
 async function uploadMemberPhoto(sheetRow, file) {
   try {
     const base64 = await resizeImage(file, 400);
-    await fetch(API_URL, {
-      method: 'POST', mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'uploadPhoto', sheetRow, base64 })
-    });
+    await _apiPost({ action: 'uploadPhoto', sheetRow, base64 });
     return null;
   } catch { return null; }
 }
@@ -1380,13 +1364,22 @@ function _scaleDM() {
   });
 }
 window.addEventListener('resize', _scaleDM);
+let _scrollRaf = false;
 window.addEventListener('scroll', () => {
-  const btn = document.getElementById('backToTop');
-  if (!btn) return;
-  btn.style.display = window.scrollY > 300 ? 'flex' : 'none';
+  if (_scrollRaf) return;
+  _scrollRaf = true;
+  requestAnimationFrame(() => {
+    const btn = document.getElementById('backToTop');
+    if (btn) btn.style.display = window.scrollY > 300 ? 'flex' : 'none';
+    _scrollRaf = false;
+  });
 });
 
 const DM_CAT_COLORS = ['#c0392b','#7b6914','#2e6e8e','#7b3f6a','#2e7d52','#b5631a','#5a4a8a','#4a7a5a','#8e3a3a','#3a6a7a'];
+const DM_PANEL_W  = 225;   // px，每面板寬度（900px / 4）
+const DM_PANEL_H  = 636;   // px，畫布高度
+const DM_RED_MM   = 21.8;  // mm，P1-P2 底部禁區
+const PX2MM = 297 / 636;   // px→mm 換算（面板高 297mm / 畫布高 636px）
 
 // ===== DM 分配：6 個會員面板（P1,P2,P5,P6,P7,P8）=====
 // 依面板高度比例平均分配人數，群組可跨面板分割，不限制產業鏈位置
@@ -1626,9 +1619,7 @@ function printDM() {
     [5,  5,  10, 10], // P7
     [5,  10, 10, 10], // P8
   ];
-  const RED_MM = 297 - 21.8; // P1-2 紅色禁區上界 275.2mm
-  // px→mm 換算：畫布 636px = 297mm；card 尺寸以此比例換算
-  const PX2MM = 297 / 636;
+  const RED_MM = 297 - DM_RED_MM; // P1-2 紅色禁區上界 275.2mm
   const HDR_MM = +(14 * PX2MM).toFixed(2); // ≈ 6.54mm（對應預覽 14px header）
   const MIN_CARD_MM = +(30 * PX2MM).toFixed(2); // ≈ 14mm
 
