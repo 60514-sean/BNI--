@@ -206,8 +206,8 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .dmc-company { font-size:6.5px; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .dmc-phone { font-size:6.5px; color:#777; }
 .dmc-service { font-size:6.5px; font-weight:700; color:#222; line-height:1.35; margin-top:1px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.dmc-group { margin-bottom:5px; }
-.dmc-cat { font-size:7.5px; font-weight:900; color:white; padding:2px 13px 2px 6px; margin-bottom:4px; display:inline-block; letter-spacing:0.5px; border-radius:0 20px 20px 0; }
+.dmc-group { margin-bottom:6px; }
+.dmc-cat { display:block; width:100%; font-size:8px; font-weight:900; color:white; padding:4px 7px; margin-bottom:3px; letter-spacing:1px; border-radius:2px; }
 
 /* PAGE TABS */
 .page-tabs {
@@ -1412,8 +1412,8 @@ async function renderDM() {
     <div class="dm-scale-outer" id="dmOuter2">
       <div class="dm-bg-wrap" id="dmSide2">
         <img class="dm-bg-img" src="dm_page2.png" alt="">
-        <div class="dm-overlay" style="left:9px;top:13px;width:882px;height:598px;columns:4;column-gap:4px;padding:4px 6px;zoom:${ds};">
-          ${_dmGroupsHtml(gInner, colorMap)}
+        <div class="dm-overlay" style="left:9px;top:13px;width:882px;height:598px;display:flex;gap:3px;padding:4px 6px;overflow:hidden;zoom:${ds};">
+          ${_dmGroupsFlexHtml(gInner, colorMap)}
         </div>
       </div>
     </div>
@@ -1459,6 +1459,19 @@ function _dmGroupsHtml(gList, colorMap) {
     </div>`).join('');
 }
 
+function _dmGroupsFlexHtml(gList, colorMap) {
+  return gList.map(([spec, members]) => {
+    const color = colorMap[spec];
+    const inner = members.length > 6
+      ? `<div style="columns:2;column-gap:2px;">${members.map(m => _dmCard(m, colorMap)).join('')}</div>`
+      : members.map(m => _dmCard(m, colorMap)).join('');
+    return `<div style="flex:${members.length};min-width:0;overflow:hidden;border-right:1px solid rgba(0,0,0,0.06);padding-right:3px;">
+      <div class="dmc-cat" style="background:${color};">${_escH(spec)}</div>
+      ${inner}
+    </div>`;
+  }).join('');
+}
+
 function printDM() {
   if (!_memberData) return;
   const { gBack, gInner, colorMap } = _dmGroups();
@@ -1487,8 +1500,8 @@ function printDM() {
       .dmc-company { font-size:5.5px; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .dmc-phone { font-size:5.5px; color:#777; }
       .dmc-service { font-size:5.5px; font-weight:700; color:#222; line-height:1.3; margin-top:1px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      .dmc-group { margin-bottom:3px; }
-      .dmc-cat { font-size:6px; font-weight:900; color:white; padding:1.5px 12px 1.5px 4px; border-radius:0 14px 14px 0; margin-bottom:2px; display:inline-block; }
+      .dmc-group { margin-bottom:4px; }
+      .dmc-cat { display:block; width:100%; font-size:6.5px; font-weight:900; color:white; padding:3px 5px; margin-bottom:2px; letter-spacing:0.8px; border-radius:2px; }
     </style>
   </head><body>
     <div class="dm-page">
@@ -1499,8 +1512,8 @@ function printDM() {
     </div>
     <div class="dm-page">
       <img class="dm-bg" src="${base}dm_page2.png">
-      <div class="dm-overlay" style="left:1%;top:2%;width:98%;height:94%;columns:4;column-gap:3mm;padding:3mm 4mm;zoom:${pds};">
-        ${_dmGroupsHtml(gInner, colorMap)}
+      <div class="dm-overlay" style="left:1%;top:2%;width:98%;height:94%;display:flex;gap:3px;padding:3mm 4mm;overflow:hidden;zoom:${pds};">
+        ${_dmGroupsFlexHtml(gInner, colorMap)}
       </div>
     </div>
   </body></html>`);
