@@ -191,8 +191,8 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 /* DM */
 .dm-wrapper { padding: 16px; max-width: 980px; margin: 0 auto; }
 .dm-panel-label { font-size:11px; color:var(--text-soft); margin-bottom:6px; font-weight:600; }
-.dm-scale-outer { overflow:hidden; margin-bottom:14px; }
-.dm-bg-wrap { position:relative; width:900px; height:636px; border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow-lg); background:#f0f0f0; transform-origin:top left; }
+.dm-scale-outer { margin-bottom:14px; }
+.dm-bg-wrap { position:relative; width:900px; height:636px; border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow-lg); background:#f0f0f0; }
 
 /* PAGE TABS */
 .page-tabs {
@@ -1349,8 +1349,8 @@ function _scaleDM() {
     const outer = document.getElementById(outerId);
     const wrap  = document.getElementById(wrapId);
     if (!outer || !wrap) return;
-    wrap.style.transform = `scale(${scale})`;
-    outer.style.height   = Math.round(baseH * scale) + 'px';
+    wrap.style.zoom = scale;
+    outer.style.height = Math.round(baseH * scale) + 'px';
   });
 }
 window.addEventListener('resize', _scaleDM);
