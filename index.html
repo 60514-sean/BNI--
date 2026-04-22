@@ -1382,26 +1382,36 @@ function _dmDistribute() {
   const colorMap = {};
   Object.keys(groups).forEach((k, i) => { colorMap[k] = DM_CAT_COLORS[i % DM_CAT_COLORS.length]; });
 
-  const CAPS = [8, 8, 10, 10, 10, 10]; // panels: P1,P2,P5,P6,P7,P8
-  const panels = CAPS.map(() => []);
+  // 軟性目標容量（用於分配決策），不是硬性上限
+  const TARGETS = [8, 8, 10, 10, 10, 10];
+  const panels = TARGETS.map(() => []);
   let pi = 0;
 
   for (const [spec, members] of Object.entries(groups)) {
     let offset = 0;
-    while (offset < members.length && pi < panels.length) {
+    while (offset < members.length) {
+      // 若已超出所有面板，剩餘成員一律加入最後一格
+      if (pi >= panels.length) {
+        const lp = panels[panels.length - 1];
+        const ex = lp.find(g => g.spec === spec);
+        if (ex) ex.members.push(...members.slice(offset));
+        else lp.push({ spec, members: members.slice(offset) });
+        break;
+      }
+      const cap  = TARGETS[pi];
       const used = panels[pi].reduce((s, g) => s + g.members.length, 0);
-      const rem  = CAPS[pi] - used;
+      const rem  = cap - used;
       const left = members.length - offset;
       if (rem <= 0) { pi++; continue; }
       if (left <= rem) {
         panels[pi].push({ spec, members: members.slice(offset) });
         offset = members.length;
-        if (panels[pi].reduce((s,g)=>s+g.members.length,0) >= CAPS[pi]) pi++;
+        if (panels[pi].reduce((s,g)=>s+g.members.length,0) >= cap) pi++;
       } else if (used === 0) {
-        panels[pi].push({ spec, members: members.slice(offset, offset + CAPS[pi]) });
-        offset += CAPS[pi]; pi++;
-      } else if (left <= CAPS[Math.min(pi+1, panels.length-1)]) {
-        pi++; // group fits in fresh panel, skip current partial
+        panels[pi].push({ spec, members: members.slice(offset, offset + cap) });
+        offset += cap; pi++;
+      } else if (left <= TARGETS[Math.min(pi+1, panels.length-1)]) {
+        pi++;
       } else {
         panels[pi].push({ spec, members: members.slice(offset, offset + rem) });
         offset += rem; pi++;
@@ -1431,13 +1441,13 @@ function _dmCardNew(m, bc, cardH) {
   </div>`;
 }
 
-// availHPreZoom: overlay height before zoom; maxCap: max members for this panel type
-function _renderPanelHtml(panelData, colorMap, availHPreZoom, maxCap) {
+// availHPreZoom: overlay height before zoom
+function _renderPanelHtml(panelData, colorMap, availHPreZoom) {
   if (!panelData || !panelData.length) return '';
   const numGroups = panelData.length;
-  const hdrH = 14; // header height px pre-zoom
-  // Card height fixed so max-capacity panel fills exactly; fewer-member panels leave whitespace at bottom
-  const cardH = Math.max(30, Math.floor((availHPreZoom - numGroups * hdrH) / maxCap));
+  const hdrH = 14;
+  const totalMembers = panelData.reduce((s, g) => s + g.members.length, 0);
+  const cardH = Math.max(18, Math.floor((availHPreZoom - numGroups * hdrH) / totalMembers));
   return panelData.map(({spec, members}) => {
     const bc = colorMap[spec] || '#888';
     return `<div>
@@ -1482,10 +1492,9 @@ async function renderDM() {
     const h   = botY - tPx;
     const preZW = Math.round(w / z);
     const preZH = Math.round(h / z);
-    const maxCap = isP12 ? 8 : 10;
     return `<div style="position:absolute;left:${x}px;top:${tPx}px;width:${w}px;height:${h}px;overflow:hidden;outline:1.5px dashed rgba(192,57,43,0.45);outline-offset:-1px;z-index:10;">
       <div style="width:${preZW}px;height:${preZH}px;zoom:${z};">
-        ${_renderPanelHtml(panels[pi], colorMap, preZH, maxCap)}
+        ${_renderPanelHtml(panels[pi], colorMap, preZH)}
       </div>
     </div>`;
   };
@@ -1579,12 +1588,13 @@ function printDM() {
     </div>`;
   };
 
-  // 與 renderDM _renderPanelHtml 相同算法，改用 mm 單位
-  const pPanel = (pi, hMm, maxCap, z) => {
+  // 與 renderDM _renderPanelHtml 相同算法，改用 mm 單位；依實際人數計算 card 高度
+  const pPanel = (pi, hMm, z) => {
     if (!panels[pi] || !panels[pi].length) return '';
     const numGroups = panels[pi].length;
+    const totalMembers = panels[pi].reduce((s, g) => s + g.members.length, 0);
     const preZH = hMm / z;
-    const cardH = Math.max(MIN_CARD_MM, Math.floor((preZH - numGroups * HDR_MM) / maxCap * 10) / 10);
+    const cardH = Math.max(MIN_CARD_MM * 0.6, Math.floor((preZH - numGroups * HDR_MM) / totalMembers * 10) / 10);
     const rendHdr  = +(HDR_MM * z).toFixed(2);
     const rendCard = +(cardH  * z).toFixed(2);
     const hdrFontMm = +(7.5 * PX2MM * z).toFixed(2);
@@ -1604,14 +1614,14 @@ function printDM() {
     const w = 105 - lmm - rmm;
     const botY = Math.min(297 - MG[pi][3], RED_MM);
     const h = +(botY - tmm).toFixed(2);
-    return `<div style="position:absolute;left:${x}mm;top:${tmm}mm;width:${w}mm;height:${h}mm;overflow:hidden;">${pPanel(pi, h, 8, 1.1)}</div>`;
+    return `<div style="position:absolute;left:${x}mm;top:${tmm}mm;width:${w}mm;height:${h}mm;overflow:hidden;">${pPanel(pi, h, 1.1)}</div>`;
   };
   const ovP58 = (pi, xi) => {
     const [lmm, rmm, tmm, bmm] = MG[pi];
     const x = xi * 105 + lmm;
     const w = 105 - lmm - rmm;
     const h = +(297 - tmm - bmm).toFixed(2);
-    return `<div style="position:absolute;left:${x}mm;top:${tmm}mm;width:${w}mm;height:${h}mm;overflow:hidden;">${pPanel(pi, h, 10, 1.0)}</div>`;
+    return `<div style="position:absolute;left:${x}mm;top:${tmm}mm;width:${w}mm;height:${h}mm;overflow:hidden;">${pPanel(pi, h, 1.0)}</div>`;
   };
   const bg = (n, xmm) => `<img style="position:absolute;left:${xmm}mm;top:0;width:105mm;height:297mm;object-fit:fill;display:block;" src="${base}dm_p${n}.png">`;
 
