@@ -1390,7 +1390,6 @@ function _dmDistribute() {
   const TARGETS = Array.from({ length: 6 }, (_, i) => base + (i < extra ? 1 : 0));
 
   const panels = Array.from({ length: 6 }, () => []);
-  let pi = 0;
 
   // 隨機打亂群組順序，讓每次重整顯示不同排版
   const groupEntries = Object.entries(groups);
@@ -1399,58 +1398,78 @@ function _dmDistribute() {
     [groupEntries[i], groupEntries[j]] = [groupEntries[j], groupEntries[i]];
   }
 
-  // Phase 1：逐格填入，整組放得下就不切，放不下才切分
-  for (const [spec, members] of groupEntries) {
-    let offset = 0;
-    while (offset < members.length) {
-      if (pi >= 6) {
-        const ex = panels[5].find(g => g.spec === spec);
-        if (ex) ex.members.push(...members.slice(offset));
-        else panels[5].push({ spec, members: members.slice(offset) });
-        break;
-      }
-      const used = panels[pi].reduce((s, g) => s + g.members.length, 0);
-      const rem  = TARGETS[pi] - used;
-      const left = members.length - offset;
-      if (rem <= 0) { pi++; continue; }
-
-      if (left <= rem) {
-        // 整組放得進：直接放，不切
-        panels[pi].push({ spec, members: members.slice(offset) });
-        offset = members.length;
-        if (used + left >= TARGETS[pi]) pi++;
-      } else {
-        // 放不下：切分填滿當前格，剩餘繼續下一格
-        panels[pi].push({ spec, members: members.slice(offset, offset + rem) });
-        offset += rem; pi++;
-      }
-    }
+  // 分兩個獨立區域：Zone1=P1-P2，Zone2=P5-P8，群組不跨區
+  const zone1Cap = TARGETS[0] + TARGETS[1];
+  const zone1Groups = [], zone2Groups = [];
+  let zone1Used = 0;
+  for (const entry of groupEntries) {
+    const size = entry[1].length;
+    if (zone1Used + size <= zone1Cap) { zone1Groups.push(entry); zone1Used += size; }
+    else zone2Groups.push(entry);
   }
 
-  // Phase 2：重新平衡 — 把過滿格的完整群組搬到有空間的格子
-  for (let iter = 0; iter < 15; iter++) {
-    let improved = false;
-    for (let from = 5; from >= 1 && !improved; from--) {
-      const fromCount = panels[from].reduce((s, g) => s + g.members.length, 0);
-      if (fromCount <= TARGETS[from]) continue;
-      for (let to = 0; to < 6 && !improved; to++) {
-        if (to === from) continue;
-        const toCount = panels[to].reduce((s, g) => s + g.members.length, 0);
-        const avail   = TARGETS[to] - toCount;
-        if (avail <= 0) continue;
-        const movable = panels[from]
-          .filter(g => g.members.length <= avail)
-          .sort((a, b) => b.members.length - a.members.length);
-        if (movable.length) {
-          const grp = movable[0];
-          panels[from] = panels[from].filter(g => g !== grp);
-          panels[to].push(grp);
-          improved = true;
+  // 在指定面板集合內分配群組（整組放不下才切分）
+  const fillZone = (entries, idxList) => {
+    let pi = 0;
+    for (const [spec, members] of entries) {
+      let offset = 0;
+      while (offset < members.length) {
+        if (pi >= idxList.length) {
+          const last = panels[idxList[idxList.length - 1]];
+          const ex = last.find(g => g.spec === spec);
+          if (ex) ex.members.push(...members.slice(offset));
+          else last.push({ spec, members: members.slice(offset) });
+          break;
+        }
+        const idx  = idxList[pi];
+        const used = panels[idx].reduce((s, g) => s + g.members.length, 0);
+        const rem  = TARGETS[idx] - used;
+        const left = members.length - offset;
+        if (rem <= 0) { pi++; continue; }
+        if (left <= rem) {
+          panels[idx].push({ spec, members: members.slice(offset) });
+          offset = members.length;
+          if (used + left >= TARGETS[idx]) pi++;
+        } else {
+          panels[idx].push({ spec, members: members.slice(offset, offset + rem) });
+          offset += rem; pi++;
         }
       }
     }
-    if (!improved) break;
-  }
+  };
+
+  fillZone(zone1Groups, [0, 1]);
+  fillZone(zone2Groups, [2, 3, 4, 5]);
+
+  // 各區內部重新平衡：把過滿格的完整群組搬到同區有空間的格子
+  const rebalance = (idxList) => {
+    for (let iter = 0; iter < 15; iter++) {
+      let improved = false;
+      for (let fi = idxList.length - 1; fi >= 1 && !improved; fi--) {
+        const from = idxList[fi];
+        const fromCount = panels[from].reduce((s, g) => s + g.members.length, 0);
+        if (fromCount <= TARGETS[from]) continue;
+        for (let ti = 0; ti < fi && !improved; ti++) {
+          const to = idxList[ti];
+          const avail = TARGETS[to] - panels[to].reduce((s, g) => s + g.members.length, 0);
+          if (avail <= 0) continue;
+          const movable = panels[from]
+            .filter(g => g.members.length <= avail)
+            .sort((a, b) => b.members.length - a.members.length);
+          if (movable.length) {
+            const grp = movable[0];
+            panels[from] = panels[from].filter(g => g !== grp);
+            panels[to].push(grp);
+            improved = true;
+          }
+        }
+      }
+      if (!improved) break;
+    }
+  };
+
+  rebalance([0, 1]);
+  rebalance([2, 3, 4, 5]);
 
   return { panels, colorMap };
 }
