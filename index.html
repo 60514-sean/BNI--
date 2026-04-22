@@ -867,12 +867,14 @@ async function fetchMembers() {
     const iDays = idx('到期續約天數'), iStatus = idx('續約狀態'), iDate = idx('到期日');
     const iApply = idx('申請書'), iPay = idx('繳費'), iComplete = idx('完成續約'), iRibbon = idx('綢帶');
     const iPhoto = idx('照片連結');
+    const iInd = idx('產業鏈');
 
     _memberData = rows.slice(1)
       .map((r, i) => ({
         sheetRow:    i + 2,
         name:        r[iName]?.trim()     || '',
         specialty:   r[iSpec]?.trim()     || '',
+        industry:    iInd >= 0 ? (r[iInd]?.trim() || '') : '',
         company:     r[iComp]?.trim()     || '',
         phone:       r[iPhone]?.trim()    || '',
         service:     r[iServ]?.trim()     || '',
@@ -894,13 +896,14 @@ async function fetchMembers() {
 
 let _memberSearch = '';
 let _memberFilter = ''; // '' | '120' | '90'
+let _defaultIndustry = '';
 
 async function renderMembers() {
   if (!_memberData) await fetchMembers();
   if (!_memberData) return;
   const q = _memberSearch.toLowerCase();
   let list = q
-    ? _memberData.filter(m => m.name.includes(q) || m.specialty.includes(q) || m.company.includes(q))
+    ? _memberData.filter(m => m.name.includes(q) || m.specialty.includes(q) || m.company.includes(q) || m.industry.includes(q))
     : _memberData;
   if (_memberFilter === '120') list = list.filter(m => { const d = parseInt(m.renewDays); return d >= 90 && d <= 119; });
   if (_memberFilter === '90')  list = list.filter(m => parseInt(m.renewDays) <= 89);
@@ -915,7 +918,8 @@ async function renderMembers() {
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
       <button onclick="_memberFilter=_memberFilter==='120'?'':'120';renderMembers()" style="${btnStyle('120','#d4ac0d','white')}">120天</button>
       <button onclick="_memberFilter=_memberFilter==='90'?'':'90';renderMembers()"  style="${btnStyle('90','#c0392b','white')}">90天</button>
-      ${canEdit ? `<button onclick="openAddMember()" style="padding:7px 16px;background:var(--red);color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ 新增會員</button>` : ''}
+      ${canEdit ? `<input type="text" value="${_escH(_defaultIndustry)}" oninput="_defaultIndustry=this.value" placeholder="產業鏈名稱" style="padding:7px 10px;border:1.5px solid var(--gray-border);border-radius:7px;font-size:13px;font-family:inherit;width:130px;outline:none;" title="新增會員時預填的產業鏈">
+        <button onclick="openAddMember()" style="padding:7px 16px;background:var(--red);color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ 新增會員</button>` : ''}
     </div>
   </div>`;
   html += `<div class="member-grid">`;
@@ -978,6 +982,7 @@ function openEditMember(sheetRow) {
         </div>
       </div>
       <div class="modal-field"><div class="modal-label">姓名</div><input class="modal-input" id="mf_name" value="${_escH(m.name)}"></div>
+      <div class="modal-field"><div class="modal-label">產業鏈（DM分組標題）</div><input class="modal-input" id="mf_ind" value="${_escH(m.industry)}" placeholder="例：大健康產業"></div>
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" value="${_escH(m.specialty)}"></div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" value="${_escH(m.company)}"></div>
       <div class="modal-field"><div class="modal-label">電話</div><input class="modal-input" id="mf_phone" type="tel" value="${_escH(m.phone)}"></div>
@@ -1028,10 +1033,11 @@ function openAddMember() {
         </div>
       </div>
       <div class="modal-field"><div class="modal-label">姓名</div><input class="modal-input" id="mf_name" placeholder="輸入姓名"></div>
+      <div class="modal-field"><div class="modal-label">產業鏈（DM分組標題）</div><input class="modal-input" id="mf_ind" value="${_escH(_defaultIndustry)}" placeholder="例：大健康產業"></div>
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" placeholder="輸入專業別"></div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" placeholder="輸入公司或品牌名稱"></div>
       <div class="modal-field"><div class="modal-label">電話</div><input class="modal-input" id="mf_phone" type="tel" placeholder="輸入電話"></div>
-      <div class="modal-field"><div class="modal-label">服務項目</div><input class="modal-input" id="mf_serv" placeholder="輸入服務項目（20字內）"></div>
+      <div class="modal-field"><div class="modal-label">服務項目</div><input class="modal-input" id="mf_serv" placeholder="輸入服務項目"></div>
       <div style="border-top:1px solid var(--gray-border);margin:14px 0 10px;padding-top:12px;">
         <div class="modal-label" style="margin-bottom:10px;">續約資訊</div>
         <div class="modal-field"><div class="modal-label">到期日</div><input class="modal-input" id="mf_renewDate" placeholder="例：2027/2/1"></div>
@@ -1054,6 +1060,7 @@ async function addMember() {
   const payload = {
     action:    'addMember',
     name,
+    industry:  document.getElementById('mf_ind').value.trim(),
     specialty: document.getElementById('mf_spec').value.trim(),
     company:   document.getElementById('mf_comp').value.trim(),
     phone:     document.getElementById('mf_phone').value.trim(),
@@ -1136,6 +1143,7 @@ async function saveMemberEdit(sheetRow) {
   const originalName = m.name;
   const photoFile = document.getElementById('mf_photo_file')?.files[0];
   m.name         = document.getElementById('mf_name').value.trim();
+  m.industry     = document.getElementById('mf_ind').value.trim();
   m.specialty    = document.getElementById('mf_spec').value.trim();
   m.company      = document.getElementById('mf_comp').value.trim();
   m.phone        = document.getElementById('mf_phone').value.trim();
@@ -1155,7 +1163,7 @@ async function saveMemberEdit(sheetRow) {
       fetch(API_URL, {
         method: 'POST', mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'updateMember', sheetRow, originalName, name: m.name, specialty: m.specialty, company: m.company, phone: m.phone, service: m.service })
+        body: JSON.stringify({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, company: m.company, phone: m.phone, service: m.service })
       }),
       fetch(API_URL, {
         method: 'POST', mode: 'no-cors',
@@ -1294,7 +1302,7 @@ async function renderDM() {
 
 function _dmGroups() {
   const groups = {};
-  _memberData.forEach(m => { const k = m.specialty || '其他'; if (!groups[k]) groups[k] = []; groups[k].push(m); });
+  _memberData.forEach(m => { const k = m.industry || m.specialty || '其他'; if (!groups[k]) groups[k] = []; groups[k].push(m); });
   const entries = Object.entries(groups);
   const colorMap = {};
   entries.forEach(([k], i) => { colorMap[k] = DM_CAT_COLORS[i % DM_CAT_COLORS.length]; });
@@ -1303,14 +1311,16 @@ function _dmGroups() {
 }
 
 function _dmCard(m, colorMap) {
+  const ind = m.industry || m.specialty || '其他';
   const ph = m.photo
     ? `<img class="dmc-photo" src="${_escH(m.photo)}" onerror="this.style.display='none'">`
     : `<div class="dmc-photo dmc-nophoto">?</div>`;
   return `<div class="dmc">${ph}<div class="dmc-body">
     <div class="dmc-name">${_escH(m.name)}</div>
-    <div class="dmc-spec" style="color:${colorMap[m.specialty||'其他']};">${_escH(m.specialty||'')}</div>
+    ${m.specialty?`<div class="dmc-spec" style="color:${colorMap[ind]};">${_escH(m.specialty)}</div>`:''}
     ${m.company?`<div class="dmc-company">${_escH(m.company)}</div>`:''}
     ${m.phone?`<div class="dmc-phone">${_escH(m.phone)}</div>`:''}
+    ${m.service?`<div class="dmc-service">${_escH(m.service)}</div>`:''}
   </div></div>`;
 }
 
@@ -1347,6 +1357,7 @@ function printDM() {
       .dmc-spec { font-size:5.5px; font-weight:700; margin-top:0.5px; }
       .dmc-company { font-size:5.5px; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .dmc-phone { font-size:5.5px; color:#777; }
+      .dmc-service { font-size:5px; color:#999; line-height:1.3; margin-top:1px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       .dmc-group { break-inside:avoid; margin-bottom:3px; }
       .dmc-cat { font-size:6px; font-weight:900; color:white; padding:1.5px 6px 1.5px 4px; border-radius:0 7px 7px 0; margin-bottom:2px; display:block; margin-left:-3px; }
     </style>
