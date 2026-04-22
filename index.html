@@ -941,8 +941,17 @@ async function fetchMembers() {
 let _memberSearch = '';
 let _memberFilter = ''; // '' | '120' | '90'
 let _defaultIndustry = '';
-// 優先從 API cache 讀取（跨裝置同步），fallback 到舊 localStorage
-let _industries = cache['__industries__'] || JSON.parse(localStorage.getItem('bni_industries') || '[]');
+let _industries = (() => {
+  if (cache['__industries__'] && cache['__industries__'].length) return cache['__industries__'];
+  const old = JSON.parse(localStorage.getItem('bni_industries') || '[]');
+  // 若有舊 localStorage 資料但伺服器尚無，自動遷移上傳
+  if (old.length) setTimeout(() => apiSave('__industries__', old), 500);
+  return old;
+})();
+// 背景刷新完成後同步最新伺服器資料
+_bgRefresh().then(() => {
+  if (cache['__industries__'] && cache['__industries__'].length) _industries = cache['__industries__'];
+});
 
 function _saveIndustries() {
   apiSave('__industries__', _industries);
