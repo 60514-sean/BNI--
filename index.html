@@ -1403,17 +1403,19 @@ async function renderDM() {
       </div>
     </div>
 
-    <div class="dm-panel-label">正面 — 左：封底會員名單 ／ 右：BNI封面</div>
+    <div class="dm-panel-label">正面 A3 — 左：封底（會員名單）／ 右：封面（BNI 介紹，無會員資料）</div>
     <div class="dm-scale-outer" id="dmOuter1">
       <div class="dm-bg-wrap" id="dmSide1">
-        <img class="dm-bg-img" src="dm_page1.png" alt="">
-        <div class="dm-overlay" style="left:9px;top:13px;width:422px;height:598px;columns:2;column-gap:4px;padding:4px 6px;zoom:${ds};">
+        <img style="position:absolute;left:0;top:0;width:50%;height:100%;object-fit:fill;display:block;" src="dm_page2.png" alt="">
+        <img style="position:absolute;right:0;top:0;width:50%;height:100%;object-fit:fill;display:block;" src="dm_page1.png" alt="">
+        <div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:rgba(0,0,0,0.18);z-index:2;"></div>
+        <div class="dm-overlay" style="left:9px;top:13px;width:432px;height:598px;columns:2;column-gap:4px;padding:4px 6px;zoom:${ds};">
           ${_dmGroupsHtml(gBack, colorMap)}
         </div>
       </div>
     </div>
 
-    <div class="dm-panel-label">背面 — 內頁展開會員名單</div>
+    <div class="dm-panel-label">背面 A3 — 內頁展開（會員名單）</div>
     <div class="dm-scale-outer" id="dmOuter2">
       <div class="dm-bg-wrap" id="dmSide2">
         <img class="dm-bg-img" src="dm_page2.png" alt="">
@@ -1510,14 +1512,16 @@ function printDM() {
     </style>
   </head><body>
     <div class="dm-page">
-      <img class="dm-bg" src="${base}dm_page1.png">
-      <div class="dm-overlay" style="left:1%;top:2%;width:47%;height:94%;columns:2;column-gap:3mm;padding:3mm 4mm;zoom:${pds};">
+      <img style="position:absolute;left:0;top:0;width:50%;height:100%;object-fit:fill;display:block;" src="${base}dm_page2.png">
+      <img style="position:absolute;right:0;top:0;width:50%;height:100%;object-fit:fill;display:block;" src="${base}dm_page1.png">
+      <div style="position:absolute;left:50%;top:0;width:0.5mm;height:100%;background:rgba(0,0,0,0.1);"></div>
+      <div class="dm-overlay" style="left:2mm;top:4mm;width:205mm;height:289mm;columns:2;column-gap:3mm;padding:3mm 4mm;zoom:${pds};">
         ${_dmGroupsHtml(gBack, colorMap)}
       </div>
     </div>
     <div class="dm-page">
       <img class="dm-bg" src="${base}dm_page2.png">
-      <div class="dm-overlay" style="left:1%;top:2%;width:98%;height:94%;display:flex;gap:3px;padding:3mm 4mm;overflow:hidden;zoom:${pds};">
+      <div class="dm-overlay" style="left:2mm;top:4mm;width:416mm;height:289mm;display:flex;gap:2mm;padding:3mm 4mm;overflow:hidden;zoom:${pds};">
         ${_dmGroupsFlexHtml(gInner, colorMap)}
       </div>
     </div>
