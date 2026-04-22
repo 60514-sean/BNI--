@@ -990,20 +990,17 @@ function removeIndustry(i) {
 async function renderMembers() {
   if (!_memberData) await fetchMembers();
   if (!_memberData) return;
-  const q = _memberSearch.toLowerCase();
-  let list = q
-    ? _memberData.filter(m => m.name.includes(q) || m.specialty.includes(q) || m.company.includes(q) || m.industry.includes(q))
-    : _memberData;
+  let list = _memberData;
   if (_memberFilter === '120') list = list.filter(m => { const d = parseInt(m.renewDays); return d >= 90 && d <= 119; });
   if (_memberFilter === '90')  list = list.filter(m => parseInt(m.renewDays) <= 89);
   const canEdit = CR === 'admin';
   const btnStyle = (f, bg, color) => `padding:7px 12px;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;background:${_memberFilter===f?bg:'white'};color:${_memberFilter===f?color:bg};border:1.5px solid ${bg};`;
   let html = `<div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
-    <input class="member-search" type="text" placeholder="搜尋姓名、專業別、公司..." value="${_escH(_memberSearch)}" oninput="_memberSearch=this.value;renderMembers()" autocomplete="off" style="margin-bottom:0;flex:1;">
+    <input class="member-search" type="text" placeholder="搜尋姓名、專業別、公司..." value="${_escH(_memberSearch)}" oninput="_memberSearch=this.value;_filterMemberCards()" autocomplete="off" style="margin-bottom:0;flex:1;">
     <button onclick="_memberData=null;renderMembers()" style="flex-shrink:0;padding:11px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">重整</button>
   </div>`;
   html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-    <span style="font-size:13px;color:var(--text-soft);">${list.length} 位會員</span>
+    <span id="memberCount" style="font-size:13px;color:var(--text-soft);">${list.length} 位會員</span>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
       <button onclick="_memberFilter=_memberFilter==='120'?'':'120';renderMembers()" style="${btnStyle('120','#d4ac0d','white')}">120天</button>
       <button onclick="_memberFilter=_memberFilter==='90'?'':'90';renderMembers()"  style="${btnStyle('90','#c0392b','white')}">90天</button>
@@ -1016,7 +1013,8 @@ async function renderMembers() {
     const days = parseInt(m.renewDays);
     const daysBg    = days>=120?'#eaf7ee':days>=90?'#fef9e7':'#fdecea';
     const daysColor = days>=120?'#27ae60':days>=90?'#d4ac0d':'#c0392b';
-    html += `<div class="member-card" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
+    const _ds = [m.name,m.specialty,m.company,m.industry,m.service].filter(Boolean).join(' ').toLowerCase();
+    html += `<div class="member-card" data-search="${_escH(_ds)}" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 12px;">
         <div style="flex:1;min-width:0;">
           ${m.specialty?`<div style="margin-bottom:6px;"><span style="display:inline-block;background:var(--red);color:white;font-size:11px;font-weight:900;padding:3px 12px;border-radius:20px;letter-spacing:0.5px;">${_escH(m.specialty)}</span></div>`:''}
@@ -1039,9 +1037,25 @@ async function renderMembers() {
       </div>
     </div>`;
   });
-  html += `</div>`;
-  if (list.length === 0 && _memberData.length > 0) html = `<div style="display:flex;gap:8px;margin-bottom:14px;"><input class="member-search" type="text" placeholder="搜尋姓名、專業別、公司..." value="${_escH(_memberSearch)}" oninput="_memberSearch=this.value;renderMembers()" autocomplete="off" style="margin-bottom:0;flex:1;"><button onclick="_memberData=null;renderMembers()" style="flex-shrink:0;padding:11px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">重整</button></div><div style="text-align:center;padding:48px 20px;color:var(--text-soft);">查無結果</div>`;
+  if (list.length === 0) html += `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">查無符合條件的會員</div>`;
+  html += `<div id="memberNoResult" style="display:none;text-align:center;padding:48px 20px;color:var(--text-soft);">查無搜尋結果</div></div>`;
   document.getElementById('memberContent').innerHTML = html;
+  _filterMemberCards();
+}
+
+function _filterMemberCards() {
+  const q = _memberSearch.trim().toLowerCase();
+  const cards = document.querySelectorAll('#memberContent .member-card[data-search]');
+  let shown = 0;
+  cards.forEach(c => {
+    const match = !q || c.dataset.search.includes(q);
+    c.style.display = match ? '' : 'none';
+    if (match) shown++;
+  });
+  const noRes = document.getElementById('memberNoResult');
+  if (noRes) noRes.style.display = (q && shown === 0) ? '' : 'none';
+  const countEl = document.getElementById('memberCount');
+  if (countEl) countEl.textContent = (q ? shown : cards.length) + ' 位會員';
 }
 
 function _escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -1484,7 +1498,7 @@ async function renderDM() {
           <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">共 ${_memberData.length} 位會員</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-primary" onclick="printDM()">列印 / 匯出 PDF</button>
+          <button class="btn btn-primary" onclick="printDM()">匯出 PDF</button>
           <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="_memberData=null;renderDM()">重新整理</button>
         </div>
       </div>
