@@ -1541,6 +1541,10 @@ function _renderPanelHtml(panelData, colorMap, availHPreZoom) {
 }
 
 async function renderDM() {
+  // 預先背景載入 PDF 函式庫，避免匯出時有延遲
+  _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+
   const el = document.getElementById('dmContent');
   el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
   if (!_memberData) await fetchMembers();
