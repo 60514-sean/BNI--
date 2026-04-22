@@ -1402,7 +1402,6 @@ function _dmDistribute() {
     let offset = 0;
     while (offset < members.length) {
       if (pi >= 6) {
-        // 超出所有面板時，把剩餘加入最後一格
         const ex = panels[5].find(g => g.spec === spec);
         if (ex) ex.members.push(...members.slice(offset));
         else panels[5].push({ spec, members: members.slice(offset) });
@@ -1410,12 +1409,22 @@ function _dmDistribute() {
       }
       const used = panels[pi].reduce((s, g) => s + g.members.length, 0);
       const rem  = TARGETS[pi] - used;
+      const left = members.length - offset;
       if (rem <= 0) { pi++; continue; }
-      // 直接填入當前格（允許群組跨格分割）
-      const chunk = members.slice(offset, offset + rem);
-      panels[pi].push({ spec, members: chunk });
-      offset += chunk.length;
-      if (used + chunk.length >= TARGETS[pi]) pi++;
+
+      if (left <= rem) {
+        // 整組塞得進當前面板
+        panels[pi].push({ spec, members: members.slice(offset) });
+        offset = members.length;
+        if (used + left >= TARGETS[pi]) pi++;
+      } else if (used === 0 || left > TARGETS[Math.min(pi + 1, 5)]) {
+        // 面板空的（必須從這裡開始）或下一格也放不下 → 切分
+        panels[pi].push({ spec, members: members.slice(offset, offset + rem) });
+        offset += rem; pi++;
+      } else {
+        // 當前格剩餘空間不夠，但下一格放得下整組 → 移到下一格保持群組完整
+        pi++;
+      }
     }
   }
 
