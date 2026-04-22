@@ -1624,11 +1624,12 @@ function printDM() {
     const nameMm = +(8.5 * PX2MM * z).toFixed(2);
     const spMm   = +(6.5 * PX2MM * z).toFixed(2);
     const smMm   = +(7   * PX2MM * z).toFixed(2);
-    const gapMm  = +(4   * PX2MM * z).toFixed(2);
+    const gapMm    = +(4 * PX2MM * z).toFixed(2);
+    const borderMm = +(2 * PX2MM * z).toFixed(2); // 對應預覽 2px border
     const padMm  = +(2   * PX2MM * z).toFixed(2);
     const ph = m.photo
-      ? `<img style="width:${psMm}mm;height:${psMm}mm;border-radius:50%;object-fit:cover;flex-shrink:0;border:0.5pt solid ${bc};display:block;" src="${_escH(m.photo)}" onerror="this.style.display='none'">`
-      : `<div style="width:${psMm}mm;height:${psMm}mm;border-radius:50%;flex-shrink:0;border:0.5pt solid ${bc};background:#e8ecf0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:${+(psMm*0.3).toFixed(2)}mm;font-weight:900;">?</div>`;
+      ? `<img style="width:${psMm}mm;height:${psMm}mm;border-radius:50%;object-fit:cover;flex-shrink:0;border:${borderMm}mm solid ${bc};display:block;" src="${_escH(m.photo)}" onerror="this.style.display='none'">`
+      : `<div style="width:${psMm}mm;height:${psMm}mm;border-radius:50%;flex-shrink:0;border:${borderMm}mm solid ${bc};background:#e8ecf0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:${+(psMm*0.3).toFixed(2)}mm;font-weight:900;">?</div>`;
     return `<div style="display:flex;gap:${gapMm}mm;align-items:center;border-bottom:0.3pt solid rgba(0,0,0,0.07);overflow:hidden;height:${rendCardH_mm}mm;box-sizing:border-box;padding:0 ${padMm}mm;">
       ${ph}
       <div style="flex:1;min-width:0;overflow:hidden;">
