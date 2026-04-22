@@ -1371,7 +1371,7 @@ window.addEventListener('resize', _scaleDM);
 
 const DM_CAT_COLORS = ['#c0392b','#7b6914','#2e6e8e','#7b3f6a','#2e7d52','#b5631a','#5a4a8a','#4a7a5a','#8e3a3a','#3a6a7a'];
 
-// ===== DM 分配：6 個會員面板（P1,P2,P5,P6,P7,P8），P1-2 容量8，P5-8 容量10 =====
+// ===== DM 分配：6 個會員面板（P1,P2,P5,P6,P7,P8） =====
 function _dmDistribute() {
   const groups = {};
   _memberData.forEach(m => {
@@ -1382,16 +1382,26 @@ function _dmDistribute() {
   const colorMap = {};
   Object.keys(groups).forEach((k, i) => { colorMap[k] = DM_CAT_COLORS[i % DM_CAT_COLORS.length]; });
 
-  // 軟性目標容量（用於分配決策），不是硬性上限
-  const TARGETS = [8, 8, 10, 10, 10, 10];
+  const total = _memberData.length;
+  // 各面板 pre-zoom 可用高度(px)，用來按比例分配人數，確保卡片高度大致均等
+  const PH = [516, 516, 594, 594, 594, 594]; // P1,P2,P5,P6,P7,P8
+  const sumH = PH.reduce((s, h) => s + h, 0);
+  const TARGETS = PH.map(h => Math.max(1, Math.round(total * h / sumH)));
+  // 修正捨入誤差，使 TARGETS 總和 = total
+  let diff = total - TARGETS.reduce((s, t) => s + t, 0);
+  for (let i = 0; diff !== 0; i = (i + 1) % 6) {
+    TARGETS[i] += diff > 0 ? 1 : -1;
+    diff       += diff > 0 ? -1 : 1;
+  }
+
   const panels = TARGETS.map(() => []);
   let pi = 0;
 
   for (const [spec, members] of Object.entries(groups)) {
     let offset = 0;
     while (offset < members.length) {
-      // 若已超出所有面板，剩餘成員一律加入最後一格
       if (pi >= panels.length) {
+        // 超出所有面板：加入最後一格
         const lp = panels[panels.length - 1];
         const ex = lp.find(g => g.spec === spec);
         if (ex) ex.members.push(...members.slice(offset));
@@ -1406,12 +1416,12 @@ function _dmDistribute() {
       if (left <= rem) {
         panels[pi].push({ spec, members: members.slice(offset) });
         offset = members.length;
-        if (panels[pi].reduce((s,g)=>s+g.members.length,0) >= cap) pi++;
+        if (used + left >= cap) pi++;
       } else if (used === 0) {
         panels[pi].push({ spec, members: members.slice(offset, offset + cap) });
         offset += cap; pi++;
-      } else if (left <= TARGETS[Math.min(pi+1, panels.length-1)]) {
-        pi++;
+      } else if (left <= TARGETS[Math.min(pi + 1, panels.length - 1)]) {
+        pi++; // 下一格能整組容納，跳過當前半格
       } else {
         panels[pi].push({ spec, members: members.slice(offset, offset + rem) });
         offset += rem; pi++;
@@ -1447,7 +1457,9 @@ function _renderPanelHtml(panelData, colorMap, availHPreZoom) {
   const numGroups = panelData.length;
   const hdrH = 14;
   const totalMembers = panelData.reduce((s, g) => s + g.members.length, 0);
-  const cardH = Math.max(18, Math.floor((availHPreZoom - numGroups * hdrH) / totalMembers));
+  // MIN_CARD：最小可讀高度；MAX_CARD：人少時避免卡片過大
+  const MIN_CARD = 22, MAX_CARD = 70;
+  const cardH = Math.max(MIN_CARD, Math.min(MAX_CARD, Math.floor((availHPreZoom - numGroups * hdrH) / totalMembers)));
   return panelData.map(({spec, members}) => {
     const bc = colorMap[spec] || '#888';
     return `<div>
@@ -1594,7 +1606,8 @@ function printDM() {
     const numGroups = panels[pi].length;
     const totalMembers = panels[pi].reduce((s, g) => s + g.members.length, 0);
     const preZH = hMm / z;
-    const cardH = Math.max(MIN_CARD_MM * 0.6, Math.floor((preZH - numGroups * HDR_MM) / totalMembers * 10) / 10);
+    const MAX_CARD_MM = 70 * PX2MM; // 對應預覽 MAX_CARD
+    const cardH = Math.max(MIN_CARD_MM, Math.min(MAX_CARD_MM, Math.floor((preZH - numGroups * HDR_MM) / totalMembers * 10) / 10));
     const rendHdr  = +(HDR_MM * z).toFixed(2);
     const rendCard = +(cardH  * z).toFixed(2);
     const hdrFontMm = +(7.5 * PX2MM * z).toFixed(2);
