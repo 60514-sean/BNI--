@@ -989,7 +989,7 @@ async function renderMembers() {
     const daysBg    = days>=120?'#eaf7ee':days>=90?'#fef9e7':'#fdecea';
     const daysColor = days>=120?'#27ae60':days>=90?'#d4ac0d':'#c0392b';
     html += `<div class="member-card" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
-      ${m.industry ? `<div style="background:#3a2e28;color:white;font-size:12px;font-weight:900;padding:7px 16px;letter-spacing:1px;">${_escH(m.industry)}</div>` : ''}
+      ${m.industry ? `<div style="padding:10px 16px 2px;"><span style="display:inline-block;background:#5c4228;color:white;font-size:12px;font-weight:900;padding:5px 28px 5px 14px;letter-spacing:1.5px;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,0 100%);">${_escH(m.industry)}</span></div>` : ''}
       <!-- 上半：主資訊 -->
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 12px;">
         <div style="flex:1;min-width:0;">
