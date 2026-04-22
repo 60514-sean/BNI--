@@ -1440,18 +1440,37 @@ async function renderDM() {
   if (!_memberData) { el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試</div>`; return; }
 
   const { panels, colorMap } = _dmDistribute();
-  // Pages 1-2: zoom 1.1 (較大卡片，7-8人容量)；Pages 5-8: zoom 1.0 (較小，9-11人容量)
-  const zLg = 1.1, zSm = 1.0;
-  // 紅色禁區: 21.8mm/297mm * 636px ≈ 47px
-  const h12 = 576, h58 = 620, pw = 217;
-  const preZ12 = Math.round(h12 / zLg); // pre-zoom height for P1-2
-  const preZ58 = Math.round(h58 / zSm); // pre-zoom height for P5-8
+  // px/mm 換算比例
+  const PX_H = 225 / 105; // 水平：面板225px = 105mm
+  const PX_V = 636 / 297; // 垂直：畫布636px = 297mm
+  const RED_TOP = Math.round(636 - 21.8 * PX_V); // P1-2 紅色禁區上界 ≈ 589px
+  // 各面板邊距設定 (mm)：[left, right, top, bottom]
+  const MG = [
+    [10, 5,  10, 10], // P1
+    [5,  5,  10, 10], // P2
+    [10, 5,  10, 10], // P5
+    [5,  5,  10, 10], // P6
+    [5,  5,  10, 10], // P7
+    [5,  10, 10, 10], // P8
+  ];
   const dividers = [25,50,75].map(p=>`<div style="position:absolute;left:${p}%;top:0;width:1px;height:100%;background:rgba(0,0,0,0.15);z-index:5;"></div>`).join('');
-  // 外框固定裁切，內層 zoom：防止 zoom 放大後溢出到相鄰面板
-  const ov = (pi, xi, h, z, preZH, maxCap) => {
-    const innerW = Math.round(pw / z);
-    return `<div style="position:absolute;left:${xi*225+4}px;top:8px;width:${pw}px;height:${h}px;overflow:hidden;">
-      <div style="width:${innerW}px;height:${preZH}px;zoom:${z};">
+  // pi: panel index(0-5), xi: x位置(0-3), isP12: 是否為P1-2面板
+  const ov = (pi, xi, isP12) => {
+    const [lmm, rmm, tmm, bmm] = MG[pi];
+    const lPx = Math.round(lmm * PX_H);
+    const rPx = Math.round(rmm * PX_H);
+    const tPx = Math.round(tmm * PX_V);
+    const bPx = Math.round(bmm * PX_V);
+    const z   = isP12 ? 1.1 : 1.0;
+    const x   = xi * 225 + lPx;
+    const w   = 225 - lPx - rPx;
+    const botY = isP12 ? Math.min(636 - bPx, RED_TOP) : (636 - bPx);
+    const h   = botY - tPx;
+    const preZW = Math.round(w / z);
+    const preZH = Math.round(h / z);
+    const maxCap = isP12 ? 8 : 10;
+    return `<div style="position:absolute;left:${x}px;top:${tPx}px;width:${w}px;height:${h}px;overflow:hidden;outline:1.5px dashed rgba(192,57,43,0.45);outline-offset:-1px;z-index:10;">
+      <div style="width:${preZW}px;height:${preZH}px;zoom:${z};">
         ${_renderPanelHtml(panels[pi], colorMap, preZH, maxCap)}
       </div>
     </div>`;
@@ -1479,7 +1498,7 @@ async function renderDM() {
         <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p3.png" alt="">
         <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p4.png" alt="">
         ${dividers}
-        ${ov(0,0,h12,zLg,preZ12,8)}${ov(1,1,h12,zLg,preZ12,8)}
+        ${ov(0,0,true)}${ov(1,1,true)}
       </div>
     </div>
 
@@ -1491,7 +1510,7 @@ async function renderDM() {
         <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p7.png" alt="">
         <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p8.png" alt="">
         ${dividers}
-        ${ov(2,0,h58,zSm,preZ58,10)}${ov(3,1,h58,zSm,preZ58,10)}${ov(4,2,h58,zSm,preZ58,10)}${ov(5,3,h58,zSm,preZ58,10)}
+        ${ov(2,0,false)}${ov(3,1,false)}${ov(4,2,false)}${ov(5,3,false)}
       </div>
     </div>
   </div>`;
