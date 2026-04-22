@@ -1034,11 +1034,11 @@ async function renderMembers() {
     html += `<div class="member-card" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 12px;">
         <div style="flex:1;min-width:0;">
+          ${m.industry?`<div style="margin-bottom:6px;"><span style="display:inline-block;background:var(--red);color:white;font-size:11px;font-weight:900;padding:3px 12px;border-radius:20px;letter-spacing:0.5px;">${_escH(m.industry)}</span></div>`:''}
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
             <span class="member-name" style="margin:0;">${_escH(m.name)}</span>
             ${m.specialty?`<span class="member-specialty">${_escH(m.specialty)}</span>`:''}
           </div>
-          ${m.industry?`<div style="margin-bottom:5px;"><span class="industry-tag" style="font-size:11px;padding:3px 22px 3px 10px;">${_escH(m.industry)}</span></div>`:''}
           <div class="member-row" style="margin-bottom:3px;">${_escH(m.company)}</div>
           <div class="member-row" style="margin-bottom:3px;"><a class="member-phone-link" href="tel:${_escH(m.phone)}">${_escH(m.phone)}</a></div>
           <div class="member-row" style="font-size:12px;">${_escH(m.service)}</div>
