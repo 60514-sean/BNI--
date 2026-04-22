@@ -1398,6 +1398,7 @@ function _dmDistribute() {
   const panels = Array.from({ length: 6 }, () => []);
   let pi = 0;
 
+  // Phase 1：初始分配，面板 ≥75% 滿才允許跳格保群組
   for (const [spec, members] of Object.entries(groups)) {
     let offset = 0;
     while (offset < members.length) {
@@ -1413,19 +1414,47 @@ function _dmDistribute() {
       if (rem <= 0) { pi++; continue; }
 
       if (left <= rem) {
-        // 整組塞得進當前面板
         panels[pi].push({ spec, members: members.slice(offset) });
         offset = members.length;
         if (used + left >= TARGETS[pi]) pi++;
       } else if (used === 0 || left > TARGETS[Math.min(pi + 1, 5)]) {
-        // 面板空的（必須從這裡開始）或下一格也放不下 → 切分
+        // 面板空的或下一格也放不下 → 切分
         panels[pi].push({ spec, members: members.slice(offset, offset + rem) });
         offset += rem; pi++;
-      } else {
-        // 當前格剩餘空間不夠，但下一格放得下整組 → 移到下一格保持群組完整
+      } else if (used >= Math.floor(TARGETS[pi] * 0.75)) {
+        // 面板已達 75%，整組移到下一格
         pi++;
+      } else {
+        // 面板未達 75%，切分填滿才跳格
+        panels[pi].push({ spec, members: members.slice(offset, offset + rem) });
+        offset += rem; pi++;
       }
     }
+  }
+
+  // Phase 2：重新平衡 — 把過滿面板的小群組移到空間較多的面板
+  for (let iter = 0; iter < 12; iter++) {
+    let improved = false;
+    for (let from = 5; from >= 1 && !improved; from--) {
+      const fromCount = panels[from].reduce((s, g) => s + g.members.length, 0);
+      if (fromCount <= TARGETS[from]) continue; // 未超量，不需移動
+      for (let to = 0; to < from && !improved; to++) {
+        const toCount  = panels[to].reduce((s, g) => s + g.members.length, 0);
+        const avail    = TARGETS[to] - toCount;
+        if (avail <= 0) continue;
+        // 找最大但放得進 to 格的群組
+        const movable = panels[from]
+          .filter(g => g.members.length <= avail)
+          .sort((a, b) => b.members.length - a.members.length);
+        if (movable.length) {
+          const grp = movable[0];
+          panels[from] = panels[from].filter(g => g !== grp);
+          panels[to].push(grp);
+          improved = true;
+        }
+      }
+    }
+    if (!improved) break;
   }
 
   return { panels, colorMap };
