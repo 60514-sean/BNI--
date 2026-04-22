@@ -258,6 +258,43 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 }
 .member-edit-btn:hover { border-color: var(--red); color: var(--red); }
 
+/* INDUSTRY GROUP LIST */
+.industry-section { margin-bottom: 18px; }
+.industry-tag-wrap { margin-bottom: 0; }
+.industry-tag {
+  display: inline-block; background: #5c4228; color: white;
+  font-size: 13px; font-weight: 900; padding: 6px 32px 6px 16px; letter-spacing: 1.5px;
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%);
+}
+.member-list-section {
+  background: white; border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+}
+.member-list-row {
+  display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px;
+  border-bottom: 1px solid var(--gray-border);
+}
+.member-list-row:last-child { border-bottom: none; }
+.member-list-photo {
+  width: 60px; height: 60px; border-radius: 50%; object-fit: cover;
+  flex-shrink: 0; background: #eee; display: block;
+}
+.member-list-nophoto {
+  width: 60px; height: 60px; border-radius: 50%; flex-shrink: 0;
+  background: #e8ecf0; display: flex; align-items: center; justify-content: center;
+  color: #ccc; font-size: 22px; font-weight: 900;
+}
+.member-list-body { flex: 1; min-width: 0; }
+.member-list-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.member-list-name { font-size: 18px; font-weight: 900; color: var(--text); }
+.member-list-spec { font-size: 12px; color: var(--text-soft); font-weight: 600; flex-shrink: 0; }
+.member-list-detail { font-size: 13px; color: var(--text-soft); line-height: 1.6; }
+.member-list-phone { color: var(--text); font-weight: 600; text-decoration: none; }
+.member-list-phone:hover { color: var(--red); }
+.member-list-renewal {
+  font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 700;
+  display: inline-block; margin-top: 4px;
+}
+
 /* MEMBER EDIT MODAL */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.45);
@@ -983,37 +1020,51 @@ async function renderMembers() {
         <button onclick="openAddMember()" style="padding:7px 16px;background:var(--red);color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ 新增會員</button>` : ''}
     </div>
   </div>`;
-  html += `<div class="member-grid">`;
-  list.forEach(m => {
+  // 依產業鏈分組
+  const _groups = {};
+  const _noInd = [];
+  list.forEach(m => { m.industry ? ((_groups[m.industry] = _groups[m.industry]||[]).push(m)) : _noInd.push(m); });
+
+  function _memberRow(m) {
     const days = parseInt(m.renewDays);
     const daysBg    = days>=120?'#eaf7ee':days>=90?'#fef9e7':'#fdecea';
     const daysColor = days>=120?'#27ae60':days>=90?'#d4ac0d':'#c0392b';
-    html += `<div class="member-card" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
-      ${m.industry ? `<div style="padding:10px 16px 2px;"><span style="display:inline-block;background:#5c4228;color:white;font-size:12px;font-weight:900;padding:5px 28px 5px 14px;letter-spacing:1.5px;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,0 100%);">${_escH(m.industry)}</span></div>` : ''}
-      <!-- 上半：主資訊 -->
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 12px;">
-        <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-            <span class="member-name" style="margin:0;">${_escH(m.name)}</span>
-            ${m.specialty ? `<span class="member-specialty">${_escH(m.specialty)}</span>` : ''}
-          </div>
-          <div class="member-row" style="margin-bottom:3px;">${_escH(m.company)}</div>
-          <div class="member-row" style="margin-bottom:3px;"><a class="member-phone-link" href="tel:${_escH(m.phone)}">${_escH(m.phone)}</a></div>
-          <div class="member-row" style="font-size:12px;">${_escH(m.service)}</div>
+    const photo = m.photo
+      ? `<img class="member-list-photo" src="${_escH(m.photo)}" onerror="this.outerHTML='<div class=\'member-list-nophoto\'>?</div>'">`
+      : `<div class="member-list-nophoto">?</div>`;
+    return `<div class="member-list-row">
+      ${photo}
+      <div class="member-list-body">
+        <div class="member-list-top">
+          <span class="member-list-name">${_escH(m.name)}</span>
+          <span class="member-list-spec">${_escH(m.specialty)}</span>
         </div>
-        ${canEdit ? `<button class="member-edit-btn" style="flex-shrink:0;" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>` : ''}
-      </div>
-      <!-- 下半：續約資訊 -->
-      <div style="border-top:1px solid var(--gray-border);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fafbfc;flex-wrap:wrap;">
-        <span style="font-size:12px;color:var(--text-soft);">${m.renewDate ? '到期：'+_escH(m.renewDate) : ''}</span>
-        <div style="display:flex;align-items:center;gap:6px;">
-          ${m.renewDays ? `<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:${daysBg};color:${daysColor};">${_escH(m.renewDays)}天</span>` : ''}
-          ${m.renewStatus==='TRUE' ? `<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:#eaf7ee;color:#27ae60;">已續約</span>` : `<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:#fdecea;color:#c0392b;">未續約</span>`}
+        <div class="member-list-detail">
+          ${m.company?`<div>${_escH(m.company)}</div>`:''}
+          ${m.phone?`<div><a class="member-list-phone" href="tel:${_escH(m.phone)}">${_escH(m.phone)}</a></div>`:''}
+          ${m.service?`<div style="color:#888;font-size:12px;">${_escH(m.service)}</div>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap;">
+          ${m.renewDate?`<span style="font-size:11px;color:var(--text-soft);">到期：${_escH(m.renewDate)}</span>`:''}
+          ${m.renewDays?`<span class="member-list-renewal" style="background:${daysBg};color:${daysColor};">${_escH(m.renewDays)}天</span>`:''}
+          ${m.renewStatus==='TRUE'?`<span class="member-list-renewal" style="background:#eaf7ee;color:#27ae60;">已續約</span>`:`<span class="member-list-renewal" style="background:#fdecea;color:#c0392b;">未續約</span>`}
         </div>
       </div>
+      ${canEdit?`<button class="member-edit-btn" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>`:''}
+    </div>`;
+  }
+
+  // 有產業鏈的分組渲染
+  Object.entries(_groups).forEach(([ind, members]) => {
+    html += `<div class="industry-section">
+      <div class="industry-tag-wrap"><span class="industry-tag">${_escH(ind)}</span></div>
+      <div class="member-list-section">${members.map(_memberRow).join('')}</div>
     </div>`;
   });
-  html += `</div>`;
+  // 無產業鏈的放最後
+  if (_noInd.length > 0) {
+    html += `<div class="member-list-section">${_noInd.map(_memberRow).join('')}</div>`;
+  }
   if (list.length === 0 && _memberData.length > 0) html = `<div style="display:flex;gap:8px;margin-bottom:14px;"><input class="member-search" type="text" placeholder="搜尋姓名、專業別、公司..." value="${_escH(_memberSearch)}" oninput="_memberSearch=this.value;renderMembers()" autocomplete="off" style="margin-bottom:0;flex:1;"><button onclick="_memberData=null;renderMembers()" style="flex-shrink:0;padding:11px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">重整</button></div><div style="text-align:center;padding:48px 20px;color:var(--text-soft);">查無結果</div>`;
   document.getElementById('memberContent').innerHTML = html;
 }
