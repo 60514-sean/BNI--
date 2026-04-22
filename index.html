@@ -1371,7 +1371,8 @@ window.addEventListener('resize', _scaleDM);
 
 const DM_CAT_COLORS = ['#c0392b','#7b6914','#2e6e8e','#7b3f6a','#2e7d52','#b5631a','#5a4a8a','#4a7a5a','#8e3a3a','#3a6a7a'];
 
-// ===== DM 分配：6 個會員面板（P1,P2,P5,P6,P7,P8） =====
+// ===== DM 分配：6 個會員面板（P1,P2,P5,P6,P7,P8）=====
+// 依面板高度比例平均分配人數，群組可跨面板分割，不限制產業鏈位置
 function _dmDistribute() {
   const groups = {};
   _memberData.forEach(m => {
@@ -1383,51 +1384,41 @@ function _dmDistribute() {
   Object.keys(groups).forEach((k, i) => { colorMap[k] = DM_CAT_COLORS[i % DM_CAT_COLORS.length]; });
 
   const total = _memberData.length;
-  // 各面板 pre-zoom 可用高度(px)，用來按比例分配人數，確保卡片高度大致均等
-  const PH = [516, 516, 594, 594, 594, 594]; // P1,P2,P5,P6,P7,P8
+  // 各面板 pre-zoom 可用高度(px)：P1-2 zoom=1.1 → preZH≈516；P5-8 zoom=1.0 → preZH=594
+  const PH = [516, 516, 594, 594, 594, 594];
   const sumH = PH.reduce((s, h) => s + h, 0);
+  // 按比例計算每格目標人數，確保各格卡片高度視覺均等
   const TARGETS = PH.map(h => Math.max(1, Math.round(total * h / sumH)));
-  // 修正捨入誤差，使 TARGETS 總和 = total
   let diff = total - TARGETS.reduce((s, t) => s + t, 0);
   for (let i = 0; diff !== 0; i = (i + 1) % 6) {
     TARGETS[i] += diff > 0 ? 1 : -1;
     diff       += diff > 0 ? -1 : 1;
   }
 
-  const panels = TARGETS.map(() => []);
+  const panels = Array.from({ length: 6 }, () => []);
   let pi = 0;
 
   for (const [spec, members] of Object.entries(groups)) {
     let offset = 0;
     while (offset < members.length) {
-      if (pi >= panels.length) {
-        // 超出所有面板：加入最後一格
-        const lp = panels[panels.length - 1];
-        const ex = lp.find(g => g.spec === spec);
+      if (pi >= 6) {
+        // 超出所有面板時，把剩餘加入最後一格
+        const ex = panels[5].find(g => g.spec === spec);
         if (ex) ex.members.push(...members.slice(offset));
-        else lp.push({ spec, members: members.slice(offset) });
+        else panels[5].push({ spec, members: members.slice(offset) });
         break;
       }
-      const cap  = TARGETS[pi];
       const used = panels[pi].reduce((s, g) => s + g.members.length, 0);
-      const rem  = cap - used;
-      const left = members.length - offset;
+      const rem  = TARGETS[pi] - used;
       if (rem <= 0) { pi++; continue; }
-      if (left <= rem) {
-        panels[pi].push({ spec, members: members.slice(offset) });
-        offset = members.length;
-        if (used + left >= cap) pi++;
-      } else if (used === 0) {
-        panels[pi].push({ spec, members: members.slice(offset, offset + cap) });
-        offset += cap; pi++;
-      } else if (left <= TARGETS[Math.min(pi + 1, panels.length - 1)]) {
-        pi++; // 下一格能整組容納，跳過當前半格
-      } else {
-        panels[pi].push({ spec, members: members.slice(offset, offset + rem) });
-        offset += rem; pi++;
-      }
+      // 直接填入當前格（允許群組跨格分割）
+      const chunk = members.slice(offset, offset + rem);
+      panels[pi].push({ spec, members: chunk });
+      offset += chunk.length;
+      if (used + chunk.length >= TARGETS[pi]) pi++;
     }
   }
+
   return { panels, colorMap };
 }
 
