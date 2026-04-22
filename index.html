@@ -1392,8 +1392,15 @@ function _dmDistribute() {
   const panels = Array.from({ length: 6 }, () => []);
   let pi = 0;
 
+  // 隨機打亂群組順序，讓每次重整顯示不同排版
+  const groupEntries = Object.entries(groups);
+  for (let i = groupEntries.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [groupEntries[i], groupEntries[j]] = [groupEntries[j], groupEntries[i]];
+  }
+
   // Phase 1：逐格填入，整組放得下就不切，放不下才切分
-  for (const [spec, members] of Object.entries(groups)) {
+  for (const [spec, members] of groupEntries) {
     let offset = 0;
     while (offset < members.length) {
       if (pi >= 6) {
@@ -1537,7 +1544,7 @@ async function renderDM() {
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-primary" onclick="printDM()">匯出 PDF</button>
-          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="_memberData=null;renderDM()">重新整理</button>
+          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="renderDM()">換一種排法</button>
         </div>
       </div>
     </div>
