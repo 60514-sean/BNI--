@@ -1745,7 +1745,7 @@ function _dmCardNew(m, bc, cardH, isLast) {
         <span style="font-size:8.5px;font-weight:900;color:#1a1a2e;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.name)}</span>
         ${m.specialty?`<span style="font-size:6.5px;font-weight:700;color:${bc};flex-shrink:0;">${_escH(m.specialty)}</span>`:''}
       </div>
-      ${m.company?`<div style="font-size:7px;color:#777;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${_escH(m.company)}</div>`:''}
+      ${m.company?`<div style="font-size:7px;color:#777;line-height:1.2;word-break:break-all;">${_escH(m.company)}</div>`:''}
       ${m.phone?`<div style="font-size:7px;color:#555;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.phone)}</div>`:''}
       ${m.service?`<div style="font-size:7px;font-weight:700;color:#222;line-height:1.25;">${_escH(m.service)}</div>`:''}
     </div>
@@ -1915,7 +1915,7 @@ async function printDM() {
           <span style="font-size:${nameMm}mm;font-weight:900;color:#1a1a2e;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.name)}</span>
           ${m.specialty?`<span style="font-size:${spMm}mm;font-weight:700;color:${bc};flex-shrink:0;">${_escH(m.specialty)}</span>`:''}
         </div>
-        ${m.company?`<div style="font-size:${smMm}mm;color:#777;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${_escH(m.company)}</div>`:''}
+        ${m.company?`<div style="font-size:${smMm}mm;color:#777;line-height:1.2;word-break:break-all;">${_escH(m.company)}</div>`:''}
         ${m.phone?`<div style="font-size:${smMm}mm;color:#555;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.phone)}</div>`:''}
         ${m.service?`<div style="font-size:${smMm}mm;font-weight:700;color:#222;line-height:1.25;">${_escH(m.service)}</div>`:''}
       </div>
