@@ -845,19 +845,44 @@ function showSettings() {
       <button class="btn-danger" onclick="removeUser(${i})">刪除</button>
     </div>`).join('');
 
-  const dayOpts  = DAYS.map(d => `<option value="${d}">${d}</option>`).join('');
   const catOpts  = CAT_ORDER.map(c => `<option value="${c}">${c}</option>`).join('');
   const freqOpts = ['每週','視需要','月底','每月首週','每月末週'].map(f => `<option value="${f}">${f}</option>`).join('');
 
-  const ctHtml = cfgCustomTasks.length ? cfgCustomTasks.map((t, i) => `
-    <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--gray-border);">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:12px;font-weight:700;color:var(--red);">${t.day} <span style="font-weight:400;color:var(--text-soft);">[${t.cat} · ${t.freq}]</span></div>
-        <div style="font-size:13px;color:var(--text);margin-top:3px;line-height:1.5;">${t.task}</div>
+  // 所有任務依星期分組
+  const ctByDay = DAYS.map(day => {
+    const fixed  = TASK_DATA.filter(t => t.day === day);
+    const custom = cfgCustomTasks
+      .map((t, origIdx) => ({ ...t, _origIdx: origIdx }))
+      .filter(t => t.day === day);
+    return { day, fixed, custom, total: fixed.length + custom.length };
+  }).filter(g => g.total > 0);
+
+  const dayOptsSel = day => DAYS.map(d => `<option value="${d}"${d===day?' selected':''}>${d}</option>`).join('');
+
+  const ctHtml = ctByDay.map(g => `
+    <div style="margin-bottom:18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:6px;border-bottom:2px solid var(--red);margin-bottom:8px;">
+        <span style="font-size:14px;font-weight:900;color:var(--red);">${g.day}</span>
+        <span style="font-size:12px;color:var(--text-soft);">${g.total} 項</span>
       </div>
-      <button class="btn-danger" style="flex-shrink:0;" onclick="removeCustomTask(${i})">刪除</button>
-    </div>`).join('')
-    : `<p style="font-size:13px;color:var(--text-soft);padding:8px 0;">尚未新增自訂項目</p>`;
+      ${g.fixed.map(t => `
+        <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--gray-border);">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;color:var(--text-soft);margin-bottom:2px;">${t.cat} · ${t.freq}${t.owner ? ' · ' + t.owner : ''}</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.5;">${t.task}</div>
+          </div>
+          <span style="font-size:10px;color:var(--gray);border:1px solid var(--gray-border);border-radius:4px;padding:2px 6px;flex-shrink:0;white-space:nowrap;align-self:center;">固定</span>
+        </div>`).join('')}
+      ${g.custom.map(t => `
+        <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--gray-border);">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;color:var(--red);margin-bottom:2px;">${t.cat} · ${t.freq} · 自訂</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.5;">${t.task}</div>
+          </div>
+          <button class="btn-danger" style="flex-shrink:0;align-self:center;" onclick="removeCustomTask(${t._origIdx})">刪除</button>
+        </div>`).join('')}
+      <button class="add-btn" style="margin-top:6px;font-size:12px;padding:6px 12px;" onclick="openAddTaskForm('${g.day}')">+ 新增至${g.day}</button>
+    </div>`).join('');
 
   document.getElementById('mainContent').innerHTML = `
     <div class="card">
@@ -873,13 +898,13 @@ function showSettings() {
     </div>
     <div class="card">
       <div class="card-title">週進度任務設定</div>
-      <p class="hint" style="margin-bottom:12px;">在此新增每週工事中的自訂項目（固定任務無法在此修改）</p>
+      <p class="hint" style="margin-bottom:16px;">固定任務僅供檢視；自訂任務可刪除。儲存後生效。</p>
       <div id="ctContainer">${ctHtml}</div>
-      <div id="ctFormWrap" style="display:none;background:var(--gray-light);border-radius:10px;padding:16px;margin-top:12px;">
+      <div id="ctFormWrap" style="display:none;background:var(--gray-light);border-radius:10px;padding:16px;margin-top:4px;">
         <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:12px;">新增任務</div>
         <div style="margin-bottom:8px;">
           <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">星期</div>
-          <select id="ct_day" class="modal-input" style="font-size:15px;">${dayOpts}</select>
+          <select id="ct_day" class="modal-input" style="font-size:15px;"></select>
         </div>
         <div style="margin-bottom:8px;">
           <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">任務內容</div>
@@ -900,7 +925,6 @@ function showSettings() {
           <button class="btn btn-secondary" onclick="document.getElementById('ctFormWrap').style.display='none'">取消</button>
         </div>
       </div>
-      <button class="add-btn" style="margin-top:12px;" onclick="document.getElementById('ctFormWrap').style.display='';document.getElementById('ct_task').focus();">+ 新增任務</button>
     </div>
     <div class="btn-row">
       <button class="btn btn-primary" onclick="saveSettings()">儲存設定</button>
@@ -912,6 +936,13 @@ function addUser()     { cfgUsers.push(''); showSettings(); }
 function removeUser(i) { cfgUsers.splice(i, 1); showSettings(); }
 
 function removeCustomTask(i) { cfgCustomTasks.splice(i, 1); showSettings(); }
+
+function openAddTaskForm(day) {
+  const dayOpts = DAYS.map(d => `<option value="${d}"${d===day?' selected':''}>${d}</option>`).join('');
+  document.getElementById('ct_day').innerHTML = dayOpts;
+  document.getElementById('ctFormWrap').style.display = '';
+  document.getElementById('ct_task').focus();
+}
 
 function confirmAddCustomTask() {
   const day  = document.getElementById('ct_day').value;
