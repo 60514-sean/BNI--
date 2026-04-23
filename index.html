@@ -1750,7 +1750,7 @@ function _dmCardNew(m, bc, cardH, isLast) {
       </div>
       ${m.company?`<div style="font-size:7px;color:#777;line-height:1.2;word-break:break-all;">${_escH(m.company)}</div>`:''}
       ${m.phone?`<div style="font-size:7px;color:#555;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.phone)}</div>`:''}
-      ${m.service?`<div style="font-size:7px;font-weight:700;color:#222;line-height:1.25;">${_escH(m.service)}</div>`:''}
+      ${m.service?`<div style="font-size:7px;font-weight:700;color:#222;line-height:1.25;word-break:keep-all;">${_escH(m.service)}</div>`:''}
     </div>
   </div>`;
 }
@@ -1920,7 +1920,7 @@ async function printDM() {
         </div>
         ${m.company?`<div style="font-size:${smMm}mm;color:#777;line-height:1.2;word-break:break-all;">${_escH(m.company)}</div>`:''}
         ${m.phone?`<div style="font-size:${smMm}mm;color:#555;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.phone)}</div>`:''}
-        ${m.service?`<div style="font-size:${smMm}mm;font-weight:700;color:#222;line-height:1.25;">${_escH(m.service)}</div>`:''}
+        ${m.service?`<div style="font-size:${smMm}mm;font-weight:700;color:#222;line-height:1.25;word-break:keep-all;">${_escH(m.service)}</div>`:''}
       </div>
     </div>`;
   };
