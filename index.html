@@ -1911,7 +1911,7 @@ async function printDM() {
     const ph = m.photo
       ? `<img style="width:${psMm}mm;height:${psMm}mm;border-radius:50%;object-fit:cover;flex-shrink:0;border:${borderMm}mm solid ${bc};display:block;" src="${_escH(m.photo)}" crossorigin="anonymous" onerror="this.style.display='none'">`
       : `<div style="width:${psMm}mm;height:${psMm}mm;border-radius:50%;flex-shrink:0;border:${borderMm}mm solid ${bc};background:#e8ecf0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:${+(psMm*0.3).toFixed(2)}mm;font-weight:900;">?</div>`;
-    return `<div style="display:flex;gap:${gapMm}mm;align-items:center;${isLast?'':'border-bottom:0.3pt solid rgba(0,0,0,0.07);'}min-height:${rendCardH_mm}mm;box-sizing:border-box;padding:${padMm}mm ${padMm}mm;">
+    return `<div style="display:flex;gap:${gapMm}mm;align-items:center;${isLast?'':'border-bottom:1pt solid rgba(0,0,0,0.07);'}min-height:${rendCardH_mm}mm;box-sizing:border-box;padding:${padMm}mm ${padMm}mm;">
       <div style="display:flex;align-items:center;flex-shrink:0;">${ph}</div>
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:baseline;gap:${+(1.5*PX2MM*z).toFixed(2)}mm;justify-content:space-between;">
