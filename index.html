@@ -1636,12 +1636,12 @@ function _dmDistribute() {
 }
 
 // cardH: fixed height per card (px, pre-zoom). Photo & font scale within it.
-function _dmCardNew(m, bc, cardH) {
+function _dmCardNew(m, bc, cardH, isLast) {
   const ps = Math.max(22, Math.min(36, cardH - 8)) + 4; // photo size (+2mm)
   const ph = m.photo
     ? `<img style="width:${ps}px;height:${ps}px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${bc};display:block;" src="${_escH(m.photo)}" onerror="this.style.display='none'">`
     : `<div style="width:${ps}px;height:${ps}px;border-radius:50%;flex-shrink:0;border:2px solid ${bc};background:#e8ecf0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:${Math.round(ps*0.3)}px;font-weight:900;">?</div>`;
-  return `<div style="display:flex;gap:4px;align-items:center;border-bottom:1px solid rgba(0,0,0,0.07);overflow:hidden;height:${cardH}px;box-sizing:border-box;padding:0 2px;">
+  return `<div style="display:flex;gap:4px;align-items:center;${isLast?'':'border-bottom:1px solid rgba(0,0,0,0.07);'}overflow:hidden;height:${cardH}px;box-sizing:border-box;padding:0 2px;">
     ${ph}
     <div style="flex:1;min-width:0;overflow:hidden;">
       <div style="display:flex;align-items:baseline;gap:3px;justify-content:space-between;">
@@ -1668,7 +1668,7 @@ function _renderPanelHtml(panelData, colorMap, availHPreZoom) {
     const bc = colorMap[spec] || '#888';
     return `<div>
       <div style="height:${hdrH}px;display:flex;align-items:center;font-size:7.5px;font-weight:900;color:white;padding:0 5px;border-radius:2px;background:${bc};margin-bottom:0;">${_escH(spec)}</div>
-      ${members.map(m => _dmCardNew(m, colorMap[m.industry||m.specialty||'其他']||bc, cardH)).join('')}
+      ${members.map((m, i) => _dmCardNew(m, colorMap[m.industry||m.specialty||'其他']||bc, cardH, i === members.length - 1)).join('')}
     </div>`;
   }).join('');
 }
@@ -1798,7 +1798,7 @@ async function printDM() {
   const HDR_MM = +(14 * PX2MM).toFixed(2);
   const MIN_CARD_MM = +(30 * PX2MM).toFixed(2);
 
-  const pCard = (m, bc, rendCardH_mm, z) => {
+  const pCard = (m, bc, rendCardH_mm, z, isLast) => {
     const preZCardH = rendCardH_mm / z;
     const psPre = Math.max(22 * PX2MM, Math.min(36 * PX2MM, preZCardH - 8 * PX2MM)) + 2;
     const psMm     = +(psPre * z).toFixed(2);
@@ -1811,7 +1811,7 @@ async function printDM() {
     const ph = m.photo
       ? `<img style="width:${psMm}mm;height:${psMm}mm;border-radius:50%;object-fit:cover;flex-shrink:0;border:${borderMm}mm solid ${bc};display:block;" src="${_escH(m.photo)}" crossorigin="anonymous" onerror="this.style.display='none'">`
       : `<div style="width:${psMm}mm;height:${psMm}mm;border-radius:50%;flex-shrink:0;border:${borderMm}mm solid ${bc};background:#e8ecf0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:${+(psMm*0.3).toFixed(2)}mm;font-weight:900;">?</div>`;
-    return `<div style="display:flex;gap:${gapMm}mm;align-items:center;border-bottom:0.3pt solid rgba(0,0,0,0.07);overflow:hidden;height:${rendCardH_mm}mm;box-sizing:border-box;padding:0 ${padMm}mm;">
+    return `<div style="display:flex;gap:${gapMm}mm;align-items:center;${isLast?'':'border-bottom:0.3pt solid rgba(0,0,0,0.07);'}overflow:hidden;height:${rendCardH_mm}mm;box-sizing:border-box;padding:0 ${padMm}mm;">
       ${ph}
       <div style="flex:1;min-width:0;overflow:hidden;">
         <div style="display:flex;align-items:baseline;gap:${+(1.5*PX2MM*z).toFixed(2)}mm;justify-content:space-between;">
@@ -1839,7 +1839,7 @@ async function printDM() {
       const bc = colorMap[spec] || '#888';
       return `<div>
         <div style="height:${rendHdr}mm;display:flex;align-items:center;font-size:${hdrFontMm}mm;font-weight:900;color:white;padding:0 ${+(2*PX2MM*z).toFixed(2)}mm;border-radius:0.5mm;background:${bc};">${_escH(spec)}</div>
-        ${members.map(m => pCard(m, colorMap[m.industry||m.specialty||'其他']||bc, rendCard, z)).join('')}
+        ${members.map((m, i) => pCard(m, colorMap[m.industry||m.specialty||'其他']||bc, rendCard, z, i === members.length - 1)).join('')}
       </div>`;
     }).join('');
   };
