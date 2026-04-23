@@ -357,10 +357,12 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
     </div>
   </div>
   <div class="page-tabs" id="pageTabs" style="display:none">
+    <button class="ptab" id="ptab_todo" onclick="switchTab('todo')">待辦<br>事項</button>
     <button class="ptab active" id="ptab_main" onclick="switchTab('main')">工事<br>清單</button>
     <button class="ptab" id="ptab_member" onclick="switchTab('member')">會員<br>資料</button>
     <button class="ptab" id="ptab_dm" onclick="switchTab('dm')">會員<br>DM</button>
   </div>
+  <div class="content" id="todoContent" style="display:none"></div>
   <div class="content" id="mainContent"></div>
   <div class="content" id="memberContent" style="display:none"></div>
   <div class="content" id="dmContent" style="display:none"></div>
@@ -829,10 +831,11 @@ function openSettings() {
 
 function showSettings() {
   document.getElementById('headerTitle').textContent = '系統設定';
+  document.getElementById('todoContent').style.display   = 'none';
   document.getElementById('mainContent').style.display   = '';
   document.getElementById('memberContent').style.display = 'none';
   document.getElementById('dmContent').style.display     = 'none';
-  ['ptab_main','ptab_member','ptab_dm'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+  ['ptab_todo','ptab_main','ptab_member','ptab_dm'].forEach(id => document.getElementById(id)?.classList.remove('active'));
   _activeTab = 'settings';
   const cfg = getConfig();
 
@@ -1011,15 +1014,84 @@ let _activeTab = 'main';
 
 function switchTab(tab) {
   _activeTab = tab;
+  document.getElementById('todoContent').style.display   = tab === 'todo'   ? '' : 'none';
   document.getElementById('mainContent').style.display   = tab === 'main'   ? '' : 'none';
   document.getElementById('memberContent').style.display = tab === 'member' ? '' : 'none';
   document.getElementById('dmContent').style.display     = tab === 'dm'     ? '' : 'none';
+  document.getElementById('ptab_todo').classList.toggle('active',   tab === 'todo');
   document.getElementById('ptab_main').classList.toggle('active',   tab === 'main');
   document.getElementById('ptab_member').classList.toggle('active', tab === 'member');
   document.getElementById('ptab_dm').classList.toggle('active',     tab === 'dm');
+  if (tab === 'todo')   { document.getElementById('headerTitle').textContent = '待辦事項'; renderTodo(); }
   if (tab === 'main')   { document.getElementById('headerTitle').textContent = '每週工事追蹤'; renderMain(); }
   if (tab === 'member') { document.getElementById('headerTitle').textContent = '會員資料'; renderMembers(); }
   if (tab === 'dm')     { document.getElementById('headerTitle').textContent = '會員DM'; renderDM(); }
+}
+
+// ===== TODO =====
+function _getTodos() { try { return JSON.parse(localStorage.getItem('bni_todos') || '[]'); } catch { return []; } }
+function _saveTodos(list) { localStorage.setItem('bni_todos', JSON.stringify(list)); }
+
+function renderTodo() {
+  const todos = _getTodos();
+  const done  = todos.filter(t => t.done);
+  const todo  = todos.filter(t => !t.done);
+
+  const itemHtml = (t) => `
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--gray-border);">
+      <input type="checkbox" ${t.done?'checked':''} onchange="toggleTodo('${t.id}')"
+        style="margin-top:2px;width:18px;height:18px;flex-shrink:0;accent-color:var(--red);cursor:pointer;">
+      <span style="flex:1;font-size:14px;line-height:1.5;color:var(--text);${t.done?'text-decoration:line-through;color:var(--text-soft);':''}">${_escH(t.text)}</span>
+      <button onclick="deleteTodo('${t.id}')" style="flex-shrink:0;background:none;border:none;color:var(--text-soft);font-size:16px;cursor:pointer;padding:0 2px;line-height:1;">&times;</button>
+    </div>`;
+
+  document.getElementById('todoContent').innerHTML = `
+    <div class="card">
+      <div style="display:flex;gap:8px;margin-bottom:4px;">
+        <input id="todoInput" type="text" class="form-input" placeholder="新增待辦事項..." style="flex:1;font-size:16px;"
+          onkeydown="if(event.key==='Enter')addTodo()">
+        <button class="btn btn-primary" style="flex-shrink:0;" onclick="addTodo()">新增</button>
+      </div>
+    </div>
+    ${todo.length ? `<div class="card">
+      <div class="card-title" style="margin-bottom:8px;">待辦（${todo.length}）</div>
+      ${todo.map(itemHtml).join('')}
+    </div>` : ''}
+    ${done.length ? `<div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div class="card-title" style="margin:0;">已完成（${done.length}）</div>
+        <button onclick="clearDoneTodos()" style="font-size:12px;color:var(--text-soft);background:none;border:none;cursor:pointer;padding:0;">全部清除</button>
+      </div>
+      ${done.map(itemHtml).join('')}
+    </div>` : ''}
+    ${!todo.length && !done.length ? `<div class="card" style="text-align:center;padding:32px 20px;color:var(--text-soft);">尚無待辦事項</div>` : ''}`;
+}
+
+function addTodo() {
+  const input = document.getElementById('todoInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const todos = _getTodos();
+  todos.unshift({ id: Date.now().toString(), text, done: false });
+  _saveTodos(todos);
+  input.value = '';
+  renderTodo();
+}
+
+function toggleTodo(id) {
+  const todos = _getTodos();
+  const t = todos.find(x => x.id === id);
+  if (t) { t.done = !t.done; _saveTodos(todos); renderTodo(); }
+}
+
+function deleteTodo(id) {
+  _saveTodos(_getTodos().filter(x => x.id !== id));
+  renderTodo();
+}
+
+function clearDoneTodos() {
+  _saveTodos(_getTodos().filter(x => !x.done));
+  renderTodo();
 }
 
 // ===== MEMBER =====
