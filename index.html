@@ -352,7 +352,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
     </div>
     <div class="header-right">
       <span class="user-chip" id="userChip"></span>
-      <button class="hbtn" id="settingsBtn" style="display:none" onclick="showSettings()">設定</button>
+      <button class="hbtn" id="settingsBtn" style="display:none" onclick="openSettings()">設定</button>
       <button class="hbtn" onclick="doLogout()">登出</button>
     </div>
   </div>
@@ -819,8 +819,15 @@ function saveNote(idx, val) {
 }
 
 // ===== SETTINGS =====
-async function showSettings() {
-  const isFirstEnter = _activeTab !== 'settings';
+function openSettings() {
+  // 從 config 初始化暫存陣列，然後渲染
+  const cfg = getConfig();
+  cfgUsers = [...cfg.users];
+  cfgCustomTasks = [...(cfg.customTasks || [])];
+  showSettings();
+}
+
+function showSettings() {
   document.getElementById('headerTitle').textContent = '系統設定';
   document.getElementById('mainContent').style.display   = '';
   document.getElementById('memberContent').style.display = 'none';
@@ -829,15 +836,8 @@ async function showSettings() {
   _activeTab = 'settings';
   const cfg = getConfig();
 
-  if (isFirstEnter) {
-    // 首次進入：從 config 初始化
-    cfgUsers = [...cfg.users];
-    cfgCustomTasks = [...(cfg.customTasks || [])];
-  } else {
-    // 重新渲染（新增/刪除操作後）：保留使用者輸入欄位的當前值
-    cfgUsers = cfgUsers.map((_, i) => document.getElementById(`usr_${i}`)?.value?.trim() ?? '');
-    // cfgCustomTasks 已由 add/remove 函式直接更新，不需重設
-  }
+  // 保留使用者輸入欄位的當前值（重新渲染前先從 DOM 讀回）
+  cfgUsers = cfgUsers.map((_, i) => document.getElementById(`usr_${i}`)?.value?.trim() ?? cfgUsers[i] ?? '');
 
   const usersHtml = cfgUsers.map((u, i) => `
     <div class="form-row" id="ur_${i}">
