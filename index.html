@@ -851,45 +851,66 @@ function showSettings() {
   const dayPickerOpts = DAYS.map(d => `<option value="${d}">${d}</option>`).join('');
 
   document.getElementById('mainContent').innerHTML = `
+    <style>
+      .acc-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;padding:2px 0;}
+      .acc-arrow{font-size:12px;color:var(--text-soft);transition:transform .2s;display:inline-block;}
+      .acc-arrow.open{transform:rotate(90deg);}
+      .acc-body{margin-top:12px;}
+    </style>
     <div class="card">
-      <div class="card-title">管理員名稱</div>
-      <div class="form-row"><input type="text" id="adminPw" value="${cfg.adminPassword}" placeholder="管理員名稱"></div>
-      <p class="hint">用此名稱登入可查看總覽及修改設定</p>
+      <div class="acc-header" onclick="toggleAcc('acc0')">
+        <div class="card-title" style="margin:0;">管理員名稱</div>
+        <span class="acc-arrow" id="acc0-arrow">&#9654;</span>
+      </div>
+      <div class="acc-body" id="acc0" style="display:none;">
+        <div class="form-row"><input type="text" id="adminPw" value="${cfg.adminPassword}" placeholder="管理員名稱"></div>
+        <p class="hint">用此名稱登入可查看總覽及修改設定</p>
+      </div>
     </div>
     <div class="card">
-      <div class="card-title">使用者名單</div>
-      <p class="hint" style="margin-bottom:12px;">名稱即為登入密碼</p>
-      <div id="usersContainer">${usersHtml}</div>
-      <button class="add-btn" onclick="addUser()">+ 新增使用者</button>
+      <div class="acc-header" onclick="toggleAcc('acc1')">
+        <div class="card-title" style="margin:0;">使用者名單</div>
+        <span class="acc-arrow" id="acc1-arrow">&#9654;</span>
+      </div>
+      <div class="acc-body" id="acc1" style="display:none;">
+        <p class="hint" style="margin-bottom:12px;">名稱即為登入密碼</p>
+        <div id="usersContainer">${usersHtml}</div>
+        <button class="add-btn" onclick="addUser()">+ 新增使用者</button>
+      </div>
     </div>
     <div class="card">
-      <div class="card-title">週進度任務設定</div>
-      <p class="hint" style="margin-bottom:12px;">固定任務僅供檢視；自訂任務可刪除。儲存後生效。</p>
-      <select class="modal-input" id="ctDayPicker" onchange="renderCtDay(this.value)" style="font-size:16px;margin-bottom:14px;">${dayPickerOpts}</select>
-      <div id="ctContainer"></div>
-      <div id="ctFormWrap" style="display:none;background:var(--gray-light);border-radius:10px;padding:16px;margin-top:4px;">
-        <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:12px;">新增任務</div>
-        <div style="margin-bottom:8px;">
-          <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">星期</div>
-          <select id="ct_day" class="modal-input" style="font-size:15px;"></select>
-        </div>
-        <div style="margin-bottom:8px;">
-          <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">任務內容</div>
-          <textarea id="ct_task" class="modal-input" rows="3" placeholder="描述任務內容…" style="font-size:15px;resize:none;"></textarea>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
-          <div>
-            <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">分類</div>
-            <select id="ct_cat" class="modal-input" style="font-size:15px;">${catOpts}</select>
+      <div class="acc-header" onclick="toggleAcc('acc2')">
+        <div class="card-title" style="margin:0;">週進度任務設定</div>
+        <span class="acc-arrow" id="acc2-arrow">&#9654;</span>
+      </div>
+      <div class="acc-body" id="acc2" style="display:none;">
+        <p class="hint" style="margin-bottom:12px;">固定任務僅供檢視；自訂任務可刪除。儲存後生效。</p>
+        <select class="modal-input" id="ctDayPicker" onchange="renderCtDay(this.value)" style="font-size:16px;margin-bottom:14px;">${dayPickerOpts}</select>
+        <div id="ctContainer"></div>
+        <div id="ctFormWrap" style="display:none;background:var(--gray-light);border-radius:10px;padding:16px;margin-top:4px;">
+          <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:12px;">新增任務</div>
+          <div style="margin-bottom:8px;">
+            <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">星期</div>
+            <select id="ct_day" class="modal-input" style="font-size:15px;"></select>
           </div>
-          <div>
-            <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">頻率</div>
-            <select id="ct_freq" class="modal-input" style="font-size:15px;">${freqOpts}</select>
+          <div style="margin-bottom:8px;">
+            <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">任務內容</div>
+            <textarea id="ct_task" class="modal-input" rows="3" placeholder="描述任務內容…" style="font-size:15px;resize:none;"></textarea>
           </div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-primary" style="flex:1;" onclick="confirmAddCustomTask()">加入</button>
-          <button class="btn btn-secondary" onclick="document.getElementById('ctFormWrap').style.display='none'">取消</button>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+            <div>
+              <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">分類</div>
+              <select id="ct_cat" class="modal-input" style="font-size:15px;">${catOpts}</select>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">頻率</div>
+              <select id="ct_freq" class="modal-input" style="font-size:15px;">${freqOpts}</select>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary" style="flex:1;" onclick="confirmAddCustomTask()">加入</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('ctFormWrap').style.display='none'">取消</button>
+          </div>
         </div>
       </div>
     </div>
@@ -897,7 +918,15 @@ function showSettings() {
       <button class="btn btn-primary" onclick="saveSettings()">儲存設定</button>
       <button class="btn btn-secondary" onclick="renderMain()">取消</button>
     </div>`;
-  renderCtDay(DAYS[0]);
+}
+
+function toggleAcc(id) {
+  const body  = document.getElementById(id);
+  const arrow = document.getElementById(id + '-arrow');
+  const open  = body.style.display === 'none';
+  body.style.display  = open ? '' : 'none';
+  arrow.classList.toggle('open', open);
+  if (open && id === 'acc2') renderCtDay(document.getElementById('ctDayPicker').value || DAYS[0]);
 }
 
 function renderCtDay(day) {
