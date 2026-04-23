@@ -1742,7 +1742,7 @@ function _dmCardNew(m, bc, cardH, isLast) {
     <div style="display:flex;align-items:center;flex-shrink:0;">${ph}</div>
     <div style="flex:1;min-width:0;padding:1px 0;">
       <div style="display:flex;align-items:baseline;gap:3px;justify-content:space-between;">
-        <span style="font-size:8.5px;font-weight:900;color:#1a1a2e;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.name)}</span>
+        <span style="font-size:8.5px;font-weight:900;color:#1a1a2e;line-height:1.2;">${_escH(m.name)}</span>
         ${m.specialty?`<span style="font-size:6.5px;font-weight:700;color:${bc};flex-shrink:0;">${_escH(m.specialty)}</span>`:''}
       </div>
       ${m.company?`<div style="font-size:7px;color:#777;line-height:1.2;word-break:break-all;">${_escH(m.company)}</div>`:''}
@@ -1912,7 +1912,7 @@ async function printDM() {
       <div style="display:flex;align-items:center;flex-shrink:0;">${ph}</div>
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:baseline;gap:${+(1.5*PX2MM*z).toFixed(2)}mm;justify-content:space-between;">
-          <span style="font-size:${nameMm}mm;font-weight:900;color:#1a1a2e;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.name)}</span>
+          <span style="font-size:${nameMm}mm;font-weight:900;color:#1a1a2e;line-height:1.2;">${_escH(m.name)}</span>
           ${m.specialty?`<span style="font-size:${spMm}mm;font-weight:700;color:${bc};flex-shrink:0;">${_escH(m.specialty)}</span>`:''}
         </div>
         ${m.company?`<div style="font-size:${smMm}mm;color:#777;line-height:1.2;word-break:break-all;">${_escH(m.company)}</div>`:''}
