@@ -591,7 +591,7 @@ function renderMain() {
   const notes = getNoteData();
 
   const ALL_TASKS = getAllTasks();
-  const visibleTasks  = CR === 'admin' ? ALL_TASKS : ALL_TASKS.filter(t => t.owner === CU);
+  const visibleTasks  = CR === 'admin' ? ALL_TASKS : ALL_TASKS.filter(t => !t.owner || t.owner === CU);
   const filteredByDay = currentDay === '全部' ? visibleTasks : visibleTasks.filter(t => t.day === currentDay);
   const total = visibleTasks.length;
   const done  = visibleTasks.filter(t => prog[t.id]).length;
@@ -784,7 +784,7 @@ async function toggleTask(idx, cb) {
   const t      = getAllTasks().find(t => t.id === idx);
   if (!t) return;
   const dayKey = currentDay === '全部' ? t.day : currentDay;
-  const vis    = getAllTasks().filter(t2 => CR === 'admin' || t2.owner === CU);
+  const vis    = getAllTasks().filter(t2 => CR === 'admin' || !t2.owner || t2.owner === CU);
   const catTasks = vis.filter(t2 => t2.cat === t.cat && t2.day === t.day);
   const catDone  = catTasks.filter(t2 => prog[t2.id]).length;
   const badge = document.getElementById(`catbadge_cat_${dayKey}_${t.cat}`);
@@ -820,6 +820,7 @@ function saveNote(idx, val) {
 
 // ===== SETTINGS =====
 async function showSettings() {
+  const isFirstEnter = _activeTab !== 'settings';
   document.getElementById('headerTitle').textContent = '系統設定';
   document.getElementById('mainContent').style.display   = '';
   document.getElementById('memberContent').style.display = 'none';
@@ -827,8 +828,16 @@ async function showSettings() {
   ['ptab_main','ptab_member','ptab_dm'].forEach(id => document.getElementById(id)?.classList.remove('active'));
   _activeTab = 'settings';
   const cfg = getConfig();
-  cfgUsers = [...cfg.users];
-  cfgCustomTasks = [...(cfg.customTasks || [])];
+
+  if (isFirstEnter) {
+    // 首次進入：從 config 初始化
+    cfgUsers = [...cfg.users];
+    cfgCustomTasks = [...(cfg.customTasks || [])];
+  } else {
+    // 重新渲染（新增/刪除操作後）：保留使用者輸入欄位的當前值
+    cfgUsers = cfgUsers.map((_, i) => document.getElementById(`usr_${i}`)?.value?.trim() ?? '');
+    // cfgCustomTasks 已由 add/remove 函式直接更新，不需重設
+  }
 
   const usersHtml = cfgUsers.map((u, i) => `
     <div class="form-row" id="ur_${i}">
@@ -836,19 +845,19 @@ async function showSettings() {
       <button class="btn-danger" onclick="removeUser(${i})">刪除</button>
     </div>`).join('');
 
-  const ownerOpts = [...new Set([cfg.adminPassword, ...cfg.users])].map(u => `<option value="${u}">${u}</option>`).join('');
-  const dayOpts   = DAYS.map(d => `<option value="${d}">${d}</option>`).join('');
-  const catOpts   = CAT_ORDER.map(c => `<option value="${c}">${c}</option>`).join('');
-  const freqOpts  = ['每週','視需要','月底','每月首週','每月末週'].map(f => `<option value="${f}">${f}</option>`).join('');
+  const dayOpts  = DAYS.map(d => `<option value="${d}">${d}</option>`).join('');
+  const catOpts  = CAT_ORDER.map(c => `<option value="${c}">${c}</option>`).join('');
+  const freqOpts = ['每週','視需要','月底','每月首週','每月末週'].map(f => `<option value="${f}">${f}</option>`).join('');
 
-  const ctHtml = cfgCustomTasks.map((t, i) => `
-    <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--gray-border);" id="ct_${i}">
+  const ctHtml = cfgCustomTasks.length ? cfgCustomTasks.map((t, i) => `
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--gray-border);">
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:700;color:var(--red);">${t.day} · ${t.owner} <span style="font-weight:400;color:var(--text-soft);font-size:12px;">[${t.cat} · ${t.freq}]</span></div>
+        <div style="font-size:12px;font-weight:700;color:var(--red);">${t.day} <span style="font-weight:400;color:var(--text-soft);">[${t.cat} · ${t.freq}]</span></div>
         <div style="font-size:13px;color:var(--text);margin-top:3px;line-height:1.5;">${t.task}</div>
       </div>
       <button class="btn-danger" style="flex-shrink:0;" onclick="removeCustomTask(${i})">刪除</button>
-    </div>`).join('') || `<p style="font-size:13px;color:var(--text-soft);padding:8px 0;">尚未新增自訂項目</p>`;
+    </div>`).join('')
+    : `<p style="font-size:13px;color:var(--text-soft);padding:8px 0;">尚未新增自訂項目</p>`;
 
   document.getElementById('mainContent').innerHTML = `
     <div class="card">
@@ -868,16 +877,9 @@ async function showSettings() {
       <div id="ctContainer">${ctHtml}</div>
       <div id="ctFormWrap" style="display:none;background:var(--gray-light);border-radius:10px;padding:16px;margin-top:12px;">
         <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:12px;">新增任務</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-          <div>
-            <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">星期</div>
-            <select id="ct_day" class="modal-input" style="font-size:15px;">${dayOpts}</select>
-          </div>
-          <div>
-            <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">負責人</div>
-            <input type="text" id="ct_owner" class="modal-input" placeholder="如：康康" list="ctOwnerList" style="font-size:15px;">
-            <datalist id="ctOwnerList">${ownerOpts}</datalist>
-          </div>
+        <div style="margin-bottom:8px;">
+          <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">星期</div>
+          <select id="ct_day" class="modal-input" style="font-size:15px;">${dayOpts}</select>
         </div>
         <div style="margin-bottom:8px;">
           <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">任務內容</div>
@@ -912,13 +914,12 @@ function removeUser(i) { cfgUsers.splice(i, 1); showSettings(); }
 function removeCustomTask(i) { cfgCustomTasks.splice(i, 1); showSettings(); }
 
 function confirmAddCustomTask() {
-  const day   = document.getElementById('ct_day').value;
-  const owner = document.getElementById('ct_owner').value.trim();
-  const task  = document.getElementById('ct_task').value.trim();
-  const cat   = document.getElementById('ct_cat').value;
-  const freq  = document.getElementById('ct_freq').value;
-  if (!owner || !task) { showToast('請填寫負責人與任務內容'); return; }
-  cfgCustomTasks.push({ id: 'c' + Date.now(), day, owner, task, cat, freq });
+  const day  = document.getElementById('ct_day').value;
+  const task = document.getElementById('ct_task').value.trim();
+  const cat  = document.getElementById('ct_cat').value;
+  const freq = document.getElementById('ct_freq').value;
+  if (!task) { showToast('請填寫任務內容'); return; }
+  cfgCustomTasks.push({ id: 'c' + Date.now(), day, owner: '', task, cat, freq });
   showSettings();
 }
 
