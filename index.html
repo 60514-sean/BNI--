@@ -200,7 +200,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 #backToTop:hover { transform: translateY(-3px); }
 
 /* DM */
-.dm-wrapper { padding: 16px; max-width: 980px; margin: 0 auto; }
+.dm-wrapper { padding: 0; max-width: 980px; margin: 0 auto; }
 .dm-panel-label { font-size:11px; color:var(--text-soft); margin-bottom:6px; font-weight:600; }
 .dm-scale-outer { margin-bottom:14px; }
 .dm-bg-wrap { position:relative; width:900px; height:636px; border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow-lg); background:#f0f0f0; }
@@ -1597,9 +1597,9 @@ async function uploadMemberPhoto(sheetRow, file) {
 
 // ===== DM =====
 function _scaleDM() {
-  const content = document.getElementById('dmContent');
-  if (!content) return;
-  const availW = content.offsetWidth - 32;
+  const wrapper = document.querySelector('.dm-wrapper');
+  if (!wrapper) return;
+  const availW = wrapper.offsetWidth;
   const baseW = 900, baseH = 636;
   const scale = Math.min(1, availW / baseW);
   [['dmOuter1','dmSide1'],['dmOuter2','dmSide2']].forEach(([outerId, wrapId]) => {
