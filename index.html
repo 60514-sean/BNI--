@@ -1037,42 +1037,39 @@ function renderTodo() {
   const done  = todos.filter(t => t.done);
   const todo  = todos.filter(t => !t.done);
 
-  const itemHtml = (t) => `
-    <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;background:white;border-radius:10px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
-      <label style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;border:2px solid ${t.done?'var(--red)':'var(--gray-border)'};background:${t.done?'var(--red)':'white'};flex-shrink:0;cursor:pointer;">
+  const itemHtml = (t, isLast) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:12px 0;box-sizing:border-box;${isLast?'':'border-bottom:1px solid var(--gray-border);'}">
+      <label style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;min-width:22px;border-radius:50%;border:2px solid ${t.done?'var(--red)':'var(--gray-border)'};background:${t.done?'var(--red)':'white'};cursor:pointer;box-sizing:border-box;">
         <input type="checkbox" ${t.done?'checked':''} onchange="toggleTodo('${t.id}')" style="display:none;">
         ${t.done?`<svg width="11" height="9" viewBox="0 0 11 9" fill="none"><path d="M1 4L4.5 7.5L10 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`:''}
       </label>
-      <span style="flex:1;font-size:14px;line-height:1.5;${t.done?'text-decoration:line-through;color:var(--text-soft);':'color:var(--text);'}">${_escH(t.text)}</span>
-      <button onclick="deleteTodo('${t.id}')" style="flex-shrink:0;width:28px;height:28px;border-radius:50%;background:var(--gray-light);border:none;color:var(--text-soft);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">&times;</button>
+      <span style="flex:1;min-width:0;font-size:14px;line-height:1.5;word-break:break-word;${t.done?'text-decoration:line-through;color:var(--text-soft);':'color:var(--text);'}">${_escH(t.text)}</span>
+      <button onclick="deleteTodo('${t.id}')" style="flex-shrink:0;min-width:28px;width:28px;height:28px;border-radius:50%;background:var(--gray-light);border:none;color:var(--text-soft);font-size:16px;cursor:pointer;line-height:1;padding:0;">&times;</button>
     </div>`;
 
   document.getElementById('todoContent').innerHTML = `
-    <div class="card" style="background:linear-gradient(135deg,#c0392b 0%,#e74c3c 100%);border:none;">
-      <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.85);margin-bottom:10px;letter-spacing:0.5px;">新增待辦</div>
-      <div style="display:flex;gap:8px;">
+    <div class="card" style="background:linear-gradient(135deg,#c0392b 0%,#e74c3c 100%);box-shadow:none;box-sizing:border-box;">
+      <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.85);margin-bottom:10px;">新增待辦</div>
+      <div style="display:flex;gap:8px;width:100%;box-sizing:border-box;">
         <input id="todoInput" type="text" placeholder="輸入待辦事項..." onkeydown="if(event.key==='Enter')addTodo()"
-          style="flex:1;font-size:16px;padding:10px 14px;border-radius:10px;border:none;outline:none;background:rgba(255,255,255,0.95);color:var(--text);font-family:inherit;">
+          style="flex:1;min-width:0;font-size:16px;padding:10px 12px;border-radius:10px;border:none;outline:none;background:rgba(255,255,255,0.95);color:var(--text);font-family:inherit;box-sizing:border-box;">
         <button onclick="addTodo()"
-          style="flex-shrink:0;padding:0 18px;border-radius:10px;background:white;color:var(--red);border:none;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;">新增</button>
+          style="flex-shrink:0;padding:0 16px;border-radius:10px;background:white;color:var(--red);border:none;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;">新增</button>
       </div>
     </div>
-    ${todo.length ? `
-    <div style="padding:0 2px;">
-      <div style="font-size:12px;font-weight:700;color:var(--text-soft);letter-spacing:0.5px;margin-bottom:10px;">待辦 ${todo.length} 項</div>
-      ${todo.map(itemHtml).join('')}
+    ${todo.length ? `<div class="card" style="box-sizing:border-box;">
+      <div style="font-size:12px;font-weight:700;color:var(--text-soft);margin-bottom:4px;">待辦 ${todo.length} 項</div>
+      ${todo.map((t,i)=>itemHtml(t, i===todo.length-1)).join('')}
     </div>` : ''}
-    ${done.length ? `
-    <div style="padding:0 2px;margin-top:${todo.length?'18px':'0'};">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <div style="font-size:12px;font-weight:700;color:var(--text-soft);letter-spacing:0.5px;">已完成 ${done.length} 項</div>
-        <button onclick="clearDoneTodos()" style="font-size:12px;color:var(--red);background:none;border:none;cursor:pointer;font-weight:600;font-family:inherit;">清除已完成</button>
+    ${done.length ? `<div class="card" style="box-sizing:border-box;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text-soft);">已完成 ${done.length} 項</div>
+        <button onclick="clearDoneTodos()" style="font-size:12px;color:var(--red);background:none;border:none;cursor:pointer;font-weight:600;font-family:inherit;padding:0;">清除已完成</button>
       </div>
-      ${done.map(itemHtml).join('')}
+      ${done.map((t,i)=>itemHtml(t, i===done.length-1)).join('')}
     </div>` : ''}
-    ${!todo.length && !done.length ? `
-    <div style="text-align:center;padding:48px 20px;color:var(--text-soft);">
-      <div style="font-size:36px;margin-bottom:12px;">&#10003;</div>
+    ${!todo.length && !done.length ? `<div class="card" style="text-align:center;padding:40px 20px;color:var(--text-soft);box-sizing:border-box;">
+      <div style="font-size:32px;margin-bottom:10px;">&#10003;</div>
       <div style="font-size:14px;">沒有待辦事項</div>
     </div>` : ''}`;
 }
