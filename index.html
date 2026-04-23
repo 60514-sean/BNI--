@@ -850,6 +850,10 @@ function showSettings() {
 
   const dayPickerOpts = DAYS.map(d => `<option value="${d}">${d}</option>`).join('');
 
+  // 記錄目前展開狀態
+  const accOpen = ['acc0','acc1','acc2'].map(id => document.getElementById(id)?.style.display !== 'none');
+  const ctDay   = document.getElementById('ctDayPicker')?.value || DAYS[0];
+
   document.getElementById('mainContent').innerHTML = `
     <style>
       .acc-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;padding:2px 0;}
@@ -918,6 +922,17 @@ function showSettings() {
       <button class="btn btn-primary" onclick="saveSettings()">儲存設定</button>
       <button class="btn btn-secondary" onclick="renderMain()">取消</button>
     </div>`;
+  // 還原展開狀態
+  ['acc0','acc1','acc2'].forEach((id, i) => {
+    if (accOpen[i]) {
+      document.getElementById(id).style.display = '';
+      document.getElementById(id + '-arrow').classList.add('open');
+    }
+  });
+  if (accOpen[2]) {
+    document.getElementById('ctDayPicker').value = ctDay;
+    renderCtDay(ctDay);
+  }
 }
 
 function toggleAcc(id) {
