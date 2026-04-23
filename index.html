@@ -1427,9 +1427,11 @@ async function saveMemberEdit(sheetRow) {
     if (photoFile) {
       showToast('上傳照片中...');
       await uploadMemberPhoto(sheetRow, photoFile);
+      m.photo = URL.createObjectURL(photoFile);
+      renderMembers();
     }
     await Promise.all(tasks);
-    showToast('已儲存，照片重新整理後生效');
+    showToast('已儲存');
   } catch { showToast('儲存失敗，請重試'); }
 }
 
