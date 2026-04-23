@@ -851,7 +851,7 @@ function showSettings() {
   const dayPickerOpts = DAYS.map(d => `<option value="${d}">${d}</option>`).join('');
 
   // 記錄目前展開狀態
-  const accOpen = ['acc0','acc1','acc2'].map(id => document.getElementById(id)?.style.display !== 'none');
+  const accOpen = ['acc0','acc1','acc2'].map(id => { const el = document.getElementById(id); return el ? el.style.display !== 'none' : false; });
   const ctDay   = document.getElementById('ctDayPicker')?.value || DAYS[0];
 
   document.getElementById('mainContent').innerHTML = `
