@@ -1733,10 +1733,11 @@ function _dmDistribute() {
 
 // cardH: fixed height per card (px, pre-zoom). Photo & font scale within it.
 function _dmCardNew(m, bc, cardH, isLast) {
-  const ps = Math.max(22, Math.min(36, cardH - 8)) + 8; // photo size (+4mm)
+  const ps = Math.min(cardH - 4, Math.max(22, Math.min(36, cardH - 8)) + 8); // photo size, capped to cardH-4
   const ph = m.photo
     ? `<img style="width:${ps}px;height:${ps}px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${bc};display:block;" src="${_escH(m.photo)}" onerror="this.style.display='none'">`
     : `<div style="width:${ps}px;height:${ps}px;border-radius:50%;flex-shrink:0;border:2px solid ${bc};background:#e8ecf0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:${Math.round(ps*0.3)}px;font-weight:900;">?</div>`;
+  const svcLines = cardH >= 48 ? 2 : 1;
   return `<div style="display:flex;gap:4px;align-items:center;${isLast?'':'border-bottom:1px solid rgba(0,0,0,0.07);'}overflow:hidden;height:${cardH}px;box-sizing:border-box;padding:0 2px;">
     ${ph}
     <div style="flex:1;min-width:0;overflow:hidden;">
@@ -1744,9 +1745,9 @@ function _dmCardNew(m, bc, cardH, isLast) {
         <span style="font-size:8.5px;font-weight:900;color:#1a1a2e;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.name)}</span>
         ${m.specialty?`<span style="font-size:6.5px;font-weight:700;color:${bc};flex-shrink:0;">${_escH(m.specialty)}</span>`:''}
       </div>
-      ${m.company?`<div style="font-size:7px;color:#777;white-space:normal;word-break:break-all;line-height:1.2;">${_escH(m.company)}</div>`:''}
-      ${m.phone?`<div style="font-size:7px;color:#555;font-weight:600;">${_escH(m.phone)}</div>`:''}
-      ${m.service?`<div style="font-size:7px;font-weight:700;color:#222;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${_escH(m.service)}</div>`:''}
+      ${m.company?`<div style="font-size:7px;color:#777;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${_escH(m.company)}</div>`:''}
+      ${m.phone?`<div style="font-size:7px;color:#555;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.phone)}</div>`:''}
+      ${m.service?`<div style="font-size:7px;font-weight:700;color:#222;line-height:1.25;display:-webkit-box;-webkit-line-clamp:${svcLines};-webkit-box-orient:vertical;overflow:hidden;">${_escH(m.service)}</div>`:''}
     </div>
   </div>`;
 }
