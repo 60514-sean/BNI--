@@ -848,41 +848,7 @@ function showSettings() {
   const catOpts  = CAT_ORDER.map(c => `<option value="${c}">${c}</option>`).join('');
   const freqOpts = ['每週','視需要','月底','每月首週','每月末週'].map(f => `<option value="${f}">${f}</option>`).join('');
 
-  // 所有任務依星期分組
-  const ctByDay = DAYS.map(day => {
-    const fixed  = TASK_DATA.filter(t => t.day === day);
-    const custom = cfgCustomTasks
-      .map((t, origIdx) => ({ ...t, _origIdx: origIdx }))
-      .filter(t => t.day === day);
-    return { day, fixed, custom, total: fixed.length + custom.length };
-  }).filter(g => g.total > 0);
-
-  const dayOptsSel = day => DAYS.map(d => `<option value="${d}"${d===day?' selected':''}>${d}</option>`).join('');
-
-  const ctHtml = ctByDay.map(g => `
-    <div style="margin-bottom:18px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:6px;border-bottom:2px solid var(--red);margin-bottom:8px;">
-        <span style="font-size:14px;font-weight:900;color:var(--red);">${g.day}</span>
-        <span style="font-size:12px;color:var(--text-soft);">${g.total} 項</span>
-      </div>
-      ${g.fixed.map(t => `
-        <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--gray-border);">
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:11px;color:var(--text-soft);margin-bottom:2px;">${t.cat} · ${t.freq}${t.owner ? ' · ' + t.owner : ''}</div>
-            <div style="font-size:13px;color:var(--text);line-height:1.5;">${t.task}</div>
-          </div>
-          <span style="font-size:10px;color:var(--gray);border:1px solid var(--gray-border);border-radius:4px;padding:2px 6px;flex-shrink:0;white-space:nowrap;align-self:center;">固定</span>
-        </div>`).join('')}
-      ${g.custom.map(t => `
-        <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--gray-border);">
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:11px;color:var(--red);margin-bottom:2px;">${t.cat} · ${t.freq} · 自訂</div>
-            <div style="font-size:13px;color:var(--text);line-height:1.5;">${t.task}</div>
-          </div>
-          <button class="btn-danger" style="flex-shrink:0;align-self:center;" onclick="removeCustomTask(${t._origIdx})">刪除</button>
-        </div>`).join('')}
-      <button class="add-btn" style="margin-top:6px;font-size:12px;padding:6px 12px;" onclick="openAddTaskForm('${g.day}')">+ 新增至${g.day}</button>
-    </div>`).join('');
+  const dayPickerOpts = DAYS.map(d => `<option value="${d}">${d}</option>`).join('');
 
   document.getElementById('mainContent').innerHTML = `
     <div class="card">
@@ -898,8 +864,9 @@ function showSettings() {
     </div>
     <div class="card">
       <div class="card-title">週進度任務設定</div>
-      <p class="hint" style="margin-bottom:16px;">固定任務僅供檢視；自訂任務可刪除。儲存後生效。</p>
-      <div id="ctContainer">${ctHtml}</div>
+      <p class="hint" style="margin-bottom:12px;">固定任務僅供檢視；自訂任務可刪除。儲存後生效。</p>
+      <select class="modal-input" id="ctDayPicker" onchange="renderCtDay(this.value)" style="font-size:16px;margin-bottom:14px;">${dayPickerOpts}</select>
+      <div id="ctContainer"></div>
       <div id="ctFormWrap" style="display:none;background:var(--gray-light);border-radius:10px;padding:16px;margin-top:4px;">
         <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:12px;">新增任務</div>
         <div style="margin-bottom:8px;">
@@ -930,12 +897,43 @@ function showSettings() {
       <button class="btn btn-primary" onclick="saveSettings()">儲存設定</button>
       <button class="btn btn-secondary" onclick="renderMain()">取消</button>
     </div>`;
+  renderCtDay(DAYS[0]);
+}
+
+function renderCtDay(day) {
+  const fixed  = TASK_DATA.filter(t => t.day === day);
+  const custom = cfgCustomTasks.map((t, origIdx) => ({ ...t, _origIdx: origIdx })).filter(t => t.day === day);
+  const fixedHtml = fixed.map(t => `
+    <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--gray-border);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:11px;color:var(--text-soft);margin-bottom:2px;">${t.cat} · ${t.freq}</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.5;">${t.task}</div>
+      </div>
+      <span style="font-size:10px;color:var(--gray);border:1px solid var(--gray-border);border-radius:4px;padding:2px 6px;flex-shrink:0;white-space:nowrap;align-self:center;">固定</span>
+    </div>`).join('');
+  const customHtml = custom.map(t => `
+    <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--gray-border);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:11px;color:var(--red);margin-bottom:2px;">${t.cat} · ${t.freq} · 自訂</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.5;">${t.task}</div>
+      </div>
+      <button class="btn-danger" style="flex-shrink:0;align-self:center;" onclick="removeCustomTask(${t._origIdx})">刪除</button>
+    </div>`).join('');
+  const empty = !fixed.length && !custom.length ? `<p class="hint" style="text-align:center;padding:12px 0;">此日尚無任務</p>` : '';
+  document.getElementById('ctContainer').innerHTML = fixedHtml + customHtml + empty + `
+    <button class="add-btn" style="margin-top:8px;font-size:12px;padding:6px 12px;" onclick="openAddTaskForm('${day}')">+ 新增至${day}</button>`;
+  const fw = document.getElementById('ctFormWrap');
+  if (fw) fw.style.display = 'none';
 }
 
 function addUser()     { cfgUsers.push(''); showSettings(); }
 function removeUser(i) { cfgUsers.splice(i, 1); showSettings(); }
 
-function removeCustomTask(i) { cfgCustomTasks.splice(i, 1); showSettings(); }
+function removeCustomTask(i) {
+  const day = document.getElementById('ctDayPicker')?.value || DAYS[0];
+  cfgCustomTasks.splice(i, 1);
+  renderCtDay(day);
+}
 
 function openAddTaskForm(day) {
   const dayOpts = DAYS.map(d => `<option value="${d}"${d===day?' selected':''}>${d}</option>`).join('');
@@ -951,7 +949,8 @@ function confirmAddCustomTask() {
   const freq = document.getElementById('ct_freq').value;
   if (!task) { showToast('請填寫任務內容'); return; }
   cfgCustomTasks.push({ id: 'c' + Date.now(), day, owner: '', task, cat, freq });
-  showSettings();
+  document.getElementById('ctDayPicker').value = day;
+  renderCtDay(day);
 }
 
 async function saveSettings() {
