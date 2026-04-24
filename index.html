@@ -415,7 +415,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 <div class="app" id="appPage">
   <div class="header">
     <div class="header-left">
-      <h2 id="headerTitle">每週工事追蹤</h2>
+      <h2 id="headerTitle">秘書財務小組</h2>
     </div>
     <div class="header-right">
       <span class="user-chip" id="userChip"></span>
@@ -709,7 +709,7 @@ const CAT_COLOR = '#c0392b';
 
 // ===== MAIN =====
 function renderMain() {
-  document.getElementById('headerTitle').textContent = '每週工事追蹤';
+  document.getElementById('headerTitle').textContent = '秘書財務小組';
   const prog  = getProgData();
   const notes = getNoteData();
 
@@ -1207,7 +1207,7 @@ function switchTab(tab) {
   document.getElementById('ptab_signin').classList.toggle('active',     tab === 'signin');
   document.getElementById('ptab_guesttrack').classList.toggle('active', tab === 'guesttrack');
   if (tab === 'todo')       { document.getElementById('headerTitle').textContent = '待辦事項'; renderTodo(); }
-  if (tab === 'main')       { document.getElementById('headerTitle').textContent = '每週工事追蹤'; renderMain(); }
+  if (tab === 'main')       { document.getElementById('headerTitle').textContent = '秘書財務小組'; renderMain(); }
   if (tab === 'member')     { document.getElementById('headerTitle').textContent = '會員資料'; renderMembers(); }
   if (tab === 'dm')         { document.getElementById('headerTitle').textContent = '會員DM'; renderDM(); }
   if (tab === 'signin')     { document.getElementById('headerTitle').textContent = '出席簽到'; renderSignin(); }
