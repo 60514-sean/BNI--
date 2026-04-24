@@ -207,18 +207,24 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 
 /* PAGE TABS */
 .page-tabs {
-  display: flex; gap: 6px; padding: 14px 12px 0;
-  max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box;
+  display: flex; gap: 8px; padding: 14px 12px 2px;
+  max-width: 100%; box-sizing: border-box;
+  overflow-x: auto; overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.page-tabs::-webkit-scrollbar { display: none; }
 .ptab {
-  flex: 1; min-width: 0; height: 68px; border-radius: 12px;
+  flex: 0 0 72px; width: 72px; height: 72px;
+  border-radius: 12px;
   border: 2px solid var(--gray-border);
   background: white; color: var(--text-soft);
   cursor: pointer; font-size: 13px; font-weight: 700;
   font-family: inherit; transition: all 0.2s;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 4px;
-  line-height: 1.3;
+  line-height: 1.25;
+  padding: 0;
 }
 .ptab:hover { border-color: var(--red); color: var(--red); }
 .ptab.active { border-color: var(--red); background: var(--red); color: white; box-shadow: 0 4px 14px rgba(192,57,43,0.25); }
@@ -397,9 +403,9 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 <!-- LOGIN -->
 <div class="login-page" id="loginPage">
   <div class="login-box">
-    <h1>每週工事追蹤</h1>
+    <h1>秘書財務小組</h1>
     <p>請輸入您的名稱登入</p>
-    <input type="text" id="nameInput" placeholder="輸入姓名（如：康康）" autocomplete="off">
+    <input type="text" id="nameInput" placeholder="輸入姓名" autocomplete="off">
     <button class="btn-login" onclick="doLogin()">登 入</button>
     <div class="login-error" id="loginError"></div>
   </div>
@@ -974,11 +980,15 @@ function _toggleUserTab(i, tabId, checked) {
 
 function showSettings() {
   document.getElementById('headerTitle').textContent = '系統設定';
-  document.getElementById('todoContent').style.display   = 'none';
-  document.getElementById('mainContent').style.display   = '';
-  document.getElementById('memberContent').style.display = 'none';
-  document.getElementById('dmContent').style.display     = 'none';
-  ['ptab_todo','ptab_main','ptab_member','ptab_dm'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+  document.getElementById('todoContent').style.display       = 'none';
+  document.getElementById('mainContent').style.display       = '';
+  document.getElementById('memberContent').style.display     = 'none';
+  document.getElementById('dmContent').style.display         = 'none';
+  document.getElementById('signinContent').style.display     = 'none';
+  document.getElementById('guestTrackContent').style.display = 'none';
+  // 隱藏頁籤列，只留設定畫面
+  document.getElementById('pageTabs').style.display = 'none';
+  ['ptab_todo','ptab_main','ptab_member','ptab_dm','ptab_signin','ptab_guesttrack'].forEach(id => document.getElementById(id)?.classList.remove('active'));
   _activeTab = 'settings';
   const cfg = getConfig();
 
@@ -1085,7 +1095,7 @@ function showSettings() {
     </div>
     <div class="btn-row">
       <button class="btn btn-primary" onclick="saveSettings()">儲存設定</button>
-      <button class="btn btn-secondary" onclick="renderMain()">取消</button>
+      <button class="btn btn-secondary" onclick="exitSettings()">取消</button>
     </div>`;
   // 還原展開狀態
   ['acc0','acc1','acc2'].forEach((id, i) => {
@@ -1170,7 +1180,13 @@ async function saveSettings() {
   await saveConfigData({ adminPassword: adminPw, users, customTasks: cfgCustomTasks });
   await _bgRefresh();
   showToast('設定已儲存');
-  setTimeout(() => renderMain(), 600);
+  setTimeout(() => exitSettings(), 600);
+}
+
+function exitSettings() {
+  // 恢復頁籤列 + 回到主頁
+  document.getElementById('pageTabs').style.display = 'flex';
+  switchTab('main');
 }
 
 // ===== PAGE TAB =====
