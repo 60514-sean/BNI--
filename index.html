@@ -2797,25 +2797,22 @@ async function openGuestModal(gKey) {
   overlay.innerHTML = `<div class="modal-box" onclick="event.stopPropagation()">
     <div class="modal-title">${isEdit ? '編輯來賓' : '新增來賓'}</div>
 
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      <div class="modal-field" style="flex:1 1 180px;margin-bottom:0;">
-        <div class="modal-label">首次參訪日</div>
-        <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
-      </div>
-      <div class="modal-field" style="flex:1 1 140px;margin-bottom:0;">
-        <div class="modal-label">狀態</div>
-        <select class="modal-input" id="gm_status">
-          ${GUEST_STATUSES.map(s => `<option value="${s}" ${g?.status===s?'selected':''}>${s}</option>`).join('')}
-        </select>
-      </div>
+    <div class="modal-field">
+      <div class="modal-label">首次參訪日</div>
+      <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
     </div>
-
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
-      <div class="modal-field" style="flex:2 1 180px;margin-bottom:0;">
+    <div class="modal-field">
+      <div class="modal-label">狀態</div>
+      <select class="modal-input" id="gm_status">
+        ${GUEST_STATUSES.map(s => `<option value="${s}" ${g?.status===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <div class="modal-field" style="flex:3 1 0;min-width:0;margin-bottom:14px;">
         <div class="modal-label">姓名 <span style="color:var(--red);">*</span></div>
         <input class="modal-input" type="text" id="gm_name" value="${_escH(g?.name || '')}" placeholder="例：王大明">
       </div>
-      <div class="modal-field" style="flex:1 1 100px;margin-bottom:0;">
+      <div class="modal-field" style="flex:1 1 0;min-width:0;margin-bottom:14px;">
         <div class="modal-label">稱謂</div>
         <select class="modal-input" id="gm_title">
           <option value="" ${!g?.title?'selected':''}>（無）</option>
@@ -2841,23 +2838,21 @@ async function openGuestModal(gKey) {
       <input class="modal-input" type="tel" id="gm_phone" value="${_escH(g?.phone || '')}" placeholder="09XX-XXX-XXX">
     </div>
 
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      <div class="modal-field" style="flex:1 1 140px;margin-bottom:0;position:relative;">
-        <div class="modal-label">邀約人</div>
-        <input class="modal-input" type="text" id="gm_inviter" value="${_escH(g?.inviter || '')}" autocomplete="off"
-          oninput="_showMemberSuggest('gm_inviter', this.value)"
-          onfocus="if(this.value.trim())_showMemberSuggest('gm_inviter', this.value)"
-          onblur="setTimeout(()=>_hideMemberSuggest('gm_inviter'), 200)">
-        <div id="gm_inviter_suggest" class="member-suggest-box"></div>
-      </div>
-      <div class="modal-field" style="flex:1 1 140px;margin-bottom:0;position:relative;">
-        <div class="modal-label">締結人</div>
-        <input class="modal-input" type="text" id="gm_closer" value="${_escH(g?.closer || '')}" autocomplete="off"
-          oninput="_showMemberSuggest('gm_closer', this.value)"
-          onfocus="if(this.value.trim())_showMemberSuggest('gm_closer', this.value)"
-          onblur="setTimeout(()=>_hideMemberSuggest('gm_closer'), 200)">
-        <div id="gm_closer_suggest" class="member-suggest-box"></div>
-      </div>
+    <div class="modal-field" style="position:relative;">
+      <div class="modal-label">邀約人</div>
+      <input class="modal-input" type="text" id="gm_inviter" value="${_escH(g?.inviter || '')}" autocomplete="off"
+        oninput="_showMemberSuggest('gm_inviter', this.value)"
+        onfocus="if(this.value.trim())_showMemberSuggest('gm_inviter', this.value)"
+        onblur="setTimeout(()=>_hideMemberSuggest('gm_inviter'), 200)">
+      <div id="gm_inviter_suggest" class="member-suggest-box"></div>
+    </div>
+    <div class="modal-field" style="position:relative;">
+      <div class="modal-label">締結人</div>
+      <input class="modal-input" type="text" id="gm_closer" value="${_escH(g?.closer || '')}" autocomplete="off"
+        oninput="_showMemberSuggest('gm_closer', this.value)"
+        onfocus="if(this.value.trim())_showMemberSuggest('gm_closer', this.value)"
+        onblur="setTimeout(()=>_hideMemberSuggest('gm_closer'), 200)">
+      <div id="gm_closer_suggest" class="member-suggest-box"></div>
     </div>
 
     <div class="modal-field" style="margin-top:14px;">
