@@ -255,6 +255,11 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .ss-table td.c-num { font-weight: 700; color: #666; background: white; }
 .ss-table td.c-name { font-weight: 700; font-size: 18pt; line-height: 1.1; }
 .ss-table td.c-time { font-weight: 700; font-size: 5mm; color: #555; letter-spacing: 1mm; }
+.ss-table td.c-guest-info, .ss-table td.c-guest-phone { text-align: left; padding-left: 3mm; font-weight: 600; }
+.ss-table td.c-guest-phone { color: #555; font-weight: 500; }
+.ss-table td.c-check { text-align: left; padding-left: 4mm; font-weight: 600; letter-spacing: 1mm; }
+.ss-table td.c-check-top { border-bottom: none; }
+.ss-table td.c-check-bot { border-top: none; }
 
 /* MEMBER PAGE */
 .member-search {
@@ -2051,7 +2056,6 @@ async function printDM() {
 // ===== SIGNIN SHEET =====
 const SIGNIN_ROWS_PER_PAGE = 15;
 let _signinSubTab = 'member';       // 'member' | 'guest'
-let _signinGuestRows = 15;
 let _signinDate = '';                // 'YYYY-MM-DD'，預設今天
 
 function _rocDateText(isoDate) {
@@ -2083,7 +2087,7 @@ async function renderSignin() {
   const pageCount = (sheetsHtml.match(/class="signin-sheet"/g) || []).length;
   const desc = tab === 'member'
     ? `共 ${_memberData.length} 位會員 · ${pageCount} 張 A4（每張 ${SIGNIN_ROWS_PER_PAGE} 人）`
-    : `${_signinGuestRows} 筆空白列 · ${pageCount} 張 A4`;
+    : `固定 ${SIGNIN_ROWS_PER_PAGE} 位來賓 · 1 張 A4`;
 
   el.innerHTML = `<div class="signin-wrapper">
     <div class="card" style="margin-bottom:14px;padding:16px 20px;">
@@ -2095,8 +2099,6 @@ async function renderSignin() {
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <label style="font-size:13px;color:var(--text-soft);font-weight:600;">日期</label>
           <input type="date" value="${_signinDate}" onchange="_signinSetDate(this.value)" style="padding:8px 10px;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;outline:none;">
-          ${tab === 'guest' ? `<label style="font-size:13px;color:var(--text-soft);font-weight:600;margin-left:6px;">總列數</label>
-            <input type="number" min="5" max="60" value="${_signinGuestRows}" onchange="_signinSetGuestRows(this.value)" style="width:70px;padding:8px 10px;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;outline:none;">` : ''}
           <button class="btn btn-primary" onclick="printSignin()">匯出 PDF</button>
         </div>
       </div>
@@ -2116,10 +2118,6 @@ async function renderSignin() {
 
 function _signinSwitch(v) { _signinSubTab = v; renderSignin(); }
 function _signinSetDate(v) { _signinDate = v || _todayIso(); renderSignin(); }
-function _signinSetGuestRows(v) {
-  const n = Math.max(5, Math.min(60, parseInt(v,10) || 15));
-  _signinGuestRows = n; renderSignin();
-}
 
 function _buildMemberSheets(dateText) {
   const members = [..._memberData];
@@ -2134,15 +2132,7 @@ function _buildMemberSheets(dateText) {
 }
 
 function _buildGuestSheets(dateText) {
-  const total = _signinGuestRows;
-  const pages = Math.max(1, Math.ceil(total / SIGNIN_ROWS_PER_PAGE));
-  let html = '';
-  for (let p = 0; p < pages; p++) {
-    const start = p * SIGNIN_ROWS_PER_PAGE;
-    const rowsThisPage = Math.min(SIGNIN_ROWS_PER_PAGE, total - start);
-    html += _guestSheetHtml(dateText, start, rowsThisPage, p + 1, pages);
-  }
-  return html;
+  return _guestSheetHtml(dateText, 0, SIGNIN_ROWS_PER_PAGE, 1, 1);
 }
 
 function _memberSheetHtml(dateText, members, startIdx, pageNum, totalPages) {
@@ -2171,20 +2161,29 @@ function _memberSheetHtml(dateText, members, startIdx, pageNum, totalPages) {
 }
 
 function _guestSheetHtml(dateText, startIdx, rowCount, pageNum, totalPages) {
-  const rowH = 14; // mm
+  const rowH = 7; // mm，每個子列；每位來賓佔 2 子列 = 14mm
   const suffix = totalPages > 1 ? `（${pageNum}/${totalPages}）` : '';
   let rows = '';
   for (let i = 1; i <= rowCount; i++) {
-    rows += `<tr style="height:${rowH}mm;"><td class="c-num">${startIdx + i}</td><td></td><td></td><td></td><td></td><td></td><td class="c-time">:</td></tr>`;
+    rows += `
+      <tr style="height:${rowH}mm;">
+        <td class="c-num" rowspan="2">${startIdx + i}</td>
+        <td class="c-guest-info"></td>
+        <td class="c-check c-check-top">□　名　片</td>
+      </tr>
+      <tr style="height:${rowH}mm;">
+        <td class="c-guest-phone">電話：</td>
+        <td class="c-check c-check-bot">□　出席費</td>
+      </tr>`;
   }
   return `<div class="signin-sheet">
     <div class="ss-title">BNI 億展白金分會　來賓出席簽到${suffix}</div>
     <div class="ss-subtitle">${dateText}</div>
     <table class="ss-table">
       <colgroup>
-        <col style="width:7%"><col style="width:13%"><col style="width:13%"><col style="width:19%"><col style="width:13%"><col style="width:18%"><col style="width:17%">
+        <col style="width:10%"><col style="width:60%"><col style="width:30%">
       </colgroup>
-      <thead><tr><th>序號</th><th>姓名</th><th>邀請人</th><th>公司</th><th>職稱</th><th>簽名</th><th>簽到時間</th></tr></thead>
+      <thead><tr><th>序號</th><th>姓名 / 產業別 / 邀請人</th><th>簽到（由工作人員勾選）</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   </div>`;
