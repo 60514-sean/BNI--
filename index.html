@@ -224,6 +224,36 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .ptab.active { border-color: var(--red); background: var(--red); color: white; box-shadow: 0 4px 14px rgba(192,57,43,0.25); }
 .ptab-icon { font-size: 20px; }
 
+/* SIGNIN SHEET */
+.signin-wrapper { padding: 0; max-width: 980px; margin: 0 auto; }
+.signin-subtab {
+  flex: 1; padding: 11px 14px; border-radius: 10px;
+  border: 1.5px solid var(--gray-border); background: white; color: var(--text-soft);
+  cursor: pointer; font-size: 14px; font-weight: 700; font-family: inherit;
+  transition: all 0.15s;
+}
+.signin-subtab:hover { border-color: var(--red); color: var(--red); }
+.signin-subtab.active { border-color: var(--red); background: var(--red); color: white; }
+.signin-preview-outer { margin-bottom: 14px; background: #eef1f5; border-radius: var(--radius); padding: 12px; overflow: hidden; }
+.signin-preview-inner { width: 794px; margin: 0 auto; background: white; box-shadow: var(--shadow-lg); }
+.signin-sheet {
+  width: 210mm; min-height: 297mm; padding: 15mm 12mm;
+  box-sizing: border-box;
+  font-family: 'Noto Sans TC','Microsoft JhengHei',sans-serif; color: #1a1a2e;
+  background: white;
+}
+.ss-title { font-size: 7mm; font-weight: 900; text-align: center; margin-bottom: 2mm; letter-spacing: 3px; color: #c0392b; }
+.ss-subtitle { font-size: 4mm; text-align: center; color: #444; margin-bottom: 5mm; font-weight: 500; }
+.ss-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 3.6mm; }
+.ss-table th, .ss-table td {
+  border: 0.3mm solid #333; padding: 1.2mm 1mm;
+  text-align: center; vertical-align: middle; word-break: break-all;
+}
+.ss-table th { background: #f4d4d0; font-weight: 900; color: #1a1a2e; height: 9mm; }
+.ss-table td { height: 9mm; }
+.ss-table td.c-num { font-weight: 700; color: #888; }
+.ss-table td.c-name { font-weight: 700; font-size: 4mm; }
+
 /* MEMBER PAGE */
 .member-search {
   width: 100%; padding: 12px 16px; margin-bottom: 14px;
@@ -361,11 +391,13 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
     <button class="ptab active" id="ptab_main" onclick="switchTab('main')">工事<br>清單</button>
     <button class="ptab" id="ptab_member" onclick="switchTab('member')">會員<br>資料</button>
     <button class="ptab" id="ptab_dm" onclick="switchTab('dm')">會員<br>DM</button>
+    <button class="ptab" id="ptab_signin" onclick="switchTab('signin')">簽到<br>表</button>
   </div>
   <div class="content" id="todoContent" style="display:none"></div>
   <div class="content" id="mainContent"></div>
   <div class="content" id="memberContent" style="display:none"></div>
   <div class="content" id="dmContent" style="display:none"></div>
+  <div class="content" id="signinContent" style="display:none"></div>
 </div>
 <button id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到頂端">&#8679;</button>
 
@@ -1018,14 +1050,17 @@ function switchTab(tab) {
   document.getElementById('mainContent').style.display   = tab === 'main'   ? '' : 'none';
   document.getElementById('memberContent').style.display = tab === 'member' ? '' : 'none';
   document.getElementById('dmContent').style.display     = tab === 'dm'     ? '' : 'none';
+  document.getElementById('signinContent').style.display = tab === 'signin' ? '' : 'none';
   document.getElementById('ptab_todo').classList.toggle('active',   tab === 'todo');
   document.getElementById('ptab_main').classList.toggle('active',   tab === 'main');
   document.getElementById('ptab_member').classList.toggle('active', tab === 'member');
   document.getElementById('ptab_dm').classList.toggle('active',     tab === 'dm');
+  document.getElementById('ptab_signin').classList.toggle('active', tab === 'signin');
   if (tab === 'todo')   { document.getElementById('headerTitle').textContent = '待辦事項'; renderTodo(); }
   if (tab === 'main')   { document.getElementById('headerTitle').textContent = '每週工事追蹤'; renderMain(); }
   if (tab === 'member') { document.getElementById('headerTitle').textContent = '會員資料'; renderMembers(); }
   if (tab === 'dm')     { document.getElementById('headerTitle').textContent = '會員DM'; renderDM(); }
+  if (tab === 'signin') { document.getElementById('headerTitle').textContent = '簽到表'; renderSignin(); }
 }
 
 // ===== TODO =====
@@ -1323,6 +1358,14 @@ function _filterMemberCards() {
 }
 
 function _escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function _fmtService(s) {
+  // 斷行只發生在最後一個標點符號之後：最後標點前（含標點）不斷，之後的文字整體移到下一行
+  const text = String(s);
+  const m = text.match(/^([\s\S]*[、，。；,;])([\s\S]+)$/);
+  if (!m) return _escH(text);
+  return `<span style="white-space:nowrap">${_escH(m[1])}</span><span style="white-space:nowrap">${_escH(m[2])}</span>`;
+}
 
 function openEditMember(sheetRow) {
   sheetRow = parseInt(sheetRow);
@@ -1750,7 +1793,7 @@ function _dmCardNew(m, bc, cardH, isLast) {
       </div>
       ${m.company?`<div style="font-size:7px;color:#777;line-height:1.2;word-break:break-all;">${_escH(m.company)}</div>`:''}
       ${m.phone?`<div style="font-size:7px;color:#555;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.phone)}</div>`:''}
-      ${m.service?`<div style="font-size:7px;font-weight:700;color:#222;line-height:1.25;word-break:keep-all;">${_escH(m.service)}</div>`:''}
+      ${m.service?`<div style="font-size:7px;font-weight:700;color:#222;line-height:1.25;">${_fmtService(m.service)}</div>`:''}
     </div>
   </div>`;
 }
@@ -1812,8 +1855,8 @@ async function renderDM() {
     const h   = botY - tPx;
     const preZW = Math.round(w / z);
     const preZH = Math.round(h / z);
-    return `<div style="position:absolute;left:${x}px;top:${tPx}px;width:${w}px;height:${h}px;overflow:hidden;outline:1.5px dashed rgba(192,57,43,0.45);outline-offset:-1px;z-index:10;">
-      <div style="width:${preZW}px;height:${preZH}px;zoom:${z};">
+    return `<div style="position:absolute;left:${x}px;top:${tPx}px;width:${w}px;height:${h}px;overflow:visible;outline:1.5px dashed rgba(192,57,43,0.45);outline-offset:-1px;z-index:10;">
+      <div style="width:${preZW}px;zoom:${z};">
         ${_renderPanelHtml(panels[pi], colorMap, preZH)}
       </div>
     </div>`;
@@ -1920,7 +1963,7 @@ async function printDM() {
         </div>
         ${m.company?`<div style="font-size:${smMm}mm;color:#777;line-height:1.2;word-break:break-all;">${_escH(m.company)}</div>`:''}
         ${m.phone?`<div style="font-size:${smMm}mm;color:#555;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_escH(m.phone)}</div>`:''}
-        ${m.service?`<div style="font-size:${smMm}mm;font-weight:700;color:#222;line-height:1.25;word-break:keep-all;">${_escH(m.service)}</div>`:''}
+        ${m.service?`<div style="font-size:${smMm}mm;font-weight:700;color:#222;line-height:1.25;">${_fmtService(m.service)}</div>`:''}
       </div>
     </div>`;
   };
@@ -1995,6 +2038,168 @@ async function printDM() {
       doc.addImage(canvas.toDataURL('image/jpeg', 0.85), 'JPEG', 0, 0, 420, 297);
     }
     doc.save('BNI-億展分會-會員名錄.pdf');
+    showToast('PDF 已下載');
+  } catch {
+    showToast('PDF 產生失敗，請重試');
+  } finally {
+    document.body.removeChild(wrap);
+  }
+}
+
+// ===== SIGNIN SHEET =====
+let _signinSubTab = 'member';       // 'member' | 'guest'
+let _signinGuestRows = 20;
+let _signinDate = '';                // 'YYYY-MM-DD'，預設今天
+
+function _rocDateText(isoDate) {
+  const d = isoDate ? new Date(isoDate + 'T00:00:00') : new Date();
+  const roc = d.getFullYear() - 1911;
+  const m   = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${roc} 年 ${m} 月 ${day} 日`;
+}
+function _todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+async function renderSignin() {
+  _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+
+  const el = document.getElementById('signinContent');
+  el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
+  if (!_memberData) await fetchMembers();
+  if (!_memberData) { el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試</div>`; return; }
+
+  if (!_signinDate) _signinDate = _todayIso();
+  const dateText = _rocDateText(_signinDate);
+  const tab = _signinSubTab;
+  const subBtn = (v, label) => `<button class="signin-subtab ${tab===v?'active':''}" onclick="_signinSwitch('${v}')">${label}</button>`;
+  const sheetHtml = tab === 'member' ? _signinMemberHtml(dateText) : _signinGuestHtml(dateText);
+
+  el.innerHTML = `<div class="signin-wrapper">
+    <div class="card" style="margin-bottom:14px;padding:16px 20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-size:16px;font-weight:900;color:var(--text);">簽到表</div>
+          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">A4 直式 · ${tab === 'member' ? `共 ${_memberData.length} 位會員` : `${_signinGuestRows} 筆空白列`}</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <label style="font-size:13px;color:var(--text-soft);font-weight:600;">日期</label>
+          <input type="date" value="${_signinDate}" onchange="_signinSetDate(this.value)" style="padding:8px 10px;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;outline:none;">
+          ${tab === 'guest' ? `<label style="font-size:13px;color:var(--text-soft);font-weight:600;margin-left:6px;">列數</label>
+            <input type="number" min="5" max="40" value="${_signinGuestRows}" onchange="_signinSetGuestRows(this.value)" style="width:70px;padding:8px 10px;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;outline:none;">` : ''}
+          <button class="btn btn-primary" onclick="printSignin()">匯出 PDF</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        ${subBtn('member','會員簽到表')}
+        ${subBtn('guest','來賓簽到表')}
+      </div>
+    </div>
+    <div class="signin-preview-outer" id="signinOuter">
+      <div class="signin-preview-inner" id="signinInner">
+        <div class="signin-sheet" id="signinSheet">${sheetHtml}</div>
+      </div>
+    </div>
+  </div>`;
+  _scaleSignin();
+}
+
+function _signinSwitch(v) { _signinSubTab = v; renderSignin(); }
+function _signinSetDate(v) { _signinDate = v || _todayIso(); renderSignin(); }
+function _signinSetGuestRows(v) {
+  const n = Math.max(5, Math.min(40, parseInt(v,10) || 20));
+  _signinGuestRows = n; renderSignin();
+}
+
+function _signinMemberHtml(dateText) {
+  const members = [..._memberData];
+  const n = members.length;
+  // 依數量動態調整列高 (mm)，總內容高度約 252mm，減去標題約 18mm 與表頭 9mm
+  const rowH = Math.max(6, Math.min(10, Math.floor((252 - 18 - 9) / Math.max(n, 1) * 10) / 10));
+  const fontMm = rowH >= 8 ? 3.8 : (rowH >= 7 ? 3.4 : 3.0);
+  const rows = members.map((m, i) => `
+    <tr style="height:${rowH}mm;">
+      <td class="c-num">${i+1}</td>
+      <td class="c-name" style="font-size:${fontMm}mm;">${_escH(m.name)}</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>`).join('');
+  return `<div class="ss-title">BNI 億展分會　會員簽到表</div>
+    <div class="ss-subtitle">${dateText}　　6:15 領導團隊應到　6:30 會員應到</div>
+    <table class="ss-table">
+      <colgroup>
+        <col style="width:9%"><col style="width:17%"><col style="width:22%"><col style="width:16%"><col style="width:12%"><col style="width:24%">
+      </colgroup>
+      <thead><tr><th>序號</th><th>會員</th><th>簽名</th><th>簽到時間</th><th>收費</th><th>備註</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function _signinGuestHtml(dateText) {
+  const n = _signinGuestRows;
+  const rowH = Math.max(6, Math.min(11, Math.floor((252 - 18 - 9) / Math.max(n, 1) * 10) / 10));
+  let rows = '';
+  for (let i = 1; i <= n; i++) {
+    rows += `<tr style="height:${rowH}mm;"><td class="c-num">${i}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+  }
+  return `<div class="ss-title">BNI 億展分會　來賓簽到表</div>
+    <div class="ss-subtitle">${dateText}</div>
+    <table class="ss-table">
+      <colgroup>
+        <col style="width:7%"><col style="width:13%"><col style="width:13%"><col style="width:19%"><col style="width:13%"><col style="width:18%"><col style="width:17%">
+      </colgroup>
+      <thead><tr><th>序號</th><th>姓名</th><th>邀請人</th><th>公司</th><th>職稱</th><th>簽名</th><th>簽到時間</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function _scaleSignin() {
+  const outer = document.getElementById('signinOuter');
+  const inner = document.getElementById('signinInner');
+  if (!outer || !inner) return;
+  const availW = outer.clientWidth - 24; // 扣除 padding
+  const baseW  = 794;                    // 210mm @ 96dpi
+  const scale  = Math.min(1, availW / baseW);
+  inner.style.zoom = scale;
+}
+window.addEventListener('resize', () => { if (_activeTab === 'signin') _scaleSignin(); });
+
+async function printSignin() {
+  showToast('PDF 產生中，請稍候...');
+  try {
+    await Promise.all([
+      _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
+      _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
+    ]);
+  } catch { showToast('載入失敗，請確認網路連線'); return; }
+
+  const source = document.getElementById('signinSheet');
+  if (!source) return;
+
+  // 建立離屏 1:1 容器，避免被 zoom 影響
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:absolute;left:-9999px;top:0;background:white;';
+  const clone = source.cloneNode(true);
+  clone.style.boxShadow = 'none';
+  wrap.appendChild(clone);
+  document.body.appendChild(wrap);
+
+  try {
+    const canvas = await html2canvas(clone, {
+      scale: 2, useCORS: true, allowTaint: false, logging: false, backgroundColor: '#ffffff'
+    });
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+    doc.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 210, 297);
+    const fn = _signinSubTab === 'member'
+      ? `BNI-億展分會-會員簽到表-${_signinDate}.pdf`
+      : `BNI-億展分會-來賓簽到表-${_signinDate}.pdf`;
+    doc.save(fn);
     showToast('PDF 已下載');
   } catch {
     showToast('PDF 產生失敗，請重試');
