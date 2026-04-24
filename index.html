@@ -997,10 +997,11 @@ function showSettings() {
         ${t.label}
       </label>`).join('');
     return `
-      <div class="user-row" id="ur_${i}" style="padding:12px;border:1.5px solid var(--gray-border);border-radius:10px;margin-bottom:10px;">
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
-          <input type="text" value="${_escH(u.name)}" id="usr_${i}" placeholder="使用者名稱" style="flex:1;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;">
-          <button class="btn-danger" onclick="removeUser(${i})">刪除</button>
+      <div class="user-row" id="ur_${i}" style="padding:12px;border:1.5px solid var(--gray-border);border-radius:10px;margin-bottom:10px;box-sizing:border-box;">
+        <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">登入名稱</div>
+        <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:10px;min-width:0;">
+          <input type="text" value="${_escH(u.name)}" id="usr_${i}" placeholder="例如：康康" style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+          <button class="btn-danger" onclick="removeUser(${i})" style="flex-shrink:0;">刪除</button>
         </div>
         <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">角色</div>
         <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;">${rolesHtml}</div>
