@@ -2054,7 +2054,9 @@ async function printDM() {
 }
 
 // ===== SIGNIN SHEET =====
-const SIGNIN_ROWS_PER_PAGE = 15;
+const SIGNIN_ROWS_PER_PAGE = 15;     // 會員每頁人數
+const SIGNIN_GUEST_PER_PAGE = 10;    // 來賓每頁人數
+const SIGNIN_GUEST_TOTAL    = 15;    // 來賓總人數
 let _signinSubTab = 'member';       // 'member' | 'guest'
 let _signinDate = '';                // 'YYYY-MM-DD'，預設今天
 
@@ -2087,7 +2089,7 @@ async function renderSignin() {
   const pageCount = (sheetsHtml.match(/class="signin-sheet"/g) || []).length;
   const desc = tab === 'member'
     ? `共 ${_memberData.length} 位會員 · ${pageCount} 張 A4（每張 ${SIGNIN_ROWS_PER_PAGE} 人）`
-    : `固定 ${SIGNIN_ROWS_PER_PAGE} 位來賓 · 1 張 A4`;
+    : `固定 ${SIGNIN_GUEST_TOTAL} 位來賓 · ${pageCount} 張 A4（每張 ${SIGNIN_GUEST_PER_PAGE} 人）`;
 
   el.innerHTML = `<div class="signin-wrapper">
     <div class="card" style="margin-bottom:14px;padding:16px 20px;">
@@ -2132,7 +2134,16 @@ function _buildMemberSheets(dateText) {
 }
 
 function _buildGuestSheets(dateText) {
-  return _guestSheetHtml(dateText, 0, SIGNIN_ROWS_PER_PAGE, 1, 1);
+  const total   = SIGNIN_GUEST_TOTAL;
+  const perPage = SIGNIN_GUEST_PER_PAGE;
+  const pages   = Math.max(1, Math.ceil(total / perPage));
+  let html = '';
+  for (let p = 0; p < pages; p++) {
+    const start = p * perPage;
+    const count = Math.min(perPage, total - start);
+    html += _guestSheetHtml(dateText, start, count, p + 1, pages);
+  }
+  return html;
 }
 
 function _memberSheetHtml(dateText, members, startIdx, pageNum, totalPages) {
@@ -2161,7 +2172,7 @@ function _memberSheetHtml(dateText, members, startIdx, pageNum, totalPages) {
 }
 
 function _guestSheetHtml(dateText, startIdx, rowCount, pageNum, totalPages) {
-  const rowH = 7; // mm，每個子列；每位來賓佔 2 子列 = 14mm
+  const rowH = 10; // mm，每個子列；每位來賓佔 2 子列 = 20mm
   const suffix = totalPages > 1 ? `（${pageNum}/${totalPages}）` : '';
   let rows = '';
   for (let i = 1; i <= rowCount; i++) {
