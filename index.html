@@ -301,52 +301,62 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   background: white; box-shadow: var(--shadow-lg);
   font-family: 'Noto Sans TC','Microsoft JhengHei',sans-serif; color: #1a1a2e;
   box-sizing: border-box;
+  position: relative;
 }
 .placard-sheet + .placard-sheet { margin-top: 14px; }
-.placard-half {
-  flex: 1 1 50%;
+.placard-row {
+  flex: 1 1 25%;
   position: relative;
-  display: flex; flex-direction: column;
-  padding: 18mm 16mm 12mm;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.placard-fold-line {
+  height: 0; border-top: 1px dashed rgba(187,187,187,0.6);
+  position: absolute; left: 0; right: 0; top: 50%;
+  pointer-events: none; z-index: 5;
+}
+.placard-content {
+  position: absolute; inset: 0;
+}
+.placard-row-upper .placard-content {
+  transform: rotate(180deg);
+}
+.placard-name-box {
+  position: absolute;
+  left: 28.94%;
+  top: 36.94%;
+  width: 44.58%;
+  height: 35.69%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26mm;
+  font-weight: 900;
+  letter-spacing: 7.8mm;
+  padding-left: 7.8mm;
+  line-height: 1;
+  color: #1a1a2e;
+  white-space: nowrap;
   box-sizing: border-box;
 }
-.placard-half.top { transform: rotate(180deg); }
-.placard-fold-line {
-  height: 0; border-top: 1px dashed #bbb;
-  position: absolute; left: 0; right: 0; top: 50%;
-  pointer-events: none;
-}
-.placard-role {
-  position: absolute; top: 18mm; right: 16mm;
-  background: var(--red); color: white;
-  padding: 3mm 10mm; font-size: 18pt; font-weight: 900;
-  border-radius: 2mm;
-}
-.placard-name {
-  flex: 1;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 64pt; font-weight: 900;
-  letter-spacing: 12mm;
-  line-height: 1.1;
-  padding-right: 12mm;
-  text-indent: 12mm;
-}
-.placard-bottom {
-  display: flex; align-items: stretch;
-  height: 14mm;
-}
-.placard-chapter {
-  flex: 1;
-  padding: 3mm 8mm;
-  font-size: 16pt; font-weight: 900; color: var(--red);
-  display: flex; align-items: center;
-}
-.placard-inviter {
-  background: var(--red); color: white;
-  padding: 3mm 14mm;
-  font-size: 15pt; font-weight: 700;
-  display: flex; align-items: center;
-  border-radius: 2mm 0 0 2mm;
+.placard-inviter-box {
+  position: absolute;
+  left: 78.48%;
+  top: 85.97%;
+  width: 13.02%;
+  height: 11.40%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8.5mm;
+  font-weight: 700;
+  letter-spacing: 1mm;
+  padding-left: 1mm;
+  line-height: 1;
+  color: white;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 /* MEMBER PAGE */
@@ -2997,8 +3007,6 @@ async function _deleteGuest(year, row) {
 }
 
 // ===== 來賓桌牌 =====
-const PLACARD_CHAPTER = 'BNI 億展白金分會';
-
 async function renderPlacard() {
   _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
@@ -3032,18 +3040,19 @@ async function renderPlacard() {
 }
 
 function _placardSheetHtml(g) {
-  const inviter = g.inviter || '';
-  const halfHtml = `
-    <div class="placard-role">來賓</div>
-    <div class="placard-name">${_escH(g.name || '')}</div>
-    <div class="placard-bottom">
-      <div class="placard-chapter">${_escH(PLACARD_CHAPTER)}</div>
-      <div class="placard-inviter">邀請人｜${_escH(inviter)}</div>
+  const name = _escH(g.name || '');
+  const inviter = _escH(g.inviter || '');
+  const contentHtml = `
+    <div class="placard-content">
+      <div class="placard-name-box">${name}</div>
+      <div class="placard-inviter-box">${inviter}</div>
     </div>`;
   return `<div class="placard-sheet">
-    <div class="placard-half top">${halfHtml}</div>
+    <div class="placard-row" style="background-image:url('placard_bg/4.png');"></div>
+    <div class="placard-row placard-row-upper" style="background-image:url('placard_bg/3.png');">${contentHtml}</div>
     <div class="placard-fold-line"></div>
-    <div class="placard-half bottom">${halfHtml}</div>
+    <div class="placard-row placard-row-lower" style="background-image:url('placard_bg/2.png');">${contentHtml}</div>
+    <div class="placard-row" style="background-image:url('placard_bg/1.png');"></div>
   </div>`;
 }
 
