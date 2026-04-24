@@ -234,6 +234,30 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 }
 .signin-subtab:hover { border-color: var(--red); color: var(--red); }
 .signin-subtab.active { border-color: var(--red); background: var(--red); color: white; }
+.guest-filter-sel {
+  flex: 1; min-width: 140px;
+  padding: 9px 32px 9px 12px;
+  border: 1.5px solid var(--gray-border); border-radius: 10px;
+  background: white; color: var(--text);
+  font-size: 13px; font-weight: 600; font-family: inherit;
+  cursor: pointer; outline: none;
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.guest-filter-sel:focus { border-color: var(--red); }
+.member-suggest-box {
+  display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 10;
+  margin-top: 2px; max-height: 220px; overflow-y: auto;
+  background: white; border: 1px solid var(--gray-border); border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+}
+.member-suggest-item {
+  padding: 9px 14px; font-size: 14px; cursor: pointer;
+  border-bottom: 1px solid var(--gray-border);
+}
+.member-suggest-item:last-child { border-bottom: none; }
+.member-suggest-item:hover { background: var(--gray-light); color: var(--red); }
 .signin-preview-outer { margin-bottom: 14px; background: #eef1f5; border-radius: var(--radius); padding: 12px; overflow: hidden; }
 .signin-preview-inner { width: 794px; margin: 0 auto; }
 .signin-sheet {
@@ -2085,6 +2109,8 @@ async function renderSignin() {
   el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
   if (!_memberData) await fetchMembers();
   if (!_memberData) { el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試</div>`; return; }
+  // 來賓簽到表需要本周來賓資料
+  if (_signinSubTab === 'guest' && _guestData === null) await fetchGuests();
 
   if (!_signinDate) _signinDate = _todayIso();
   const dateText = _rocDateText(_signinDate);
@@ -2092,9 +2118,10 @@ async function renderSignin() {
   const subBtn = (v, label) => `<button class="signin-subtab ${tab===v?'active':''}" onclick="_signinSwitch('${v}')">${label}</button>`;
   const sheetsHtml = tab === 'member' ? _buildMemberSheets(dateText) : _buildGuestSheets(dateText);
   const pageCount = (sheetsHtml.match(/class="signin-sheet"/g) || []).length;
+  const weekGuestCount = tab === 'guest' ? _getWeekGuestsForSignin().length : 0;
   const desc = tab === 'member'
     ? `共 ${_memberData.length} 位會員 · ${pageCount} 張 A4（每張 ${SIGNIN_ROWS_PER_PAGE} 人）`
-    : `固定 ${SIGNIN_GUEST_TOTAL} 位來賓 · ${pageCount} 張 A4（每張 ${SIGNIN_GUEST_PER_PAGE} 人）`;
+    : `本周 ${weekGuestCount} 位 · 表格 ${SIGNIN_GUEST_TOTAL} 格 · ${pageCount} 張 A4`;
 
   el.innerHTML = `<div class="signin-wrapper">
     <div class="card" style="margin-bottom:14px;padding:16px 20px;">
@@ -2179,17 +2206,23 @@ function _memberSheetHtml(dateText, members, startIdx, pageNum, totalPages) {
 function _guestSheetHtml(dateText, startIdx, rowCount, pageNum, totalPages) {
   const rowH = 10; // mm，每個子列；每位來賓佔 2 子列 = 20mm
   const suffix = totalPages > 1 ? `（${pageNum}/${totalPages}）` : '';
+  const weekGuests = _getWeekGuestsForSignin();
   let rows = '';
   for (let i = 1; i <= rowCount; i++) {
+    const g = weekGuests[startIdx + i - 1]; // 對應本周來賓（若有）
+    const infoText = g
+      ? `${g.name || ''}${g.title ? ' ' + g.title : ''}${g.industry ? ' / ' + g.industry : ''}${g.inviter ? ' / ' + g.inviter : ''}`
+      : '';
+    const phoneText = g && g.phone ? `電話：${g.phone}` : '電話：';
     rows += `
       <tr style="height:${rowH}mm;">
         <td class="c-num" rowspan="2">${startIdx + i}</td>
-        <td class="c-guest-info"></td>
+        <td class="c-guest-info">${_escH(infoText)}</td>
         <td class="c-sig" rowspan="2"></td>
         <td class="c-check c-check-top">□　名　片</td>
       </tr>
       <tr style="height:${rowH}mm;">
-        <td class="c-guest-phone">電話：</td>
+        <td class="c-guest-phone">${_escH(phoneText)}</td>
         <td class="c-check c-check-bot">□　出席費</td>
       </tr>`;
   }
@@ -2204,6 +2237,15 @@ function _guestSheetHtml(dateText, startIdx, rowCount, pageNum, totalPages) {
       <tbody>${rows}</tbody>
     </table>
   </div>`;
+}
+
+function _getWeekGuestsForSignin() {
+  if (!_guestData) return [];
+  const { mon, sun } = _weekRange();
+  return _guestData.filter(g => {
+    const d = _parseDateStr(g.firstVisit);
+    return d && d >= mon && d <= sun;
+  }).sort((a,b) => (a.firstVisit||'').localeCompare(b.firstVisit||''));
 }
 
 function _scaleSignin() {
@@ -2369,18 +2411,10 @@ async function renderGuestTrack() {
         ${subBtn('all','歷屆來賓')}
       </div>
       ${tab === 'all' ? `<input type="text" placeholder="搜尋姓名／產業／邀請人..." value="${_escH(_guestSearch)}" oninput="_guestSearch=this.value;_renderGuestListOnly()" style="width:100%;margin-top:10px;padding:10px 14px;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;outline:none;">` : ''}
-      ${tab === 'all' ? `<div id="guestYearChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">
-        ${(() => {
-          const scopeNoYear = _filterGuestsScope(tab, false);
-          const yCounts = _countByYear(scopeNoYear);
-          return _yearChipHtml(0, scopeNoYear.length) + _availableYears().map(y => _yearChipHtml(y, yCounts[y] || 0)).join('');
-        })()}
-      </div>` : ''}
-      <div id="guestStatusChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">
-        ${_statusChipHtml('', '全部', scopeFiltered.length)}
-        ${GUEST_STATUSES.map(s => _statusChipHtml(s, s, statusCounts[s] || 0)).join('')}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+        ${tab === 'all' ? _yearSelectHtml() : ''}
+        ${_statusSelectHtml()}
       </div>
-      <div id="guestCountText" style="display:none;">${rangeText} · 共 ${guests.length} 位</div>
     </div>
     <div id="guestListContainer">${_guestListHtml(guests)}</div>
   </div>`;
@@ -2451,19 +2485,24 @@ function _countByStatus(list) {
   return c;
 }
 
-function _statusChipHtml(value, label, count) {
-  const isActive = _guestStatusFilter === value;
-  if (value === '') {
-    // 「全部」chip
-    const bg = isActive ? 'var(--text)' : 'white';
-    const fg = isActive ? 'white' : 'var(--text-soft)';
-    return `<button onclick="_setStatusFilter('')" style="padding:6px 12px;border-radius:999px;border:1.5px solid ${isActive?'var(--text)':'var(--gray-border)'};background:${bg};color:${fg};font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;">${_escH(label)} ${count}</button>`;
-  }
-  const c = GUEST_STATUS_COLORS[value] || GUEST_STATUS_COLORS['待追蹤'];
-  const bg = isActive ? c.fg : c.bg;
-  const fg = isActive ? 'white' : c.fg;
-  const border = isActive ? c.fg : 'transparent';
-  return `<button onclick="_setStatusFilter('${value}')" style="padding:6px 12px;border-radius:999px;border:1.5px solid ${border};background:${bg};color:${fg};font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;${count===0?'opacity:0.4;':''}">${_escH(label)} ${count}</button>`;
+function _statusSelectHtml() {
+  // 狀態篩選的「每個選項計數」以「目前 tab + 搜尋 + 年份」為 scope，不套狀態本身
+  const scope = _filterGuestsScope(_guestSubTab);
+  const counts = _countByStatus(scope);
+  return `<select onchange="_setStatusFilter(this.value)" class="guest-filter-sel">
+    <option value="" ${!_guestStatusFilter?'selected':''}>全部狀態・${scope.length} 筆</option>
+    ${GUEST_STATUSES.map(s => `<option value="${s}" ${_guestStatusFilter===s?'selected':''}>${_escH(s)}・${counts[s]||0} 筆</option>`).join('')}
+  </select>`;
+}
+
+function _yearSelectHtml() {
+  const scopeNoYear = _filterGuestsScope(_guestSubTab, false);
+  const yCounts = _countByYear(scopeNoYear);
+  const years = _availableYears();
+  return `<select onchange="_setYearFilter(+this.value)" class="guest-filter-sel">
+    <option value="0" ${_guestYearFilter===0?'selected':''}>全部年份・${scopeNoYear.length} 筆</option>
+    ${years.map(y => `<option value="${y}" ${_guestYearFilter===y?'selected':''}>${y} 年・${yCounts[y]||0} 筆</option>`).join('')}
+  </select>`;
 }
 
 function _setStatusFilter(v) {
@@ -2472,27 +2511,15 @@ function _setStatusFilter(v) {
 }
 
 function _renderGuestListOnly() {
-  // 局部更新：不動搜尋輸入框、年份chip/狀態chip/列表分別更新
-  const scopeFiltered = _filterGuestsScope(_guestSubTab);
-  const scopeNoYear = _filterGuestsScope(_guestSubTab, false);
-  const statusCounts = _countByStatus(scopeFiltered);
-  const yearCounts = _countByYear(scopeNoYear);
-  const guests = _guestStatusFilter
-    ? scopeFiltered.filter(g => (g.status || '待追蹤') === _guestStatusFilter)
-    : scopeFiltered;
-  const yEl = document.getElementById('guestYearChips');
-  if (yEl) {
-    yEl.innerHTML = _yearChipHtml(0, scopeNoYear.length) +
-      _availableYears().map(y => _yearChipHtml(y, yearCounts[y] || 0)).join('');
+  // 搜尋輸入時：重新渲染除了搜尋框外的所有區塊（select 會被重建，但輸入框保留焦點）
+  renderGuestTrack();
+  // 把焦點放回搜尋框
+  const inp = document.querySelector('#guestTrackContent input[type="text"]');
+  if (inp && document.activeElement !== inp) {
+    inp.focus();
+    const len = inp.value.length;
+    inp.setSelectionRange(len, len);
   }
-  const chipsEl = document.getElementById('guestStatusChips');
-  if (chipsEl) {
-    chipsEl.innerHTML =
-      _statusChipHtml('', '全部', scopeFiltered.length) +
-      GUEST_STATUSES.map(s => _statusChipHtml(s, s, statusCounts[s] || 0)).join('');
-  }
-  const listEl = document.getElementById('guestListContainer');
-  if (listEl) listEl.innerHTML = _guestListHtml(guests);
 }
 
 function _guestSubSwitch(v) { _guestSubTab = v; _guestSearch = ''; _guestStatusFilter = ''; _guestYearFilter = 0; renderGuestTrack(); }
@@ -2527,8 +2554,8 @@ function _guestCardHtml(g) {
         <div style="font-size:12px;color:var(--text-soft);margin-top:4px;line-height:1.5;">
           ${g.industry ? `<span>${_escH(g.industry)}</span>` : ''}
           ${g.company ? ` · <span>${_escH(g.company)}</span>` : ''}
-          ${g.firstVisit ? ` · <span>首訪 ${_escH(g.firstVisit)}</span>` : ''}
         </div>
+        ${g.firstVisit ? `<div style="font-size:12px;color:var(--text-soft);margin-top:2px;">首訪 <b style="color:var(--text);">${_escH(g.firstVisit)}</b></div>` : ''}
         <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">
           ${g.inviter ? `邀約：<b style="color:var(--text);">${_escH(g.inviter)}</b>` : ''}
           ${g.closer ? `　締結：<b style="color:var(--text);">${_escH(g.closer)}</b>` : ''}
@@ -2567,7 +2594,10 @@ function _guestListHtml(guests) {
 // ===== 新增/編輯 Modal =====
 let _guestModalTracks = [];
 
-function openGuestModal(gKey) {
+async function openGuestModal(gKey) {
+  // 背景載入會員名單以供邀約/締結人自動提示
+  if (!_memberData) fetchMembers();
+
   let g = null;
   if (gKey) {
     const [year, row] = gKey.split('-').map(Number);
@@ -2584,12 +2614,12 @@ function openGuestModal(gKey) {
   overlay.innerHTML = `<div class="modal-box" onclick="event.stopPropagation()">
     <div class="modal-title">${isEdit ? '編輯來賓' : '新增來賓'}</div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <div class="modal-field" style="margin-bottom:0;">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <div class="modal-field" style="flex:1 1 180px;margin-bottom:0;">
         <div class="modal-label">首次參訪日</div>
         <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
       </div>
-      <div class="modal-field" style="margin-bottom:0;">
+      <div class="modal-field" style="flex:1 1 140px;margin-bottom:0;">
         <div class="modal-label">狀態</div>
         <select class="modal-input" id="gm_status">
           ${GUEST_STATUSES.map(s => `<option value="${s}" ${g?.status===s?'selected':''}>${s}</option>`).join('')}
@@ -2597,12 +2627,12 @@ function openGuestModal(gKey) {
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-top:14px;">
-      <div class="modal-field" style="margin-bottom:0;">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+      <div class="modal-field" style="flex:2 1 180px;margin-bottom:0;">
         <div class="modal-label">姓名 <span style="color:var(--red);">*</span></div>
         <input class="modal-input" type="text" id="gm_name" value="${_escH(g?.name || '')}" placeholder="例：王大明">
       </div>
-      <div class="modal-field" style="margin-bottom:0;">
+      <div class="modal-field" style="flex:1 1 100px;margin-bottom:0;">
         <div class="modal-label">稱謂</div>
         <select class="modal-input" id="gm_title">
           <option value="" ${!g?.title?'selected':''}>（無）</option>
@@ -2628,14 +2658,22 @@ function openGuestModal(gKey) {
       <input class="modal-input" type="tel" id="gm_phone" value="${_escH(g?.phone || '')}" placeholder="09XX-XXX-XXX">
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <div class="modal-field" style="margin-bottom:0;">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <div class="modal-field" style="flex:1 1 140px;margin-bottom:0;position:relative;">
         <div class="modal-label">邀約人</div>
-        <input class="modal-input" type="text" id="gm_inviter" value="${_escH(g?.inviter || '')}">
+        <input class="modal-input" type="text" id="gm_inviter" value="${_escH(g?.inviter || '')}" autocomplete="off"
+          oninput="_showMemberSuggest('gm_inviter', this.value)"
+          onfocus="if(this.value.trim())_showMemberSuggest('gm_inviter', this.value)"
+          onblur="setTimeout(()=>_hideMemberSuggest('gm_inviter'), 200)">
+        <div id="gm_inviter_suggest" class="member-suggest-box"></div>
       </div>
-      <div class="modal-field" style="margin-bottom:0;">
+      <div class="modal-field" style="flex:1 1 140px;margin-bottom:0;position:relative;">
         <div class="modal-label">締結人</div>
-        <input class="modal-input" type="text" id="gm_closer" value="${_escH(g?.closer || '')}">
+        <input class="modal-input" type="text" id="gm_closer" value="${_escH(g?.closer || '')}" autocomplete="off"
+          oninput="_showMemberSuggest('gm_closer', this.value)"
+          onfocus="if(this.value.trim())_showMemberSuggest('gm_closer', this.value)"
+          onblur="setTimeout(()=>_hideMemberSuggest('gm_closer'), 200)">
+        <div id="gm_closer_suggest" class="member-suggest-box"></div>
       </div>
     </div>
 
@@ -2695,6 +2733,31 @@ function _addTrackRow() {
 function _removeTrackRow(i) {
   _guestModalTracks.splice(i, 1);
   _renderTracksList();
+}
+
+// 邀約/締結人 自動提示（輸入才跳出、未打字不跳）
+function _showMemberSuggest(inputId, value) {
+  const box = document.getElementById(inputId + '_suggest');
+  if (!box) return;
+  const q = (value || '').trim().toLowerCase();
+  if (!q || !_memberData || !_memberData.length) { box.style.display = 'none'; return; }
+  const matches = _memberData.filter(m => m.name && m.name.toLowerCase().includes(q)).slice(0, 8);
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = matches.map(m =>
+    `<div class="member-suggest-item" onmousedown="event.preventDefault();_selectMemberSuggest('${inputId}', this.textContent.trim())">${_escH(m.name)}</div>`
+  ).join('');
+  box.style.display = 'block';
+}
+
+function _hideMemberSuggest(inputId) {
+  const box = document.getElementById(inputId + '_suggest');
+  if (box) box.style.display = 'none';
+}
+
+function _selectMemberSuggest(inputId, name) {
+  const inp = document.getElementById(inputId);
+  if (inp) { inp.value = name; inp.focus(); }
+  _hideMemberSuggest(inputId);
 }
 
 async function saveGuest(gKey) {
