@@ -258,8 +258,8 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 }
 .member-suggest-item:last-child { border-bottom: none; }
 .member-suggest-item:hover { background: var(--gray-light); color: var(--red); }
-.signin-preview-outer { margin-bottom: 14px; background: #eef1f5; border-radius: var(--radius); padding: 12px; overflow: hidden; }
-.signin-preview-inner { width: 794px; margin: 0 auto; }
+.signin-preview-outer { margin-bottom: 14px; overflow: hidden; }
+.signin-preview-inner { width: 794px; transform-origin: top left; }
 .signin-sheet {
   width: 210mm; height: 297mm; padding: 15mm 12mm;
   box-sizing: border-box;
@@ -519,11 +519,31 @@ function getWeekKey() {
 // ===== CONFIG =====
 const DEFAULT_USERS = ['康康', '麥莉', '報到組員', '簡報顧問'];
 const DEFAULT_ADMIN = '康康';
+const GUEST_ROLES = ['EDM手', '來賓組', '主席', '副主席', '報到組'];
+const TAB_LIST = [
+  { id: 'todo',       label: '待辦事項' },
+  { id: 'main',       label: '工事清單' },
+  { id: 'member',     label: '會員資料' },
+  { id: 'dm',         label: '會員DM' },
+  { id: 'signin',     label: '出席簽到' },
+  { id: 'guesttrack', label: '來賓追蹤' }
+];
+
+function _normalizeUser(u) {
+  if (typeof u === 'string') return { name: u, roles: [], allowedTabs: [] };
+  return {
+    name: (u && u.name) || '',
+    roles: (u && u.roles) || [],
+    allowedTabs: (u && u.allowedTabs) || []
+  };
+}
 
 function getConfig() {
   const c = cache['__config__'];
-  if (c && c.adminPassword) return c;
-  return { adminPassword: DEFAULT_ADMIN, users: [...DEFAULT_USERS], customTasks: [] };
+  if (c && c.adminPassword) {
+    return { ...c, users: (c.users || []).map(_normalizeUser) };
+  }
+  return { adminPassword: DEFAULT_ADMIN, users: DEFAULT_USERS.map(_normalizeUser), customTasks: [] };
 }
 async function saveConfigData(cfg) { await apiSave('__config__', cfg); }
 
@@ -609,31 +629,61 @@ async function doLogin() {
   const name = document.getElementById('nameInput').value.trim();
   if (!name) return;
 
-  // 先用 localStorage cache 即時驗證，不等 API
   let cfg = getConfig();
+  let userObj = cfg.users.find(u => u.name === name) || null;
   let isAdmin = name === cfg.adminPassword;
-  let isUser  = cfg.users.includes(name) || isAdmin;
 
-  // cache 找不到時才等 API（新使用者或首次開啟）
-  if (!isUser) {
+  if (!userObj && !isAdmin) {
     await Promise.race([_bgRefresh(), new Promise(r => setTimeout(r, 3000))]);
-    cfg     = getConfig();
+    cfg = getConfig();
+    userObj = cfg.users.find(u => u.name === name) || null;
     isAdmin = name === cfg.adminPassword;
-    isUser  = cfg.users.includes(name) || isAdmin;
   } else {
-    _bgRefresh(); // 背景靜默更新，不阻塞登入
+    _bgRefresh();
   }
 
-  if (!isUser) { document.getElementById('loginError').textContent = '找不到此姓名，請確認後重試'; return; }
+  if (!userObj && !isAdmin) { document.getElementById('loginError').textContent = '找不到此姓名，請確認後重試'; return; }
   CU = name; CR = isAdmin ? 'admin' : 'user';
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'flex';
   document.getElementById('userChip').textContent = name;
+  document.getElementById('userChip').style.display = 'none'; // 依需求隱藏使用者名稱標記
   document.getElementById('settingsBtn').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('pageTabs').style.display = 'flex';
+
+  // 套用頁籤權限：admin 看全部；一般使用者依 allowedTabs 限制
+  const allowed = isAdmin ? TAB_LIST.map(t => t.id) : (userObj?.allowedTabs || []);
+  _applyTabPermissions(allowed);
+
   currentDay = TODAY_DAY;
-  _activeTab = 'main';
-  switchTab('main');
+  // 預設停在第一個允許的 tab；若都沒權限，保留空白畫面
+  const firstTab = allowed[0] || null;
+  if (firstTab) {
+    _activeTab = firstTab;
+    switchTab(firstTab);
+  } else {
+    // 沒有任何頁籤 → 空畫面 + 提示
+    document.getElementById('headerTitle').textContent = '歡迎';
+    ['todoContent','mainContent','memberContent','dmContent','signinContent','guestTrackContent'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = 'none';
+    });
+    const msgEl = document.getElementById('mainContent');
+    if (msgEl) {
+      msgEl.style.display = '';
+      msgEl.innerHTML = `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">
+        <div style="font-size:16px;font-weight:900;color:var(--text);margin-bottom:8px;">尚未指派頁面</div>
+        <div style="font-size:13px;">請洽管理員設定您可以存取的頁籤</div>
+      </div>`;
+    }
+  }
+}
+
+function _applyTabPermissions(allowedIds) {
+  TAB_LIST.forEach(t => {
+    const btn = document.getElementById('ptab_' + t.id);
+    if (!btn) return;
+    btn.style.display = allowedIds.includes(t.id) ? '' : 'none';
+  });
 }
 
 function doLogout() {
@@ -887,11 +937,39 @@ function saveNote(idx, val) {
 
 // ===== SETTINGS =====
 function openSettings() {
+  if (CR !== 'admin') { showToast('無權限'); return; }
   // 從 config 初始化暫存陣列，然後渲染
   const cfg = getConfig();
-  cfgUsers = [...cfg.users];
+  cfgUsers = cfg.users.map(u => ({ name: u.name || '', roles: [...(u.roles || [])], allowedTabs: [...(u.allowedTabs || [])] }));
   cfgCustomTasks = [...(cfg.customTasks || [])];
   showSettings();
+}
+
+function _captureUserInputsToCfg() {
+  cfgUsers = cfgUsers.map((u, i) => {
+    const nameInp = document.getElementById(`usr_${i}`);
+    return {
+      name: nameInp ? nameInp.value.trim() : (u.name || ''),
+      roles: u.roles || [],
+      allowedTabs: u.allowedTabs || []
+    };
+  });
+}
+
+function _toggleUserRole(i, role, checked) {
+  const u = cfgUsers[i];
+  if (!u) return;
+  u.roles = u.roles || [];
+  if (checked && !u.roles.includes(role)) u.roles.push(role);
+  if (!checked) u.roles = u.roles.filter(r => r !== role);
+}
+
+function _toggleUserTab(i, tabId, checked) {
+  const u = cfgUsers[i];
+  if (!u) return;
+  u.allowedTabs = u.allowedTabs || [];
+  if (checked && !u.allowedTabs.includes(tabId)) u.allowedTabs.push(tabId);
+  if (!checked) u.allowedTabs = u.allowedTabs.filter(t => t !== tabId);
 }
 
 function showSettings() {
@@ -905,13 +983,31 @@ function showSettings() {
   const cfg = getConfig();
 
   // 保留使用者輸入欄位的當前值（重新渲染前先從 DOM 讀回）
-  cfgUsers = cfgUsers.map((_, i) => document.getElementById(`usr_${i}`)?.value?.trim() ?? cfgUsers[i] ?? '');
+  _captureUserInputsToCfg();
 
-  const usersHtml = cfgUsers.map((u, i) => `
-    <div class="form-row" id="ur_${i}">
-      <input type="text" value="${u}" id="usr_${i}" placeholder="使用者名稱">
-      <button class="btn-danger" onclick="removeUser(${i})">刪除</button>
-    </div>`).join('');
+  const usersHtml = cfgUsers.map((u, i) => {
+    const rolesHtml = GUEST_ROLES.map(r => `
+      <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;border:1.5px solid var(--gray-border);border-radius:999px;cursor:pointer;${(u.roles||[]).includes(r)?'background:#fef3c7;border-color:#fbbf24;color:#92400e;':'color:var(--text-soft);'}">
+        <input type="checkbox" ${(u.roles||[]).includes(r)?'checked':''} onchange="_toggleUserRole(${i}, '${r}', this.checked); showSettings();" style="margin:0;cursor:pointer;">
+        ${r}
+      </label>`).join('');
+    const tabsHtml = TAB_LIST.map(t => `
+      <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;border:1.5px solid var(--gray-border);border-radius:999px;cursor:pointer;${(u.allowedTabs||[]).includes(t.id)?'background:#d1fae5;border-color:#10b981;color:#065f46;':'color:var(--text-soft);'}">
+        <input type="checkbox" ${(u.allowedTabs||[]).includes(t.id)?'checked':''} onchange="_toggleUserTab(${i}, '${t.id}', this.checked); showSettings();" style="margin:0;cursor:pointer;">
+        ${t.label}
+      </label>`).join('');
+    return `
+      <div class="user-row" id="ur_${i}" style="padding:12px;border:1.5px solid var(--gray-border);border-radius:10px;margin-bottom:10px;">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <input type="text" value="${_escH(u.name)}" id="usr_${i}" placeholder="使用者名稱" style="flex:1;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;">
+          <button class="btn-danger" onclick="removeUser(${i})">刪除</button>
+        </div>
+        <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">角色</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;">${rolesHtml}</div>
+        <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">可見頁籤</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">${tabsHtml}</div>
+      </div>`;
+  }).join('');
 
   const catOpts  = CAT_ORDER.map(c => `<option value="${c}">${c}</option>`).join('');
   const freqOpts = ['每週','視需要','月底','每月首週','每月末週'].map(f => `<option value="${f}">${f}</option>`).join('');
@@ -1038,8 +1134,8 @@ function renderCtDay(day) {
   if (fw) fw.style.display = 'none';
 }
 
-function addUser()     { cfgUsers.push(''); showSettings(); }
-function removeUser(i) { cfgUsers.splice(i, 1); showSettings(); }
+function addUser()     { _captureUserInputsToCfg(); cfgUsers.push({ name: '', roles: [], allowedTabs: [] }); showSettings(); }
+function removeUser(i) { _captureUserInputsToCfg(); cfgUsers.splice(i, 1); showSettings(); }
 
 function removeCustomTask(i) {
   const day = document.getElementById('ctDayPicker')?.value || DAYS[0];
@@ -1066,8 +1162,10 @@ function confirmAddCustomTask() {
 }
 
 async function saveSettings() {
+  if (CR !== 'admin') { showToast('無權限'); return; }
   const adminPw = document.getElementById('adminPw').value.trim();
-  const users   = cfgUsers.map((_, i) => document.getElementById(`usr_${i}`)?.value.trim() || '').filter(Boolean);
+  _captureUserInputsToCfg();
+  const users = cfgUsers.filter(u => u.name);
   await saveConfigData({ adminPassword: adminPw, users, customTasks: cfgCustomTasks });
   await _bgRefresh();
   showToast('設定已儲存');
@@ -2252,10 +2350,13 @@ function _scaleSignin() {
   const outer = document.getElementById('signinOuter');
   const inner = document.getElementById('signinInner');
   if (!outer || !inner) return;
-  const availW = outer.clientWidth - 24; // 扣除 padding
-  const baseW  = 794;                    // 210mm @ 96dpi
+  const availW = outer.clientWidth;
+  const baseW  = 794;  // 210mm @ 96dpi
   const scale  = Math.min(1, availW / baseW);
-  inner.style.zoom = scale;
+  inner.style.transform = `scale(${scale})`;
+  inner.style.marginLeft = Math.max(0, (availW - baseW * scale) / 2) + 'px';
+  // 高度以 scrollHeight（未縮放的實際高）× 縮放比例 計算
+  outer.style.height = (inner.scrollHeight * scale) + 'px';
 }
 window.addEventListener('resize', () => { if (_activeTab === 'signin') _scaleSignin(); });
 
