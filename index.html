@@ -399,12 +399,14 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
     <button class="ptab" id="ptab_member" onclick="switchTab('member')">會員<br>資料</button>
     <button class="ptab" id="ptab_dm" onclick="switchTab('dm')">會員<br>DM</button>
     <button class="ptab" id="ptab_signin" onclick="switchTab('signin')">出席<br>簽到</button>
+    <button class="ptab" id="ptab_guesttrack" onclick="switchTab('guesttrack')">來賓<br>追蹤</button>
   </div>
   <div class="content" id="todoContent" style="display:none"></div>
   <div class="content" id="mainContent"></div>
   <div class="content" id="memberContent" style="display:none"></div>
   <div class="content" id="dmContent" style="display:none"></div>
   <div class="content" id="signinContent" style="display:none"></div>
+  <div class="content" id="guestTrackContent" style="display:none"></div>
 </div>
 <button id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到頂端">&#8679;</button>
 
@@ -1053,21 +1055,24 @@ let _activeTab = 'main';
 
 function switchTab(tab) {
   _activeTab = tab;
-  document.getElementById('todoContent').style.display   = tab === 'todo'   ? '' : 'none';
-  document.getElementById('mainContent').style.display   = tab === 'main'   ? '' : 'none';
-  document.getElementById('memberContent').style.display = tab === 'member' ? '' : 'none';
-  document.getElementById('dmContent').style.display     = tab === 'dm'     ? '' : 'none';
-  document.getElementById('signinContent').style.display = tab === 'signin' ? '' : 'none';
-  document.getElementById('ptab_todo').classList.toggle('active',   tab === 'todo');
-  document.getElementById('ptab_main').classList.toggle('active',   tab === 'main');
-  document.getElementById('ptab_member').classList.toggle('active', tab === 'member');
-  document.getElementById('ptab_dm').classList.toggle('active',     tab === 'dm');
-  document.getElementById('ptab_signin').classList.toggle('active', tab === 'signin');
-  if (tab === 'todo')   { document.getElementById('headerTitle').textContent = '待辦事項'; renderTodo(); }
-  if (tab === 'main')   { document.getElementById('headerTitle').textContent = '每週工事追蹤'; renderMain(); }
-  if (tab === 'member') { document.getElementById('headerTitle').textContent = '會員資料'; renderMembers(); }
-  if (tab === 'dm')     { document.getElementById('headerTitle').textContent = '會員DM'; renderDM(); }
-  if (tab === 'signin') { document.getElementById('headerTitle').textContent = '出席簽到'; renderSignin(); }
+  document.getElementById('todoContent').style.display       = tab === 'todo'       ? '' : 'none';
+  document.getElementById('mainContent').style.display       = tab === 'main'       ? '' : 'none';
+  document.getElementById('memberContent').style.display     = tab === 'member'     ? '' : 'none';
+  document.getElementById('dmContent').style.display         = tab === 'dm'         ? '' : 'none';
+  document.getElementById('signinContent').style.display     = tab === 'signin'     ? '' : 'none';
+  document.getElementById('guestTrackContent').style.display = tab === 'guesttrack' ? '' : 'none';
+  document.getElementById('ptab_todo').classList.toggle('active',       tab === 'todo');
+  document.getElementById('ptab_main').classList.toggle('active',       tab === 'main');
+  document.getElementById('ptab_member').classList.toggle('active',     tab === 'member');
+  document.getElementById('ptab_dm').classList.toggle('active',         tab === 'dm');
+  document.getElementById('ptab_signin').classList.toggle('active',     tab === 'signin');
+  document.getElementById('ptab_guesttrack').classList.toggle('active', tab === 'guesttrack');
+  if (tab === 'todo')       { document.getElementById('headerTitle').textContent = '待辦事項'; renderTodo(); }
+  if (tab === 'main')       { document.getElementById('headerTitle').textContent = '每週工事追蹤'; renderMain(); }
+  if (tab === 'member')     { document.getElementById('headerTitle').textContent = '會員資料'; renderMembers(); }
+  if (tab === 'dm')         { document.getElementById('headerTitle').textContent = '會員DM'; renderDM(); }
+  if (tab === 'signin')     { document.getElementById('headerTitle').textContent = '出席簽到'; renderSignin(); }
+  if (tab === 'guesttrack') { document.getElementById('headerTitle').textContent = '來賓追蹤'; renderGuestTrack(); }
 }
 
 // ===== TODO =====
@@ -2252,6 +2257,408 @@ async function printSignin() {
     showToast('PDF 產生失敗，請重試');
   } finally {
     document.body.removeChild(wrap);
+  }
+}
+
+// ===== GUEST TRACK =====
+const GUEST_STATUSES = ['待追蹤','持續追蹤','已加入','已加入他分會','已填單待繳費','婉拒/停止追蹤'];
+const GUEST_STATUS_COLORS = {
+  '待追蹤':         { bg:'#f4f6f8', fg:'#666' },
+  '持續追蹤':       { bg:'#fef3c7', fg:'#92400e' },
+  '已加入':         { bg:'#d1fae5', fg:'#065f46' },
+  '已加入他分會':   { bg:'#e0e7ff', fg:'#3730a3' },
+  '已填單待繳費':   { bg:'#fde68a', fg:'#78350f' },
+  '婉拒/停止追蹤':  { bg:'#fee2e2', fg:'#991b1b' }
+};
+let _guestData = null;
+let _guestSubTab = 'week';   // 'week' | 'all'
+let _guestSearch = '';
+
+function _parseDateStr(s) {
+  if (!s) return null;
+  s = String(s).trim();
+  let m = s.match(/^(\d{4})[-\/\.](\d{1,2})[-\/\.](\d{1,2})/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+  m = s.match(/^(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+  m = s.match(/^(\d{2,3})年\s*(\d{1,2})月\s*(\d{1,2})/);
+  if (m) return new Date(+m[1] + 1911, +m[2]-1, +m[3]);
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function _weekRange() {
+  const now = new Date();
+  const dow = now.getDay();
+  const offset = dow === 0 ? -6 : 1 - dow;
+  const mon = new Date(now); mon.setHours(0,0,0,0); mon.setDate(now.getDate() + offset);
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6); sun.setHours(23,59,59,999);
+  return { mon, sun };
+}
+
+function _weekRangeText() {
+  const { mon, sun } = _weekRange();
+  const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
+  return `${fmt(mon)} ~ ${fmt(sun)}`;
+}
+
+function _parseTracks(s) {
+  if (!s) return [];
+  try {
+    const arr = typeof s === 'string' ? JSON.parse(s) : s;
+    return Array.isArray(arr) ? arr.filter(x => x && x.note) : [];
+  } catch { return []; }
+}
+
+function _guestLatestDate(g) {
+  const tracks = _parseTracks(g.tracks);
+  const dates = [_parseDateStr(g.firstVisit)];
+  tracks.forEach(t => dates.push(_parseDateStr(t.date)));
+  const valid = dates.filter(d => d);
+  return valid.length ? new Date(Math.max(...valid.map(d => d.getTime()))) : null;
+}
+
+async function fetchGuests() {
+  try {
+    const r = await fetch(API_URL + '?action=listGuests&t=' + Date.now());
+    const j = await r.json();
+    if (!j || j.ok !== true) throw new Error(j?.error || 'fetch failed');
+    _guestData = j.data || [];
+  } catch (e) {
+    _guestData = null;
+  }
+}
+
+async function renderGuestTrack() {
+  const el = document.getElementById('guestTrackContent');
+  if (_guestData === null) {
+    el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
+    await fetchGuests();
+  }
+  if (_guestData === null) {
+    el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試 <button class="btn" style="margin-left:12px;background:var(--red);color:white;" onclick="_guestData=null;renderGuestTrack()">重試</button></div>`;
+    return;
+  }
+
+  const tab = _guestSubTab;
+  const subBtn = (v, label) => `<button class="signin-subtab ${tab===v?'active':''}" onclick="_guestSubSwitch('${v}')">${label}</button>`;
+  const guests = _filterGuests(tab);
+  const rangeText = tab === 'week' ? `本周（${_weekRangeText()}）` : '歷屆全部';
+
+  el.innerHTML = `<div class="signin-wrapper">
+    <div class="card" style="margin-bottom:14px;padding:16px 20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-size:16px;font-weight:900;color:var(--text);">來賓追蹤</div>
+          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">${rangeText} · 共 ${guests.length} 位</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="openGuestModal()">+ 新增來賓</button>
+          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="_guestData=null;renderGuestTrack()">重整</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        ${subBtn('week','本周來賓')}
+        ${subBtn('all','歷屆來賓')}
+      </div>
+      ${tab === 'all' ? `<input type="text" placeholder="搜尋姓名／產業／邀請人..." value="${_escH(_guestSearch)}" oninput="_guestSearch=this.value;_renderGuestListOnly()" style="width:100%;margin-top:10px;padding:10px 14px;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;outline:none;">` : ''}
+    </div>
+    <div id="guestListContainer">${_guestListHtml(guests)}</div>
+  </div>`;
+}
+
+function _renderGuestListOnly() {
+  const c = document.getElementById('guestListContainer');
+  if (c) c.innerHTML = _guestListHtml(_filterGuests(_guestSubTab));
+}
+
+function _guestSubSwitch(v) { _guestSubTab = v; _guestSearch = ''; renderGuestTrack(); }
+
+function _filterGuests(tab) {
+  if (!_guestData) return [];
+  let list = [..._guestData];
+  // 搜尋（只在歷屆分頁啟用）
+  if (tab === 'all' && _guestSearch) {
+    const q = _guestSearch.toLowerCase();
+    list = list.filter(g =>
+      (g.name||'').toLowerCase().includes(q) ||
+      (g.industry||'').toLowerCase().includes(q) ||
+      (g.inviter||'').toLowerCase().includes(q) ||
+      (g.company||'').toLowerCase().includes(q)
+    );
+  }
+  // 本周：firstVisit OR tracks 任一日期落在本周
+  if (tab === 'week') {
+    const { mon, sun } = _weekRange();
+    list = list.filter(g => {
+      const candidates = [_parseDateStr(g.firstVisit)];
+      _parseTracks(g.tracks).forEach(t => candidates.push(_parseDateStr(t.date)));
+      return candidates.some(d => d && d >= mon && d <= sun);
+    });
+  }
+  // 排序：最新活動日期在前
+  list.sort((a,b) => {
+    const da = _guestLatestDate(a); const db = _guestLatestDate(b);
+    return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+  });
+  return list;
+}
+
+function _guestStatusBadge(status) {
+  const s = status || '待追蹤';
+  const c = GUEST_STATUS_COLORS[s] || GUEST_STATUS_COLORS['待追蹤'];
+  return `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${c.bg};color:${c.fg};font-size:11px;font-weight:700;white-space:nowrap;">${_escH(s)}</span>`;
+}
+
+function _guestCardHtml(g) {
+  const tracks = _parseTracks(g.tracks);
+  const tracksHtml = tracks.length
+    ? tracks.map((t, i) => `
+      <div style="display:flex;gap:8px;padding:6px 0;border-top:1px dashed var(--gray-border);font-size:12px;">
+        <div style="flex-shrink:0;font-weight:700;color:var(--red);min-width:82px;">第${_zhNum(i+1)}次追蹤</div>
+        <div style="flex:1;min-width:0;">
+          ${t.date ? `<div style="color:var(--text-soft);font-size:11px;margin-bottom:2px;">${_escH(t.date)}</div>` : ''}
+          <div style="word-break:break-word;line-height:1.5;">${_escH(t.note)}</div>
+        </div>
+      </div>`).join('')
+    : '';
+  const gKey = `${g.year}-${g.sheetRow}`;
+  return `<div class="card" style="padding:14px 16px;margin-bottom:10px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">
+          <span style="font-size:16px;font-weight:900;color:var(--text);">${_escH(g.name)}</span>
+          ${g.title ? `<span style="color:var(--text-soft);font-size:13px;font-weight:500;">${_escH(g.title)}</span>` : ''}
+          ${_guestStatusBadge(g.status)}
+        </div>
+        <div style="font-size:12px;color:var(--text-soft);margin-top:4px;line-height:1.5;">
+          ${g.industry ? `<span>${_escH(g.industry)}</span>` : ''}
+          ${g.company ? ` · <span>${_escH(g.company)}</span>` : ''}
+          ${g.firstVisit ? ` · <span>首訪 ${_escH(g.firstVisit)}</span>` : ''}
+        </div>
+        <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">
+          ${g.inviter ? `邀約：<b style="color:var(--text);">${_escH(g.inviter)}</b>` : ''}
+          ${g.closer ? `　締結：<b style="color:var(--text);">${_escH(g.closer)}</b>` : ''}
+          ${g.phone ? `　<a href="tel:${_escH(g.phone)}" style="color:var(--red);text-decoration:none;">${_escH(g.phone)}</a>` : ''}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="openGuestModal('${gKey}')">編輯</button>
+        <button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:#c0392b;" onclick="deleteGuestConfirm('${gKey}')">刪除</button>
+      </div>
+    </div>
+    ${g.postVisitNote ? `<div style="background:#fafbfc;padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.5;margin-top:6px;">
+      <b style="color:var(--text-soft);">參訪後締結：</b>${_escH(g.postVisitNote)}
+    </div>` : ''}
+    ${tracksHtml ? `<div style="margin-top:8px;">${tracksHtml}</div>` : ''}
+  </div>`;
+}
+
+function _zhNum(n) {
+  const zh = ['零','一','二','三','四','五','六','七','八','九','十'];
+  if (n <= 10) return zh[n];
+  if (n < 20) return '十' + zh[n-10];
+  return String(n);
+}
+
+function _guestListHtml(guests) {
+  if (!guests.length) {
+    const msg = _guestSubTab === 'week'
+      ? '本周沒有來賓追蹤紀錄'
+      : (_guestSearch ? '找不到符合的來賓' : '目前還沒有來賓資料');
+    return `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">${msg}</div>`;
+  }
+  return guests.map(_guestCardHtml).join('');
+}
+
+// ===== 新增/編輯 Modal =====
+let _guestModalTracks = [];
+
+function openGuestModal(gKey) {
+  let g = null;
+  if (gKey) {
+    const [year, row] = gKey.split('-').map(Number);
+    g = _guestData.find(x => x.year === year && x.sheetRow === row);
+    if (!g) { showToast('找不到該來賓'); return; }
+  }
+  _guestModalTracks = g ? _parseTracks(g.tracks) : [];
+  const isEdit = !!g;
+  const today = _todayIso();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'guestModal';
+  overlay.innerHTML = `<div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title">${isEdit ? '編輯來賓' : '新增來賓'}</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="modal-field" style="margin-bottom:0;">
+        <div class="modal-label">首次參訪日</div>
+        <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
+      </div>
+      <div class="modal-field" style="margin-bottom:0;">
+        <div class="modal-label">狀態</div>
+        <select class="modal-input" id="gm_status">
+          ${GUEST_STATUSES.map(s => `<option value="${s}" ${g?.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-top:14px;">
+      <div class="modal-field" style="margin-bottom:0;">
+        <div class="modal-label">姓名 <span style="color:var(--red);">*</span></div>
+        <input class="modal-input" type="text" id="gm_name" value="${_escH(g?.name || '')}" placeholder="例：王大明">
+      </div>
+      <div class="modal-field" style="margin-bottom:0;">
+        <div class="modal-label">稱謂</div>
+        <select class="modal-input" id="gm_title">
+          <option value="" ${!g?.title?'selected':''}>（無）</option>
+          <option value="先生" ${g?.title==='先生'?'selected':''}>先生</option>
+          <option value="小姐" ${g?.title==='小姐'?'selected':''}>小姐</option>
+          <option value="女士" ${g?.title==='女士'?'selected':''}>女士</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="modal-field" style="margin-top:14px;">
+      <div class="modal-label">產業別／專長</div>
+      <input class="modal-input" type="text" id="gm_industry" value="${_escH(g?.industry || '')}">
+    </div>
+
+    <div class="modal-field">
+      <div class="modal-label">公司名</div>
+      <input class="modal-input" type="text" id="gm_company" value="${_escH(g?.company || '')}">
+    </div>
+
+    <div class="modal-field">
+      <div class="modal-label">電話</div>
+      <input class="modal-input" type="tel" id="gm_phone" value="${_escH(g?.phone || '')}" placeholder="09XX-XXX-XXX">
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="modal-field" style="margin-bottom:0;">
+        <div class="modal-label">邀約人</div>
+        <input class="modal-input" type="text" id="gm_inviter" value="${_escH(g?.inviter || '')}">
+      </div>
+      <div class="modal-field" style="margin-bottom:0;">
+        <div class="modal-label">締結人</div>
+        <input class="modal-input" type="text" id="gm_closer" value="${_escH(g?.closer || '')}">
+      </div>
+    </div>
+
+    <div class="modal-field" style="margin-top:14px;">
+      <div class="modal-label">參訪後締結（會後立即評估）</div>
+      <textarea class="modal-input" id="gm_postVisit" rows="3" style="resize:vertical;">${_escH(g?.postVisitNote || '')}</textarea>
+    </div>
+
+    <!-- 追蹤紀錄 -->
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--gray-border);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);">追蹤紀錄</div>
+        <button class="btn" style="padding:6px 12px;font-size:12px;background:var(--red);color:white;" onclick="_addTrackRow()">+ 新增追蹤</button>
+      </div>
+      <div id="gm_tracksList"></div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeGuestModal()">取消</button>
+      <button class="modal-save" onclick="saveGuest(${isEdit ? `'${gKey}'` : 'null'})">${isEdit ? '儲存' : '新增'}</button>
+    </div>
+  </div>`;
+  overlay.onclick = closeGuestModal;
+  document.body.appendChild(overlay);
+  _renderTracksList();
+}
+
+function closeGuestModal() {
+  const m = document.getElementById('guestModal');
+  if (m) m.remove();
+  _guestModalTracks = [];
+}
+
+function _renderTracksList() {
+  const c = document.getElementById('gm_tracksList');
+  if (!c) return;
+  if (!_guestModalTracks.length) {
+    c.innerHTML = `<div style="color:var(--text-soft);font-size:12px;text-align:center;padding:12px;background:#fafbfc;border-radius:6px;">尚無追蹤紀錄</div>`;
+    return;
+  }
+  c.innerHTML = _guestModalTracks.map((t, i) => `
+    <div style="padding:10px;background:#fafbfc;border-radius:6px;margin-bottom:8px;">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+        <div style="font-weight:700;color:var(--red);font-size:12px;flex-shrink:0;">第${_zhNum(i+1)}次追蹤</div>
+        <input type="date" value="${_escH(t.date || '')}" onchange="_guestModalTracks[${i}].date=this.value" style="flex:1;padding:5px 8px;border:1px solid var(--gray-border);border-radius:4px;font-size:12px;font-family:inherit;">
+        <button onclick="_removeTrackRow(${i})" style="flex-shrink:0;padding:4px 10px;font-size:12px;background:white;border:1px solid var(--gray-border);color:#c0392b;border-radius:4px;cursor:pointer;font-family:inherit;">刪除</button>
+      </div>
+      <textarea oninput="_guestModalTracks[${i}].note=this.value" rows="2" style="width:100%;padding:6px 8px;border:1px solid var(--gray-border);border-radius:4px;font-size:13px;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box;">${_escH(t.note || '')}</textarea>
+    </div>`).join('');
+}
+
+function _addTrackRow() {
+  _guestModalTracks.push({ date: _todayIso(), note: '' });
+  _renderTracksList();
+}
+
+function _removeTrackRow(i) {
+  _guestModalTracks.splice(i, 1);
+  _renderTracksList();
+}
+
+async function saveGuest(gKey) {
+  const name = document.getElementById('gm_name').value.trim();
+  if (!name) { showToast('請輸入姓名'); return; }
+  const payload = {
+    firstVisit:    document.getElementById('gm_firstVisit').value,
+    inviter:       document.getElementById('gm_inviter').value.trim(),
+    closer:        document.getElementById('gm_closer').value.trim(),
+    name:          name,
+    title:         document.getElementById('gm_title').value,
+    industry:      document.getElementById('gm_industry').value.trim(),
+    company:       document.getElementById('gm_company').value.trim(),
+    phone:         document.getElementById('gm_phone').value.trim(),
+    postVisitNote: document.getElementById('gm_postVisit').value.trim(),
+    status:        document.getElementById('gm_status').value,
+    tracks:        JSON.stringify(_guestModalTracks.filter(t => t.note && t.note.trim()))
+  };
+
+  closeGuestModal();
+  showToast(gKey ? '儲存中...' : '新增中...');
+
+  try {
+    if (gKey) {
+      const [year, row] = gKey.split('-').map(Number);
+      payload.action = 'updateGuest';
+      payload.year = year;
+      payload.sheetRow = row;
+    } else {
+      payload.action = 'addGuest';
+    }
+    await _apiPost(payload);
+    _guestData = null;
+    await renderGuestTrack();
+    showToast(gKey ? '已儲存' : '已新增');
+  } catch (e) {
+    showToast('失敗，請重試');
+  }
+}
+
+function deleteGuestConfirm(gKey) {
+  const [year, row] = gKey.split('-').map(Number);
+  const g = _guestData.find(x => x.year === year && x.sheetRow === row);
+  if (!g) return;
+  if (!confirm(`確定要刪除「${g.name}」？此動作無法還原。`)) return;
+  _deleteGuest(year, row);
+}
+
+async function _deleteGuest(year, row) {
+  showToast('刪除中...');
+  try {
+    await _apiPost({ action: 'deleteGuest', year, sheetRow: row });
+    _guestData = null;
+    await renderGuestTrack();
+    showToast('已刪除');
+  } catch {
+    showToast('刪除失敗，請重試');
   }
 }
 </script>
