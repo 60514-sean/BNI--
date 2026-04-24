@@ -291,6 +291,64 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .ss-table td.c-check-top { border-bottom: none; }
 .ss-table td.c-check-bot { border-top: none; }
 
+/* 來賓桌牌 */
+.placard-wrapper { padding: 0; max-width: 980px; margin: 0 auto; }
+.placard-preview-outer { margin-bottom: 14px; overflow: hidden; }
+.placard-preview-inner { width: 794px; transform-origin: top left; }
+.placard-sheet {
+  width: 210mm; height: 297mm;
+  display: flex; flex-direction: column;
+  background: white; box-shadow: var(--shadow-lg);
+  font-family: 'Noto Sans TC','Microsoft JhengHei',sans-serif; color: #1a1a2e;
+  box-sizing: border-box;
+}
+.placard-sheet + .placard-sheet { margin-top: 14px; }
+.placard-half {
+  flex: 1 1 50%;
+  position: relative;
+  display: flex; flex-direction: column;
+  padding: 18mm 16mm 12mm;
+  box-sizing: border-box;
+}
+.placard-half.top { transform: rotate(180deg); }
+.placard-fold-line {
+  height: 0; border-top: 1px dashed #bbb;
+  position: absolute; left: 0; right: 0; top: 50%;
+  pointer-events: none;
+}
+.placard-role {
+  position: absolute; top: 18mm; right: 16mm;
+  background: var(--red); color: white;
+  padding: 3mm 10mm; font-size: 18pt; font-weight: 900;
+  border-radius: 2mm;
+}
+.placard-name {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 64pt; font-weight: 900;
+  letter-spacing: 12mm;
+  line-height: 1.1;
+  padding-right: 12mm;
+  text-indent: 12mm;
+}
+.placard-bottom {
+  display: flex; align-items: stretch;
+  height: 14mm;
+}
+.placard-chapter {
+  flex: 1;
+  padding: 3mm 8mm;
+  font-size: 16pt; font-weight: 900; color: var(--red);
+  display: flex; align-items: center;
+}
+.placard-inviter {
+  background: var(--red); color: white;
+  padding: 3mm 14mm;
+  font-size: 15pt; font-weight: 700;
+  display: flex; align-items: center;
+  border-radius: 2mm 0 0 2mm;
+}
+
 /* MEMBER PAGE */
 .member-search {
   width: 100%; padding: 12px 16px; margin-bottom: 14px;
@@ -430,6 +488,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
     <button class="ptab" id="ptab_dm" onclick="switchTab('dm')">會員<br>DM</button>
     <button class="ptab" id="ptab_signin" onclick="switchTab('signin')">出席<br>簽到</button>
     <button class="ptab" id="ptab_guesttrack" onclick="switchTab('guesttrack')">來賓<br>追蹤</button>
+    <button class="ptab" id="ptab_placard" onclick="switchTab('placard')">來賓<br>桌牌</button>
   </div>
   <div class="content" id="todoContent" style="display:none"></div>
   <div class="content" id="mainContent"></div>
@@ -437,6 +496,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   <div class="content" id="dmContent" style="display:none"></div>
   <div class="content" id="signinContent" style="display:none"></div>
   <div class="content" id="guestTrackContent" style="display:none"></div>
+  <div class="content" id="placardContent" style="display:none"></div>
 </div>
 <button id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到頂端">&#8679;</button>
 
@@ -532,7 +592,8 @@ const TAB_LIST = [
   { id: 'member',     label: '會員資料' },
   { id: 'dm',         label: '會員DM' },
   { id: 'signin',     label: '出席簽到' },
-  { id: 'guesttrack', label: '來賓追蹤' }
+  { id: 'guesttrack', label: '來賓追蹤' },
+  { id: 'placard',    label: '來賓桌牌' }
 ];
 
 function _normalizeUser(u) {
@@ -986,9 +1047,10 @@ function showSettings() {
   document.getElementById('dmContent').style.display         = 'none';
   document.getElementById('signinContent').style.display     = 'none';
   document.getElementById('guestTrackContent').style.display = 'none';
+  document.getElementById('placardContent').style.display    = 'none';
   // 隱藏頁籤列，只留設定畫面
   document.getElementById('pageTabs').style.display = 'none';
-  ['ptab_todo','ptab_main','ptab_member','ptab_dm','ptab_signin','ptab_guesttrack'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+  ['ptab_todo','ptab_main','ptab_member','ptab_dm','ptab_signin','ptab_guesttrack','ptab_placard'].forEach(id => document.getElementById(id)?.classList.remove('active'));
   _activeTab = 'settings';
   const cfg = getConfig();
 
@@ -1200,18 +1262,21 @@ function switchTab(tab) {
   document.getElementById('dmContent').style.display         = tab === 'dm'         ? '' : 'none';
   document.getElementById('signinContent').style.display     = tab === 'signin'     ? '' : 'none';
   document.getElementById('guestTrackContent').style.display = tab === 'guesttrack' ? '' : 'none';
+  document.getElementById('placardContent').style.display    = tab === 'placard'    ? '' : 'none';
   document.getElementById('ptab_todo').classList.toggle('active',       tab === 'todo');
   document.getElementById('ptab_main').classList.toggle('active',       tab === 'main');
   document.getElementById('ptab_member').classList.toggle('active',     tab === 'member');
   document.getElementById('ptab_dm').classList.toggle('active',         tab === 'dm');
   document.getElementById('ptab_signin').classList.toggle('active',     tab === 'signin');
   document.getElementById('ptab_guesttrack').classList.toggle('active', tab === 'guesttrack');
+  document.getElementById('ptab_placard').classList.toggle('active',    tab === 'placard');
   if (tab === 'todo')       { document.getElementById('headerTitle').textContent = '待辦事項'; renderTodo(); }
   if (tab === 'main')       { document.getElementById('headerTitle').textContent = '秘書財務小組'; renderMain(); }
   if (tab === 'member')     { document.getElementById('headerTitle').textContent = '會員資料'; renderMembers(); }
   if (tab === 'dm')         { document.getElementById('headerTitle').textContent = '會員DM'; renderDM(); }
   if (tab === 'signin')     { document.getElementById('headerTitle').textContent = '出席簽到'; renderSignin(); }
   if (tab === 'guesttrack') { document.getElementById('headerTitle').textContent = '來賓追蹤'; renderGuestTrack(); }
+  if (tab === 'placard')    { document.getElementById('headerTitle').textContent = '來賓桌牌'; renderPlacard(); }
 }
 
 // ===== TODO =====
@@ -2933,6 +2998,110 @@ async function _deleteGuest(year, row) {
     showToast('已刪除');
   } catch {
     showToast('刪除失敗，請重試');
+  }
+}
+
+// ===== 來賓桌牌 =====
+const PLACARD_CHAPTER = 'BNI 億展白金分會';
+
+async function renderPlacard() {
+  _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  const el = document.getElementById('placardContent');
+  el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
+  if (_guestData === null) await fetchGuests();
+  if (_guestData === null) { el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試 <button class="btn" style="margin-left:12px;background:var(--red);color:white;" onclick="_guestData=null;renderPlacard()">重試</button></div>`; return; }
+
+  const weekGuests = _getWeekGuestsForSignin();
+  el.innerHTML = `<div class="placard-wrapper">
+    <div class="card" style="margin-bottom:14px;padding:16px 20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-size:16px;font-weight:900;color:var(--text);">來賓桌牌</div>
+          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">本周 ${weekGuests.length} 位 · ${weekGuests.length} 張 A4（每張 1 位，上下對摺為立牌）</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="printPlacards()" ${weekGuests.length===0?'disabled':''}>匯出 PDF</button>
+          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="_guestData=null;renderPlacard()">重整</button>
+        </div>
+      </div>
+    </div>
+    ${weekGuests.length === 0
+      ? `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">本周沒有來賓資料<br><span style="font-size:12px;">請先在「來賓追蹤」新增本周邀約的來賓</span></div>`
+      : `<div class="placard-preview-outer" id="placardOuter">
+          <div class="placard-preview-inner" id="placardInner">${weekGuests.map(_placardSheetHtml).join('')}</div>
+        </div>`
+    }
+  </div>`;
+  _scalePlacard();
+}
+
+function _placardSheetHtml(g) {
+  const inviter = g.inviter || '';
+  const halfHtml = `
+    <div class="placard-role">來賓</div>
+    <div class="placard-name">${_escH(g.name || '')}</div>
+    <div class="placard-bottom">
+      <div class="placard-chapter">${_escH(PLACARD_CHAPTER)}</div>
+      <div class="placard-inviter">邀請人｜${_escH(inviter)}</div>
+    </div>`;
+  return `<div class="placard-sheet">
+    <div class="placard-half top">${halfHtml}</div>
+    <div class="placard-fold-line"></div>
+    <div class="placard-half bottom">${halfHtml}</div>
+  </div>`;
+}
+
+function _scalePlacard() {
+  const outer = document.getElementById('placardOuter');
+  const inner = document.getElementById('placardInner');
+  if (!outer || !inner) return;
+  const availW = outer.clientWidth;
+  const baseW  = 794;
+  const scale  = Math.min(1, availW / baseW);
+  inner.style.transform = `scale(${scale})`;
+  inner.style.marginLeft = Math.max(0, (availW - baseW * scale) / 2) + 'px';
+  outer.style.height = (inner.scrollHeight * scale) + 'px';
+}
+window.addEventListener('resize', () => { if (_activeTab === 'placard') _scalePlacard(); });
+
+async function printPlacards() {
+  showToast('PDF 產生中，請稍候...');
+  try {
+    await Promise.all([
+      _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
+      _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
+    ]);
+  } catch { showToast('載入失敗，請確認網路'); return; }
+
+  const sheets = document.querySelectorAll('#placardInner .placard-sheet');
+  if (!sheets.length) return;
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:absolute;left:-9999px;top:0;background:white;';
+  document.body.appendChild(wrap);
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+    for (let i = 0; i < sheets.length; i++) {
+      wrap.innerHTML = '';
+      const clone = sheets[i].cloneNode(true);
+      clone.style.boxShadow = 'none';
+      clone.style.marginTop = '0';
+      wrap.appendChild(clone);
+      const canvas = await html2canvas(clone, {
+        scale: 2, useCORS: true, allowTaint: false, logging: false, backgroundColor: '#ffffff'
+      });
+      if (i > 0) doc.addPage();
+      doc.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 210, 297);
+    }
+    doc.save(`BNI-來賓桌牌-${_todayIso()}.pdf`);
+    showToast('PDF 已下載');
+  } catch {
+    showToast('PDF 產生失敗，請重試');
+  } finally {
+    document.body.removeChild(wrap);
   }
 }
 </script>
