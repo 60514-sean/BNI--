@@ -2261,18 +2261,18 @@ async function printSignin() {
 }
 
 // ===== GUEST TRACK =====
-const GUEST_STATUSES = ['待追蹤','持續追蹤','已加入','已加入他分會','已填單待繳費','婉拒/停止追蹤'];
+const GUEST_STATUSES = ['待追蹤','持續追蹤','已填單待繳費','婉拒/停止追蹤'];
 const GUEST_STATUS_COLORS = {
   '待追蹤':         { bg:'#f4f6f8', fg:'#666' },
   '持續追蹤':       { bg:'#fef3c7', fg:'#92400e' },
-  '已加入':         { bg:'#d1fae5', fg:'#065f46' },
-  '已加入他分會':   { bg:'#e0e7ff', fg:'#3730a3' },
   '已填單待繳費':   { bg:'#fde68a', fg:'#78350f' },
   '婉拒/停止追蹤':  { bg:'#fee2e2', fg:'#991b1b' }
 };
 let _guestData = null;
 let _guestSubTab = 'week';   // 'week' | 'all'
 let _guestSearch = '';
+let _guestStatusFilter = ''; // '' = 全部，否則為特定狀態
+let _guestYearFilter = 0;    // 0 = 全部，否則為特定年份
 
 function _parseDateStr(s) {
   if (!s) return null;
@@ -2342,7 +2342,14 @@ async function renderGuestTrack() {
 
   const tab = _guestSubTab;
   const subBtn = (v, label) => `<button class="signin-subtab ${tab===v?'active':''}" onclick="_guestSubSwitch('${v}')">${label}</button>`;
-  const guests = _filterGuests(tab);
+
+  // 依「本周/歷屆 + 搜尋」先縮小範圍，再基於此算各狀態筆數，最後才套狀態篩選
+  const scopeFiltered = _filterGuestsScope(tab);
+  const statusCounts = _countByStatus(scopeFiltered);
+  const guests = _guestStatusFilter
+    ? scopeFiltered.filter(g => (g.status || '待追蹤') === _guestStatusFilter)
+    : scopeFiltered;
+
   const rangeText = tab === 'week' ? `本周（${_weekRangeText()}）` : '歷屆全部';
 
   el.innerHTML = `<div class="signin-wrapper">
@@ -2350,7 +2357,7 @@ async function renderGuestTrack() {
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
         <div>
           <div style="font-size:16px;font-weight:900;color:var(--text);">來賓追蹤</div>
-          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">${rangeText} · 共 ${guests.length} 位</div>
+          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">${rangeText} · 共 ${guests.length} 位${_guestStatusFilter ? ` · 狀態：${_escH(_guestStatusFilter)}` : ''}</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-primary" onclick="openGuestModal()">+ 新增來賓</button>
@@ -2362,22 +2369,27 @@ async function renderGuestTrack() {
         ${subBtn('all','歷屆來賓')}
       </div>
       ${tab === 'all' ? `<input type="text" placeholder="搜尋姓名／產業／邀請人..." value="${_escH(_guestSearch)}" oninput="_guestSearch=this.value;_renderGuestListOnly()" style="width:100%;margin-top:10px;padding:10px 14px;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;outline:none;">` : ''}
+      ${tab === 'all' ? `<div id="guestYearChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">
+        ${(() => {
+          const scopeNoYear = _filterGuestsScope(tab, false);
+          const yCounts = _countByYear(scopeNoYear);
+          return _yearChipHtml(0, scopeNoYear.length) + _availableYears().map(y => _yearChipHtml(y, yCounts[y] || 0)).join('');
+        })()}
+      </div>` : ''}
+      <div id="guestStatusChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">
+        ${_statusChipHtml('', '全部', scopeFiltered.length)}
+        ${GUEST_STATUSES.map(s => _statusChipHtml(s, s, statusCounts[s] || 0)).join('')}
+      </div>
+      <div id="guestCountText" style="display:none;">${rangeText} · 共 ${guests.length} 位</div>
     </div>
     <div id="guestListContainer">${_guestListHtml(guests)}</div>
   </div>`;
 }
 
-function _renderGuestListOnly() {
-  const c = document.getElementById('guestListContainer');
-  if (c) c.innerHTML = _guestListHtml(_filterGuests(_guestSubTab));
-}
-
-function _guestSubSwitch(v) { _guestSubTab = v; _guestSearch = ''; renderGuestTrack(); }
-
-function _filterGuests(tab) {
+function _filterGuestsScope(tab, applyYear = true) {
+  // 做 tab / 搜尋 / (可選)年份，不做狀態過濾
   if (!_guestData) return [];
   let list = [..._guestData];
-  // 搜尋（只在歷屆分頁啟用）
   if (tab === 'all' && _guestSearch) {
     const q = _guestSearch.toLowerCase();
     list = list.filter(g =>
@@ -2387,7 +2399,9 @@ function _filterGuests(tab) {
       (g.company||'').toLowerCase().includes(q)
     );
   }
-  // 本周：firstVisit OR tracks 任一日期落在本周
+  if (tab === 'all' && applyYear && _guestYearFilter) {
+    list = list.filter(g => g.year === _guestYearFilter);
+  }
   if (tab === 'week') {
     const { mon, sun } = _weekRange();
     list = list.filter(g => {
@@ -2396,13 +2410,92 @@ function _filterGuests(tab) {
       return candidates.some(d => d && d >= mon && d <= sun);
     });
   }
-  // 排序：最新活動日期在前
   list.sort((a,b) => {
     const da = _guestLatestDate(a); const db = _guestLatestDate(b);
     return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
   });
   return list;
 }
+
+function _countByYear(list) {
+  const c = {};
+  list.forEach(g => { c[g.year] = (c[g.year] || 0) + 1; });
+  return c;
+}
+
+function _availableYears() {
+  if (!_guestData) return [];
+  return [...new Set(_guestData.map(g => g.year))].sort((a,b) => b - a);
+}
+
+function _yearChipHtml(year, count) {
+  const isActive = _guestYearFilter === year;
+  const label = year === 0 ? `全部 ${count}` : `${year} ${count}`;
+  const bg = isActive ? 'var(--red)' : 'white';
+  const fg = isActive ? 'white' : 'var(--text-soft)';
+  const border = isActive ? 'var(--red)' : 'var(--gray-border)';
+  return `<button onclick="_setYearFilter(${year})" style="padding:6px 12px;border-radius:999px;border:1.5px solid ${border};background:${bg};color:${fg};font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;${count===0?'opacity:0.4;':''}">${label}</button>`;
+}
+
+function _setYearFilter(y) {
+  _guestYearFilter = (_guestYearFilter === y) ? 0 : y;
+  renderGuestTrack();
+}
+
+function _countByStatus(list) {
+  const c = {};
+  list.forEach(g => {
+    const s = g.status || '待追蹤';
+    c[s] = (c[s] || 0) + 1;
+  });
+  return c;
+}
+
+function _statusChipHtml(value, label, count) {
+  const isActive = _guestStatusFilter === value;
+  if (value === '') {
+    // 「全部」chip
+    const bg = isActive ? 'var(--text)' : 'white';
+    const fg = isActive ? 'white' : 'var(--text-soft)';
+    return `<button onclick="_setStatusFilter('')" style="padding:6px 12px;border-radius:999px;border:1.5px solid ${isActive?'var(--text)':'var(--gray-border)'};background:${bg};color:${fg};font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;">${_escH(label)} ${count}</button>`;
+  }
+  const c = GUEST_STATUS_COLORS[value] || GUEST_STATUS_COLORS['待追蹤'];
+  const bg = isActive ? c.fg : c.bg;
+  const fg = isActive ? 'white' : c.fg;
+  const border = isActive ? c.fg : 'transparent';
+  return `<button onclick="_setStatusFilter('${value}')" style="padding:6px 12px;border-radius:999px;border:1.5px solid ${border};background:${bg};color:${fg};font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;${count===0?'opacity:0.4;':''}">${_escH(label)} ${count}</button>`;
+}
+
+function _setStatusFilter(v) {
+  _guestStatusFilter = v;
+  renderGuestTrack();
+}
+
+function _renderGuestListOnly() {
+  // 局部更新：不動搜尋輸入框、年份chip/狀態chip/列表分別更新
+  const scopeFiltered = _filterGuestsScope(_guestSubTab);
+  const scopeNoYear = _filterGuestsScope(_guestSubTab, false);
+  const statusCounts = _countByStatus(scopeFiltered);
+  const yearCounts = _countByYear(scopeNoYear);
+  const guests = _guestStatusFilter
+    ? scopeFiltered.filter(g => (g.status || '待追蹤') === _guestStatusFilter)
+    : scopeFiltered;
+  const yEl = document.getElementById('guestYearChips');
+  if (yEl) {
+    yEl.innerHTML = _yearChipHtml(0, scopeNoYear.length) +
+      _availableYears().map(y => _yearChipHtml(y, yearCounts[y] || 0)).join('');
+  }
+  const chipsEl = document.getElementById('guestStatusChips');
+  if (chipsEl) {
+    chipsEl.innerHTML =
+      _statusChipHtml('', '全部', scopeFiltered.length) +
+      GUEST_STATUSES.map(s => _statusChipHtml(s, s, statusCounts[s] || 0)).join('');
+  }
+  const listEl = document.getElementById('guestListContainer');
+  if (listEl) listEl.innerHTML = _guestListHtml(guests);
+}
+
+function _guestSubSwitch(v) { _guestSubTab = v; _guestSearch = ''; _guestStatusFilter = ''; _guestYearFilter = 0; renderGuestTrack(); }
 
 function _guestStatusBadge(status) {
   const s = status || '待追蹤';
