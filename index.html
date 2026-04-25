@@ -550,6 +550,76 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   color: var(--text-soft); border-radius: var(--radius-sm); font-size: 15px;
   cursor: pointer; font-family: inherit;
 }
+
+/* 財務控管 */
+.fin-termtabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+.fin-termtab {
+  flex:1; min-width:80px; padding:10px 8px; border:1.5px solid var(--gray-border);
+  background:white; color:var(--text-soft); border-radius:10px;
+  font-size:13px; font-weight:700; cursor:pointer; font-family:inherit;
+  transition:all 0.15s;
+}
+.fin-termtab:hover { border-color:var(--red); color:var(--red); }
+.fin-termtab.active { background:var(--red); color:white; border-color:var(--red); }
+.fin-kpi-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
+@media(min-width:640px){ .fin-kpi-grid { grid-template-columns:repeat(6,1fr); } }
+.fin-kpi {
+  background:white; border-radius:12px; padding:14px 12px;
+  box-shadow:var(--shadow); text-align:center;
+}
+.fin-kpi .lbl { font-size:11px; color:var(--text-soft); font-weight:700; margin-bottom:6px; letter-spacing:0.5px; }
+.fin-kpi .val { font-size:18px; font-weight:900; color:var(--text); font-family:'DM Mono',monospace; }
+.fin-kpi.income .val { color:var(--green); }
+.fin-kpi.expense .val { color:var(--red); }
+.fin-kpi.balance .val { color:#2c5fa3; }
+.fin-month {
+  background:white; border-radius:12px; box-shadow:var(--shadow); margin-bottom:10px; overflow:hidden;
+}
+.fin-month-head {
+  display:flex; align-items:center; gap:10px; padding:14px 16px; cursor:pointer;
+  background:linear-gradient(135deg,#f9ecec 0%,#fdf6f6 100%);
+  border-bottom:1px solid var(--gray-border);
+}
+.fin-month-head .arrow { transition:transform 0.2s; color:var(--red); font-size:14px; }
+.fin-month.open .fin-month-head .arrow { transform:rotate(90deg); }
+.fin-month-title { flex:1; font-size:15px; font-weight:900; color:var(--red); }
+.fin-month-stat { display:flex; gap:14px; font-size:12px; font-family:'DM Mono',monospace; font-weight:700; }
+.fin-month-stat .s-in { color:var(--green); }
+.fin-month-stat .s-out { color:var(--red); }
+.fin-month-stat .s-bal { color:#2c5fa3; }
+.fin-month-body { display:none; padding:0; }
+.fin-month.open .fin-month-body { display:block; }
+.fin-week {
+  padding:12px 16px; border-bottom:1px solid var(--gray-border);
+}
+.fin-week:last-child { border-bottom:none; }
+.fin-week-date { font-size:12px; color:var(--text-soft); font-weight:700; margin-bottom:6px; }
+.fin-week-row { display:flex; align-items:center; gap:8px; padding:4px 0; font-size:13px; }
+.fin-week-type { min-width:60px; font-weight:700; color:var(--text); }
+.fin-week-amt { font-family:'DM Mono',monospace; font-weight:700; flex:1; text-align:right; min-width:80px; }
+.fin-week-amt.in { color:var(--green); }
+.fin-week-amt.out { color:var(--red); }
+.fin-week-extra { font-size:11px; color:var(--text-soft); padding:2px 0 2px 60px; line-height:1.5; }
+.fin-week-note { font-size:12px; color:#a06000; background:#fff8e1; padding:6px 10px; border-radius:6px; margin-top:6px; }
+.fin-section-title { font-size:14px; font-weight:900; color:var(--text); margin:18px 0 10px; padding-left:4px; border-left:3px solid var(--red); padding-left:10px; }
+.fin-special-card { background:white; border-radius:12px; box-shadow:var(--shadow); padding:16px; margin-bottom:14px; }
+.fin-special-row { display:flex; align-items:center; padding:6px 0; font-size:13px; border-bottom:1px dashed var(--gray-border); }
+.fin-special-row:last-child { border-bottom:none; }
+.fin-special-row .lbl { flex:1; color:var(--text); }
+.fin-special-row .amt { font-family:'DM Mono',monospace; font-weight:700; }
+.fin-special-row .amt.in { color:var(--green); }
+.fin-special-row .amt.out { color:var(--red); }
+.fin-budget-grid { display:grid; grid-template-columns:1fr; gap:10px; }
+@media(min-width:640px){ .fin-budget-grid { grid-template-columns:1fr 1fr; } }
+.fin-budget-card { background:white; border-radius:12px; box-shadow:var(--shadow); padding:14px 16px; }
+.fin-budget-card h4 { font-size:13px; color:var(--red); margin-bottom:8px; font-weight:900; }
+.fin-budget-card .row { display:flex; padding:5px 0; font-size:12px; border-bottom:1px dashed var(--gray-border); }
+.fin-budget-card .row:last-child { border-bottom:none; }
+.fin-budget-card .row .lbl { flex:1; color:var(--text); }
+.fin-budget-card .row .amt { font-family:'DM Mono',monospace; font-weight:700; min-width:70px; text-align:right; }
+.fin-unpaid { background:#fff3e0; border-left:4px solid #ff9800; padding:10px 14px; border-radius:8px; margin-bottom:14px; font-size:12px; line-height:1.7; }
+.fin-unpaid .ttl { font-weight:900; color:#e65100; margin-bottom:4px; }
+.fin-empty { text-align:center; padding:60px 20px; color:var(--text-soft); font-size:14px; }
 </style>
 </head>
 <body>
@@ -609,6 +679,8 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 <script>
 // ===== API =====
 const API_URL = 'https://script.google.com/macros/s/AKfycbzwn_oKfa0vs21GlWdqtjz0oFJYyNwhVGJQPz_GHRaDGmk6jxHIqs7U0yqrVxyzkwK-/exec';
+// 財務控管 API（部署 apps-script-finance.gs 後填入網頁應用程式網址）
+const FINANCE_API_URL = '';
 const LS_KEY  = 'bni_weekly_v1';
 
 let cache = {};
@@ -3345,17 +3417,453 @@ async function printPlacards() {
 }
 
 // ===== 財務控管 =====
-function renderFinance() {
-  const el = document.getElementById('financeContent');
-  el.innerHTML = `
-    <div class="card" style="text-align:center;padding:40px 24px;">
-      <div style="font-size:48px;margin-bottom:12px;">$</div>
-      <div style="font-size:20px;font-weight:900;color:var(--red);margin-bottom:8px;">財務控管</div>
-      <div style="font-size:14px;color:var(--text-soft);line-height:1.7;max-width:480px;margin:0 auto;">
-        此分頁將整合過去財務報表，提供收支彙總、預算追蹤、月份／年度比較等資訊。<br>
-        請提供財務報表（Excel／CSV／截圖／文字皆可），開始建置統整內容。
+let _financeRaw = null;
+let _financeParsed = null;
+let _financeTermTab = null;
+let _financeMonthsOpen = {};
+
+function _finNum(v) {
+  if (typeof v === 'number') return Math.round(v);
+  if (!v) return 0;
+  const m = String(v).replace(/[,，\s]/g, '').match(/^-?\d+(\.\d+)?/);
+  return m ? Math.round(Number(m[0])) : 0;
+}
+
+function _finExtraDesc(v) {
+  if (!v || typeof v === 'number') return '';
+  const s = String(v).trim();
+  return s.replace(/^-?[\d,，.\s]+/, '').replace(/^[（(]/, '').replace(/[）)]$/, '').trim();
+}
+
+function _finFmt(n) {
+  if (!n) return '0';
+  return n.toLocaleString('en-US');
+}
+
+function _finYM(dateStr) {
+  if (!dateStr) return '';
+  const m = String(dateStr).match(/(\d{4})\/(\d{1,2})/);
+  return m ? `${m[1]}-${String(m[2]).padStart(2,'0')}` : '';
+}
+
+function _finIsTermSheet(rows) {
+  for (let i = 0; i < Math.min(5, rows.length); i++) {
+    if (rows[i] && rows[i][0] === '日期' && rows[i][1] === '性質') return i;
+  }
+  return -1;
+}
+
+function _parseTermSheet(rows) {
+  const headerIdx = _finIsTermSheet(rows);
+  if (headerIdx < 0) return null;
+
+  const records = [];
+  let initial = 0;
+  let initialDate = '';
+  let currentDate = '';
+  const specialItems = [];
+  let inSpecial = false;
+  let specialName = '';
+
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    let dateRaw = String(row[0] || '').trim();
+    const type = String(row[1] || '').trim();
+    if (!dateRaw && !type) continue;
+
+    // 「2026/3/28 白金晚宴」這類橫跨格子的特殊活動標題（在性質欄含特殊關鍵字）
+    if (type === '白金晚宴' || /晚宴|餐會|聚餐/.test(type) && _finNum(row[2]) > 5000) {
+      inSpecial = true;
+      specialName = type;
+      specialItems.push({ name: type, amount: _finNum(row[2]), kind: 'income', date: dateRaw || currentDate });
+      if (dateRaw) currentDate = dateRaw;
+      continue;
+    }
+    // 在 inSpecial 區段且日期欄空、性質非入席費/早餐 → 特殊活動子項
+    if (inSpecial && !dateRaw && type && !type.includes('入席費') && !type.includes('早餐') && !type.includes('屆')) {
+      const inAmt = _finNum(row[2]);
+      const outAmt = _finNum(row[3]);
+      specialItems.push({
+        name: type,
+        amount: inAmt > 0 ? inAmt : outAmt,
+        kind: inAmt > 0 ? 'income' : 'expense',
+        note: String(row[10] || '').trim(),
+        date: currentDate,
+      });
+      continue;
+    }
+    if (inSpecial && (type.includes('入席費') || type.includes('早餐') || type.includes('屆'))) {
+      inSpecial = false;
+    }
+
+    // 屆期初始
+    if (type.includes('初始') || /^第[一二三四五六七八九十]期初始$/.test(type)) {
+      initial = _finNum(row[4]);
+      initialDate = dateRaw;
+      continue;
+    }
+
+    // 月份標題行（無收支只有標籤）：例如「第六屆04月」「2026/3/6 第五屆3月（餐費漲至700)」
+    const monthHeader = (type && /第[一二三四五六七八九十]屆\s*\d+月/.test(type) && !type.includes('入席費') && !type.includes('早餐'));
+    const dateMonthHeader = /第[一二三四五六七八九十]屆\s*\d+月/.test(dateRaw);
+    if (monthHeader || dateMonthHeader) {
+      // 跳過標題本身（不入紀錄）
+      if (dateRaw) currentDate = dateRaw.replace(/\s*第.*$/, '').trim();
+      continue;
+    }
+
+    if (dateRaw) currentDate = dateRaw;
+
+    records.push({
+      date: currentDate,
+      ym: _finYM(currentDate),
+      type,
+      income: _finNum(row[2]),
+      expense: _finNum(row[3]),
+      balance: _finNum(row[4]),
+      paid: _finNum(row[5]),
+      total: _finNum(row[6]),
+      extraIncome: _finNum(row[7]),
+      extraExpense: _finNum(row[8]),
+      extraDesc: _finExtraDesc(row[8]) || _finExtraDesc(row[7]),
+      finalBalance: _finNum(row[9]) || _finNum(row[4]),
+      note: String(row[10] || '').trim(),
+    });
+  }
+
+  return { initial, initialDate, records, specialItems };
+}
+
+function _parseFinance(raw) {
+  if (!raw || !raw.sheets) return null;
+  const result = { terms: [], budget: null };
+  for (const [name, rows] of Object.entries(raw.sheets)) {
+    if (!rows || !rows.length) continue;
+    const parsed = _parseTermSheet(rows);
+    if (parsed) {
+      result.terms.push({ name, ...parsed });
+    } else {
+      // 不是會期表 → 視為預算參考
+      result.budget = result.budget || { name, rows };
+    }
+  }
+  return result;
+}
+
+async function _fetchFinance() {
+  if (!FINANCE_API_URL) return null;
+  try {
+    const res = await fetch(FINANCE_API_URL, { signal: AbortSignal.timeout(20000) });
+    const j = await res.json();
+    if (!j || !j.ok) throw new Error(j && j.error || 'unknown');
+    _financeRaw = j;
+    _financeParsed = _parseFinance(j);
+    try { localStorage.setItem('bni_finance_v1', JSON.stringify(j)); } catch {}
+    return _financeParsed;
+  } catch (e) {
+    return null;
+  }
+}
+
+function _loadFinanceFromCache() {
+  try {
+    const s = localStorage.getItem('bni_finance_v1');
+    if (s) {
+      _financeRaw = JSON.parse(s);
+      _financeParsed = _parseFinance(_financeRaw);
+    }
+  } catch {}
+}
+
+function _termSummary(term) {
+  let inc = 0, exp = 0, exInc = 0, exExp = 0;
+  let totalPaid = 0, totalCnt = 0, weeks = 0;
+  const months = {};
+  for (const r of term.records) {
+    inc += r.income;
+    exp += r.expense;
+    exInc += r.extraIncome;
+    exExp += r.extraExpense;
+    if (r.paid > 0) { totalPaid += r.paid; weeks++; }
+    if (r.total > 0) totalCnt += r.total;
+    if (r.ym) {
+      if (!months[r.ym]) months[r.ym] = { ym: r.ym, records: [], inc: 0, exp: 0, lastBal: 0 };
+      months[r.ym].records.push(r);
+      months[r.ym].inc += r.income;
+      months[r.ym].exp += r.expense + r.extraExpense;
+      if (r.finalBalance) months[r.ym].lastBal = r.finalBalance;
+    }
+  }
+  const last = term.records[term.records.length - 1];
+  return {
+    totalIncome: inc + exInc,
+    totalExpense: exp + exExp,
+    currentBalance: last ? (last.finalBalance || last.balance) : term.initial,
+    weeks,
+    avgPaid: weeks ? Math.round(totalPaid / weeks) : 0,
+    months: Object.values(months).sort((a, b) => a.ym.localeCompare(b.ym)),
+  };
+}
+
+function _financeUnpaid(term) {
+  const list = [];
+  for (const r of term.records) {
+    if (r.note && /未繳|待收|未收|缺繳/.test(r.note)) {
+      list.push(`${r.date}：${r.note}`);
+    }
+  }
+  return list;
+}
+
+function _financeRenderKpi(term, sum) {
+  return `
+    <div class="fin-kpi-grid">
+      <div class="fin-kpi"><div class="lbl">期初結餘</div><div class="val">${_finFmt(term.initial)}</div></div>
+      <div class="fin-kpi income"><div class="lbl">累計收入</div><div class="val">${_finFmt(sum.totalIncome)}</div></div>
+      <div class="fin-kpi expense"><div class="lbl">累計支出</div><div class="val">${_finFmt(sum.totalExpense)}</div></div>
+      <div class="fin-kpi balance"><div class="lbl">目前結餘</div><div class="val">${_finFmt(sum.currentBalance)}</div></div>
+      <div class="fin-kpi"><div class="lbl">會議週次</div><div class="val">${sum.weeks}</div></div>
+      <div class="fin-kpi"><div class="lbl">平均付費</div><div class="val">${sum.avgPaid}</div></div>
+    </div>
+  `;
+}
+
+function _financeRenderMonth(m, idx) {
+  const open = _financeMonthsOpen[m.ym] || idx === 0;
+  const weekMap = {};
+  for (const r of m.records) {
+    if (!weekMap[r.date]) weekMap[r.date] = [];
+    weekMap[r.date].push(r);
+  }
+  const weeksHtml = Object.entries(weekMap).map(([date, rs]) => {
+    const rowsHtml = rs.map(r => {
+      const amt = r.income > 0
+        ? `<span class="fin-week-amt in">+${_finFmt(r.income)}</span>`
+        : (r.expense > 0
+          ? `<span class="fin-week-amt out">-${_finFmt(r.expense)}</span>`
+          : `<span class="fin-week-amt">—</span>`);
+      const extra = (r.extraExpense > 0 || r.extraIncome > 0)
+        ? `<div class="fin-week-extra">額外${r.extraExpense ? '支出' : '收入'} ${r.extraExpense ? '-' : '+'}${_finFmt(r.extraExpense || r.extraIncome)}${r.extraDesc ? '（' + _escH(r.extraDesc) + '）' : ''}</div>`
+        : '';
+      const ppl = (r.paid || r.total) ? `<span style="font-size:11px;color:var(--text-soft);margin-left:6px;">${r.paid}/${r.total}人</span>` : '';
+      return `
+        <div class="fin-week-row">
+          <span class="fin-week-type">${_escH(r.type)}</span>
+          ${amt}
+          ${ppl}
+          <span style="font-size:11px;color:var(--text-soft);font-family:'DM Mono',monospace;min-width:80px;text-align:right;">結${_finFmt(r.finalBalance)}</span>
+        </div>
+        ${extra}
+        ${r.note ? `<div class="fin-week-note">${_escH(r.note)}</div>` : ''}
+      `;
+    }).join('');
+    return `<div class="fin-week"><div class="fin-week-date">${_escH(date)}</div>${rowsHtml}</div>`;
+  }).join('');
+
+  const [yy, mm] = m.ym.split('-');
+  return `
+    <div class="fin-month ${open ? 'open' : ''}">
+      <div class="fin-month-head" onclick="toggleFinanceMonth('${m.ym}')">
+        <span class="arrow">▶</span>
+        <span class="fin-month-title">${yy} 年 ${parseInt(mm)} 月</span>
+        <span class="fin-month-stat">
+          <span class="s-in">+${_finFmt(m.inc)}</span>
+          <span class="s-out">-${_finFmt(m.exp)}</span>
+          <span class="s-bal">${_finFmt(m.lastBal)}</span>
+        </span>
+      </div>
+      <div class="fin-month-body">${weeksHtml}</div>
+    </div>
+  `;
+}
+
+function _financeRenderSpecial(term) {
+  if (!term.specialItems || !term.specialItems.length) return '';
+  let inSum = 0, outSum = 0;
+  const rows = term.specialItems.map(it => {
+    if (it.kind === 'income') inSum += it.amount;
+    else outSum += it.amount;
+    return `
+      <div class="fin-special-row">
+        <span class="lbl">${_escH(it.name)}${it.note ? ' <span style="font-size:11px;color:var(--text-soft);">（' + _escH(it.note) + '）</span>' : ''}</span>
+        <span class="amt ${it.kind === 'income' ? 'in' : 'out'}">${it.kind === 'income' ? '+' : '-'}${_finFmt(it.amount)}</span>
+      </div>
+    `;
+  }).join('');
+  return `
+    <div class="fin-section-title">特殊活動</div>
+    <div class="fin-special-card">
+      ${rows}
+      <div class="fin-special-row" style="margin-top:8px;border-top:2px solid var(--gray-border);padding-top:10px;">
+        <span class="lbl" style="font-weight:900;">小計</span>
+        <span class="amt in">+${_finFmt(inSum)}</span>
+        <span class="amt out" style="margin-left:14px;">-${_finFmt(outSum)}</span>
+        <span class="amt" style="margin-left:14px;color:#2c5fa3;">淨額 ${_finFmt(inSum - outSum)}</span>
       </div>
     </div>
+  `;
+}
+
+function _financeRenderBudget(budget) {
+  if (!budget) return '';
+  const tables = [];
+  let cur = null;
+  for (const row of budget.rows) {
+    const a = String(row[1] || '').trim();
+    const b = String(row[2] || '').trim();
+    const c = String(row[3] || '').trim();
+    const d = String(row[4] || '').trim();
+    const e = String(row[5] || '').trim();
+    if (/項目|金額/.test(a) || /項目|金額/.test(d)) {
+      // header → 開新表
+      if (a) { cur = { title: a, items: [] }; tables.push(cur); }
+      if (d && d !== a) { tables.push({ title: d, items: [] }); }
+      continue;
+    }
+    if (cur && a) cur.items.push({ name: a, amount: b });
+    if (d) {
+      const last = tables[tables.length - 1];
+      if (last && last.title.indexOf(d) < 0 && last !== cur) last.items.push({ name: d, amount: e });
+      else if (cur && last === cur && tables.length >= 2) {
+        const second = tables[tables.length - 2];
+        if (second && second !== cur) second.items.push({ name: d, amount: e });
+      }
+    }
+  }
+  // 簡化：直接平鋪所有非空白的(name, amount)對
+  const flat = [];
+  let group = null;
+  for (const row of budget.rows) {
+    for (let col = 0; col < row.length; col++) {
+      const cell = String(row[col] || '').trim();
+      if (/每月變動收入|每月固定收入|每月變動支出|每月固定支出|會期金額/.test(cell)) {
+        group = { title: cell, items: [] };
+        flat.push(group);
+      }
+    }
+    if (!group) continue;
+    // 嘗試抓 name + amount 對：第2,3 欄 / 第5,6 欄
+    const pairs = [[1, 2], [4, 5]];
+    for (const [ni, ai] of pairs) {
+      const nm = String(row[ni] || '').trim();
+      const am = row[ai];
+      if (nm && nm !== group.title && !/項目|金額/.test(nm) && (am !== '' && am !== null && am !== undefined)) {
+        flat.push({ inline: true, name: nm, amount: am });
+      }
+    }
+  }
+  // 整理：依 title 分組
+  const groups = [];
+  let g = null;
+  for (const row of budget.rows) {
+    let openedTitleThisRow = false;
+    for (let col = 0; col < row.length; col++) {
+      const cell = String(row[col] || '').trim();
+      if (/每月變動收入|每月固定收入|每月變動支出|每月固定支出|會期金額/.test(cell)) {
+        g = { title: cell, items: [] };
+        groups.push(g);
+        openedTitleThisRow = true;
+      }
+    }
+    if (!g || openedTitleThisRow) continue;
+    const pairs = [[1, 2], [4, 5]];
+    for (const [ni, ai] of pairs) {
+      const nm = String(row[ni] || '').trim();
+      const am = row[ai];
+      if (nm && !/項目|金額/.test(nm) && (am !== '' && am !== null && am !== undefined)) {
+        g.items.push({ name: nm, amount: am });
+      }
+    }
+  }
+  const cards = groups.filter(x => x.items.length).map(grp => {
+    const rowsHtml = grp.items.map(it => `
+      <div class="row"><span class="lbl">${_escH(it.name)}</span><span class="amt">${_escH(String(it.amount))}</span></div>
+    `).join('');
+    return `<div class="fin-budget-card"><h4>${_escH(grp.title)}</h4>${rowsHtml}</div>`;
+  }).join('');
+  return `
+    <div class="fin-section-title">預算參考</div>
+    <div class="fin-budget-grid">${cards || '<div class="fin-empty">無預算資料</div>'}</div>
+  `;
+}
+
+function toggleFinanceMonth(ym) {
+  _financeMonthsOpen[ym] = !_financeMonthsOpen[ym];
+  renderFinance();
+}
+
+function switchFinanceTerm(name) {
+  _financeTermTab = name;
+  _financeMonthsOpen = {};
+  renderFinance();
+}
+
+function renderFinance() {
+  const el = document.getElementById('financeContent');
+
+  if (!FINANCE_API_URL) {
+    el.innerHTML = `
+      <div class="card" style="padding:32px 20px;line-height:1.8;">
+        <div style="font-size:18px;font-weight:900;color:var(--red);margin-bottom:10px;">財務控管 - 等待後端部署</div>
+        <div style="font-size:13px;color:var(--text-soft);">
+          請先依 <code>apps-script-finance.gs</code> 中的說明部署 Google Apps Script，<br>
+          並把產生的「網頁應用程式網址」交回，將其填入 <code>index.html</code> 中的 <code>FINANCE_API_URL</code>。
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  if (!_financeParsed) _loadFinanceFromCache();
+
+  if (!_financeParsed) {
+    el.innerHTML = `<div class="fin-empty">載入財務資料中...</div>`;
+    _fetchFinance().then(p => { if (p) renderFinance(); else {
+      el.innerHTML = `<div class="card" style="padding:24px;color:var(--red);">財務資料載入失敗，請稍後重試或檢查 Apps Script 部署。</div>`;
+    }});
+    return;
+  }
+
+  // 背景刷新
+  _fetchFinance().then(p => { if (p && document.getElementById('financeContent').isConnected && _activeTab === 'finance') {
+    // 僅在資料變動時重繪，避免折疊狀態被打斷
+    const old = JSON.stringify(_financeParsed);
+    _financeParsed = p;
+    if (JSON.stringify(p) !== old) renderFinance();
+  }});
+
+  const terms = _financeParsed.terms;
+  if (!terms.length) {
+    el.innerHTML = `<div class="fin-empty">尚無會期資料</div>`;
+    return;
+  }
+
+  // 預設顯示第一個（最新）屆
+  if (!_financeTermTab || !terms.find(t => t.name === _financeTermTab)) {
+    _financeTermTab = terms[0].name;
+  }
+  const term = terms.find(t => t.name === _financeTermTab);
+  const sum = _termSummary(term);
+  const unpaid = _financeUnpaid(term);
+
+  const tabsHtml = terms.map(t =>
+    `<button class="fin-termtab ${t.name === _financeTermTab ? 'active' : ''}" onclick="switchFinanceTerm('${_escH(t.name)}')">${_escH(t.name)}</button>`
+  ).join('');
+
+  const monthsHtml = sum.months.map((m, i) => _financeRenderMonth(m, i)).join('') || '<div class="fin-empty">本屆尚無紀錄</div>';
+
+  const unpaidHtml = unpaid.length
+    ? `<div class="fin-unpaid"><div class="ttl">⚠ 未繳/待收追蹤（共 ${unpaid.length} 筆）</div>${unpaid.map(s => _escH(s)).join('<br>')}</div>`
+    : '';
+
+  el.innerHTML = `
+    <div class="fin-termtabs">${tabsHtml}</div>
+    ${_financeRenderKpi(term, sum)}
+    ${unpaidHtml}
+    <div class="fin-section-title">月份明細</div>
+    ${monthsHtml}
+    ${_financeRenderSpecial(term)}
+    ${_financeRenderBudget(_financeParsed.budget)}
   `;
 }
 </script>
