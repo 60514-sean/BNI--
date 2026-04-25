@@ -585,7 +585,13 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   background-repeat:no-repeat; background-position:right 14px center;
   padding-right:36px;
 }
-.fin-term-select:focus { border-color:var(--red); }
+.fin-term-select:focus { border-color:var(--red); outline:none; box-shadow:0 0 0 3px rgba(192,57,43,0.15); }
+.fin-term-select option:checked, .fin-term-select option:hover {
+  background: var(--red); color: white;
+}
+.fin-month-picker option:checked, .fin-month-picker option:hover {
+  background: var(--red); color: white;
+}
 .fin-month-picker-bar {
   display:flex; align-items:center; gap:10px; flex-wrap:wrap;
   background:white; padding:12px 16px; border-radius:12px;
@@ -612,6 +618,16 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-month-weeks {
   background:white; border-radius:12px; box-shadow:var(--shadow);
   overflow:hidden; margin-bottom:14px;
+}
+.fin-months-block {
+  background:white; border-radius:12px; box-shadow:var(--shadow);
+  overflow:hidden; margin-bottom:14px;
+}
+.fin-months-block .fin-monthly-table { box-shadow:none; border-radius:0; }
+.fin-months-block .fin-month-weeks {
+  box-shadow:none; border-radius:0;
+  border-top:1px solid var(--gray-border);
+  margin-bottom:0;
 }
 @media(max-width:640px) {
   .fin-month-picker-bar { padding:10px 12px; gap:8px; }
@@ -881,15 +897,32 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-chart-card { background:white; border-radius:12px; box-shadow:var(--shadow); padding:16px; margin-bottom:14px; }
 .fin-chart-card h4 { font-size:13px; color:var(--red); margin-bottom:10px; font-weight:900; }
 .fin-chart-wrap { position:relative; height:220px; }
-.fin-monthly-table { width:100%; border-collapse:collapse; font-size:12px; background:white; border-radius:12px; overflow:hidden; box-shadow:var(--shadow); }
+.fin-monthly-table { width:100%; border-collapse:collapse; font-size:12px; background:white; border-radius:12px 12px 0 0; overflow:hidden; box-shadow:var(--shadow); }
 .fin-monthly-table th { background:var(--gray-light); color:var(--text); padding:8px 10px; text-align:right; font-weight:900; font-size:11px; }
 .fin-monthly-table th:first-child { text-align:left; }
-.fin-monthly-table td { padding:8px 10px; text-align:right; border-top:1px solid var(--gray-border); font-family:'DM Mono',monospace; font-weight:700; }
-.fin-monthly-table td:first-child { text-align:left; font-family:inherit; color:var(--text); }
+.fin-monthly-table td { padding:9px 10px; text-align:right; border-top:1px solid var(--gray-border); font-family:'DM Mono',monospace; font-weight:700; }
+.fin-monthly-table td:first-child { text-align:left; font-family:inherit; color:var(--text); position:relative; }
 .fin-monthly-table td.in { color:var(--green); }
 .fin-monthly-table td.out { color:var(--red); }
 .fin-monthly-table td.bal { color:var(--text); }
-.fin-monthly-table tr:last-child td { border-top:2px solid var(--text); background:#fafbfc; font-size:13px; }
+.fin-monthly-table tbody tr {
+  cursor:pointer; transition:background 0.1s;
+}
+.fin-monthly-table tbody tr:hover { background:var(--gray-light); }
+.fin-monthly-table tbody tr.active { background:#fff5f4; }
+.fin-monthly-table tbody tr.active td:first-child::before {
+  content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--red);
+}
+.fin-monthly-table tr.total-row {
+  cursor:default !important;
+}
+.fin-monthly-table tr.total-row:hover { background:var(--gray-light) !important; }
+.fin-monthly-table tr.total-row td { border-top:2px solid var(--text); background:var(--gray-light); font-size:13px; }
+@media(max-width:640px) {
+  .fin-monthly-table { font-size:11px; }
+  .fin-monthly-table th, .fin-monthly-table td { padding:8px 6px; }
+  .fin-monthly-table th:nth-child(5), .fin-monthly-table td:nth-child(5) { display:none; }
+}
 </style>
 </head>
 <body>
@@ -4200,44 +4233,68 @@ function renderFinance() {
     ${_financeRaw && _financeRaw.updated ? `<div class="fin-update-time">資料更新：${_escH(_financeRaw.updated.replace('T',' ').slice(0,19))}</div>` : ''}
   `;
 
-  let monthDetailHtml;
-  if (!sum.months.length) {
-    monthDetailHtml = '<div class="fin-empty">本屆尚無紀錄</div>';
-  } else {
-    const pickerOptions = sum.months.map(m => {
-      const [yy, mm] = m.ym.split('-');
-      return `<option value="${m.ym}" ${m.ym===_financeSelectedMonth?'selected':''}>${yy} 年 ${parseInt(mm)} 月</option>`;
-    }).join('');
-    monthDetailHtml = `
-      <div class="fin-month-picker-bar">
-        <span class="lbl">月份</span>
-        <select class="fin-month-picker" onchange="selectFinanceMonth(this.value)">${pickerOptions}</select>
-        <span class="stat">
-          <span class="s-in">+${_finFmt(selectedMonth.inc)}</span>
-          <span class="s-out">-${_finFmt(selectedMonth.exp)}</span>
-          <span class="s-bal">${_finFmt(selectedMonth.lastBal)}</span>
-        </span>
-      </div>
-      <div class="fin-month-weeks">${_financeRenderMonthWeeks(selectedMonth)}</div>
-    `;
-  }
-
   el.innerHTML = `
     ${toolbar}
     ${_financeRenderKpi(term, sum)}
     <div class="fin-section-title">應收追蹤</div>
     ${_financeRenderReceivables()}
     <div class="fin-section-title">月份明細</div>
-    ${monthDetailHtml}
-    <div class="fin-section-title">月度結算總表</div>
-    ${_renderMonthlySummary(term, sum)}
+    ${_renderMonthsBlock(term, sum)}
     ${_financeRenderSpecial(term)}
   `;
 }
 
+function _renderMonthsBlock(term, sum) {
+  if (!sum.months.length) return '<div class="fin-empty">本屆尚無紀錄</div>';
+
+  const budgetMonthly = _calcBudgetMonthlyExpense();
+  let totIn = 0, totOut = 0;
+  const rows = sum.months.map(m => {
+    totIn += m.inc;
+    totOut += m.exp;
+    const diff = m.exp - budgetMonthly;
+    const diffCls = diff > 0 ? 'out' : 'in';
+    const diffSign = diff > 0 ? '超支' : '節省';
+    const [yy, mm] = m.ym.split('-');
+    const isActive = m.ym === _financeSelectedMonth;
+    return `<tr class="${isActive?'active':''}" onclick="selectFinanceMonth('${m.ym}')">
+      <td>${parseInt(mm)} 月</td>
+      <td class="in">+${_finFmt(m.inc)}</td>
+      <td class="out">-${_finFmt(m.exp)}</td>
+      <td class="bal">${_finFmt(m.lastBal)}</td>
+      <td class="${diffCls}" title="預期月支出 ${_finFmt(budgetMonthly)}">${budgetMonthly ? `${diffSign} ${_finFmt(Math.abs(diff))}` : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const tableHtml = `
+    <table class="fin-monthly-table">
+      <thead><tr>
+        <th>月份</th><th>收入</th><th>支出</th><th>月底結餘</th><th>預算對照</th>
+      </tr></thead>
+      <tbody>
+        ${rows}
+        <tr class="total-row">
+          <td>合計</td>
+          <td class="in">+${_finFmt(totIn)}</td>
+          <td class="out">-${_finFmt(totOut)}</td>
+          <td class="bal">${_finFmt(sum.currentBalance)}</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+
+  const selected = sum.months.find(m => m.ym === _financeSelectedMonth);
+  const weeksHtml = selected
+    ? `<div class="fin-month-weeks">${_financeRenderMonthWeeks(selected)}</div>`
+    : '';
+
+  return `<div class="fin-months-block">${tableHtml}${weeksHtml}</div>`;
+}
+
+// （保留舊函式以防其他地方引用，但已不被 renderFinance 呼叫）
 function _renderMonthlySummary(term, sum) {
   if (!sum.months.length) return '<div class="fin-empty">無資料</div>';
-  // 預期月支出（從預算扣除）
   const budgetMonthly = _calcBudgetMonthlyExpense();
   let totIn = 0, totOut = 0;
   const rows = sum.months.map(m => {
