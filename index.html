@@ -3111,8 +3111,16 @@ function _getSelectedMembers() {
   return _memberData.filter(m => _placardMemberSelected.has(String(m.sheetRow)));
 }
 
-function _placardSelectAll() { _placardMemberSelected = null; renderPlacard(); }
-function _placardSelectNone() { _placardMemberSelected = new Set(); renderPlacard(); }
+function _placardSelectAll() {
+  _placardMemberSelected = null;
+  document.querySelectorAll('.mplacard-selector-item input').forEach(cb => cb.checked = true);
+  _placardRefreshMemberView();
+}
+function _placardSelectNone() {
+  _placardMemberSelected = new Set();
+  document.querySelectorAll('.mplacard-selector-item input').forEach(cb => cb.checked = false);
+  _placardRefreshMemberView();
+}
 function _placardToggleMember(sheetRow) {
   const key = String(sheetRow);
   if (_placardMemberSelected === null) {
@@ -3120,12 +3128,31 @@ function _placardToggleMember(sheetRow) {
   }
   if (_placardMemberSelected.has(key)) _placardMemberSelected.delete(key);
   else _placardMemberSelected.add(key);
-  renderPlacard();
+  _placardRefreshMemberView();
 }
 function _placardToggleSelectorPanel() {
   _placardMemberPanelOpen = !_placardMemberPanelOpen;
   const p = document.getElementById('mplacardPanel');
+  const arrow = document.getElementById('mplacardSelArrow');
   if (p) p.style.display = _placardMemberPanelOpen ? '' : 'none';
+  if (arrow) arrow.textContent = _placardMemberPanelOpen ? '▲' : '▼';
+}
+
+// 部分更新：不重建下拉選單面板，保留 scroll 位置
+function _placardRefreshMemberView() {
+  if (!_memberData) return;
+  const sel   = _getSelectedMembers();
+  const total = _memberData.length;
+  const count = sel.length;
+  const body  = document.getElementById('placardBody');
+  if (body) body.innerHTML = _placardBodyHtml('member', [], sel);
+  const desc  = document.getElementById('placardDesc');
+  if (desc) desc.textContent = `已選 ${count} / ${total} 位 · ${Math.ceil(count/2)} 張 A4（每張 2 位，上下對摺為立牌）`;
+  const btn   = document.getElementById('placardPdfBtn');
+  if (btn) btn.disabled = count === 0;
+  const selTx = document.getElementById('mplacardSelBtnText');
+  if (selTx) selTx.textContent = `選擇會員（已選 ${count} / ${total} 位）`;
+  _scalePlacard();
 }
 
 async function renderPlacard() {
@@ -3157,10 +3184,10 @@ async function renderPlacard() {
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
         <div>
           <div style="font-size:16px;font-weight:900;color:var(--text);">${title}</div>
-          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">${desc}</div>
+          <div id="placardDesc" style="font-size:12px;color:var(--text-soft);margin-top:3px;">${desc}</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-primary" onclick="printPlacards()" ${count===0?'disabled':''}>匯出 PDF</button>
+          <button id="placardPdfBtn" class="btn btn-primary" onclick="printPlacards()" ${count===0?'disabled':''}>匯出 PDF</button>
           <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="${tab==='guest'?'_guestData':'_memberData'}=null;renderPlacard()">重整</button>
         </div>
       </div>
@@ -3170,7 +3197,7 @@ async function renderPlacard() {
       </div>
       ${tab === 'member' ? _memberSelectorHtml(allMembers) : ''}
     </div>
-    ${_placardBodyHtml(tab, weekGuests, sel)}
+    <div id="placardBody">${_placardBodyHtml(tab, weekGuests, sel)}</div>
   </div>`;
   _scalePlacard();
 }
@@ -3185,8 +3212,8 @@ function _memberSelectorHtml(members) {
     </label>`).join('');
   return `<div class="mplacard-selector">
     <button class="mplacard-selector-btn" onclick="_placardToggleSelectorPanel()">
-      <span>選擇會員（已選 ${sel.length} / ${members.length} 位）</span>
-      <span style="color:var(--text-soft);font-size:12px;">${_placardMemberPanelOpen ? '▲' : '▼'}</span>
+      <span id="mplacardSelBtnText">選擇會員（已選 ${sel.length} / ${members.length} 位）</span>
+      <span id="mplacardSelArrow" style="color:var(--text-soft);font-size:12px;">${_placardMemberPanelOpen ? '▲' : '▼'}</span>
     </button>
     <div class="mplacard-selector-panel" id="mplacardPanel" style="display:${_placardMemberPanelOpen ? '' : 'none'};">
       <div class="mplacard-selector-actions">
