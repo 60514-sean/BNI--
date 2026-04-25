@@ -591,6 +591,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
     <button class="ptab" id="ptab_signin" onclick="switchTab('signin')">出席<br>簽到</button>
     <button class="ptab" id="ptab_guesttrack" onclick="switchTab('guesttrack')">來賓<br>追蹤</button>
     <button class="ptab" id="ptab_placard" onclick="switchTab('placard')">桌牌<br>製作</button>
+    <button class="ptab" id="ptab_finance" onclick="switchTab('finance')">財務<br>控管</button>
   </div>
   <div class="content" id="todoContent" style="display:none"></div>
   <div class="content" id="mainContent"></div>
@@ -599,6 +600,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   <div class="content" id="signinContent" style="display:none"></div>
   <div class="content" id="guestTrackContent" style="display:none"></div>
   <div class="content" id="placardContent" style="display:none"></div>
+  <div class="content" id="financeContent" style="display:none"></div>
 </div>
 <button id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到頂端">&#8679;</button>
 
@@ -695,7 +697,8 @@ const TAB_LIST = [
   { id: 'dm',         label: '會員DM' },
   { id: 'signin',     label: '出席簽到' },
   { id: 'guesttrack', label: '來賓追蹤' },
-  { id: 'placard',    label: '桌牌製作' }
+  { id: 'placard',    label: '桌牌製作' },
+  { id: 'finance',    label: '財務控管' }
 ];
 
 function _normalizeUser(u) {
@@ -1365,6 +1368,7 @@ function switchTab(tab) {
   document.getElementById('signinContent').style.display     = tab === 'signin'     ? '' : 'none';
   document.getElementById('guestTrackContent').style.display = tab === 'guesttrack' ? '' : 'none';
   document.getElementById('placardContent').style.display    = tab === 'placard'    ? '' : 'none';
+  document.getElementById('financeContent').style.display    = tab === 'finance'    ? '' : 'none';
   document.getElementById('ptab_todo').classList.toggle('active',       tab === 'todo');
   document.getElementById('ptab_main').classList.toggle('active',       tab === 'main');
   document.getElementById('ptab_member').classList.toggle('active',     tab === 'member');
@@ -1372,6 +1376,7 @@ function switchTab(tab) {
   document.getElementById('ptab_signin').classList.toggle('active',     tab === 'signin');
   document.getElementById('ptab_guesttrack').classList.toggle('active', tab === 'guesttrack');
   document.getElementById('ptab_placard').classList.toggle('active',    tab === 'placard');
+  document.getElementById('ptab_finance').classList.toggle('active',    tab === 'finance');
   if (tab === 'todo')       { document.getElementById('headerTitle').textContent = '待辦事項'; renderTodo(); }
   if (tab === 'main')       { document.getElementById('headerTitle').textContent = '秘書財務小組'; renderMain(); }
   if (tab === 'member')     { document.getElementById('headerTitle').textContent = '會員資料'; renderMembers(); }
@@ -1379,6 +1384,7 @@ function switchTab(tab) {
   if (tab === 'signin')     { document.getElementById('headerTitle').textContent = '出席簽到'; renderSignin(); }
   if (tab === 'guesttrack') { document.getElementById('headerTitle').textContent = '來賓追蹤'; renderGuestTrack(); }
   if (tab === 'placard')    { document.getElementById('headerTitle').textContent = '桌牌製作'; renderPlacard(); }
+  if (tab === 'finance')    { document.getElementById('headerTitle').textContent = '財務控管'; renderFinance(); }
 }
 
 // ===== TODO =====
@@ -3336,6 +3342,21 @@ async function printPlacards() {
   } finally {
     document.body.removeChild(wrap);
   }
+}
+
+// ===== 財務控管 =====
+function renderFinance() {
+  const el = document.getElementById('financeContent');
+  el.innerHTML = `
+    <div class="card" style="text-align:center;padding:40px 24px;">
+      <div style="font-size:48px;margin-bottom:12px;">$</div>
+      <div style="font-size:20px;font-weight:900;color:var(--red);margin-bottom:8px;">財務控管</div>
+      <div style="font-size:14px;color:var(--text-soft);line-height:1.7;max-width:480px;margin:0 auto;">
+        此分頁將整合過去財務報表，提供收支彙總、預算追蹤、月份／年度比較等資訊。<br>
+        請提供財務報表（Excel／CSV／截圖／文字皆可），開始建置統整內容。
+      </div>
+    </div>
+  `;
 }
 </script>
 </body>
