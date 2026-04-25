@@ -706,11 +706,20 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-week:last-child { border-bottom:none; }
 .fin-week-head {
   display:flex; justify-content:space-between; align-items:center;
-  padding-bottom:10px; margin-bottom:10px;
-  border-bottom:1px dashed var(--gray-border);
+  padding:9px 12px; margin-bottom:10px;
+  background:#fdf0ef; border-radius:8px;
 }
-.fin-week-date { font-size:14px; font-weight:900; color:var(--text); }
-.fin-week-balance { font-size:13px; font-family:'DM Mono',monospace; font-weight:900; color:var(--text); }
+.fin-week-date { font-size:14px; font-weight:900; color:var(--red); }
+.fin-week-balance { font-size:13px; font-family:'DM Mono',monospace; font-weight:900; color:var(--red); }
+.note-toggle {
+  display:inline-block; color:var(--red); font-size:10px; line-height:1;
+  cursor:pointer; padding:3px 7px; margin-left:6px;
+  border:1px solid var(--gray-border); border-radius:4px;
+  transition:transform 0.15s, background 0.15s;
+  user-select:none; vertical-align:middle;
+}
+.note-toggle:hover { background:var(--gray-light); }
+.note-toggle.open { transform:rotate(90deg); }
 .fin-week-balance .delta { font-size:11px; margin-left:8px; padding:2px 8px; border-radius:10px; font-weight:700; }
 .fin-week-balance .delta.in { background:#eef9ec; color:var(--green); }
 .fin-week-balance .delta.out { background:#fdeeec; color:var(--red); }
@@ -3725,6 +3734,7 @@ let _financeParsed = null;
 let _financeTermTab = null;
 let _financeMonthsOpen = {};
 let _financeSelectedMonth = null;
+let _financeNotesOpen = {}; // { rowIndex: true }
 let _receivableFilter = 'unpaid'; // all | unpaid | paid
 
 function _finNum(v) {
@@ -3982,28 +3992,40 @@ function _financeRenderMonthWeeks(m) {
     weekMap[r.date].push(r);
   }
   const weeksHtml = Object.entries(weekMap).map(([date, rs]) => {
-    const lines = [];
+    const items = [];
     for (const r of rs) {
       const hasIn = r.income > 0;
       const hasOut = r.expense > 0;
       const meta = (r.paid || r.total) ? `${r.paid}/${r.total} 人` : '';
-      lines.push({
+      const noteOpen = !!_financeNotesOpen[r.rowIndex];
+      items.push({
+        type:'tx', main: true,
         kind: hasIn ? 'in' : (hasOut ? 'out' : ''),
         amt:  hasIn ? r.income : (hasOut ? r.expense : 0),
-        desc: r.type, meta, main: true, rowIndex: r.rowIndex
+        desc: r.type, meta, rowIndex: r.rowIndex,
+        hasNote: !!r.note, noteOpen
       });
       if (r.extraExpense > 0) {
-        lines.push({ kind:'out', amt:r.extraExpense, desc: r.extraDesc || '額外支出', sub:true, rowIndex:r.rowIndex });
+        items.push({ type:'tx', sub:true, kind:'out', amt:r.extraExpense, desc: r.extraDesc || '額外支出', rowIndex:r.rowIndex });
       }
       if (r.extraIncome > 0) {
-        lines.push({ kind:'in', amt:r.extraIncome, desc: r.extraDesc || '額外收入', sub:true, rowIndex:r.rowIndex });
+        items.push({ type:'tx', sub:true, kind:'in', amt:r.extraIncome, desc: r.extraDesc || '額外收入', rowIndex:r.rowIndex });
+      }
+      if (r.note && noteOpen) {
+        items.push({ type:'note', content: r.note });
       }
     }
-    const txHtml = lines.map(L => {
+    const linesHtml = items.map(L => {
+      if (L.type === 'note') {
+        return `<div class="fin-week-note">${_escH(L.content)}</div>`;
+      }
       const tag = L.kind === 'in' ? '收入' : (L.kind === 'out' ? '支出' : '—');
       const sign = L.kind === 'in' ? '+' : (L.kind === 'out' ? '-' : '');
       const amtStr = L.amt > 0 ? `${sign}${_finFmt(L.amt)}` : '—';
       const tagHtml = L.kind ? `<span class="tag ${L.kind}">${tag}</span>` : `<span></span>`;
+      const noteToggle = (L.main && L.hasNote)
+        ? `<span class="note-toggle ${L.noteOpen?'open':''}" onclick="event.stopPropagation();toggleFinanceNote(${L.rowIndex})" title="${L.noteOpen?'收合':'展開'}備註">▶</span>`
+        : '';
       const isClickable = (CR === 'admin' && L.main);
       const cls = `fin-line${L.sub?' sub':''}${isClickable?' clickable':''}`;
       const onClick = isClickable ? ` onclick="openFinanceEdit(${L.rowIndex})"` : '';
@@ -4011,7 +4033,7 @@ function _financeRenderMonthWeeks(m) {
         <div class="${cls}"${onClick}>
           ${tagHtml}
           <span class="amt ${L.kind || ''}">${amtStr}</span>
-          <span class="desc">${_escH(L.desc)}${L.meta?`<span class="meta">${L.meta}</span>`:''}</span>
+          <span class="desc">${_escH(L.desc)}${L.meta?`<span class="meta">${L.meta}</span>`:''}${noteToggle}</span>
         </div>
       `;
     }).join('');
@@ -4019,8 +4041,6 @@ function _financeRenderMonthWeeks(m) {
     const lastRec = rs[rs.length - 1];
     const finalBal = lastRec ? lastRec.finalBalance : 0;
     const weekNet = rs.reduce((s, r) => s + r.income - r.expense + r.extraIncome - r.extraExpense, 0);
-    const noteRec = rs.find(r => r.note);
-    const noteHtml = noteRec ? `<div class="fin-week-note">${_escH(noteRec.note)}</div>` : '';
     const deltaCls = weekNet >= 0 ? 'in' : 'out';
     const deltaSign = weekNet >= 0 ? '+' : '';
 
@@ -4033,8 +4053,7 @@ function _financeRenderMonthWeeks(m) {
             <span class="delta ${deltaCls}">${deltaSign}${_finFmt(weekNet)}</span>
           </span>
         </div>
-        ${txHtml}
-        ${noteHtml}
+        ${linesHtml}
       </div>
     `;
   }).join('');
@@ -4044,6 +4063,11 @@ function _financeRenderMonthWeeks(m) {
 
 function selectFinanceMonth(ym) {
   _financeSelectedMonth = ym;
+  renderFinance();
+}
+
+function toggleFinanceNote(rowIndex) {
+  _financeNotesOpen[rowIndex] = !_financeNotesOpen[rowIndex];
   renderFinance();
 }
 
