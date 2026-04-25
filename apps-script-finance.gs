@@ -73,8 +73,27 @@ function _noteColOf(sheet) {
  */
 function _handleAppend(body) {
   const ss = SpreadsheetApp.openById(FINANCE_SHEET_ID);
-  const sheet = ss.getSheetByName(body.sheet);
-  if (!sheet) return _resp({ ok: false, error: '找不到分頁：' + body.sheet });
+
+  // 依日期自動路由到正確屆別（每 6 個月滾屆）
+  let targetName = body.sheet;
+  let routed = false;
+  const expectedTermNum = _termNumOfDate(body.date);
+  if (expectedTermNum > 0) {
+    const expectedName = _termNameByNum(expectedTermNum);
+    if (expectedName !== body.sheet && _termNumOfSheet(body.sheet) > 0) {
+      targetName = expectedName;
+      routed = true;
+    } else if (expectedName === body.sheet || !ss.getSheetByName(body.sheet)) {
+      targetName = expectedName;
+    }
+  }
+
+  let sheet = ss.getSheetByName(targetName);
+  if (!sheet) {
+    const tn = _termNumOfSheet(targetName);
+    if (tn > 0) sheet = _ensureTermSheet(tn);
+  }
+  if (!sheet) return _resp({ ok: false, error: '找不到分頁：' + targetName });
 
   const ncol = _ncolOf(sheet);
   const lastRow = sheet.getLastRow();
@@ -123,7 +142,7 @@ function _handleAppend(body) {
   }
 
   sheet.getRange(cursor + 1, 1, 1, ncol).setValues([row]);
-  return _resp({ ok: true, lastBalance: runningBal, addedRows: 1 });
+  return _resp({ ok: true, lastBalance: runningBal, addedRows: 1, sheet: sheet.getName(), routed: routed });
 }
 
 /**
@@ -340,6 +359,122 @@ function _handleDeleteReceivable(body) {
 
 function _today() {
   return Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd');
+}
+
+// =============== 屆別滾動（每 6 個月一屆） ===============
+// 第四屆: 2025/04 - 2025/09
+// 第五屆: 2025/10 - 2026/03
+// 第六屆: 2026/04 - 2026/09
+// 第N屆 起始 = 2025/04 + (N-4)*6 個月
+const TERM_BASE_NUM = 4;
+const TERM_BASE_YEAR = 2025;
+const TERM_BASE_MONTH = 4;
+
+function _numToCN(n) {
+  const arr = ['零','一','二','三','四','五','六','七','八','九','十'];
+  if (n <= 10) return arr[n];
+  if (n < 20) return '十' + arr[n - 10];
+  if (n < 100) {
+    const tens = Math.floor(n / 10);
+    const ones = n % 10;
+    return arr[tens] + '十' + (ones ? arr[ones] : '');
+  }
+  return String(n);
+}
+
+function _cnToNum(s) {
+  const map = {'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10};
+  if (!s) return 0;
+  if (s in map) return map[s];
+  if (s[0] === '十') return 10 + (map[s[1]] || 0);
+  if (s.length === 2 && s[1] === '十') return map[s[0]] * 10;
+  if (s.length === 3 && s[1] === '十') return map[s[0]] * 10 + map[s[2]];
+  return parseInt(s) || 0;
+}
+
+function _termNumOfDate(dateStr) {
+  if (!dateStr) return 0;
+  const m = String(dateStr).match(/(\d{4})\/(\d{1,2})/);
+  if (!m) return 0;
+  const year = +m[1], month = +m[2];
+  const monthsFromBase = (year - TERM_BASE_YEAR) * 12 + (month - TERM_BASE_MONTH);
+  if (monthsFromBase < 0) return 0;
+  return TERM_BASE_NUM + Math.floor(monthsFromBase / 6);
+}
+
+function _termNameByNum(termNum) {
+  return '億展第' + _numToCN(termNum) + '屆';
+}
+
+function _termRangeOfNum(termNum) {
+  const totalMonths = (termNum - TERM_BASE_NUM) * 6;
+  const sIdx = TERM_BASE_MONTH - 1 + totalMonths;
+  const eIdx = sIdx + 5;
+  return {
+    startYear:  TERM_BASE_YEAR + Math.floor(sIdx / 12),
+    startMonth: (sIdx % 12) + 1,
+    endYear:    TERM_BASE_YEAR + Math.floor(eIdx / 12),
+    endMonth:   (eIdx % 12) + 1,
+  };
+}
+
+function _termNumOfSheet(sheetName) {
+  const m = String(sheetName || '').match(/^億展第([一二三四五六七八九十]+)屆$/);
+  return m ? _cnToNum(m[1]) : 0;
+}
+
+/**
+ * 確保某屆別分頁存在；不存在則建立並從前一屆結餘帶入
+ */
+function _ensureTermSheet(termNum) {
+  const ss = SpreadsheetApp.openById(FINANCE_SHEET_ID);
+  const name = _termNameByNum(termNum);
+  let sheet = ss.getSheetByName(name);
+  if (sheet) return sheet;
+
+  // 從前一屆讀結餘
+  let initialBalance = 0;
+  for (let p = termNum - 1; p >= TERM_BASE_NUM; p--) {
+    const prev = ss.getSheetByName(_termNameByNum(p));
+    if (prev) { initialBalance = _findLastBalance(prev, prev.getLastRow()); break; }
+  }
+
+  sheet = ss.insertSheet(name);
+  const headers = ['日期', '性質', '收入', '支出', '結餘', '付費人數', '總人數', '備註'];
+  sheet.getRange(1, 1, 1, 8).setValues([headers]);
+  sheet.getRange(1, 1, 1, 8).setFontWeight('bold').setBackground('#f9ecec').setFontColor('#c0392b');
+  sheet.setFrozenRows(1);
+  sheet.setColumnWidths(1, 7, 100);
+  sheet.setColumnWidth(8, 220);
+
+  const range = _termRangeOfNum(termNum);
+  const startDate = range.startYear + '/' + String(range.startMonth).padStart(2, '0') + '/01';
+  const monthLabel = '第' + _numToCN(termNum) + '屆' + String(range.startMonth).padStart(2, '0') + '月(初始)';
+  sheet.getRange(2, 1, 1, 8).setValues([[
+    startDate, monthLabel, '', '', initialBalance, '', '', ''
+  ]]);
+
+  return sheet;
+}
+
+/**
+ * 手動建立下一屆（從編輯器執行）
+ */
+function createNextTerm() {
+  const ss = SpreadsheetApp.openById(FINANCE_SHEET_ID);
+  let maxNum = 0;
+  ss.getSheets().forEach(function (s) {
+    const n = _termNumOfSheet(s.getName());
+    if (n > maxNum) maxNum = n;
+  });
+  if (!maxNum) {
+    Logger.log('未找到任何屆別分頁');
+    return { ok: false, error: 'no term' };
+  }
+  const nextNum = maxNum + 1;
+  const sheet = _ensureTermSheet(nextNum);
+  Logger.log('已建立 ' + sheet.getName() + '，期初結餘 ' + sheet.getRange(2, 5).getValue());
+  return { ok: true, name: sheet.getName() };
 }
 
 // =============== 一次性遷移：把 H/I 額外欄拆成獨立列 ===============

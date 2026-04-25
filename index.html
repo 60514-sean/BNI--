@@ -4608,8 +4608,16 @@ async function submitFinanceAdd() {
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || 'unknown');
-    showToast('已新增（結餘 ' + (j.lastBalance ? j.lastBalance.toLocaleString() : '-') + '）');
+    const msg = j.routed && j.sheet
+      ? `已寫入「${j.sheet}」（依日期自動路由）`
+      : `已新增（結餘 ${j.lastBalance ? j.lastBalance.toLocaleString() : '-'}）`;
+    showToast(msg);
     closeFinanceAdd();
+    if (j.sheet && j.sheet !== _financeTermTab && _financeParsed?.terms.find(t => t.name === j.sheet)) {
+      _financeTermTab = j.sheet;
+    } else if (j.routed && j.sheet) {
+      _financeTermTab = j.sheet; // even if not yet in cache, set so next render picks it
+    }
     await _fetchFinance();
     renderFinance();
   } catch (err) {
