@@ -4371,13 +4371,13 @@ function _financeRenderReceivables() {
 
   const filterBar = `
     <div class="fin-recv-bar">
+      ${unpaid.length ? `<span class="fin-recv-total">未繳合計 ${_finFmt(totalUnpaid)}</span>` : ''}
+      <span style="flex:1;"></span>
       <select class="fin-recv-filter-select" onchange="setReceivableFilter(this.value)">
         <option value="unpaid" ${_receivableFilter==='unpaid'?'selected':''}>未繳 ${unpaid.length}</option>
         <option value="paid"   ${_receivableFilter==='paid'?'selected':''}>已繳 ${paid.length}</option>
         <option value="all"    ${_receivableFilter==='all'?'selected':''}>全部 ${list.length}</option>
       </select>
-      ${unpaid.length ? `<span class="fin-recv-total">未繳合計 ${_finFmt(totalUnpaid)}</span>` : ''}
-      <span style="flex:1;"></span>
       ${CR === 'admin' ? `<button class="btn btn-primary" style="padding:7px 14px;font-size:12px;" onclick="openReceivableAdd()">＋ 新增應收</button>` : ''}
     </div>
   `;
