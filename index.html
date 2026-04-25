@@ -4284,27 +4284,80 @@ function renderFinance() {
 function _renderMonthsBlock(term, sum) {
   if (!sum.months.length) return '<div class="fin-empty">本屆尚無紀錄</div>';
 
-  const selected = sum.months.find(m => m.ym === _financeSelectedMonth);
-  if (!selected) return '<div class="fin-empty">未選擇月份</div>';
+  const isOverview = _financeSelectedMonth === '__overview__';
+  const selected = isOverview ? null : sum.months.find(m => m.ym === _financeSelectedMonth);
 
-  const pickerOptions = sum.months.map(m => {
-    const [yy, mm] = m.ym.split('-');
-    return `<option value="${m.ym}" ${m.ym===_financeSelectedMonth?'selected':''}>${yy} 年 ${parseInt(mm)} 月</option>`;
-  }).join('');
+  const pickerOptions = [
+    `<option value="__overview__" ${isOverview?'selected':''}>本屆概況</option>`,
+    ...sum.months.map(m => {
+      const [yy, mm] = m.ym.split('-');
+      return `<option value="${m.ym}" ${m.ym===_financeSelectedMonth?'selected':''}>${yy} 年 ${parseInt(mm)} 月</option>`;
+    })
+  ].join('');
+
+  let statsHtml = '';
+  if (isOverview) {
+    statsHtml = `
+      <span class="stat">
+        <span class="s-in">+${_finFmt(sum.totalIncome)}</span>
+        <span class="s-out">-${_finFmt(sum.totalExpense)}</span>
+        <span class="s-bal">${_finFmt(sum.currentBalance)}</span>
+      </span>
+    `;
+  } else if (selected) {
+    statsHtml = `
+      <span class="stat">
+        <span class="s-in">+${_finFmt(selected.inc)}</span>
+        <span class="s-out">-${_finFmt(selected.exp)}</span>
+        <span class="s-bal">${_finFmt(selected.lastBal)}</span>
+      </span>
+    `;
+  }
+
+  const contentHtml = isOverview
+    ? _financeRenderTermOverview(sum)
+    : (selected ? `<div class="fin-month-weeks">${_financeRenderMonthWeeks(selected)}</div>` : '<div class="fin-empty">未選擇月份</div>');
 
   return `
     <div class="fin-months-block">
       <div class="fin-month-picker-bar">
         <span class="lbl">月份</span>
         <select class="fin-month-picker" onchange="selectFinanceMonth(this.value)">${pickerOptions}</select>
-        <span class="stat">
-          <span class="s-in">+${_finFmt(selected.inc)}</span>
-          <span class="s-out">-${_finFmt(selected.exp)}</span>
-          <span class="s-bal">${_finFmt(selected.lastBal)}</span>
-        </span>
+        ${statsHtml}
       </div>
-      <div class="fin-month-weeks">${_financeRenderMonthWeeks(selected)}</div>
+      ${contentHtml}
     </div>
+  `;
+}
+
+function _financeRenderTermOverview(sum) {
+  let totIn = 0, totOut = 0;
+  const rows = sum.months.map(m => {
+    totIn  += m.inc;
+    totOut += m.exp;
+    const [yy, mm] = m.ym.split('-');
+    return `<tr onclick="selectFinanceMonth('${m.ym}')">
+      <td>${yy} 年 ${parseInt(mm)} 月</td>
+      <td class="in">+${_finFmt(m.inc)}</td>
+      <td class="out">-${_finFmt(m.exp)}</td>
+      <td class="bal">${_finFmt(m.lastBal)}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <table class="fin-monthly-table">
+      <thead><tr>
+        <th>月份</th><th>收入</th><th>支出</th><th>月底結餘</th>
+      </tr></thead>
+      <tbody>
+        ${rows}
+        <tr class="total-row">
+          <td>合計</td>
+          <td class="in">+${_finFmt(totIn)}</td>
+          <td class="out">-${_finFmt(totOut)}</td>
+          <td class="bal">${_finFmt(sum.currentBalance)}</td>
+        </tr>
+      </tbody>
+    </table>
   `;
 }
 
