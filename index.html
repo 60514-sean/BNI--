@@ -4665,14 +4665,6 @@ function openFinanceEdit(rowIndex) {
         <div class="modal-field" style="flex:1;"><div class="modal-label">總人數</div>
           <input type="number" class="modal-input" id="finEditTotal" value="${r.total || ''}"></div>
       </div>
-      <div style="display:flex;gap:8px;">
-        <div class="modal-field" style="flex:1;"><div class="modal-label">額外收入</div>
-          <input type="number" class="modal-input" id="finEditExtraIn" value="${r.extraIncome || ''}"></div>
-        <div class="modal-field" style="flex:1;"><div class="modal-label">額外支出</div>
-          <input type="number" class="modal-input" id="finEditExtraOut" value="${r.extraExpense || ''}"></div>
-      </div>
-      <div class="modal-field"><div class="modal-label">額外項目說明</div>
-        <input type="text" class="modal-input" id="finEditExtraDesc" value="${_escH(r.extraDesc)}"></div>
       <div class="modal-field"><div class="modal-label">備註</div>
         <input type="text" class="modal-input" id="finEditNote" value="${_escH(r.note)}"></div>
       <div class="modal-btns">
@@ -4699,9 +4691,6 @@ async function submitFinanceEdit(rowIndex) {
     expense:     +document.getElementById('finEditExpense').value || 0,
     paid:        +document.getElementById('finEditPaid').value || 0,
     total:       +document.getElementById('finEditTotal').value || 0,
-    extraIncome: +document.getElementById('finEditExtraIn').value || 0,
-    extraExpense:+document.getElementById('finEditExtraOut').value || 0,
-    extraDesc:   document.getElementById('finEditExtraDesc').value.trim(),
     note:        document.getElementById('finEditNote').value.trim(),
   };
 
