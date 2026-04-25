@@ -552,15 +552,16 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 }
 
 /* 財務控管 */
-.fin-termtabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
-.fin-termtab {
-  flex:1; min-width:80px; padding:10px 8px; border:1.5px solid var(--gray-border);
-  background:white; color:var(--text-soft); border-radius:10px;
-  font-size:13px; font-weight:700; cursor:pointer; font-family:inherit;
-  transition:all 0.15s;
+.fin-term-select {
+  width:100%; padding:12px 16px; border:1.5px solid var(--gray-border);
+  border-radius:12px; font-size:15px; font-weight:700; color:var(--text);
+  background:white; outline:none; font-family:inherit;
+  margin-bottom:14px; cursor:pointer; appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23c0392b' d='M2 4l4 4 4-4z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 16px center;
+  padding-right:40px;
 }
-.fin-termtab:hover { border-color:var(--red); color:var(--red); }
-.fin-termtab.active { background:var(--red); color:white; border-color:var(--red); }
+.fin-term-select:focus { border-color:var(--red); }
 .fin-kpi-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
 @media(min-width:640px){ .fin-kpi-grid { grid-template-columns:repeat(6,1fr); } }
 .fin-kpi {
@@ -590,17 +591,60 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-month-body { display:none; padding:0; }
 .fin-month.open .fin-month-body { display:block; }
 .fin-week {
-  padding:12px 16px; border-bottom:1px solid var(--gray-border);
+  padding:14px 14px 12px; border-bottom:1px solid var(--gray-border);
 }
 .fin-week:last-child { border-bottom:none; }
-.fin-week-date { font-size:12px; color:var(--text-soft); font-weight:700; margin-bottom:6px; }
-.fin-week-row { display:flex; align-items:center; gap:8px; padding:4px 0; font-size:13px; }
-.fin-week-type { min-width:60px; font-weight:700; color:var(--text); }
-.fin-week-amt { font-family:'DM Mono',monospace; font-weight:700; flex:1; text-align:right; min-width:80px; }
-.fin-week-amt.in { color:var(--green); }
-.fin-week-amt.out { color:var(--red); }
-.fin-week-extra { font-size:11px; color:var(--text-soft); padding:2px 0 2px 60px; line-height:1.5; }
-.fin-week-note { font-size:12px; color:#a06000; background:#fff8e1; padding:6px 10px; border-radius:6px; margin-top:6px; }
+.fin-week-head {
+  display:flex; justify-content:space-between; align-items:center;
+  padding-bottom:10px; margin-bottom:10px;
+  border-bottom:1px dashed var(--gray-border);
+}
+.fin-week-date { font-size:14px; font-weight:900; color:var(--text); }
+.fin-week-balance { font-size:13px; font-family:'DM Mono',monospace; font-weight:900; color:#2c5fa3; }
+.fin-week-balance .delta { font-size:11px; margin-left:8px; padding:2px 8px; border-radius:10px; font-weight:700; }
+.fin-week-balance .delta.in { background:#eef9ec; color:var(--green); }
+.fin-week-balance .delta.out { background:#fdeeec; color:var(--red); }
+.fin-tx {
+  display:grid; grid-template-columns:32px 1fr auto auto;
+  gap:10px; align-items:center;
+  padding:10px 12px; border-radius:10px; margin-bottom:6px;
+}
+.fin-tx.in  { background:linear-gradient(135deg,#e9f7e6 0%,#f6fbf5 100%); border-left:3px solid var(--green); }
+.fin-tx.out { background:linear-gradient(135deg,#fde6e3 0%,#fdf6f5 100%); border-left:3px solid var(--red); }
+.fin-tx.flat{ background:var(--gray-light); border-left:3px solid var(--gray); }
+.fin-tx-icon {
+  width:28px; height:28px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:900; font-size:14px; color:white; line-height:1;
+}
+.fin-tx.in  .fin-tx-icon { background:var(--green); }
+.fin-tx.out .fin-tx-icon { background:var(--red); }
+.fin-tx.flat .fin-tx-icon{ background:var(--gray); }
+.fin-tx-type { font-size:14px; font-weight:700; color:var(--text); }
+.fin-tx-meta { font-size:11px; color:var(--text-soft); margin-top:2px; }
+.fin-tx-amt { font-family:'DM Mono',monospace; font-weight:900; font-size:18px; }
+.fin-tx.in  .fin-tx-amt { color:var(--green); }
+.fin-tx.out .fin-tx-amt { color:var(--red); }
+.fin-tx-actions { display:flex; gap:2px; }
+.fin-tx-extra {
+  display:flex; flex-wrap:wrap; gap:6px;
+  padding:0 12px 6px 54px; margin-top:-2px;
+}
+.fin-tx-extra .badge {
+  display:inline-flex; align-items:center;
+  padding:3px 10px; border-radius:12px;
+  font-size:11px; font-weight:700;
+  background:white; border:1px solid var(--gray-border);
+  font-family:'DM Mono',monospace; color:var(--text);
+}
+.fin-tx-extra .badge.out { color:var(--red); border-color:#f5c6c6; background:#fff8f7; }
+.fin-tx-extra .badge.in  { color:var(--green); border-color:#bfe5b8; background:#f7fdf6; }
+.fin-week-note {
+  font-size:12px; color:#7a4500; background:#fff8e1;
+  padding:8px 12px; border-radius:8px; margin-top:8px;
+  border-left:3px solid #f9a825;
+  line-height:1.55;
+}
 .fin-section-title { font-size:14px; font-weight:900; color:var(--text); margin:18px 0 10px; padding-left:4px; border-left:3px solid var(--red); padding-left:10px; }
 .fin-special-card { background:white; border-radius:12px; box-shadow:var(--shadow); padding:16px; margin-bottom:14px; }
 .fin-special-row { display:flex; align-items:center; padding:6px 0; font-size:13px; border-bottom:1px dashed var(--gray-border); }
@@ -617,10 +661,6 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-budget-card .row:last-child { border-bottom:none; }
 .fin-budget-card .row .lbl { flex:1; color:var(--text); }
 .fin-budget-card .row .amt { font-family:'DM Mono',monospace; font-weight:700; min-width:70px; text-align:right; }
-.fin-unpaid { background:#fff3e0; border-left:4px solid #ff9800; padding:10px 14px; border-radius:8px; margin-bottom:14px; font-size:12px; line-height:1.7; position:relative; }
-.fin-unpaid .ttl { font-weight:900; color:#e65100; margin-bottom:4px; }
-.fin-unpaid .copy-btn { position:absolute; top:8px; right:8px; padding:4px 10px; font-size:11px; background:#ff9800; color:white; border:none; border-radius:6px; cursor:pointer; font-family:inherit; font-weight:700; }
-.fin-unpaid .copy-btn:hover { background:#e65100; }
 .fin-empty { text-align:center; padding:60px 20px; color:var(--text-soft); font-size:14px; }
 .fin-row-btn { background:none; border:none; color:var(--text-soft); cursor:pointer; padding:2px 6px; font-size:14px; line-height:1; border-radius:4px; transition:all 0.15s; margin-left:2px; font-family:inherit; }
 .fin-row-btn:hover { background:var(--gray-light); color:var(--text); }
@@ -3623,16 +3663,6 @@ function _termSummary(term) {
   };
 }
 
-function _financeUnpaid(term) {
-  const list = [];
-  for (const r of term.records) {
-    if (r.note && /未繳|待收|未收|缺繳/.test(r.note)) {
-      list.push(`${r.date}：${r.note}`);
-    }
-  }
-  return list;
-}
-
 function _financeRenderKpi(term, sum) {
   return `
     <div class="fin-kpi-grid">
@@ -3654,33 +3684,57 @@ function _financeRenderMonth(m, idx) {
     weekMap[r.date].push(r);
   }
   const weeksHtml = Object.entries(weekMap).map(([date, rs]) => {
-    const rowsHtml = rs.map(r => {
-      const amt = r.income > 0
-        ? `<span class="fin-week-amt in">+${_finFmt(r.income)}</span>`
-        : (r.expense > 0
-          ? `<span class="fin-week-amt out">-${_finFmt(r.expense)}</span>`
-          : `<span class="fin-week-amt">—</span>`);
-      const extra = (r.extraExpense > 0 || r.extraIncome > 0)
-        ? `<div class="fin-week-extra">額外${r.extraExpense ? '支出' : '收入'} ${r.extraExpense ? '-' : '+'}${_finFmt(r.extraExpense || r.extraIncome)}${r.extraDesc ? '（' + _escH(r.extraDesc) + '）' : ''}</div>`
-        : '';
-      const ppl = (r.paid || r.total) ? `<span style="font-size:11px;color:var(--text-soft);margin-left:6px;">${r.paid}/${r.total}人</span>` : '';
+    const txHtml = rs.map(r => {
+      const isIn  = r.income > 0;
+      const isOut = r.expense > 0;
+      const cls   = isIn ? 'in' : (isOut ? 'out' : 'flat');
+      const icon  = isIn ? '＋' : (isOut ? '－' : '·');
+      const amtStr = isIn
+        ? `+${_finFmt(r.income)}`
+        : (isOut ? `-${_finFmt(r.expense)}` : '—');
+      const meta = (r.paid || r.total) ? `${r.paid}/${r.total} 人` : '';
       const adminBtns = CR === 'admin' ? `
         <button class="fin-row-btn" title="編輯" onclick="event.stopPropagation();openFinanceEdit(${r.rowIndex})">✎</button>
         <button class="fin-row-btn danger" title="刪除" onclick="event.stopPropagation();confirmFinanceDelete(${r.rowIndex})">×</button>
       ` : '';
+      const extras = [];
+      if (r.extraExpense > 0) extras.push(`<span class="badge out">額外支出 -${_finFmt(r.extraExpense)}${r.extraDesc?'（' + _escH(r.extraDesc) + '）':''}</span>`);
+      if (r.extraIncome > 0)  extras.push(`<span class="badge in">額外收入 +${_finFmt(r.extraIncome)}${r.extraDesc?'（' + _escH(r.extraDesc) + '）':''}</span>`);
       return `
-        <div class="fin-week-row">
-          <span class="fin-week-type">${_escH(r.type)}</span>
-          ${amt}
-          ${ppl}
-          <span style="font-size:11px;color:var(--text-soft);font-family:'DM Mono',monospace;min-width:80px;text-align:right;">結${_finFmt(r.finalBalance)}</span>
-          ${adminBtns}
+        <div class="fin-tx ${cls}">
+          <div class="fin-tx-icon">${icon}</div>
+          <div>
+            <div class="fin-tx-type">${_escH(r.type)}</div>
+            ${meta ? `<div class="fin-tx-meta">${meta}</div>` : ''}
+          </div>
+          <div class="fin-tx-amt">${amtStr}</div>
+          <div class="fin-tx-actions">${adminBtns}</div>
         </div>
-        ${extra}
-        ${r.note ? `<div class="fin-week-note">${_escH(r.note)}</div>` : ''}
+        ${extras.length ? `<div class="fin-tx-extra">${extras.join('')}</div>` : ''}
       `;
     }).join('');
-    return `<div class="fin-week"><div class="fin-week-date">${_escH(date)}</div>${rowsHtml}</div>`;
+
+    const lastRec = rs[rs.length - 1];
+    const finalBal = lastRec ? lastRec.finalBalance : 0;
+    const weekNet = rs.reduce((s, r) => s + r.income - r.expense + r.extraIncome - r.extraExpense, 0);
+    const noteRec = rs.find(r => r.note);
+    const noteHtml = noteRec ? `<div class="fin-week-note">${_escH(noteRec.note)}</div>` : '';
+    const deltaCls = weekNet >= 0 ? 'in' : 'out';
+    const deltaSign = weekNet >= 0 ? '+' : '';
+
+    return `
+      <div class="fin-week">
+        <div class="fin-week-head">
+          <span class="fin-week-date">${_escH(date)}</span>
+          <span class="fin-week-balance">
+            結餘 ${_finFmt(finalBal)}
+            <span class="delta ${deltaCls}">${deltaSign}${_finFmt(weekNet)}</span>
+          </span>
+        </div>
+        ${txHtml}
+        ${noteHtml}
+      </div>
+    `;
   }).join('');
 
   const [yy, mm] = m.ym.split('-');
@@ -3867,21 +3921,14 @@ function renderFinance() {
   }
   const term = terms.find(t => t.name === _financeTermTab);
   const sum = _termSummary(term);
-  const unpaid = _financeUnpaid(term);
 
-  const tabsHtml = terms.map(t =>
-    `<button class="fin-termtab ${t.name === _financeTermTab ? 'active' : ''}" onclick="switchFinanceTerm('${_escH(t.name)}')">${_escH(t.name)}</button>`
-  ).join('');
+  const termSelectHtml = `
+    <select class="fin-term-select" onchange="switchFinanceTerm(this.value)">
+      ${terms.map(t => `<option value="${_escH(t.name)}" ${t.name===_financeTermTab?'selected':''}>${_escH(t.name)}</option>`).join('')}
+    </select>
+  `;
 
   const monthsHtml = sum.months.map((m, i) => _financeRenderMonth(m, i)).join('') || '<div class="fin-empty">本屆尚無紀錄</div>';
-
-  const unpaidHtml = unpaid.length
-    ? `<div class="fin-unpaid">
-        <button class="copy-btn" onclick="copyUnpaid()">複製到 Line</button>
-        <div class="ttl">未繳／待收追蹤（共 ${unpaid.length} 筆）</div>
-        ${unpaid.map(s => _escH(s)).join('<br>')}
-       </div>`
-    : '';
 
   const actionBar = `
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
@@ -3895,9 +3942,8 @@ function renderFinance() {
 
   el.innerHTML = `
     ${actionBar}
-    <div class="fin-termtabs">${tabsHtml}</div>
+    ${termSelectHtml}
     ${_financeRenderKpi(term, sum)}
-    ${unpaidHtml}
     <div class="fin-section-title">結餘走勢</div>
     <div class="fin-chart-card">
       <div class="fin-chart-wrap"><canvas id="finTrendChart"></canvas></div>
@@ -4429,21 +4475,6 @@ async function submitFinanceSpecial() {
   }
 }
 
-// ===== 未繳複製 =====
-async function copyUnpaid() {
-  if (!_financeParsed || !_financeTermTab) return;
-  const term = _financeParsed.terms.find(t => t.name === _financeTermTab);
-  if (!term) return;
-  const list = _financeUnpaid(term);
-  if (!list.length) { showToast('無未繳資料'); return; }
-  const text = `【${term.name} 未繳追蹤】\n` + list.map(s => '・' + s).join('\n');
-  try {
-    await navigator.clipboard.writeText(text);
-    showToast('已複製到剪貼簿（' + list.length + ' 筆）');
-  } catch (err) {
-    showToast('複製失敗，請手動複製');
-  }
-}
 </script>
 </body>
 </html>
