@@ -55,24 +55,28 @@ function doPost(e) {
 }
 
 /**
+ * 取得分頁 schema：'legacy' (11 欄含 H 額外收入/I 額外支出/J 結餘) 或 'clean' (8 欄)
+ */
+function _schemaOf(sheet) {
+  return sheet.getLastColumn() >= 11 ? 'legacy' : 'clean';
+}
+function _ncolOf(sheet) {
+  return _schemaOf(sheet) === 'legacy' ? 11 : 8;
+}
+function _noteColOf(sheet) {
+  return _schemaOf(sheet) === 'legacy' ? 11 : 8;
+}
+
+/**
  * 新增單筆紀錄（自動跨月插入月份標題、自動算結餘）
- *  body = {
- *    action: 'append',
- *    sheet:  '億展第六屆',
- *    date:   '2026/05/01',
- *    type:   '入席費',         // 性質（自由文字，前端有常用建議）
- *    kind:   'income',         // 'income' or 'expense'
- *    amount: 31500,
- *    paid:   0,                // optional
- *    total:  0,                // optional
- *    note:   ''
- *  }
+ *  body = { action, sheet, date, type, kind, amount, paid, total, note }
  */
 function _handleAppend(body) {
   const ss = SpreadsheetApp.openById(FINANCE_SHEET_ID);
   const sheet = ss.getSheetByName(body.sheet);
   if (!sheet) return _resp({ ok: false, error: '找不到分頁：' + body.sheet });
 
+  const ncol = _ncolOf(sheet);
   const lastRow = sheet.getLastRow();
   let runningBal = _findLastBalance(sheet, lastRow);
   let cursor = lastRow;
@@ -83,7 +87,9 @@ function _handleAppend(body) {
   if (newMonth && lastMonth && newMonth !== lastMonth) {
     const termLabel = body.sheet.replace(/^億展/, '');
     const monthLabel = termLabel + String(parseInt(newMonth.split('-')[1])) + '月';
-    sheet.getRange(cursor + 1, 1, 1, 11).setValues([['', monthLabel, '', '', '', '', '', '', '', '', '']]);
+    const headerRow = new Array(ncol).fill('');
+    headerRow[1] = monthLabel;
+    sheet.getRange(cursor + 1, 1, 1, ncol).setValues([headerRow]);
     cursor++;
   }
 
@@ -97,21 +103,26 @@ function _handleAppend(body) {
   if (kind === 'income') runningBal += amount;
   else                   runningBal -= amount;
 
+  // 共用前 7 欄
   const row = [
-    body.date || '',                          // A 日期
-    type,                                     // B 性質
-    kind === 'income'  ? (amount || '') : '', // C 收入
-    kind === 'expense' ? (amount || '') : '', // D 支出
-    runningBal,                               // E 結餘
-    paid  || '',                              // F 付費人數
-    total || '',                              // G 總人數
-    '',                                       // H 額外收入（簡化後不再使用）
-    '',                                       // I 額外支出
-    runningBal,                               // J 結餘
-    note                                      // K 備註
+    body.date || '',                            // A 日期
+    type,                                       // B 性質
+    kind === 'income'  ? (amount || '') : '',   // C 收入
+    kind === 'expense' ? (amount || '') : '',   // D 支出
+    runningBal,                                 // E 結餘
+    paid  || '',                                // F 付費人數
+    total || '',                                // G 總人數
   ];
+  if (ncol === 11) {
+    row.push('');           // H 額外收入
+    row.push('');           // I 額外支出
+    row.push(runningBal);   // J 結餘
+    row.push(note);         // K 備註
+  } else {
+    row.push(note);         // H 備註
+  }
 
-  sheet.getRange(cursor + 1, 1, 1, 11).setValues([row]);
+  sheet.getRange(cursor + 1, 1, 1, ncol).setValues([row]);
   return _resp({ ok: true, lastBalance: runningBal, addedRows: 1 });
 }
 
@@ -139,6 +150,7 @@ function _handleAppendSpecial(body) {
   if (!sheet) return _resp({ ok: false, error: '找不到分頁：' + body.sheet });
   if (!body.title) return _resp({ ok: false, error: '缺活動名稱' });
 
+  const ncol = _ncolOf(sheet);
   const lastRow = sheet.getLastRow();
   let runningBal = _findLastBalance(sheet, lastRow);
 
@@ -146,20 +158,31 @@ function _handleAppendSpecial(body) {
   runningBal += titleAmt;
 
   const rows = [];
-  rows.push([
-    body.date || '', body.title, titleAmt || '', '', '', '', '', '', '', '', body.note || ''
-  ]);
 
+  // 標題列
+  const titleRow = [body.date || '', body.title, titleAmt || '', '', '', '', ''];
+  if (ncol === 11) {
+    titleRow.push('', '', '', body.note || '');
+  } else {
+    titleRow.push(body.note || '');
+  }
+  rows.push(titleRow);
+
+  // 明細列
   (body.items || []).forEach(function (it) {
     const inc = _num(it.income);
     const exp = _num(it.expense);
     runningBal = runningBal + inc - exp;
-    rows.push([
-      '', it.name || '', inc || '', exp || '', '', '', '', '', '', runningBal, it.note || ''
-    ]);
+    const r = ['', it.name || '', inc || '', exp || '', runningBal, '', ''];
+    if (ncol === 11) {
+      r.push('', '', runningBal, it.note || '');
+    } else {
+      r.push(it.note || '');
+    }
+    rows.push(r);
   });
 
-  sheet.getRange(lastRow + 1, 1, rows.length, 11).setValues(rows);
+  sheet.getRange(lastRow + 1, 1, rows.length, ncol).setValues(rows);
   return _resp({ ok: true, lastBalance: runningBal, addedRows: rows.length });
 }
 
@@ -174,34 +197,38 @@ function _handleUpdate(body) {
   if (!sheet) return _resp({ ok: false, error: '找不到分頁：' + body.sheet });
   if (!body.rowIndex || body.rowIndex < 2) return _resp({ ok: false, error: 'rowIndex 必須 >= 2' });
 
+  const ncol = _ncolOf(sheet);
+  const isLegacy = ncol === 11;
   const v = body.values || {};
-  const rng = sheet.getRange(body.rowIndex, 1, 1, 11);
+  const rng = sheet.getRange(body.rowIndex, 1, 1, ncol);
   const cur = rng.getValues()[0];
-
   const out = cur.slice();
-  if (v.date !== undefined)         out[0] = v.date;
-  if (v.type !== undefined)         out[1] = v.type;
-  if (v.income !== undefined)       out[2] = _num(v.income) || '';
-  if (v.expense !== undefined)      out[3] = _num(v.expense) || '';
-  if (v.balance !== undefined)      out[4] = _num(v.balance);
-  if (v.paid !== undefined)         out[5] = _num(v.paid) || '';
-  if (v.total !== undefined)        out[6] = _num(v.total) || '';
-  if (v.extraIncome !== undefined) {
-    const n = _num(v.extraIncome);
-    out[7] = n ? (v.extraIncomeDesc ? n + '（' + v.extraIncomeDesc + '）' : n) : '';
+
+  if (v.date !== undefined)    out[0] = v.date;
+  if (v.type !== undefined)    out[1] = v.type;
+  if (v.income !== undefined)  out[2] = _num(v.income) || '';
+  if (v.expense !== undefined) out[3] = _num(v.expense) || '';
+  if (v.balance !== undefined) out[4] = _num(v.balance);
+  if (v.paid !== undefined)    out[5] = _num(v.paid) || '';
+  if (v.total !== undefined)   out[6] = _num(v.total) || '';
+
+  if (isLegacy) {
+    if (v.extraIncome !== undefined) {
+      const n = _num(v.extraIncome);
+      out[7] = n ? (v.extraIncomeDesc ? n + '（' + v.extraIncomeDesc + '）' : n) : '';
+    }
+    if (v.extraExpense !== undefined) {
+      const n = _num(v.extraExpense);
+      out[8] = n ? (v.extraDesc ? n + '（' + v.extraDesc + '）' : n) : '';
+    }
+    if (v.finalBalance !== undefined) out[9] = _num(v.finalBalance);
+    if (v.note !== undefined)         out[10] = v.note;
+  } else {
+    if (v.note !== undefined) out[7] = v.note;
   }
-  if (v.extraExpense !== undefined) {
-    const n = _num(v.extraExpense);
-    out[8] = n ? (v.extraDesc ? n + '（' + v.extraDesc + '）' : n) : '';
-  }
-  if (v.finalBalance !== undefined) out[9] = _num(v.finalBalance);
-  if (v.note !== undefined)         out[10] = v.note;
 
   rng.setValues([out]);
-
-  // 重新計算這列以下所有列的結餘
   _recalcBalancesFrom(sheet, body.rowIndex + 1);
-
   return _resp({ ok: true });
 }
 
@@ -497,11 +524,15 @@ function _parseExtraValue(cell, defaultKind, warnings, overrideLog, ctx) {
 
 // =============== Helpers ===============
 function _findLastBalance(sheet, lastRow) {
+  const ncol = _ncolOf(sheet);
+  const isLegacy = ncol === 11;
   for (let r = lastRow; r >= 1; r--) {
-    const row = sheet.getRange(r, 1, 1, 11).getValues()[0];
-    const v10 = Number(row[9]);
-    if (!isNaN(v10) && row[9] !== '' && row[9] !== null) return v10;
-    const v5  = Number(row[4]);
+    const row = sheet.getRange(r, 1, 1, ncol).getValues()[0];
+    if (isLegacy) {
+      const v10 = Number(row[9]);
+      if (!isNaN(v10) && row[9] !== '' && row[9] !== null) return v10;
+    }
+    const v5 = Number(row[4]);
     if (!isNaN(v5) && row[4] !== '' && row[4] !== null) return v5;
   }
   return 0;
@@ -530,17 +561,17 @@ function _monthOfDate(s) {
 function _recalcBalancesFrom(sheet, fromRow) {
   const lastRow = sheet.getLastRow();
   if (fromRow > lastRow) return;
+  const ncol = _ncolOf(sheet);
+  const isLegacy = ncol === 11;
   let runningBal = _findLastBalance(sheet, fromRow - 1);
 
   for (let r = fromRow; r <= lastRow; r++) {
-    const row = sheet.getRange(r, 1, 1, 11).getValues()[0];
+    const row = sheet.getRange(r, 1, 1, ncol).getValues()[0];
     const date = String(row[0] || '').trim();
     const type = String(row[1] || '').trim();
 
-    // 完全空白列 → 跳過
-    if (!date && !type && !row[2] && !row[3] && !row[7] && !row[8]) continue;
+    if (!date && !type && !row[2] && !row[3] && !(isLegacy && (row[7] || row[8]))) continue;
 
-    // 月份標題 / 屆期初始 → 不重算，但若有結餘則更新 runningBal
     const isMonthHeader = /第[一二三四五六七八九十]屆\s*\d+月/.test(type) || /第[一二三四五六七八九十]屆\s*\d+月/.test(date);
     const isInitial     = /初始/.test(type) || /^第[一二三四五六七八九十]期初始$/.test(type);
     if (isMonthHeader || isInitial) {
@@ -549,18 +580,49 @@ function _recalcBalancesFrom(sheet, fromRow) {
       continue;
     }
 
-    // 一般資料列：重算 E、J
-    const income       = _num(row[2]);
-    const expense      = _num(row[3]);
-    const extraIncome  = _extractAmount(row[7]);
-    const extraExpense = _extractAmount(row[8]);
-
+    const income  = _num(row[2]);
+    const expense = _num(row[3]);
     runningBal = runningBal + income - expense;
     sheet.getRange(r, 5).setValue(runningBal);
 
-    runningBal = runningBal + extraIncome - extraExpense;
-    sheet.getRange(r, 10).setValue(runningBal);
+    if (isLegacy) {
+      const extraIncome  = _extractAmount(row[7]);
+      const extraExpense = _extractAmount(row[8]);
+      runningBal = runningBal + extraIncome - extraExpense;
+      sheet.getRange(r, 10).setValue(runningBal);
+    }
   }
+}
+
+// =============== 一次性：刪除 H、I、J（額外收入/支出/重複結餘）===============
+/**
+ * 刪除所有屆別分頁的 H、I、J 三欄，留下 8 欄結構
+ *   工具列「執行」→ 選 cleanupColumns → ▶
+ *   ⚠ 不可逆，請先確認試算表副本已備份
+ */
+function cleanupColumns() {
+  const ss = SpreadsheetApp.openById(FINANCE_SHEET_ID);
+  const log = [];
+  ss.getSheets().forEach(function (sheet) {
+    const name = sheet.getName();
+    if (name === RECEIVABLE_SHEET) { log.push(name + '：跳過（應收追蹤）'); return; }
+    if (sheet.getLastColumn() < 11) { log.push(name + '：跳過（已是 8 欄結構）'); return; }
+    const headers = sheet.getRange(1, 1, 1, 11).getValues()[0];
+    if (String(headers[0]).trim() !== '日期' || String(headers[1]).trim() !== '性質') {
+      log.push(name + '：跳過（非屆別結構）');
+      return;
+    }
+    // 由高到低刪欄，避免索引錯位
+    sheet.deleteColumn(10); // J 結餘
+    sheet.deleteColumn(9);  // I 額外支出
+    sheet.deleteColumn(8);  // H 額外收入
+    log.push(name + '：完成（已刪 H、I、J）');
+  });
+  Logger.log('========================================');
+  Logger.log('cleanupColumns 結果：');
+  log.forEach(function (l) { Logger.log('  ' + l); });
+  Logger.log('========================================');
+  return { ok: true, log: log };
 }
 
 function _extractAmount(cell) {

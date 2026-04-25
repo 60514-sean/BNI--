@@ -3583,6 +3583,11 @@ function _finIsTermSheet(rows) {
 function _parseTermSheet(rows) {
   const headerIdx = _finIsTermSheet(rows);
   if (headerIdx < 0) return null;
+  const hdr = rows[headerIdx] || [];
+  const isLegacy = hdr.length >= 11;
+  const C = isLegacy
+    ? { date:0, type:1, income:2, expense:3, balance:4, paid:5, total:6, exIn:7, exOut:8, finalBal:9, note:10 }
+    : { date:0, type:1, income:2, expense:3, balance:4, paid:5, total:6, exIn:-1, exOut:-1, finalBal:4, note:7 };
 
   const records = [];
   let initial = 0;
@@ -3603,8 +3608,8 @@ function _parseTermSheet(rows) {
     if (type && SPECIAL_KEYWORDS.test(type) && !type.includes('入席費') && !type.includes('早餐')) {
       inSpecial = true;
       specialName = type;
-      const inc = _finNum(row[2]);
-      const exp = _finNum(row[3]);
+      const inc = _finNum(row[C.income]);
+      const exp = _finNum(row[C.expense]);
       if (inc > 0) {
         specialItems.push({ name: type, amount: inc, kind: 'income', date: dateRaw || currentDate });
       } else if (exp > 0) {
@@ -3615,13 +3620,13 @@ function _parseTermSheet(rows) {
     }
     // 在 inSpecial 區段且日期欄空、性質非入席費/早餐 → 特殊活動子項
     if (inSpecial && !dateRaw && type && !type.includes('入席費') && !type.includes('早餐') && !type.includes('屆')) {
-      const inAmt = _finNum(row[2]);
-      const outAmt = _finNum(row[3]);
+      const inAmt = _finNum(row[C.income]);
+      const outAmt = _finNum(row[C.expense]);
       specialItems.push({
         name: type,
         amount: inAmt > 0 ? inAmt : outAmt,
         kind: inAmt > 0 ? 'income' : 'expense',
-        note: String(row[10] || '').trim(),
+        note: String(row[C.note] || '').trim(),
         date: currentDate,
       });
       continue;
@@ -3653,16 +3658,16 @@ function _parseTermSheet(rows) {
       date: currentDate,
       ym: _finYM(currentDate),
       type,
-      income: _finNum(row[2]),
-      expense: _finNum(row[3]),
-      balance: _finNum(row[4]),
-      paid: _finNum(row[5]),
-      total: _finNum(row[6]),
-      extraIncome: _finNum(row[7]),
-      extraExpense: _finNum(row[8]),
-      extraDesc: _finExtraDesc(row[8]) || _finExtraDesc(row[7]),
-      finalBalance: _finNum(row[9]) || _finNum(row[4]),
-      note: String(row[10] || '').trim(),
+      income:  _finNum(row[C.income]),
+      expense: _finNum(row[C.expense]),
+      balance: _finNum(row[C.balance]),
+      paid:    _finNum(row[C.paid]),
+      total:   _finNum(row[C.total]),
+      extraIncome:  C.exIn  >= 0 ? _finNum(row[C.exIn])  : 0,
+      extraExpense: C.exOut >= 0 ? _finNum(row[C.exOut]) : 0,
+      extraDesc:    C.exOut >= 0 ? (_finExtraDesc(row[C.exOut]) || _finExtraDesc(row[C.exIn])) : '',
+      finalBalance: _finNum(row[C.finalBal]) || _finNum(row[C.balance]),
+      note: String(row[C.note] || '').trim(),
     });
   }
 
