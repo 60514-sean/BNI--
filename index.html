@@ -708,11 +708,15 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-week:last-child { border-bottom:none; }
 .fin-week-head {
   display:flex; justify-content:space-between; align-items:center;
-  padding:9px 12px; margin-bottom:10px;
-  background:#fdf0ef; border-radius:8px;
+  margin:-14px -14px 10px;
+  padding:10px 14px;
+  background:var(--red);
 }
-.fin-week-date { font-size:14px; font-weight:900; color:var(--red); }
-.fin-week-balance { font-size:13px; font-family:'DM Mono',monospace; font-weight:900; color:var(--red); }
+.fin-week-date { font-size:14px; font-weight:900; color:white; }
+.fin-week-balance { font-size:13px; font-family:'DM Mono',monospace; font-weight:900; color:white; }
+.fin-week-head .delta { color:var(--text); }
+.fin-week-head .delta.in  { background:white; color:var(--green); }
+.fin-week-head .delta.out { background:white; color:var(--red); }
 .note-toggle {
   display:inline-block; color:var(--text-soft); font-size:10px; line-height:1;
   cursor:pointer; padding:3px 7px; margin-left:6px;
@@ -770,7 +774,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 /* 手機版：月份明細改為 2 列堆疊（標籤+金額在上、描述全寬在下） */
 @media(max-width:640px) {
   .fin-week { padding:12px 12px 10px; }
-  .fin-week-head { padding-bottom:8px; margin-bottom:8px; }
+  .fin-week-head { margin:-12px -12px 10px; padding:9px 12px; }
   .fin-week-date { font-size:13px; }
   .fin-week-balance { font-size:12px; }
   .fin-week-balance .delta { font-size:10px; padding:1px 6px; margin-left:6px; }
