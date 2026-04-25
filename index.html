@@ -617,9 +617,26 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-budget-card .row:last-child { border-bottom:none; }
 .fin-budget-card .row .lbl { flex:1; color:var(--text); }
 .fin-budget-card .row .amt { font-family:'DM Mono',monospace; font-weight:700; min-width:70px; text-align:right; }
-.fin-unpaid { background:#fff3e0; border-left:4px solid #ff9800; padding:10px 14px; border-radius:8px; margin-bottom:14px; font-size:12px; line-height:1.7; }
+.fin-unpaid { background:#fff3e0; border-left:4px solid #ff9800; padding:10px 14px; border-radius:8px; margin-bottom:14px; font-size:12px; line-height:1.7; position:relative; }
 .fin-unpaid .ttl { font-weight:900; color:#e65100; margin-bottom:4px; }
+.fin-unpaid .copy-btn { position:absolute; top:8px; right:8px; padding:4px 10px; font-size:11px; background:#ff9800; color:white; border:none; border-radius:6px; cursor:pointer; font-family:inherit; font-weight:700; }
+.fin-unpaid .copy-btn:hover { background:#e65100; }
 .fin-empty { text-align:center; padding:60px 20px; color:var(--text-soft); font-size:14px; }
+.fin-row-btn { background:none; border:none; color:var(--text-soft); cursor:pointer; padding:2px 6px; font-size:14px; line-height:1; border-radius:4px; transition:all 0.15s; margin-left:2px; font-family:inherit; }
+.fin-row-btn:hover { background:var(--gray-light); color:var(--text); }
+.fin-row-btn.danger:hover { background:#fee; color:var(--red); }
+.fin-chart-card { background:white; border-radius:12px; box-shadow:var(--shadow); padding:16px; margin-bottom:14px; }
+.fin-chart-card h4 { font-size:13px; color:var(--red); margin-bottom:10px; font-weight:900; }
+.fin-chart-wrap { position:relative; height:220px; }
+.fin-monthly-table { width:100%; border-collapse:collapse; font-size:12px; background:white; border-radius:12px; overflow:hidden; box-shadow:var(--shadow); }
+.fin-monthly-table th { background:#f9ecec; color:var(--red); padding:8px 10px; text-align:right; font-weight:900; font-size:11px; }
+.fin-monthly-table th:first-child { text-align:left; }
+.fin-monthly-table td { padding:8px 10px; text-align:right; border-top:1px solid var(--gray-border); font-family:'DM Mono',monospace; font-weight:700; }
+.fin-monthly-table td:first-child { text-align:left; font-family:inherit; color:var(--text); }
+.fin-monthly-table td.in { color:var(--green); }
+.fin-monthly-table td.out { color:var(--red); }
+.fin-monthly-table td.bal { color:#2c5fa3; }
+.fin-monthly-table tr:last-child td { border-top:2px solid var(--text); background:#fafbfc; font-size:13px; }
 </style>
 </head>
 <body>
@@ -3515,6 +3532,7 @@ function _parseTermSheet(rows) {
     if (dateRaw) currentDate = dateRaw;
 
     records.push({
+      rowIndex: i + 1, // Apps Script 1-based row number
       date: currentDate,
       ym: _finYM(currentDate),
       type,
@@ -3646,12 +3664,17 @@ function _financeRenderMonth(m, idx) {
         ? `<div class="fin-week-extra">額外${r.extraExpense ? '支出' : '收入'} ${r.extraExpense ? '-' : '+'}${_finFmt(r.extraExpense || r.extraIncome)}${r.extraDesc ? '（' + _escH(r.extraDesc) + '）' : ''}</div>`
         : '';
       const ppl = (r.paid || r.total) ? `<span style="font-size:11px;color:var(--text-soft);margin-left:6px;">${r.paid}/${r.total}人</span>` : '';
+      const adminBtns = CR === 'admin' ? `
+        <button class="fin-row-btn" title="編輯" onclick="event.stopPropagation();openFinanceEdit(${r.rowIndex})">✎</button>
+        <button class="fin-row-btn danger" title="刪除" onclick="event.stopPropagation();confirmFinanceDelete(${r.rowIndex})">×</button>
+      ` : '';
       return `
         <div class="fin-week-row">
           <span class="fin-week-type">${_escH(r.type)}</span>
           ${amt}
           ${ppl}
           <span style="font-size:11px;color:var(--text-soft);font-family:'DM Mono',monospace;min-width:80px;text-align:right;">結${_finFmt(r.finalBalance)}</span>
+          ${adminBtns}
         </div>
         ${extra}
         ${r.note ? `<div class="fin-week-note">${_escH(r.note)}</div>` : ''}
@@ -3853,12 +3876,17 @@ function renderFinance() {
   const monthsHtml = sum.months.map((m, i) => _financeRenderMonth(m, i)).join('') || '<div class="fin-empty">本屆尚無紀錄</div>';
 
   const unpaidHtml = unpaid.length
-    ? `<div class="fin-unpaid"><div class="ttl">⚠ 未繳/待收追蹤（共 ${unpaid.length} 筆）</div>${unpaid.map(s => _escH(s)).join('<br>')}</div>`
+    ? `<div class="fin-unpaid">
+        <button class="copy-btn" onclick="copyUnpaid()">複製到 Line</button>
+        <div class="ttl">未繳／待收追蹤（共 ${unpaid.length} 筆）</div>
+        ${unpaid.map(s => _escH(s)).join('<br>')}
+       </div>`
     : '';
 
   const actionBar = `
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
       ${CR === 'admin' ? `<button class="btn btn-primary" onclick="openFinanceAdd()" style="padding:9px 16px;font-size:13px;">＋ 新增紀錄</button>` : ''}
+      ${CR === 'admin' ? `<button class="btn" onclick="openFinanceSpecial()" style="padding:9px 16px;font-size:13px;background:#fff8e1;border:1.5px solid #f9a825;color:#a06000;">＋ 特殊活動</button>` : ''}
       <button class="btn" onclick="refreshFinance()" style="padding:9px 16px;font-size:13px;background:white;border:1.5px solid var(--gray-border);color:var(--text);">↻ 重新整理</button>
       <span style="flex:1;"></span>
       ${_financeRaw && _financeRaw.updated ? `<span style="font-size:11px;color:var(--text-soft);align-self:center;">資料更新：${_escH(_financeRaw.updated.replace('T',' ').slice(0,19))}</span>` : ''}
@@ -3870,11 +3898,141 @@ function renderFinance() {
     <div class="fin-termtabs">${tabsHtml}</div>
     ${_financeRenderKpi(term, sum)}
     ${unpaidHtml}
-    <div class="fin-section-title">月份明細</div>
+    <div class="fin-section-title">結餘走勢</div>
+    <div class="fin-chart-card">
+      <div class="fin-chart-wrap"><canvas id="finTrendChart"></canvas></div>
+    </div>
+    <div class="fin-section-title">月度結算總表</div>
+    ${_renderMonthlySummary(term, sum)}
+    <div class="fin-section-title" style="margin-top:18px;">月份明細</div>
     ${monthsHtml}
     ${_financeRenderSpecial(term)}
     ${_financeRenderBudget(_financeParsed.budget)}
   `;
+
+  // 載入並繪製走勢圖
+  _ensureChartJs().then(() => _drawFinanceTrend(term));
+}
+
+function _renderMonthlySummary(term, sum) {
+  if (!sum.months.length) return '<div class="fin-empty">無資料</div>';
+  // 預期月支出（從預算扣除）
+  const budgetMonthly = _calcBudgetMonthlyExpense();
+  let totIn = 0, totOut = 0;
+  const rows = sum.months.map(m => {
+    totIn += m.inc;
+    totOut += m.exp;
+    const diff = m.exp - budgetMonthly;
+    const diffCls = diff > 0 ? 'out' : 'in';
+    const diffSign = diff > 0 ? '超支' : '節省';
+    const [yy, mm] = m.ym.split('-');
+    return `<tr>
+      <td>${parseInt(mm)} 月</td>
+      <td class="in">+${_finFmt(m.inc)}</td>
+      <td class="out">-${_finFmt(m.exp)}</td>
+      <td class="bal">${_finFmt(m.lastBal)}</td>
+      <td class="${diffCls}" title="預期月支出 ${_finFmt(budgetMonthly)}">${budgetMonthly ? `${diffSign} ${_finFmt(Math.abs(diff))}` : '—'}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <table class="fin-monthly-table">
+      <thead><tr>
+        <th>月份</th><th>收入</th><th>支出</th><th>月底結餘</th><th>預算對照</th>
+      </tr></thead>
+      <tbody>
+        ${rows}
+        <tr>
+          <td>合計</td>
+          <td class="in">+${_finFmt(totIn)}</td>
+          <td class="out">-${_finFmt(totOut)}</td>
+          <td class="bal">${_finFmt(sum.currentBalance)}</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+}
+
+function _calcBudgetMonthlyExpense() {
+  // 從預算參考表計算「每月預期支出」（固定 + 變動）
+  if (!_financeParsed || !_financeParsed.budget) return 0;
+  let total = 0;
+  for (const row of _financeParsed.budget.rows) {
+    for (let col = 0; col < row.length; col++) {
+      const cell = String(row[col] || '').trim();
+      // 只挑「金額」欄位的數字
+      const numMatch = cell.match(/^-(\d+)$/);
+      if (numMatch) total += parseInt(numMatch[1]);
+    }
+  }
+  return total;
+}
+
+let _chartJsLoaded = null;
+function _ensureChartJs() {
+  if (_chartJsLoaded) return _chartJsLoaded;
+  _chartJsLoaded = new Promise((resolve, reject) => {
+    if (window.Chart) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('chart.js load failed'));
+    document.head.appendChild(s);
+  });
+  return _chartJsLoaded;
+}
+
+let _financeTrendChart = null;
+function _drawFinanceTrend(term) {
+  const canvas = document.getElementById('finTrendChart');
+  if (!canvas || !window.Chart) return;
+  if (_financeTrendChart) { _financeTrendChart.destroy(); _financeTrendChart = null; }
+
+  const points = [];
+  if (term.initial) points.push({ x: term.initialDate || term.records[0]?.date || '', y: term.initial });
+  for (const r of term.records) {
+    if (r.finalBalance) points.push({ x: r.date, y: r.finalBalance });
+  }
+  if (!points.length) return;
+
+  _financeTrendChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: points.map(p => p.x),
+      datasets: [{
+        label: '結餘',
+        data: points.map(p => p.y),
+        borderColor: '#c0392b',
+        backgroundColor: 'rgba(192,57,43,0.08)',
+        fill: true,
+        tension: 0.25,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `結餘 ${ctx.parsed.y.toLocaleString()}`,
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 45 } },
+        y: {
+          ticks: {
+            font: { size: 10 },
+            callback: v => v.toLocaleString()
+          }
+        }
+      }
+    }
+  });
 }
 
 async function refreshFinance() {
@@ -4019,6 +4177,271 @@ async function submitFinanceAdd() {
   } catch (err) {
     showToast('儲存失敗：' + (err.message || err));
     btn.disabled = false; btn.textContent = '儲存';
+  }
+}
+
+// ===== 編輯 =====
+function _findFinanceRecord(rowIndex) {
+  if (!_financeParsed) return null;
+  for (const t of _financeParsed.terms) {
+    if (t.name !== _financeTermTab) continue;
+    const r = t.records.find(rec => rec.rowIndex === rowIndex);
+    if (r) return { term: t, record: r };
+  }
+  return null;
+}
+
+function openFinanceEdit(rowIndex) {
+  if (CR !== 'admin') { showToast('僅 admin 可編輯'); return; }
+  const found = _findFinanceRecord(rowIndex);
+  if (!found) { showToast('找不到該紀錄'); return; }
+  const r = found.record;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'financeEditModal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-title">編輯紀錄（列 ${rowIndex}）</div>
+      <div class="modal-field"><div class="modal-label">日期</div>
+        <input type="text" class="modal-input" id="finEditDate" value="${_escH(r.date)}"></div>
+      <div class="modal-field"><div class="modal-label">性質</div>
+        <input type="text" class="modal-input" id="finEditType" value="${_escH(r.type)}"></div>
+      <div style="display:flex;gap:8px;">
+        <div class="modal-field" style="flex:1;"><div class="modal-label">收入</div>
+          <input type="number" class="modal-input" id="finEditIncome" value="${r.income || ''}"></div>
+        <div class="modal-field" style="flex:1;"><div class="modal-label">支出</div>
+          <input type="number" class="modal-input" id="finEditExpense" value="${r.expense || ''}"></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <div class="modal-field" style="flex:1;"><div class="modal-label">付費人數</div>
+          <input type="number" class="modal-input" id="finEditPaid" value="${r.paid || ''}"></div>
+        <div class="modal-field" style="flex:1;"><div class="modal-label">總人數</div>
+          <input type="number" class="modal-input" id="finEditTotal" value="${r.total || ''}"></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <div class="modal-field" style="flex:1;"><div class="modal-label">額外收入</div>
+          <input type="number" class="modal-input" id="finEditExtraIn" value="${r.extraIncome || ''}"></div>
+        <div class="modal-field" style="flex:1;"><div class="modal-label">額外支出</div>
+          <input type="number" class="modal-input" id="finEditExtraOut" value="${r.extraExpense || ''}"></div>
+      </div>
+      <div class="modal-field"><div class="modal-label">額外項目說明</div>
+        <input type="text" class="modal-input" id="finEditExtraDesc" value="${_escH(r.extraDesc)}"></div>
+      <div class="modal-field"><div class="modal-label">備註</div>
+        <input type="text" class="modal-input" id="finEditNote" value="${_escH(r.note)}"></div>
+      <div class="modal-btns">
+        <button class="modal-cancel" onclick="closeFinanceEdit()">取消</button>
+        <button class="modal-save" id="finEditSave" onclick="submitFinanceEdit(${rowIndex})">儲存</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function closeFinanceEdit() {
+  const m = document.getElementById('financeEditModal');
+  if (m) m.remove();
+}
+
+async function submitFinanceEdit(rowIndex) {
+  const sheet = _financeTermTab;
+  const v = {
+    date:        document.getElementById('finEditDate').value.trim(),
+    type:        document.getElementById('finEditType').value.trim(),
+    income:      +document.getElementById('finEditIncome').value || 0,
+    expense:     +document.getElementById('finEditExpense').value || 0,
+    paid:        +document.getElementById('finEditPaid').value || 0,
+    total:       +document.getElementById('finEditTotal').value || 0,
+    extraIncome: +document.getElementById('finEditExtraIn').value || 0,
+    extraExpense:+document.getElementById('finEditExtraOut').value || 0,
+    extraDesc:   document.getElementById('finEditExtraDesc').value.trim(),
+    note:        document.getElementById('finEditNote').value.trim(),
+  };
+
+  const btn = document.getElementById('finEditSave');
+  btn.disabled = true; btn.textContent = '儲存中...';
+  try {
+    const res = await fetch(FINANCE_API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'update', sheet, rowIndex, values: v })
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'unknown');
+    showToast('已更新（後續結餘已重算）');
+    closeFinanceEdit();
+    await _fetchFinance();
+    renderFinance();
+  } catch (err) {
+    showToast('更新失敗：' + (err.message || err));
+    btn.disabled = false; btn.textContent = '儲存';
+  }
+}
+
+// ===== 刪除 =====
+function confirmFinanceDelete(rowIndex) {
+  if (CR !== 'admin') { showToast('僅 admin 可刪除'); return; }
+  const found = _findFinanceRecord(rowIndex);
+  if (!found) { showToast('找不到該紀錄'); return; }
+  const r = found.record;
+  const desc = `${r.date} ${r.type} ${r.income ? '+' + r.income : ''}${r.expense ? '-' + r.expense : ''}`;
+  if (!confirm('確定刪除此筆？\n' + desc + '\n（後續結餘會自動重算）')) return;
+  _doFinanceDelete(_financeTermTab, rowIndex);
+}
+
+async function _doFinanceDelete(sheet, rowIndex) {
+  try {
+    const res = await fetch(FINANCE_API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'delete', sheet, rowIndex })
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'unknown');
+    showToast('已刪除');
+    await _fetchFinance();
+    renderFinance();
+  } catch (err) {
+    showToast('刪除失敗：' + (err.message || err));
+  }
+}
+
+// ===== 特殊活動 =====
+let _specialItemSeq = 0;
+function openFinanceSpecial() {
+  if (CR !== 'admin') { showToast('僅 admin 可新增'); return; }
+  if (!_financeParsed || !_financeParsed.terms.length) { showToast('資料未載入'); return; }
+
+  _specialItemSeq = 0;
+  const sheets = _financeParsed.terms.map(t => t.name);
+  const defaultSheet = _financeTermTab || sheets[0];
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'financeSpecialModal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-title">＋ 新增特殊活動</div>
+      <div style="display:flex;gap:10px;margin-bottom:14px;">
+        <div class="modal-field" style="flex:1;margin-bottom:0;">
+          <div class="modal-label">屆別</div>
+          <select class="modal-input" id="finSpSheet">
+            ${sheets.map(s => `<option value="${_escH(s)}" ${s===defaultSheet?'selected':''}>${_escH(s)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="modal-field" style="flex:1;margin-bottom:0;">
+          <div class="modal-label">日期</div>
+          <input type="text" class="modal-input" id="finSpDate" value="${todayStr}">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <div class="modal-field" style="flex:2;margin-bottom:0;">
+          <div class="modal-label">活動名稱</div>
+          <input type="text" class="modal-input" id="finSpTitle" placeholder="例如：白金晚宴">
+        </div>
+        <div class="modal-field" style="flex:1;margin-bottom:0;">
+          <div class="modal-label">主收入</div>
+          <input type="number" class="modal-input" id="finSpTitleAmt" placeholder="0">
+        </div>
+      </div>
+      <div class="modal-label" style="margin-bottom:6px;font-weight:900;color:var(--text);">明細項目</div>
+      <div id="finSpItems"></div>
+      <button onclick="addSpecialItem()" style="width:100%;padding:9px;background:#f9ecec;border:1.5px dashed var(--red);color:var(--red);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:6px;">＋ 新增項目</button>
+
+      <div class="modal-field" style="margin-top:14px;">
+        <div class="modal-label">備註（主列）</div>
+        <input type="text" class="modal-input" id="finSpNote" placeholder="">
+      </div>
+
+      <div class="modal-btns">
+        <button class="modal-cancel" onclick="closeFinanceSpecial()">取消</button>
+        <button class="modal-save" id="finSpSave" onclick="submitFinanceSpecial()">儲存</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  addSpecialItem();
+  addSpecialItem();
+}
+
+function addSpecialItem() {
+  const seq = ++_specialItemSeq;
+  const wrap = document.getElementById('finSpItems');
+  if (!wrap) return;
+  const div = document.createElement('div');
+  div.id = 'finSpItem_' + seq;
+  div.style.cssText = 'display:flex;gap:6px;margin-bottom:8px;align-items:flex-end;';
+  div.innerHTML = `
+    <input type="text" class="modal-input" placeholder="名稱（例如：餐費）" id="finSpName_${seq}" style="flex:2;padding:9px 10px;font-size:13px;">
+    <select class="modal-input" id="finSpKind_${seq}" style="flex:0 0 70px;padding:9px 6px;font-size:13px;">
+      <option value="expense">支出</option>
+      <option value="income">收入</option>
+    </select>
+    <input type="number" class="modal-input" placeholder="金額" id="finSpAmt_${seq}" style="flex:1;padding:9px 10px;font-size:13px;">
+    <button onclick="document.getElementById('finSpItem_${seq}').remove()" style="padding:9px 10px;background:none;border:1.5px solid var(--gray-border);color:var(--text-soft);border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;">×</button>
+  `;
+  wrap.appendChild(div);
+}
+
+function closeFinanceSpecial() {
+  const m = document.getElementById('financeSpecialModal');
+  if (m) m.remove();
+}
+
+async function submitFinanceSpecial() {
+  const sheet = document.getElementById('finSpSheet').value;
+  const date  = document.getElementById('finSpDate').value.trim();
+  const title = document.getElementById('finSpTitle').value.trim();
+  const titleAmount = +document.getElementById('finSpTitleAmt').value || 0;
+  const note  = document.getElementById('finSpNote').value.trim();
+
+  if (!date)  { showToast('請填日期'); return; }
+  if (!title) { showToast('請填活動名稱'); return; }
+
+  const items = [];
+  const wrap = document.getElementById('finSpItems');
+  for (const child of wrap.children) {
+    const seq = child.id.split('_')[1];
+    const name = document.getElementById('finSpName_' + seq).value.trim();
+    const kind = document.getElementById('finSpKind_' + seq).value;
+    const amt  = +document.getElementById('finSpAmt_' + seq).value || 0;
+    if (!name && !amt) continue;
+    if (!name) { showToast('項目名稱不能空白'); return; }
+    items.push({ name, income: kind === 'income' ? amt : 0, expense: kind === 'expense' ? amt : 0 });
+  }
+
+  const btn = document.getElementById('finSpSave');
+  btn.disabled = true; btn.textContent = '儲存中...';
+  try {
+    const res = await fetch(FINANCE_API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'appendSpecial', sheet, date, title, titleAmount, items, note })
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'unknown');
+    showToast('已新增 ' + (j.addedRows || 0) + ' 列');
+    closeFinanceSpecial();
+    await _fetchFinance();
+    renderFinance();
+  } catch (err) {
+    showToast('儲存失敗：' + (err.message || err));
+    btn.disabled = false; btn.textContent = '儲存';
+  }
+}
+
+// ===== 未繳複製 =====
+async function copyUnpaid() {
+  if (!_financeParsed || !_financeTermTab) return;
+  const term = _financeParsed.terms.find(t => t.name === _financeTermTab);
+  if (!term) return;
+  const list = _financeUnpaid(term);
+  if (!list.length) { showToast('無未繳資料'); return; }
+  const text = `【${term.name} 未繳追蹤】\n` + list.map(s => '・' + s).join('\n');
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('已複製到剪貼簿（' + list.length + ' 筆）');
+  } catch (err) {
+    showToast('複製失敗，請手動複製');
   }
 }
 </script>
