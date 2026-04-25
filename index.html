@@ -588,29 +588,14 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-month-picker option:checked, .fin-month-picker option:hover {
   background: var(--red); color: white;
 }
-.fin-month-picker-bar {
-  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-  background:white; padding:12px 16px; border-radius:12px;
-  box-shadow:var(--shadow); margin-bottom:10px;
-}
-.fin-month-picker-bar .lbl {
-  font-size:12px; color:var(--text-soft); font-weight:700;
-}
 .fin-month-picker {
-  padding:8px 32px 8px 12px; border:1.5px solid var(--gray-border); border-radius:8px;
-  font-size:14px; font-weight:700; font-family:inherit;
+  padding:6px 30px 6px 10px; border:1.5px solid var(--gray-border); border-radius:8px;
+  font-size:13px; font-weight:700; font-family:inherit;
   background:white; cursor:pointer; appearance:none; outline:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23c0392b' d='M2 4l4 4 4-4z'/%3E%3C/svg%3E");
   background-repeat:no-repeat; background-position:right 10px center;
 }
 .fin-month-picker:focus { border-color:var(--red); }
-.fin-month-picker-bar .stat {
-  display:flex; gap:14px; font-family:'DM Mono',monospace;
-  font-size:12px; font-weight:700; margin-left:auto;
-}
-.fin-month-picker-bar .stat .s-in  { color:var(--green); }
-.fin-month-picker-bar .stat .s-out { color:var(--red); }
-.fin-month-picker-bar .stat .s-bal { color:var(--text); }
 .fin-month-weeks {
   background:white; border-radius:12px; box-shadow:var(--shadow);
   overflow:hidden; margin-bottom:14px;
@@ -619,17 +604,10 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   background:white; border-radius:12px; box-shadow:var(--shadow);
   overflow:hidden; margin-bottom:14px;
 }
-.fin-months-block .fin-month-picker-bar {
-  box-shadow:none; border-radius:0;
-  border-bottom:1px solid var(--gray-border);
-  margin-bottom:0;
-}
 .fin-months-block .fin-month-weeks {
   box-shadow:none; border-radius:0; margin-bottom:0;
 }
 @media(max-width:640px) {
-  .fin-month-picker-bar { padding:10px 12px; gap:8px; }
-  .fin-month-picker-bar .stat { font-size:11px; gap:10px; width:100%; margin-left:0; padding-top:4px; border-top:1px dashed var(--gray-border); }
   .fin-tb-btn { padding:8px 12px; font-size:12px; }
 }
 .fin-summary {
@@ -817,6 +795,8 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   line-height:1.55;
 }
 .fin-section-title { font-size:14px; font-weight:900; color:var(--text); margin:18px 0 10px; padding-left:4px; border-left:3px solid var(--red); padding-left:10px; }
+.fin-section-title-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:18px 0 10px; }
+.fin-section-title-row .fin-section-title { margin:0; }
 .fin-special-card { background:white; border-radius:12px; box-shadow:var(--shadow); padding:16px; margin-bottom:14px; }
 .fin-special-row { display:flex; align-items:center; padding:6px 0; font-size:13px; border-bottom:1px dashed var(--gray-border); }
 .fin-special-row:last-child { border-bottom:none; }
@@ -4274,10 +4254,26 @@ function renderFinance() {
     ${toolbar}
     ${_financeRenderKpi(term, sum)}
     ${_financeRenderReceivables()}
-    <div class="fin-section-title">月份明細</div>
+    <div class="fin-section-title-row">
+      <div class="fin-section-title">月份明細</div>
+      ${_financeRenderMonthPicker(sum)}
+    </div>
     ${_renderMonthsBlock(term, sum)}
     ${_financeRenderSpecial(term)}
   `;
+}
+
+function _financeRenderMonthPicker(sum) {
+  if (!sum.months.length) return '';
+  const isOverview = _financeSelectedMonth === '__overview__';
+  const pickerOptions = [
+    `<option value="__overview__" ${isOverview?'selected':''}>本屆概況</option>`,
+    ...sum.months.map(m => {
+      const [yy, mm] = m.ym.split('-');
+      return `<option value="${m.ym}" ${m.ym===_financeSelectedMonth?'selected':''}>${yy} 年 ${parseInt(mm)} 月</option>`;
+    })
+  ].join('');
+  return `<select class="fin-month-picker" onchange="selectFinanceMonth(this.value)">${pickerOptions}</select>`;
 }
 
 function _renderMonthsBlock(term, sum) {
@@ -4286,44 +4282,12 @@ function _renderMonthsBlock(term, sum) {
   const isOverview = _financeSelectedMonth === '__overview__';
   const selected = isOverview ? null : sum.months.find(m => m.ym === _financeSelectedMonth);
 
-  const pickerOptions = [
-    `<option value="__overview__" ${isOverview?'selected':''}>本屆概況</option>`,
-    ...sum.months.map(m => {
-      const [yy, mm] = m.ym.split('-');
-      return `<option value="${m.ym}" ${m.ym===_financeSelectedMonth?'selected':''}>${yy} 年 ${parseInt(mm)} 月</option>`;
-    })
-  ].join('');
-
-  let statsHtml = '';
-  if (isOverview) {
-    statsHtml = `
-      <span class="stat">
-        <span class="s-in">+${_finFmt(sum.totalIncome)}</span>
-        <span class="s-out">-${_finFmt(sum.totalExpense)}</span>
-        <span class="s-bal">${_finFmt(sum.currentBalance)}</span>
-      </span>
-    `;
-  } else if (selected) {
-    statsHtml = `
-      <span class="stat">
-        <span class="s-in">+${_finFmt(selected.inc)}</span>
-        <span class="s-out">-${_finFmt(selected.exp)}</span>
-        <span class="s-bal">${_finFmt(selected.lastBal)}</span>
-      </span>
-    `;
-  }
-
   const contentHtml = isOverview
     ? _financeRenderTermOverview(sum)
     : (selected ? `<div class="fin-month-weeks">${_financeRenderMonthWeeks(selected)}</div>` : '<div class="fin-empty">未選擇月份</div>');
 
   return `
     <div class="fin-months-block">
-      <div class="fin-month-picker-bar">
-        <span class="lbl">月份</span>
-        <select class="fin-month-picker" onchange="selectFinanceMonth(this.value)">${pickerOptions}</select>
-        ${statsHtml}
-      </div>
       ${contentHtml}
     </div>
   `;
