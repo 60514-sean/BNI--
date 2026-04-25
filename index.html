@@ -839,13 +839,21 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   display:flex; gap:8px; align-items:center; flex-wrap:wrap;
   margin-bottom:10px;
 }
-.fin-recv-filter { display:flex; gap:4px; }
-.fin-recv-filter button {
-  padding:6px 12px; border:1.5px solid var(--gray-border); background:white;
-  color:var(--text-soft); border-radius:8px; font-size:12px; font-weight:700;
-  cursor:pointer; font-family:inherit;
+.fin-recv-filter-select {
+  padding:7px 30px 7px 12px;
+  border:1.5px solid var(--gray-border); border-radius:8px;
+  font-size:12px; font-weight:700; color:var(--text);
+  background:white; cursor:pointer; outline:none; font-family:inherit;
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23c0392b' d='M2 4l4 4 4-4z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 8px center;
 }
-.fin-recv-filter button.active { background:var(--red); color:white; border-color:var(--red); }
+.fin-recv-filter-select:focus {
+  border-color:var(--red);
+  box-shadow:0 0 0 3px rgba(192,57,43,0.15);
+}
+.fin-recv-filter-select option:checked,
+.fin-recv-filter-select option:hover { background:var(--red); color:white; }
 .fin-recv-total {
   background:white; border:1.5px solid var(--red); color:var(--red);
   padding:5px 12px; border-radius:8px;
@@ -4363,11 +4371,11 @@ function _financeRenderReceivables() {
 
   const filterBar = `
     <div class="fin-recv-bar">
-      <div class="fin-recv-filter">
-        <button class="${_receivableFilter==='unpaid'?'active':''}" onclick="setReceivableFilter('unpaid')">未繳 ${unpaid.length}</button>
-        <button class="${_receivableFilter==='paid'?'active':''}" onclick="setReceivableFilter('paid')">已繳 ${paid.length}</button>
-        <button class="${_receivableFilter==='all'?'active':''}" onclick="setReceivableFilter('all')">全部 ${list.length}</button>
-      </div>
+      <select class="fin-recv-filter-select" onchange="setReceivableFilter(this.value)">
+        <option value="unpaid" ${_receivableFilter==='unpaid'?'selected':''}>未繳 ${unpaid.length}</option>
+        <option value="paid"   ${_receivableFilter==='paid'?'selected':''}>已繳 ${paid.length}</option>
+        <option value="all"    ${_receivableFilter==='all'?'selected':''}>全部 ${list.length}</option>
+      </select>
       ${unpaid.length ? `<span class="fin-recv-total">未繳合計 ${_finFmt(totalUnpaid)}</span>` : ''}
       <span style="flex:1;"></span>
       ${CR === 'admin' ? `<button class="btn btn-primary" style="padding:7px 14px;font-size:12px;" onclick="openReceivableAdd()">＋ 新增應收</button>` : ''}
