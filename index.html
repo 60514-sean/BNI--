@@ -837,7 +837,12 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 /* 應收追蹤 */
 .fin-recv-bar {
   display:flex; gap:8px; align-items:center; flex-wrap:wrap;
-  margin-bottom:10px;
+  margin:18px 0 10px;
+}
+.fin-recv-title {
+  font-size:14px; font-weight:900; color:var(--text);
+  padding-left:10px; border-left:3px solid var(--red);
+  line-height:1.2;
 }
 .fin-recv-filter-select {
   padding:7px 30px 7px 12px;
@@ -4269,7 +4274,6 @@ function renderFinance() {
   el.innerHTML = `
     ${toolbar}
     ${_financeRenderKpi(term, sum)}
-    <div class="fin-section-title">應收追蹤</div>
     ${_financeRenderReceivables()}
     <div class="fin-section-title">月份明細</div>
     ${_renderMonthsBlock(term, sum)}
@@ -4371,6 +4375,7 @@ function _financeRenderReceivables() {
 
   const filterBar = `
     <div class="fin-recv-bar">
+      <span class="fin-recv-title">應收追蹤</span>
       ${unpaid.length ? `<span class="fin-recv-total">未繳合計 ${_finFmt(totalUnpaid)}</span>` : ''}
       <span style="flex:1;"></span>
       <select class="fin-recv-filter-select" onchange="setReceivableFilter(this.value)">
