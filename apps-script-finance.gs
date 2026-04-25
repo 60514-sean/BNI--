@@ -315,6 +315,186 @@ function _today() {
   return Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd');
 }
 
+// =============== 一次性遷移：把 H/I 額外欄拆成獨立列 ===============
+/**
+ * 預覽（不實際寫入）：在執行紀錄看會發生什麼
+ *   工具列「執行」→ 選 migrateExtrasToRows_preview → ▶
+ */
+function migrateExtrasToRows_preview() {
+  return _doMigration(true);
+}
+
+/**
+ * 正式遷移
+ *   工具列「執行」→ 選 migrateExtrasToRows → ▶
+ *   ⚠ 不可逆，請先建立試算表副本備份
+ */
+function migrateExtrasToRows() {
+  return _doMigration(false);
+}
+
+// 多金額儲存格的覆寫對照表（依 KK 與使用者確認）
+const EXTRA_OVERRIDES = [
+  {
+    match: '4400+4300',
+    items: [
+      { kind: 'expense', amount: 4400, desc: '子揚請款' },
+      { kind: 'expense', amount: 4300, desc: 'Happy請款' }
+    ]
+  },
+  {
+    match: '宥瑩請款1012',
+    items: [
+      { kind: 'expense', amount: 1012, desc: '宥瑩請款（會員名牌）' },
+      { kind: 'expense', amount: 10,   desc: '仲博請款（影印）' }
+    ]
+  },
+  {
+    match: '五冠王+專題',
+    items: [
+      { kind: 'expense', amount: 165, desc: '五冠王+專題請款' },
+      { kind: 'expense', amount: 408, desc: '會員DM請款' }
+    ]
+  },
+  {
+    match: '600+1430+900',
+    items: [
+      { kind: 'expense', amount: 600,  desc: '小哈請款' },
+      { kind: 'expense', amount: 1430, desc: '秘財請款' },
+      { kind: 'expense', amount: 900,  desc: '蕙如請款' }
+    ]
+  }
+];
+
+function _doMigration(previewOnly) {
+  const ss = SpreadsheetApp.openById(FINANCE_SHEET_ID);
+  const summary = { previewOnly, sheets: [], totalSplit: 0, warnings: [], overrides: [] };
+
+  ss.getSheets().forEach(function (sheet) {
+    const name = sheet.getName();
+    if (name === RECEIVABLE_SHEET) return;
+
+    const headers = sheet.getRange(1, 1, 1, 11).getValues()[0];
+    if (String(headers[0]).trim() !== '日期' || String(headers[1]).trim() !== '性質') return;
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+
+    const data = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
+    let splitCount = 0;
+
+    // 由下往上處理，避免插入後索引錯位
+    for (let i = data.length - 1; i >= 0; i--) {
+      const row = data[i];
+      const sheetRow = i + 2;
+      const extraIn  = row[7];
+      const extraOut = row[8];
+
+      const newRows = [];
+      const localWarn = [];
+
+      const inItems  = _parseExtraValue(extraIn,  'income',  localWarn, summary.overrides, name + ' 列' + sheetRow);
+      for (const it of inItems) {
+        newRows.push(['', it.desc || '額外收入', it.amount, '', '', '', '', '', '', '', '']);
+      }
+
+      const outItems = _parseExtraValue(extraOut, 'expense', localWarn, summary.overrides, name + ' 列' + sheetRow);
+      for (const it of outItems) {
+        newRows.push(['', it.desc || '額外支出', '', it.amount, '', '', '', '', '', '', '']);
+      }
+
+      for (const w of localWarn) summary.warnings.push(name + ' 列' + sheetRow + '：' + w);
+
+      if (!newRows.length) continue;
+
+      if (!previewOnly) {
+        sheet.getRange(sheetRow, 8).setValue('');
+        sheet.getRange(sheetRow, 9).setValue('');
+        sheet.insertRowsAfter(sheetRow, newRows.length);
+        sheet.getRange(sheetRow + 1, 1, newRows.length, 11).setValues(newRows);
+      }
+      splitCount += newRows.length;
+    }
+
+    if (!previewOnly && splitCount > 0) {
+      _recalcBalancesFrom(sheet, 2);
+    }
+    if (splitCount > 0) {
+      summary.sheets.push(name + '（拆 ' + splitCount + ' 列）');
+      summary.totalSplit += splitCount;
+    }
+  });
+
+  Logger.log('========================================');
+  Logger.log('%s', previewOnly ? '【PREVIEW 模式】未實際寫入' : '【遷移完成】已實際寫入');
+  Logger.log('總拆出列數：%s', summary.totalSplit);
+  Logger.log('處理分頁：%s', summary.sheets.join('; ') || '(無)');
+  if (summary.overrides.length) {
+    Logger.log('套用覆寫規則 (%s 處)：', summary.overrides.length);
+    summary.overrides.forEach(function (o) { Logger.log('  ' + o); });
+  }
+  if (summary.warnings.length) {
+    Logger.log('⚠ 警告 (%s 筆)：', summary.warnings.length);
+    summary.warnings.forEach(function (w) { Logger.log('  ' + w); });
+  } else {
+    Logger.log('無警告');
+  }
+  Logger.log('========================================');
+  return summary;
+}
+
+/**
+ * 解析一個額外欄儲存格 → 回傳 [{amount, desc}, ...]
+ * 多筆金額會優先套用 EXTRA_OVERRIDES，否則合併並警告
+ */
+function _parseExtraValue(cell, defaultKind, warnings, overrideLog, ctx) {
+  if (cell === '' || cell === null || cell === undefined) return [];
+  if (typeof cell === 'number') {
+    if (!cell) return [];
+    return [{ amount: Math.abs(cell), desc: '' }];
+  }
+  const s = String(cell).trim();
+  if (!s) return [];
+
+  // 覆寫規則
+  for (const ov of EXTRA_OVERRIDES) {
+    if (s.indexOf(ov.match) !== -1) {
+      const matched = ov.items.filter(function (it) { return it.kind === defaultKind; });
+      if (matched.length) {
+        if (overrideLog) overrideLog.push(ctx + '：套用覆寫「' + ov.match + '」→ 拆 ' + matched.length + ' 筆');
+        return matched.map(function (it) { return { amount: it.amount, desc: it.desc }; });
+      }
+    }
+  }
+
+  // 通用：抓所有正整數
+  const numMatches = s.match(/\d[\d,，]*(\.\d+)?/g) || [];
+  const numbers = numMatches
+    .map(function (n) { return Number(n.replace(/[,，]/g, '')); })
+    .filter(function (n) { return !isNaN(n) && n > 0; });
+
+  if (numbers.length === 0) {
+    if (warnings) warnings.push('無法解析金額：「' + s + '」（已跳過）');
+    return [];
+  }
+
+  if (numbers.length === 1) {
+    const amt = numbers[0];
+    const desc = s
+      .replace(/\d[\d,，]*(\.\d+)?/, '')
+      .replace(/[（()]/g, '')
+      .replace(/^[、，,\s.\-+]+|[、，,\s.\-+]+$/g, '')
+      .trim();
+    return [{ amount: amt, desc: desc }];
+  }
+
+  // 多筆但無覆寫 → 合併
+  const total = numbers.reduce(function (s, n) { return s + n; }, 0);
+  const desc = s.replace(/[（()]/g, '').trim();
+  if (warnings) warnings.push('多筆金額「' + s + '」→ 合併為 ' + total + '（請手動確認）');
+  return [{ amount: total, desc: desc }];
+}
+
 // =============== Helpers ===============
 function _findLastBalance(sheet, lastRow) {
   for (let r = lastRow; r >= 1; r--) {
@@ -350,25 +530,36 @@ function _monthOfDate(s) {
 function _recalcBalancesFrom(sheet, fromRow) {
   const lastRow = sheet.getLastRow();
   if (fromRow > lastRow) return;
-  // 從 fromRow-1 找上一個結餘做起點
   let runningBal = _findLastBalance(sheet, fromRow - 1);
+
   for (let r = fromRow; r <= lastRow; r++) {
     const row = sheet.getRange(r, 1, 1, 11).getValues()[0];
-    const type = String(row[1] || '');
-    // 跳過月份標題列、初始列、空列、特殊活動標題
-    if (!row[0] && !row[2] && !row[3] && !row[7] && !row[8] && row[1] && /屆\s*\d+月|初始/.test(type)) continue;
-    if (!row[2] && !row[3] && !row[7] && !row[8] && !row[4] && !row[9]) continue;
+    const date = String(row[0] || '').trim();
+    const type = String(row[1] || '').trim();
 
-    const income = _num(row[2]);
-    const expense = _num(row[3]);
-    const extraIncome = _extractAmount(row[7]);
+    // 完全空白列 → 跳過
+    if (!date && !type && !row[2] && !row[3] && !row[7] && !row[8]) continue;
+
+    // 月份標題 / 屆期初始 → 不重算，但若有結餘則更新 runningBal
+    const isMonthHeader = /第[一二三四五六七八九十]屆\s*\d+月/.test(type) || /第[一二三四五六七八九十]屆\s*\d+月/.test(date);
+    const isInitial     = /初始/.test(type) || /^第[一二三四五六七八九十]期初始$/.test(type);
+    if (isMonthHeader || isInitial) {
+      const e = Number(row[4]);
+      if (!isNaN(e) && row[4] !== '' && row[4] !== null) runningBal = e;
+      continue;
+    }
+
+    // 一般資料列：重算 E、J
+    const income       = _num(row[2]);
+    const expense      = _num(row[3]);
+    const extraIncome  = _extractAmount(row[7]);
     const extraExpense = _extractAmount(row[8]);
 
     runningBal = runningBal + income - expense;
-    if (row[4] !== '' && row[4] !== null) sheet.getRange(r, 5).setValue(runningBal);
+    sheet.getRange(r, 5).setValue(runningBal);
 
     runningBal = runningBal + extraIncome - extraExpense;
-    if (row[9] !== '' && row[9] !== null) sheet.getRange(r, 10).setValue(runningBal);
+    sheet.getRange(r, 10).setValue(runningBal);
   }
 }
 
