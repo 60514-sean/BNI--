@@ -386,10 +386,10 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36mm;
+  font-size: 28mm;
   font-weight: 900;
-  letter-spacing: 3mm;
-  padding-left: 3mm;
+  letter-spacing: 4mm;
+  padding-left: 4mm;
   line-height: 1;
   color: #8a8a8a;
   white-space: nowrap;
@@ -404,13 +404,52 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  font-size: 12mm;
+  font-size: 9mm;
   font-weight: 900;
   letter-spacing: 1mm;
   color: var(--red);
   white-space: nowrap;
   box-sizing: border-box;
 }
+
+/* 會員選單 */
+.mplacard-selector { position: relative; margin-top: 14px; }
+.mplacard-selector-btn {
+  width: 100%; padding: 11px 14px;
+  border: 1.5px solid var(--gray-border); border-radius: 10px;
+  background: white; color: var(--text);
+  font-size: 14px; font-weight: 700; font-family: inherit;
+  cursor: pointer; text-align: left;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.mplacard-selector-btn:hover { border-color: var(--red); }
+.mplacard-selector-panel {
+  position: absolute; top: 100%; left: 0; right: 0;
+  margin-top: 4px; background: white;
+  border: 1.5px solid var(--gray-border); border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+  z-index: 20; padding: 12px;
+  max-height: 360px; overflow-y: auto;
+}
+.mplacard-selector-actions {
+  display: flex; gap: 8px; margin-bottom: 10px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--gray-border);
+}
+.mplacard-selector-actions button {
+  padding: 6px 12px; border: 1px solid var(--gray-border); border-radius: 6px;
+  background: white; cursor: pointer; font-size: 12px; font-family: inherit;
+}
+.mplacard-selector-actions button:hover { border-color: var(--red); color: var(--red); }
+.mplacard-selector-list {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px;
+}
+.mplacard-selector-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px; border-radius: 6px;
+  cursor: pointer; font-size: 13px; user-select: none;
+}
+.mplacard-selector-item:hover { background: #f5f5f5; }
+.mplacard-selector-item input { cursor: pointer; }
 
 /* MEMBER PAGE */
 .member-search {
@@ -3061,8 +3100,33 @@ async function _deleteGuest(year, row) {
 
 // ===== 桌牌製作 =====
 let _placardSubTab = 'guest';        // 'guest' | 'member'
+let _placardMemberSelected = null;   // null = 全選；Set<sheetRow> = 自訂
+let _placardMemberPanelOpen = false;
 
 function _placardSwitch(v) { _placardSubTab = v; renderPlacard(); }
+
+function _getSelectedMembers() {
+  if (!_memberData) return [];
+  if (_placardMemberSelected === null) return [..._memberData];
+  return _memberData.filter(m => _placardMemberSelected.has(String(m.sheetRow)));
+}
+
+function _placardSelectAll() { _placardMemberSelected = null; renderPlacard(); }
+function _placardSelectNone() { _placardMemberSelected = new Set(); renderPlacard(); }
+function _placardToggleMember(sheetRow) {
+  const key = String(sheetRow);
+  if (_placardMemberSelected === null) {
+    _placardMemberSelected = new Set(_memberData.map(m => String(m.sheetRow)));
+  }
+  if (_placardMemberSelected.has(key)) _placardMemberSelected.delete(key);
+  else _placardMemberSelected.add(key);
+  renderPlacard();
+}
+function _placardToggleSelectorPanel() {
+  _placardMemberPanelOpen = !_placardMemberPanelOpen;
+  const p = document.getElementById('mplacardPanel');
+  if (p) p.style.display = _placardMemberPanelOpen ? '' : 'none';
+}
 
 async function renderPlacard() {
   _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
@@ -3078,13 +3142,15 @@ async function renderPlacard() {
 
   const subBtn = (v, label) => `<button class="signin-subtab ${tab===v?'active':''}" onclick="_placardSwitch('${v}')">${label}</button>`;
 
-  const weekGuests = tab === 'guest' ? _getWeekGuestsForSignin() : [];
-  const members    = tab === 'member' ? [..._memberData] : [];
-  const count = tab === 'guest' ? weekGuests.length : members.length;
+  const weekGuests   = tab === 'guest'  ? _getWeekGuestsForSignin() : [];
+  const allMembers   = tab === 'member' ? [..._memberData]           : [];
+  const sel          = tab === 'member' ? _getSelectedMembers()      : [];
+  const count        = tab === 'guest'  ? weekGuests.length          : sel.length;
+  const totalMembers = allMembers.length;
   const title = tab === 'guest' ? '來賓桌牌' : '會員桌牌';
   const desc  = tab === 'guest'
     ? `本周 ${count} 位 · ${count} 張 A4（每張 1 位，上下對摺為立牌）`
-    : `共 ${count} 位會員 · ${count} 張 A4（每張 1 位，上下對摺為立牌）`;
+    : `已選 ${count} / ${totalMembers} 位 · ${Math.ceil(count/2)} 張 A4（每張 2 位，上下對摺為立牌）`;
 
   el.innerHTML = `<div class="placard-wrapper">
     <div class="card" style="margin-bottom:14px;padding:16px 20px;">
@@ -3099,13 +3165,37 @@ async function renderPlacard() {
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;">
-        ${subBtn('guest','來賓')}
         ${subBtn('member','會員')}
+        ${subBtn('guest','來賓')}
       </div>
+      ${tab === 'member' ? _memberSelectorHtml(allMembers) : ''}
     </div>
-    ${_placardBodyHtml(tab, weekGuests, members)}
+    ${_placardBodyHtml(tab, weekGuests, sel)}
   </div>`;
   _scalePlacard();
+}
+
+function _memberSelectorHtml(members) {
+  const sel = _getSelectedMembers();
+  const isSelected = (m) => _placardMemberSelected === null || _placardMemberSelected.has(String(m.sheetRow));
+  const items = members.map(m => `
+    <label class="mplacard-selector-item">
+      <input type="checkbox" ${isSelected(m) ? 'checked' : ''} onchange="_placardToggleMember('${m.sheetRow}')">
+      <span>${_escH(m.name)}</span>
+    </label>`).join('');
+  return `<div class="mplacard-selector">
+    <button class="mplacard-selector-btn" onclick="_placardToggleSelectorPanel()">
+      <span>選擇會員（已選 ${sel.length} / ${members.length} 位）</span>
+      <span style="color:var(--text-soft);font-size:12px;">${_placardMemberPanelOpen ? '▲' : '▼'}</span>
+    </button>
+    <div class="mplacard-selector-panel" id="mplacardPanel" style="display:${_placardMemberPanelOpen ? '' : 'none'};">
+      <div class="mplacard-selector-actions">
+        <button onclick="_placardSelectAll()">全選</button>
+        <button onclick="_placardSelectNone()">全不選</button>
+      </div>
+      <div class="mplacard-selector-list">${items}</div>
+    </div>
+  </div>`;
 }
 
 function _placardBodyHtml(tab, weekGuests, members) {
@@ -3118,7 +3208,10 @@ function _placardBodyHtml(tab, weekGuests, members) {
       </div>`;
   }
   if (!members.length) {
-    return `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">沒有會員資料</div>`;
+    return `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">
+      尚未選取任何會員<br>
+      <span style="font-size:12px;">請點擊上方「選擇會員」下拉選單勾選要製作的會員</span>
+    </div>`;
   }
   return `<div class="placard-preview-outer" id="placardOuter">
       <div class="placard-preview-inner" id="placardInner">${_buildMemberPlacardSheets(members)}</div>
@@ -3140,10 +3233,10 @@ function _memberPlacardSheetHtml(memberA, memberB) {
     <div class="mplacard-name-box">${_escH(m.name || '')}</div>` : '';
   const rowB_empty = memberB ? '' : 'empty';
   return `<div class="placard-sheet mplacard-sheet">
-    <div class="mplacard-row rotated ${rowB_empty}" style="${bg}">${content(memberB)}</div>
-    <div class="mplacard-row ${rowB_empty}" style="${bg}">${content(memberB)}</div>
     <div class="mplacard-row rotated" style="${bg}">${content(memberA)}</div>
     <div class="mplacard-row" style="${bg}">${content(memberA)}</div>
+    <div class="mplacard-row rotated ${rowB_empty}" style="${bg}">${content(memberB)}</div>
+    <div class="mplacard-row ${rowB_empty}" style="${bg}">${content(memberB)}</div>
   </div>`;
 }
 
