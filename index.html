@@ -623,11 +623,13 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   background:white; border-radius:12px; box-shadow:var(--shadow);
   overflow:hidden; margin-bottom:14px;
 }
-.fin-months-block .fin-monthly-table { box-shadow:none; border-radius:0; }
-.fin-months-block .fin-month-weeks {
+.fin-months-block .fin-month-picker-bar {
   box-shadow:none; border-radius:0;
-  border-top:1px solid var(--gray-border);
+  border-bottom:1px solid var(--gray-border);
   margin-bottom:0;
+}
+.fin-months-block .fin-month-weeks {
+  box-shadow:none; border-radius:0; margin-bottom:0;
 }
 @media(max-width:640px) {
   .fin-month-picker-bar { padding:10px 12px; gap:8px; }
@@ -712,7 +714,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-week-date { font-size:14px; font-weight:900; color:var(--red); }
 .fin-week-balance { font-size:13px; font-family:'DM Mono',monospace; font-weight:900; color:var(--red); }
 .note-toggle {
-  display:inline-block; color:var(--red); font-size:10px; line-height:1;
+  display:inline-block; color:var(--text-soft); font-size:10px; line-height:1;
   cursor:pointer; padding:3px 7px; margin-left:6px;
   border:1px solid var(--gray-border); border-radius:4px;
   transition:transform 0.15s, background 0.15s;
@@ -720,6 +722,10 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 }
 .note-toggle:hover { background:var(--gray-light); }
 .note-toggle.open { transform:rotate(90deg); }
+.note-toggle.in  { color:var(--green); border-color:#bfe5b8; }
+.note-toggle.in:hover  { background:#eef9ec; }
+.note-toggle.out { color:var(--red);   border-color:#f5c6c6; }
+.note-toggle.out:hover { background:#fdeeec; }
 .fin-week-balance .delta { font-size:11px; margin-left:8px; padding:2px 8px; border-radius:10px; font-weight:700; }
 .fin-week-balance .delta.in { background:#eef9ec; color:var(--green); }
 .fin-week-balance .delta.out { background:#fdeeec; color:var(--red); }
@@ -4024,7 +4030,7 @@ function _financeRenderMonthWeeks(m) {
       const amtStr = L.amt > 0 ? `${sign}${_finFmt(L.amt)}` : '—';
       const tagHtml = L.kind ? `<span class="tag ${L.kind}">${tag}</span>` : `<span></span>`;
       const noteToggle = (L.main && L.hasNote)
-        ? `<span class="note-toggle ${L.noteOpen?'open':''}" onclick="event.stopPropagation();toggleFinanceNote(${L.rowIndex})" title="${L.noteOpen?'收合':'展開'}備註">▶</span>`
+        ? `<span class="note-toggle ${L.kind || ''} ${L.noteOpen?'open':''}" onclick="event.stopPropagation();toggleFinanceNote(${L.rowIndex})" title="${L.noteOpen?'收合':'展開'}備註">▶</span>`
         : '';
       const isClickable = (CR === 'admin' && L.main);
       const cls = `fin-line${L.sub?' sub':''}${isClickable?' clickable':''}`;
@@ -4271,49 +4277,28 @@ function renderFinance() {
 function _renderMonthsBlock(term, sum) {
   if (!sum.months.length) return '<div class="fin-empty">本屆尚無紀錄</div>';
 
-  const budgetMonthly = _calcBudgetMonthlyExpense();
-  let totIn = 0, totOut = 0;
-  const rows = sum.months.map(m => {
-    totIn += m.inc;
-    totOut += m.exp;
-    const diff = m.exp - budgetMonthly;
-    const diffCls = diff > 0 ? 'out' : 'in';
-    const diffSign = diff > 0 ? '超支' : '節省';
+  const selected = sum.months.find(m => m.ym === _financeSelectedMonth);
+  if (!selected) return '<div class="fin-empty">未選擇月份</div>';
+
+  const pickerOptions = sum.months.map(m => {
     const [yy, mm] = m.ym.split('-');
-    const isActive = m.ym === _financeSelectedMonth;
-    return `<tr class="${isActive?'active':''}" onclick="selectFinanceMonth('${m.ym}')">
-      <td>${parseInt(mm)} 月</td>
-      <td class="in">+${_finFmt(m.inc)}</td>
-      <td class="out">-${_finFmt(m.exp)}</td>
-      <td class="bal">${_finFmt(m.lastBal)}</td>
-      <td class="${diffCls}" title="預期月支出 ${_finFmt(budgetMonthly)}">${budgetMonthly ? `${diffSign} ${_finFmt(Math.abs(diff))}` : '—'}</td>
-    </tr>`;
+    return `<option value="${m.ym}" ${m.ym===_financeSelectedMonth?'selected':''}>${yy} 年 ${parseInt(mm)} 月</option>`;
   }).join('');
 
-  const tableHtml = `
-    <table class="fin-monthly-table">
-      <thead><tr>
-        <th>月份</th><th>收入</th><th>支出</th><th>月底結餘</th><th>預算對照</th>
-      </tr></thead>
-      <tbody>
-        ${rows}
-        <tr class="total-row">
-          <td>合計</td>
-          <td class="in">+${_finFmt(totIn)}</td>
-          <td class="out">-${_finFmt(totOut)}</td>
-          <td class="bal">${_finFmt(sum.currentBalance)}</td>
-          <td>—</td>
-        </tr>
-      </tbody>
-    </table>
+  return `
+    <div class="fin-months-block">
+      <div class="fin-month-picker-bar">
+        <span class="lbl">月份</span>
+        <select class="fin-month-picker" onchange="selectFinanceMonth(this.value)">${pickerOptions}</select>
+        <span class="stat">
+          <span class="s-in">+${_finFmt(selected.inc)}</span>
+          <span class="s-out">-${_finFmt(selected.exp)}</span>
+          <span class="s-bal">${_finFmt(selected.lastBal)}</span>
+        </span>
+      </div>
+      <div class="fin-month-weeks">${_financeRenderMonthWeeks(selected)}</div>
+    </div>
   `;
-
-  const selected = sum.months.find(m => m.ym === _financeSelectedMonth);
-  const weeksHtml = selected
-    ? `<div class="fin-month-weeks">${_financeRenderMonthWeeks(selected)}</div>`
-    : '';
-
-  return `<div class="fin-months-block">${tableHtml}${weeksHtml}</div>`;
 }
 
 // （保留舊函式以防其他地方引用，但已不被 renderFinance 呼叫）
