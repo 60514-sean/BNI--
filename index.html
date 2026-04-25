@@ -552,16 +552,66 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 }
 
 /* 財務控管 */
+.fin-toolbar {
+  display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  margin-bottom:6px;
+}
+.fin-toolbar .fin-term-select { flex:1; min-width:140px; margin-bottom:0; }
+.fin-tb-btn {
+  padding:9px 14px; font-size:13px; font-weight:700;
+  border-radius:10px; border:1.5px solid var(--gray-border);
+  background:white; color:var(--text); cursor:pointer;
+  font-family:inherit; white-space:nowrap;
+}
+.fin-tb-btn.primary { background:var(--red); color:white; border-color:var(--red); }
+.fin-tb-btn.primary:hover { background:var(--red-dark); }
+.fin-tb-btn:not(.primary):hover { border-color:var(--red); color:var(--red); }
+.fin-update-time {
+  font-size:11px; color:var(--text-soft); text-align:right;
+  margin-bottom:12px;
+}
 .fin-term-select {
-  width:100%; padding:12px 16px; border:1.5px solid var(--gray-border);
-  border-radius:12px; font-size:15px; font-weight:700; color:var(--text);
+  width:100%; padding:11px 16px; border:1.5px solid var(--gray-border);
+  border-radius:10px; font-size:14px; font-weight:700; color:var(--text);
   background:white; outline:none; font-family:inherit;
   margin-bottom:14px; cursor:pointer; appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23c0392b' d='M2 4l4 4 4-4z'/%3E%3C/svg%3E");
-  background-repeat:no-repeat; background-position:right 16px center;
-  padding-right:40px;
+  background-repeat:no-repeat; background-position:right 14px center;
+  padding-right:36px;
 }
 .fin-term-select:focus { border-color:var(--red); }
+.fin-month-picker-bar {
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  background:white; padding:12px 16px; border-radius:12px;
+  box-shadow:var(--shadow); margin-bottom:10px;
+}
+.fin-month-picker-bar .lbl {
+  font-size:12px; color:var(--text-soft); font-weight:700;
+}
+.fin-month-picker {
+  padding:8px 32px 8px 12px; border:1.5px solid var(--gray-border); border-radius:8px;
+  font-size:14px; font-weight:700; font-family:inherit;
+  background:white; cursor:pointer; appearance:none; outline:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23c0392b' d='M2 4l4 4 4-4z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 10px center;
+}
+.fin-month-picker:focus { border-color:var(--red); }
+.fin-month-picker-bar .stat {
+  display:flex; gap:14px; font-family:'DM Mono',monospace;
+  font-size:12px; font-weight:700; margin-left:auto;
+}
+.fin-month-picker-bar .stat .s-in  { color:var(--green); }
+.fin-month-picker-bar .stat .s-out { color:var(--red); }
+.fin-month-picker-bar .stat .s-bal { color:var(--text); }
+.fin-month-weeks {
+  background:white; border-radius:12px; box-shadow:var(--shadow);
+  overflow:hidden; margin-bottom:14px;
+}
+@media(max-width:640px) {
+  .fin-month-picker-bar { padding:10px 12px; gap:8px; }
+  .fin-month-picker-bar .stat { font-size:11px; gap:10px; width:100%; margin-left:0; padding-top:4px; border-top:1px dashed var(--gray-border); }
+  .fin-tb-btn { padding:8px 12px; font-size:12px; }
+}
 .fin-summary {
   background:white; border-radius:14px; box-shadow:var(--shadow);
   padding:22px; margin-bottom:14px;
@@ -3635,6 +3685,7 @@ let _financeRaw = null;
 let _financeParsed = null;
 let _financeTermTab = null;
 let _financeMonthsOpen = {};
+let _financeSelectedMonth = null;
 let _receivableFilter = 'unpaid'; // all | unpaid | paid
 
 function _finNum(v) {
@@ -3885,8 +3936,7 @@ function _financeRenderKpi(term, sum) {
   `;
 }
 
-function _financeRenderMonth(m, idx) {
-  const open = !!_financeMonthsOpen[m.ym];
+function _financeRenderMonthWeeks(m) {
   const weekMap = {};
   for (const r of m.records) {
     if (!weekMap[r.date]) weekMap[r.date] = [];
@@ -3952,21 +4002,12 @@ function _financeRenderMonth(m, idx) {
     `;
   }).join('');
 
-  const [yy, mm] = m.ym.split('-');
-  return `
-    <div class="fin-month ${open ? 'open' : ''}">
-      <div class="fin-month-head" onclick="toggleFinanceMonth('${m.ym}')">
-        <span class="arrow">▶</span>
-        <span class="fin-month-title">${yy} 年 ${parseInt(mm)} 月</span>
-        <span class="fin-month-stat">
-          <span class="s-in">+${_finFmt(m.inc)}</span>
-          <span class="s-out">-${_finFmt(m.exp)}</span>
-          <span class="s-bal">${_finFmt(m.lastBal)}</span>
-        </span>
-      </div>
-      <div class="fin-month-body">${weeksHtml}</div>
-    </div>
-  `;
+  return weeksHtml;
+}
+
+function selectFinanceMonth(ym) {
+  _financeSelectedMonth = ym;
+  renderFinance();
 }
 
 function _financeRenderSpecial(term) {
@@ -4137,43 +4178,57 @@ function renderFinance() {
   const term = terms.find(t => t.name === _financeTermTab);
   const sum = _termSummary(term);
 
-  const termSelectHtml = `
-    <select class="fin-term-select" onchange="switchFinanceTerm(this.value)">
-      ${terms.map(t => `<option value="${_escH(t.name)}" ${t.name===_financeTermTab?'selected':''}>${_escH(t.name)}</option>`).join('')}
-    </select>
-  `;
+  // 月份預設選最新一個
+  if (!sum.months.find(m => m.ym === _financeSelectedMonth)) {
+    _financeSelectedMonth = sum.months.length ? sum.months[sum.months.length - 1].ym : null;
+  }
+  const selectedMonth = sum.months.find(m => m.ym === _financeSelectedMonth);
 
-  const monthsHtml = sum.months.map((m, i) => _financeRenderMonth(m, i)).join('') || '<div class="fin-empty">本屆尚無紀錄</div>';
-
-  const actionBar = `
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-      ${CR === 'admin' ? `<button class="btn btn-primary" onclick="openFinanceAdd()" style="padding:9px 16px;font-size:13px;">＋ 新增紀錄</button>` : ''}
-      ${CR === 'admin' ? `<button class="btn" onclick="openFinanceSpecial()" style="padding:9px 16px;font-size:13px;background:white;border:1.5px solid var(--gray-border);color:var(--text);">＋ 特殊活動</button>` : ''}
-      <button class="btn" onclick="refreshFinance()" style="padding:9px 16px;font-size:13px;background:white;border:1.5px solid var(--gray-border);color:var(--text);">↻ 重新整理</button>
-      <span style="flex:1;"></span>
-      ${_financeRaw && _financeRaw.updated ? `<span style="font-size:11px;color:var(--text-soft);align-self:center;">資料更新：${_escH(_financeRaw.updated.replace('T',' ').slice(0,19))}</span>` : ''}
+  const toolbar = `
+    <div class="fin-toolbar">
+      <select class="fin-term-select" onchange="switchFinanceTerm(this.value)">
+        ${terms.map(t => `<option value="${_escH(t.name)}" ${t.name===_financeTermTab?'selected':''}>${_escH(t.name)}</option>`).join('')}
+      </select>
+      ${CR === 'admin' ? `<button class="fin-tb-btn primary" onclick="openFinanceAdd()">＋ 紀錄</button>` : ''}
+      ${CR === 'admin' ? `<button class="fin-tb-btn" onclick="openFinanceSpecial()">＋ 特殊</button>` : ''}
+      <button class="fin-tb-btn" onclick="refreshFinance()" title="重新整理">↻</button>
     </div>
+    ${_financeRaw && _financeRaw.updated ? `<div class="fin-update-time">資料更新：${_escH(_financeRaw.updated.replace('T',' ').slice(0,19))}</div>` : ''}
   `;
+
+  let monthDetailHtml;
+  if (!sum.months.length) {
+    monthDetailHtml = '<div class="fin-empty">本屆尚無紀錄</div>';
+  } else {
+    const pickerOptions = sum.months.map(m => {
+      const [yy, mm] = m.ym.split('-');
+      return `<option value="${m.ym}" ${m.ym===_financeSelectedMonth?'selected':''}>${yy} 年 ${parseInt(mm)} 月</option>`;
+    }).join('');
+    monthDetailHtml = `
+      <div class="fin-month-picker-bar">
+        <span class="lbl">月份</span>
+        <select class="fin-month-picker" onchange="selectFinanceMonth(this.value)">${pickerOptions}</select>
+        <span class="stat">
+          <span class="s-in">+${_finFmt(selectedMonth.inc)}</span>
+          <span class="s-out">-${_finFmt(selectedMonth.exp)}</span>
+          <span class="s-bal">${_finFmt(selectedMonth.lastBal)}</span>
+        </span>
+      </div>
+      <div class="fin-month-weeks">${_financeRenderMonthWeeks(selectedMonth)}</div>
+    `;
+  }
 
   el.innerHTML = `
-    ${actionBar}
-    ${termSelectHtml}
+    ${toolbar}
     ${_financeRenderKpi(term, sum)}
     <div class="fin-section-title">應收追蹤</div>
     ${_financeRenderReceivables()}
-    <div class="fin-section-title">結餘走勢</div>
-    <div class="fin-chart-card">
-      <div class="fin-chart-wrap"><canvas id="finTrendChart"></canvas></div>
-    </div>
+    <div class="fin-section-title">月份明細</div>
+    ${monthDetailHtml}
     <div class="fin-section-title">月度結算總表</div>
     ${_renderMonthlySummary(term, sum)}
-    <div class="fin-section-title" style="margin-top:18px;">月份明細</div>
-    ${monthsHtml}
     ${_financeRenderSpecial(term)}
   `;
-
-  // 載入並繪製走勢圖
-  _ensureChartJs().then(() => _drawFinanceTrend(term));
 }
 
 function _renderMonthlySummary(term, sum) {
