@@ -3522,11 +3522,18 @@ function _parseTermSheet(rows) {
     const type = String(row[1] || '').trim();
     if (!dateRaw && !type) continue;
 
-    // 「2026/3/28 白金晚宴」這類橫跨格子的特殊活動標題（在性質欄含特殊關鍵字）
-    if (type === '白金晚宴' || /晚宴|餐會|聚餐/.test(type) && _finNum(row[2]) > 5000) {
+    // 特殊活動標題列：以關鍵字偵測，無論是否填金額都視為活動起點
+    const SPECIAL_KEYWORDS = /晚宴|餐會|聚餐|大會|慶祝|週年|表揚|募款|主辦|專題|論壇|工作坊|頒獎|尾牙|春酒|入會典禮|發表|大型/;
+    if (type && SPECIAL_KEYWORDS.test(type) && !type.includes('入席費') && !type.includes('早餐')) {
       inSpecial = true;
       specialName = type;
-      specialItems.push({ name: type, amount: _finNum(row[2]), kind: 'income', date: dateRaw || currentDate });
+      const inc = _finNum(row[2]);
+      const exp = _finNum(row[3]);
+      if (inc > 0) {
+        specialItems.push({ name: type, amount: inc, kind: 'income', date: dateRaw || currentDate });
+      } else if (exp > 0) {
+        specialItems.push({ name: type, amount: exp, kind: 'expense', date: dateRaw || currentDate });
+      }
       if (dateRaw) currentDate = dateRaw;
       continue;
     }
@@ -4380,17 +4387,11 @@ function openFinanceSpecial() {
           <input type="text" class="modal-input" id="finSpDate" value="${todayStr}">
         </div>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:14px;">
-        <div class="modal-field" style="flex:2;margin-bottom:0;">
-          <div class="modal-label">活動名稱</div>
-          <input type="text" class="modal-input" id="finSpTitle" placeholder="例如：白金晚宴">
-        </div>
-        <div class="modal-field" style="flex:1;margin-bottom:0;">
-          <div class="modal-label">主收入</div>
-          <input type="number" class="modal-input" id="finSpTitleAmt" placeholder="0">
-        </div>
+      <div class="modal-field" style="margin-bottom:14px;">
+        <div class="modal-label">活動名稱</div>
+        <input type="text" class="modal-input" id="finSpTitle" placeholder="例如：白金晚宴">
       </div>
-      <div class="modal-label" style="margin-bottom:6px;font-weight:900;color:var(--text);">明細項目</div>
+      <div class="modal-label" style="margin-bottom:6px;font-weight:900;color:var(--text);">明細項目（所有收支都在這邊列）</div>
       <div id="finSpItems"></div>
       <button onclick="addSpecialItem()" style="width:100%;padding:9px;background:#f9ecec;border:1.5px dashed var(--red);color:var(--red);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:6px;">＋ 新增項目</button>
 
@@ -4438,7 +4439,6 @@ async function submitFinanceSpecial() {
   const sheet = document.getElementById('finSpSheet').value;
   const date  = document.getElementById('finSpDate').value.trim();
   const title = document.getElementById('finSpTitle').value.trim();
-  const titleAmount = +document.getElementById('finSpTitleAmt').value || 0;
   const note  = document.getElementById('finSpNote').value.trim();
 
   if (!date)  { showToast('請填日期'); return; }
@@ -4461,7 +4461,7 @@ async function submitFinanceSpecial() {
   try {
     const res = await fetch(FINANCE_API_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'appendSpecial', sheet, date, title, titleAmount, items, note })
+      body: JSON.stringify({ action: 'appendSpecial', sheet, date, title, items, note })
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || 'unknown');
