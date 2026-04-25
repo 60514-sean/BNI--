@@ -41,10 +41,13 @@ function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
     const action = body.action || 'append';
-    if (action === 'append')        return _handleAppend(body);
-    if (action === 'appendSpecial') return _handleAppendSpecial(body);
-    if (action === 'update')        return _handleUpdate(body);
-    if (action === 'delete')        return _handleDelete(body);
+    if (action === 'append')           return _handleAppend(body);
+    if (action === 'appendSpecial')    return _handleAppendSpecial(body);
+    if (action === 'update')           return _handleUpdate(body);
+    if (action === 'delete')           return _handleDelete(body);
+    if (action === 'addReceivable')    return _handleAddReceivable(body);
+    if (action === 'settleReceivable') return _handleSettleReceivable(body);
+    if (action === 'deleteReceivable') return _handleDeleteReceivable(body);
     return _resp({ ok: false, error: 'unknown action: ' + action });
   } catch (err) {
     return _resp({ ok: false, error: String(err) });
@@ -215,6 +218,101 @@ function _handleDelete(body) {
   // 從刪除位置開始重算結餘
   _recalcBalancesFrom(sheet, body.rowIndex);
   return _resp({ ok: true });
+}
+
+// =============== 應收追蹤 ===============
+const RECEIVABLE_SHEET = '應收追蹤';
+const RECEIVABLE_HEADERS = ['建立日期', '會員', '項目', '金額', '狀態', '銷帳日', '銷帳分頁', '備註'];
+
+function _ensureReceivableSheet() {
+  const ss = SpreadsheetApp.openById(FINANCE_SHEET_ID);
+  let sheet = ss.getSheetByName(RECEIVABLE_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(RECEIVABLE_SHEET);
+    sheet.getRange(1, 1, 1, RECEIVABLE_HEADERS.length).setValues([RECEIVABLE_HEADERS]);
+    sheet.getRange(1, 1, 1, RECEIVABLE_HEADERS.length)
+      .setFontWeight('bold').setBackground('#f9ecec').setFontColor('#c0392b');
+    sheet.setFrozenRows(1);
+    sheet.setColumnWidths(1, RECEIVABLE_HEADERS.length, 110);
+    sheet.setColumnWidth(8, 220); // 備註寬一點
+  }
+  return sheet;
+}
+
+/**
+ * 新增一筆應收
+ *  body = { action:'addReceivable', date, member, item, amount, note }
+ */
+function _handleAddReceivable(body) {
+  const sheet = _ensureReceivableSheet();
+  if (!body.member) return _resp({ ok: false, error: '請填會員姓名' });
+  if (!_num(body.amount)) return _resp({ ok: false, error: '請填金額' });
+  sheet.appendRow([
+    body.date || _today(),
+    body.member,
+    body.item || '入席費',
+    _num(body.amount),
+    '未繳',
+    '',
+    '',
+    body.note || ''
+  ]);
+  return _resp({ ok: true });
+}
+
+/**
+ * 銷帳：標記為已繳，並在指定屆別分頁建立一筆收入紀錄
+ *  body = { action:'settleReceivable', rowIndex, settleSheet, settleDate? }
+ */
+function _handleSettleReceivable(body) {
+  const recv = _ensureReceivableSheet();
+  if (!body.rowIndex || body.rowIndex < 2) return _resp({ ok: false, error: 'rowIndex 必須 >= 2' });
+  if (!body.settleSheet) return _resp({ ok: false, error: '請指定銷帳屆別' });
+
+  const row = recv.getRange(body.rowIndex, 1, 1, RECEIVABLE_HEADERS.length).getValues()[0];
+  const status = String(row[4] || '').trim();
+  if (status === '已繳') return _resp({ ok: false, error: '此筆已銷帳' });
+
+  const member = String(row[1] || '').trim();
+  const item   = String(row[2] || '').trim() || '入席費';
+  const amount = _num(row[3]);
+  const origDate = String(row[0] || '').trim();
+  if (!amount) return _resp({ ok: false, error: '金額為 0' });
+
+  const settleDate = body.settleDate || _today();
+
+  // 1) 標記應收為已繳
+  recv.getRange(body.rowIndex, 5).setValue('已繳');
+  recv.getRange(body.rowIndex, 6).setValue(settleDate);
+  recv.getRange(body.rowIndex, 7).setValue(body.settleSheet);
+
+  // 2) 在屆別分頁建立收入紀錄
+  const result = _handleAppend({
+    sheet:  body.settleSheet,
+    date:   settleDate,
+    type:   item + '（' + member + '補繳）',
+    kind:   'income',
+    amount: amount,
+    note:   '銷帳：' + member + ' ' + origDate + ' ' + item
+  });
+
+  // 解析 _handleAppend 的回傳（已是 ContentService output → 重新拼一個 ok）
+  return _resp({ ok: true, settled: true, settleDate: settleDate });
+}
+
+/**
+ * 刪除應收
+ *  body = { action:'deleteReceivable', rowIndex }
+ */
+function _handleDeleteReceivable(body) {
+  const sheet = _ensureReceivableSheet();
+  if (!body.rowIndex || body.rowIndex < 2) return _resp({ ok: false, error: 'rowIndex 必須 >= 2' });
+  sheet.deleteRow(body.rowIndex);
+  return _resp({ ok: true });
+}
+
+function _today() {
+  return Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd');
 }
 
 // =============== Helpers ===============

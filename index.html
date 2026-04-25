@@ -672,6 +672,65 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-budget-card .row .lbl { flex:1; color:var(--text); }
 .fin-budget-card .row .amt { font-family:'DM Mono',monospace; font-weight:700; min-width:70px; text-align:right; }
 .fin-empty { text-align:center; padding:60px 20px; color:var(--text-soft); font-size:14px; }
+
+/* 應收追蹤 */
+.fin-recv-bar {
+  display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  margin-bottom:10px;
+}
+.fin-recv-filter { display:flex; gap:4px; }
+.fin-recv-filter button {
+  padding:6px 12px; border:1.5px solid var(--gray-border); background:white;
+  color:var(--text-soft); border-radius:8px; font-size:12px; font-weight:700;
+  cursor:pointer; font-family:inherit;
+}
+.fin-recv-filter button.active { background:var(--red); color:white; border-color:var(--red); }
+.fin-recv-total {
+  background:#fff3e0; border:1.5px solid #f9a825; color:#a06000;
+  padding:6px 12px; border-radius:10px;
+  font-size:12px; font-weight:900;
+  font-family:'DM Mono',monospace;
+}
+.fin-recv-card {
+  background:white; border-radius:12px; box-shadow:var(--shadow);
+  margin-bottom:14px; overflow:hidden;
+}
+.fin-recv-row {
+  display:grid; grid-template-columns:90px 80px 1fr auto auto;
+  gap:10px; align-items:center;
+  padding:10px 14px;
+  border-bottom:1px solid var(--gray-border);
+  font-size:13px;
+}
+.fin-recv-row:last-child { border-bottom:none; }
+.fin-recv-row.paid { background:#f7fdf6; opacity:0.7; }
+.fin-recv-row .date { font-size:11px; color:var(--text-soft); font-family:'DM Mono',monospace; }
+.fin-recv-row .member { font-weight:700; color:var(--text); }
+.fin-recv-row .item { font-size:12px; color:var(--text-soft); }
+.fin-recv-row .amt {
+  font-family:'DM Mono',monospace; font-weight:900; color:#a06000;
+  text-align:right; min-width:80px;
+}
+.fin-recv-row.paid .amt { color:var(--green); text-decoration:line-through; }
+.fin-recv-row .badge {
+  font-size:10px; font-weight:900; padding:3px 8px; border-radius:6px; text-align:center;
+  letter-spacing:0.5px;
+}
+.fin-recv-row .badge.unpaid { background:#fdeeec; color:var(--red); }
+.fin-recv-row .badge.paid   { background:#eef9ec; color:var(--green); }
+.fin-recv-row .actions { display:flex; gap:4px; }
+.fin-recv-row .btn-act {
+  padding:5px 10px; font-size:11px; font-weight:700; cursor:pointer;
+  border:none; border-radius:6px; font-family:inherit;
+}
+.fin-recv-row .btn-act.settle { background:var(--green); color:white; }
+.fin-recv-row .btn-act.settle:hover { background:#1f8049; }
+.fin-recv-row .btn-act.del { background:none; border:1px solid var(--gray-border); color:var(--text-soft); }
+.fin-recv-row .btn-act.del:hover { background:#fee; color:var(--red); border-color:var(--red); }
+.fin-recv-row .settle-info { font-size:11px; color:var(--text-soft); }
+.fin-recv-empty {
+  text-align:center; padding:30px 20px; color:var(--text-soft); font-size:13px;
+}
 .fin-row-btn { background:none; border:none; color:var(--text-soft); cursor:pointer; padding:2px 6px; font-size:14px; line-height:1; border-radius:4px; transition:all 0.15s; margin-left:2px; font-family:inherit; }
 .fin-row-btn:hover { background:var(--gray-light); color:var(--text); }
 .fin-row-btn.danger:hover { background:#fee; color:var(--red); }
@@ -3488,6 +3547,7 @@ let _financeRaw = null;
 let _financeParsed = null;
 let _financeTermTab = null;
 let _financeMonthsOpen = {};
+let _receivableFilter = 'unpaid'; // all | unpaid | paid
 
 function _finNum(v) {
   if (typeof v === 'number') return Math.round(v);
@@ -3611,18 +3671,41 @@ function _parseTermSheet(rows) {
 
 function _parseFinance(raw) {
   if (!raw || !raw.sheets) return null;
-  const result = { terms: [], budget: null };
+  const result = { terms: [], budget: null, receivables: [] };
   for (const [name, rows] of Object.entries(raw.sheets)) {
     if (!rows || !rows.length) continue;
+    if (name === '應收追蹤') {
+      result.receivables = _parseReceivables(rows);
+      continue;
+    }
     const parsed = _parseTermSheet(rows);
     if (parsed) {
       result.terms.push({ name, ...parsed });
     } else {
-      // 不是會期表 → 視為預算參考
       result.budget = result.budget || { name, rows };
     }
   }
   return result;
+}
+
+function _parseReceivables(rows) {
+  const list = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i] || [];
+    if (!r[1] && !r[2] && !_finNum(r[3])) continue;
+    list.push({
+      rowIndex: i + 1,
+      date: String(r[0] || '').trim(),
+      member: String(r[1] || '').trim(),
+      item: String(r[2] || '').trim(),
+      amount: _finNum(r[3]),
+      status: String(r[4] || '').trim() || '未繳',
+      settleDate: String(r[5] || '').trim(),
+      settleSheet: String(r[6] || '').trim(),
+      note: String(r[7] || '').trim(),
+    });
+  }
+  return list;
 }
 
 async function _fetchFinance() {
@@ -3966,6 +4049,8 @@ function renderFinance() {
     ${actionBar}
     ${termSelectHtml}
     ${_financeRenderKpi(term, sum)}
+    <div class="fin-section-title">應收追蹤</div>
+    ${_financeRenderReceivables()}
     <div class="fin-section-title">結餘走勢</div>
     <div class="fin-chart-card">
       <div class="fin-chart-wrap"><canvas id="finTrendChart"></canvas></div>
@@ -4034,6 +4119,70 @@ function _calcBudgetMonthlyExpense() {
     }
   }
   return total;
+}
+
+function _financeRenderReceivables() {
+  const list = (_financeParsed && _financeParsed.receivables) || [];
+  const unpaid = list.filter(r => r.status === '未繳');
+  const paid   = list.filter(r => r.status === '已繳');
+  const totalUnpaid = unpaid.reduce((s, r) => s + r.amount, 0);
+
+  const visible =
+    _receivableFilter === 'all'  ? list :
+    _receivableFilter === 'paid' ? paid :
+                                   unpaid;
+
+  const filterBar = `
+    <div class="fin-recv-bar">
+      <div class="fin-recv-filter">
+        <button class="${_receivableFilter==='unpaid'?'active':''}" onclick="setReceivableFilter('unpaid')">未繳 ${unpaid.length}</button>
+        <button class="${_receivableFilter==='paid'?'active':''}" onclick="setReceivableFilter('paid')">已繳 ${paid.length}</button>
+        <button class="${_receivableFilter==='all'?'active':''}" onclick="setReceivableFilter('all')">全部 ${list.length}</button>
+      </div>
+      ${unpaid.length ? `<span class="fin-recv-total">未繳合計 ${_finFmt(totalUnpaid)}</span>` : ''}
+      <span style="flex:1;"></span>
+      ${CR === 'admin' ? `<button class="btn btn-primary" style="padding:7px 14px;font-size:12px;" onclick="openReceivableAdd()">＋ 新增應收</button>` : ''}
+    </div>
+  `;
+
+  let listHtml;
+  if (!visible.length) {
+    const emptyMsg = _receivableFilter === 'unpaid' ? '目前沒有未繳項目' :
+                     _receivableFilter === 'paid'   ? '尚無已銷帳紀錄' :
+                                                      '尚無應收紀錄';
+    listHtml = `<div class="fin-recv-empty">${emptyMsg}</div>`;
+  } else {
+    listHtml = visible.map(r => {
+      const isPaid = r.status === '已繳';
+      const settleInfo = isPaid && r.settleDate
+        ? `<span class="settle-info">已銷 ${_escH(r.settleDate)}${r.settleSheet?'  ['+_escH(r.settleSheet)+']':''}</span>` : '';
+      const adminBtns = CR === 'admin'
+        ? (isPaid
+          ? `<button class="btn-act del" onclick="confirmReceivableDelete(${r.rowIndex})">×</button>`
+          : `<button class="btn-act settle" onclick="confirmReceivableSettle(${r.rowIndex})">銷帳</button><button class="btn-act del" onclick="confirmReceivableDelete(${r.rowIndex})">×</button>`)
+        : '';
+      const subInfo = [r.item, r.note, settleInfo].filter(Boolean).join(' · ');
+      return `
+        <div class="fin-recv-row${isPaid?' paid':''}">
+          <span class="date">${_escH(r.date)}</span>
+          <span class="badge ${isPaid?'paid':'unpaid'}">${isPaid?'已繳':'未繳'}</span>
+          <div>
+            <div class="member">${_escH(r.member)}</div>
+            <div class="item">${subInfo}</div>
+          </div>
+          <span class="amt">${_finFmt(r.amount)}</span>
+          <div class="actions">${adminBtns}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  return `${filterBar}<div class="fin-recv-card">${listHtml}</div>`;
+}
+
+function setReceivableFilter(f) {
+  _receivableFilter = f;
+  renderFinance();
 }
 
 let _chartJsLoaded = null;
@@ -4475,6 +4624,141 @@ async function submitFinanceSpecial() {
   } catch (err) {
     showToast('儲存失敗：' + (err.message || err));
     btn.disabled = false; btn.textContent = '儲存';
+  }
+}
+
+// ===== 應收追蹤 =====
+function openReceivableAdd() {
+  if (CR !== 'admin') { showToast('僅 admin 可新增'); return; }
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
+
+  // 取會員清單作為下拉選單（若已載入）
+  const memberOptions = (typeof _memberData !== 'undefined' && Array.isArray(_memberData))
+    ? _memberData.map(m => m.name).filter(Boolean)
+    : [];
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'receivableAddModal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-title">＋ 新增應收</div>
+      <div style="display:flex;gap:10px;">
+        <div class="modal-field" style="flex:1;">
+          <div class="modal-label">日期（欠款發生日）</div>
+          <input type="text" class="modal-input" id="recvAddDate" value="${todayStr}">
+        </div>
+        <div class="modal-field" style="flex:1;">
+          <div class="modal-label">會員</div>
+          <input type="text" class="modal-input" id="recvAddMember" list="recvMemberList" placeholder="例如：阿寶" autocomplete="off">
+          <datalist id="recvMemberList">
+            ${memberOptions.map(n => `<option value="${_escH(n)}">`).join('')}
+          </datalist>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div class="modal-field" style="flex:2;">
+          <div class="modal-label">項目</div>
+          <input type="text" class="modal-input" id="recvAddItem" list="recvItemList" placeholder="入席費" value="入席費">
+          <datalist id="recvItemList">
+            <option value="入席費">
+            <option value="早餐">
+            <option value="名牌">
+            <option value="入會費">
+            <option value="活動報名費">
+          </datalist>
+        </div>
+        <div class="modal-field" style="flex:1;">
+          <div class="modal-label">金額</div>
+          <input type="number" class="modal-input" id="recvAddAmount" placeholder="0" inputmode="numeric">
+        </div>
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">備註（選填）</div>
+        <input type="text" class="modal-input" id="recvAddNote" placeholder="">
+      </div>
+      <div class="modal-btns">
+        <button class="modal-cancel" onclick="closeReceivableAdd()">取消</button>
+        <button class="modal-save" id="recvAddSave" onclick="submitReceivableAdd()">新增</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function closeReceivableAdd() {
+  const m = document.getElementById('receivableAddModal');
+  if (m) m.remove();
+}
+
+async function submitReceivableAdd() {
+  const date   = document.getElementById('recvAddDate').value.trim();
+  const member = document.getElementById('recvAddMember').value.trim();
+  const item   = document.getElementById('recvAddItem').value.trim() || '入席費';
+  const amount = +document.getElementById('recvAddAmount').value || 0;
+  const note   = document.getElementById('recvAddNote').value.trim();
+
+  if (!member) { showToast('請填會員姓名'); return; }
+  if (!amount) { showToast('請填金額'); return; }
+
+  const btn = document.getElementById('recvAddSave');
+  btn.disabled = true; btn.textContent = '儲存中...';
+  try {
+    const res = await fetch(FINANCE_API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'addReceivable', date, member, item, amount, note })
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'unknown');
+    showToast('已新增應收');
+    closeReceivableAdd();
+    await _fetchFinance();
+    renderFinance();
+  } catch (err) {
+    showToast('儲存失敗：' + (err.message || err));
+    btn.disabled = false; btn.textContent = '新增';
+  }
+}
+
+async function confirmReceivableSettle(rowIndex) {
+  if (CR !== 'admin') return;
+  const r = ((_financeParsed && _financeParsed.receivables) || []).find(x => x.rowIndex === rowIndex);
+  if (!r) return;
+  if (!_financeTermTab) { showToast('請先在上方下拉選擇要寫入的屆別'); return; }
+  if (!confirm(`確定銷帳？\n${r.member} ${r.item} ${_finFmt(r.amount)}\n\n會在「${_financeTermTab}」分頁新增一筆「${r.item}（${r.member}補繳）」收入紀錄。`)) return;
+  try {
+    const res = await fetch(FINANCE_API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'settleReceivable', rowIndex, settleSheet: _financeTermTab })
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'unknown');
+    showToast('已銷帳');
+    await _fetchFinance();
+    renderFinance();
+  } catch (err) {
+    showToast('銷帳失敗：' + (err.message || err));
+  }
+}
+
+async function confirmReceivableDelete(rowIndex) {
+  if (CR !== 'admin') return;
+  const r = ((_financeParsed && _financeParsed.receivables) || []).find(x => x.rowIndex === rowIndex);
+  if (!r) return;
+  if (!confirm(`確定刪除應收紀錄？\n${r.member} ${r.item} ${_finFmt(r.amount)}\n\n（這只刪除應收清單列；已銷帳的收入紀錄不會被刪）`)) return;
+  try {
+    const res = await fetch(FINANCE_API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'deleteReceivable', rowIndex })
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'unknown');
+    showToast('已刪除');
+    await _fetchFinance();
+    renderFinance();
+  } catch (err) {
+    showToast('刪除失敗：' + (err.message || err));
   }
 }
 
