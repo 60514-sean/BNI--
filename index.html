@@ -604,41 +604,35 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-week-balance .delta { font-size:11px; margin-left:8px; padding:2px 8px; border-radius:10px; font-weight:700; }
 .fin-week-balance .delta.in { background:#eef9ec; color:var(--green); }
 .fin-week-balance .delta.out { background:#fdeeec; color:var(--red); }
-.fin-tx {
-  display:grid; grid-template-columns:32px 1fr auto auto;
+.fin-line {
+  display:grid; grid-template-columns:48px 100px 1fr auto;
   gap:10px; align-items:center;
-  padding:10px 12px; border-radius:10px; margin-bottom:6px;
+  padding:8px 4px;
+  border-bottom:1px solid var(--gray-border);
 }
-.fin-tx.in  { background:linear-gradient(135deg,#e9f7e6 0%,#f6fbf5 100%); border-left:3px solid var(--green); }
-.fin-tx.out { background:linear-gradient(135deg,#fde6e3 0%,#fdf6f5 100%); border-left:3px solid var(--red); }
-.fin-tx.flat{ background:var(--gray-light); border-left:3px solid var(--gray); }
-.fin-tx-icon {
-  width:28px; height:28px; border-radius:50%;
-  display:flex; align-items:center; justify-content:center;
-  font-weight:900; font-size:14px; color:white; line-height:1;
+.fin-line:last-of-type { border-bottom:none; }
+.fin-line.sub {
+  padding-left:24px;
+  background:#fafbfc;
+  border-bottom-style:dashed;
 }
-.fin-tx.in  .fin-tx-icon { background:var(--green); }
-.fin-tx.out .fin-tx-icon { background:var(--red); }
-.fin-tx.flat .fin-tx-icon{ background:var(--gray); }
-.fin-tx-type { font-size:14px; font-weight:700; color:var(--text); }
-.fin-tx-meta { font-size:11px; color:var(--text-soft); margin-top:2px; }
-.fin-tx-amt { font-family:'DM Mono',monospace; font-weight:900; font-size:18px; }
-.fin-tx.in  .fin-tx-amt { color:var(--green); }
-.fin-tx.out .fin-tx-amt { color:var(--red); }
-.fin-tx-actions { display:flex; gap:2px; }
-.fin-tx-extra {
-  display:flex; flex-wrap:wrap; gap:6px;
-  padding:0 12px 6px 54px; margin-top:-2px;
+.fin-line .tag {
+  font-size:11px; font-weight:900; padding:3px 8px;
+  border-radius:6px; text-align:center; letter-spacing:0.5px;
 }
-.fin-tx-extra .badge {
-  display:inline-flex; align-items:center;
-  padding:3px 10px; border-radius:12px;
-  font-size:11px; font-weight:700;
-  background:white; border:1px solid var(--gray-border);
-  font-family:'DM Mono',monospace; color:var(--text);
+.fin-line .tag.in  { color:var(--green); background:#eef9ec; }
+.fin-line .tag.out { color:var(--red);   background:#fdeeec; }
+.fin-line .amt {
+  font-family:'DM Mono',monospace; font-weight:900; font-size:15px;
+  text-align:right;
 }
-.fin-tx-extra .badge.out { color:var(--red); border-color:#f5c6c6; background:#fff8f7; }
-.fin-tx-extra .badge.in  { color:var(--green); border-color:#bfe5b8; background:#f7fdf6; }
+.fin-line .amt.in  { color:var(--green); }
+.fin-line .amt.out { color:var(--red); }
+.fin-line.sub .amt { font-size:13px; font-weight:700; }
+.fin-line .desc { font-size:13px; color:var(--text); line-height:1.4; }
+.fin-line.sub .desc { color:var(--text-soft); font-size:12px; }
+.fin-line .desc .meta { font-size:11px; color:var(--text-soft); margin-left:6px; font-weight:400; }
+.fin-line .actions { display:flex; gap:2px; }
 .fin-week-note {
   font-size:12px; color:#7a4500; background:#fff8e1;
   padding:8px 12px; border-radius:8px; margin-top:8px;
@@ -3684,33 +3678,39 @@ function _financeRenderMonth(m, idx) {
     weekMap[r.date].push(r);
   }
   const weeksHtml = Object.entries(weekMap).map(([date, rs]) => {
-    const txHtml = rs.map(r => {
-      const isIn  = r.income > 0;
-      const isOut = r.expense > 0;
-      const cls   = isIn ? 'in' : (isOut ? 'out' : 'flat');
-      const icon  = isIn ? '＋' : (isOut ? '－' : '·');
-      const amtStr = isIn
-        ? `+${_finFmt(r.income)}`
-        : (isOut ? `-${_finFmt(r.expense)}` : '—');
+    const lines = [];
+    for (const r of rs) {
+      const hasIn = r.income > 0;
+      const hasOut = r.expense > 0;
       const meta = (r.paid || r.total) ? `${r.paid}/${r.total} 人` : '';
-      const adminBtns = CR === 'admin' ? `
-        <button class="fin-row-btn" title="編輯" onclick="event.stopPropagation();openFinanceEdit(${r.rowIndex})">✎</button>
-        <button class="fin-row-btn danger" title="刪除" onclick="event.stopPropagation();confirmFinanceDelete(${r.rowIndex})">×</button>
+      lines.push({
+        kind: hasIn ? 'in' : (hasOut ? 'out' : ''),
+        amt:  hasIn ? r.income : (hasOut ? r.expense : 0),
+        desc: r.type, meta, main: true, rowIndex: r.rowIndex
+      });
+      if (r.extraExpense > 0) {
+        lines.push({ kind:'out', amt:r.extraExpense, desc: r.extraDesc || '額外支出', sub:true, rowIndex:r.rowIndex });
+      }
+      if (r.extraIncome > 0) {
+        lines.push({ kind:'in', amt:r.extraIncome, desc: r.extraDesc || '額外收入', sub:true, rowIndex:r.rowIndex });
+      }
+    }
+    const txHtml = lines.map(L => {
+      const tag = L.kind === 'in' ? '收入' : (L.kind === 'out' ? '支出' : '—');
+      const sign = L.kind === 'in' ? '+' : (L.kind === 'out' ? '-' : '');
+      const amtStr = L.amt > 0 ? `${sign}${_finFmt(L.amt)}` : '—';
+      const tagHtml = L.kind ? `<span class="tag ${L.kind}">${tag}</span>` : `<span></span>`;
+      const adminBtns = (CR === 'admin' && L.main) ? `
+        <button class="fin-row-btn" title="編輯" onclick="event.stopPropagation();openFinanceEdit(${L.rowIndex})">✎</button>
+        <button class="fin-row-btn danger" title="刪除" onclick="event.stopPropagation();confirmFinanceDelete(${L.rowIndex})">×</button>
       ` : '';
-      const extras = [];
-      if (r.extraExpense > 0) extras.push(`<span class="badge out">額外支出 -${_finFmt(r.extraExpense)}${r.extraDesc?'（' + _escH(r.extraDesc) + '）':''}</span>`);
-      if (r.extraIncome > 0)  extras.push(`<span class="badge in">額外收入 +${_finFmt(r.extraIncome)}${r.extraDesc?'（' + _escH(r.extraDesc) + '）':''}</span>`);
       return `
-        <div class="fin-tx ${cls}">
-          <div class="fin-tx-icon">${icon}</div>
-          <div>
-            <div class="fin-tx-type">${_escH(r.type)}</div>
-            ${meta ? `<div class="fin-tx-meta">${meta}</div>` : ''}
-          </div>
-          <div class="fin-tx-amt">${amtStr}</div>
-          <div class="fin-tx-actions">${adminBtns}</div>
+        <div class="fin-line${L.sub?' sub':''}">
+          ${tagHtml}
+          <span class="amt ${L.kind || ''}">${amtStr}</span>
+          <span class="desc">${_escH(L.desc)}${L.meta?`<span class="meta">${L.meta}</span>`:''}</span>
+          <div class="actions">${adminBtns}</div>
         </div>
-        ${extras.length ? `<div class="fin-tx-extra">${extras.join('')}</div>` : ''}
       `;
     }).join('');
 
