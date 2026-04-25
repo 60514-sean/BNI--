@@ -4721,24 +4721,74 @@ async function submitReceivableAdd() {
   }
 }
 
-async function confirmReceivableSettle(rowIndex) {
+function confirmReceivableSettle(rowIndex) {
   if (CR !== 'admin') return;
   const r = ((_financeParsed && _financeParsed.receivables) || []).find(x => x.rowIndex === rowIndex);
   if (!r) return;
-  if (!_financeTermTab) { showToast('請先在上方下拉選擇要寫入的屆別'); return; }
-  if (!confirm(`確定銷帳？\n${r.member} ${r.item} ${_finFmt(r.amount)}\n\n會在「${_financeTermTab}」分頁新增一筆「${r.item}（${r.member}補繳）」收入紀錄。`)) return;
+  if (!_financeParsed || !_financeParsed.terms.length) { showToast('資料未載入'); return; }
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
+  const sheets = _financeParsed.terms.map(t => t.name);
+  const defaultSheet = _financeTermTab || sheets[0];
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'receivableSettleModal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-title">銷帳</div>
+      <div style="background:#f9ecec;border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+        <div style="font-size:15px;font-weight:900;color:var(--red);">${_escH(r.member)} · ${_escH(r.item)}</div>
+        <div style="font-size:18px;color:var(--text);margin-top:4px;font-family:'DM Mono',monospace;font-weight:900;">${_finFmt(r.amount)}</div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:4px;">原欠款日：${_escH(r.date || '—')}${r.note?'　・'+_escH(r.note):''}</div>
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">銷帳日期（補繳日）</div>
+        <input type="text" class="modal-input" id="recvSettleDate" value="${todayStr}" placeholder="2026/03/15">
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">寫入屆別</div>
+        <select class="modal-input" id="recvSettleSheet">
+          ${sheets.map(s => `<option value="${_escH(s)}" ${s===defaultSheet?'selected':''}>${_escH(s)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="modal-btns">
+        <button class="modal-cancel" onclick="closeReceivableSettle()">取消</button>
+        <button class="modal-save" id="recvSettleSave" onclick="submitReceivableSettle(${rowIndex})">確認銷帳</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function closeReceivableSettle() {
+  const m = document.getElementById('receivableSettleModal');
+  if (m) m.remove();
+}
+
+async function submitReceivableSettle(rowIndex) {
+  const settleDate  = document.getElementById('recvSettleDate').value.trim();
+  const settleSheet = document.getElementById('recvSettleSheet').value;
+  if (!settleDate)  { showToast('請填銷帳日期'); return; }
+  if (!settleSheet) { showToast('請選擇寫入屆別'); return; }
+
+  const btn = document.getElementById('recvSettleSave');
+  btn.disabled = true; btn.textContent = '處理中...';
   try {
     const res = await fetch(FINANCE_API_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'settleReceivable', rowIndex, settleSheet: _financeTermTab })
+      body: JSON.stringify({ action: 'settleReceivable', rowIndex, settleSheet, settleDate })
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || 'unknown');
-    showToast('已銷帳');
+    showToast('已銷帳（' + settleDate + '）');
+    closeReceivableSettle();
     await _fetchFinance();
     renderFinance();
   } catch (err) {
     showToast('銷帳失敗：' + (err.message || err));
+    btn.disabled = false; btn.textContent = '確認銷帳';
   }
 }
 
