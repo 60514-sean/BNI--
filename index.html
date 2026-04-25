@@ -572,10 +572,6 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-tb-btn.primary { background:var(--red); color:white; border-color:var(--red); }
 .fin-tb-btn.primary:hover { background:var(--red-dark); }
 .fin-tb-btn:not(.primary):hover { border-color:var(--red); color:var(--red); }
-.fin-update-time {
-  font-size:11px; color:var(--text-soft); text-align:right;
-  margin-bottom:12px;
-}
 .fin-term-select {
   width:100%; padding:11px 16px; border:1.5px solid var(--gray-border);
   border-radius:10px; font-size:14px; font-weight:700; color:var(--text);
@@ -653,6 +649,10 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-summary-hero .val {
   font-size:34px; font-weight:900; color:var(--text);
   font-family:'DM Mono',monospace; line-height:1.1;
+}
+.fin-summary-updated {
+  font-size:11px; color:var(--text-soft); margin-top:8px;
+  font-family:'DM Mono',monospace;
 }
 .fin-summary-grid {
   display:grid; grid-template-columns:repeat(4,1fr);
@@ -3967,11 +3967,15 @@ function _termSummary(term) {
 }
 
 function _financeRenderKpi(term, sum) {
+  const updated = _financeRaw && _financeRaw.updated
+    ? _financeRaw.updated.replace('T',' ').slice(0,19)
+    : '';
   return `
     <div class="fin-summary">
       <div class="fin-summary-hero">
         <div class="lbl">目前結餘</div>
         <div class="val">${_finFmt(sum.currentBalance)}</div>
+        ${updated ? `<div class="fin-summary-updated">資料更新：${_escH(updated)}</div>` : ''}
       </div>
       <div class="fin-summary-grid">
         <div class="fin-summary-item">
@@ -4264,7 +4268,6 @@ function renderFinance() {
       ${CR === 'admin' ? `<button class="fin-tb-btn" onclick="openFinanceSpecial()">＋ 特殊</button>` : ''}
       <button class="fin-tb-btn" onclick="refreshFinance()" title="重新整理">↻</button>
     </div>
-    ${_financeRaw && _financeRaw.updated ? `<div class="fin-update-time">資料更新：${_escH(_financeRaw.updated.replace('T',' ').slice(0,19))}</div>` : ''}
   `;
 
   el.innerHTML = `
