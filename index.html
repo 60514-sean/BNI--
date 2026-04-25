@@ -4254,11 +4254,10 @@ function renderFinance() {
   const term = terms.find(t => t.name === _financeTermTab);
   const sum = _termSummary(term);
 
-  // 月份預設選最新一個
-  if (!sum.months.find(m => m.ym === _financeSelectedMonth)) {
+  // 月份預設選最新一個（'__overview__' 是合法值，不要被覆蓋）
+  if (_financeSelectedMonth !== '__overview__' && !sum.months.find(m => m.ym === _financeSelectedMonth)) {
     _financeSelectedMonth = sum.months.length ? sum.months[sum.months.length - 1].ym : null;
   }
-  const selectedMonth = sum.months.find(m => m.ym === _financeSelectedMonth);
 
   const toolbar = `
     <div class="fin-toolbar">
