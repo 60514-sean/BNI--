@@ -562,17 +562,52 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   padding-right:40px;
 }
 .fin-term-select:focus { border-color:var(--red); }
-.fin-kpi-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:14px; }
-@media(min-width:640px){ .fin-kpi-grid { grid-template-columns:repeat(5,1fr); } }
-.fin-kpi {
-  background:white; border-radius:12px; padding:14px 12px;
-  box-shadow:var(--shadow); text-align:center;
+.fin-summary {
+  background:white; border-radius:14px; box-shadow:var(--shadow);
+  padding:22px; margin-bottom:14px;
 }
-.fin-kpi .lbl { font-size:11px; color:var(--text-soft); font-weight:700; margin-bottom:6px; letter-spacing:0.5px; }
-.fin-kpi .val { font-size:18px; font-weight:900; color:var(--text); font-family:'DM Mono',monospace; }
-.fin-kpi.income .val { color:var(--green); }
-.fin-kpi.expense .val { color:var(--red); }
-.fin-kpi.balance .val { color:var(--text); }
+.fin-summary-hero {
+  text-align:center;
+  padding-bottom:18px;
+  border-bottom:1px solid var(--gray-border);
+  margin-bottom:16px;
+}
+.fin-summary-hero .lbl {
+  font-size:12px; color:var(--text-soft); font-weight:700;
+  letter-spacing:1.5px; margin-bottom:8px;
+}
+.fin-summary-hero .val {
+  font-size:34px; font-weight:900; color:var(--text);
+  font-family:'DM Mono',monospace; line-height:1.1;
+}
+.fin-summary-grid {
+  display:grid; grid-template-columns:repeat(4,1fr);
+}
+.fin-summary-item {
+  text-align:center; padding:2px 8px; position:relative;
+}
+.fin-summary-item + .fin-summary-item::before {
+  content:''; position:absolute; left:0; top:6px;
+  height:calc(100% - 12px); width:1px;
+  background:var(--gray-border);
+}
+.fin-summary-item .lbl {
+  font-size:11px; color:var(--text-soft); font-weight:700;
+  margin-bottom:5px; letter-spacing:0.5px;
+}
+.fin-summary-item .val {
+  font-size:16px; font-weight:900; color:var(--text);
+  font-family:'DM Mono',monospace; line-height:1.2;
+}
+.fin-summary-item.income  .val { color:var(--green); }
+.fin-summary-item.expense .val { color:var(--red); }
+@media(max-width:640px) {
+  .fin-summary { padding:20px 18px; }
+  .fin-summary-hero .val { font-size:28px; }
+  .fin-summary-grid { grid-template-columns:repeat(2,1fr); row-gap:14px; }
+  .fin-summary-item:nth-child(odd)::before { display:none; }
+  .fin-summary-item .val { font-size:15px; }
+}
 .fin-month {
   background:white; border-radius:12px; box-shadow:var(--shadow); margin-bottom:10px; overflow:hidden;
 }
@@ -3823,12 +3858,29 @@ function _termSummary(term) {
 
 function _financeRenderKpi(term, sum) {
   return `
-    <div class="fin-kpi-grid">
-      <div class="fin-kpi"><div class="lbl">期初結餘</div><div class="val">${_finFmt(term.initial)}</div></div>
-      <div class="fin-kpi income"><div class="lbl">累計收入</div><div class="val">${_finFmt(sum.totalIncome)}</div></div>
-      <div class="fin-kpi expense"><div class="lbl">累計支出</div><div class="val">${_finFmt(sum.totalExpense)}</div></div>
-      <div class="fin-kpi balance"><div class="lbl">目前結餘</div><div class="val">${_finFmt(sum.currentBalance)}</div></div>
-      <div class="fin-kpi"><div class="lbl">會議週次</div><div class="val">${sum.weeks}</div></div>
+    <div class="fin-summary">
+      <div class="fin-summary-hero">
+        <div class="lbl">目前結餘</div>
+        <div class="val">${_finFmt(sum.currentBalance)}</div>
+      </div>
+      <div class="fin-summary-grid">
+        <div class="fin-summary-item">
+          <div class="lbl">期初結餘</div>
+          <div class="val">${_finFmt(term.initial)}</div>
+        </div>
+        <div class="fin-summary-item income">
+          <div class="lbl">累計收入</div>
+          <div class="val">+${_finFmt(sum.totalIncome)}</div>
+        </div>
+        <div class="fin-summary-item expense">
+          <div class="lbl">累計支出</div>
+          <div class="val">-${_finFmt(sum.totalExpense)}</div>
+        </div>
+        <div class="fin-summary-item">
+          <div class="lbl">會議週次</div>
+          <div class="val">${sum.weeks}</div>
+        </div>
+      </div>
     </div>
   `;
 }
