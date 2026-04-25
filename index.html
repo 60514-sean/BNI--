@@ -562,8 +562,8 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   padding-right:40px;
 }
 .fin-term-select:focus { border-color:var(--red); }
-.fin-kpi-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
-@media(min-width:640px){ .fin-kpi-grid { grid-template-columns:repeat(6,1fr); } }
+.fin-kpi-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:14px; }
+@media(min-width:640px){ .fin-kpi-grid { grid-template-columns:repeat(5,1fr); } }
 .fin-kpi {
   background:white; border-radius:12px; padding:14px 12px;
   box-shadow:var(--shadow); text-align:center;
@@ -605,34 +605,50 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-week-balance .delta.in { background:#eef9ec; color:var(--green); }
 .fin-week-balance .delta.out { background:#fdeeec; color:var(--red); }
 .fin-line {
-  display:grid; grid-template-columns:48px 100px 1fr auto;
+  display:grid; grid-template-columns:54px 110px 1fr 56px;
   gap:10px; align-items:center;
-  padding:8px 4px;
+  padding:8px 6px;
   border-bottom:1px solid var(--gray-border);
 }
 .fin-line:last-of-type { border-bottom:none; }
 .fin-line.sub {
-  padding-left:24px;
   background:#fafbfc;
   border-bottom-style:dashed;
 }
+.fin-line.sub .desc {
+  padding-left:18px; position:relative;
+}
+.fin-line.sub .desc::before {
+  content:'↳'; position:absolute; left:0; color:var(--text-soft); font-weight:700;
+}
 .fin-line .tag {
-  font-size:11px; font-weight:900; padding:3px 8px;
+  font-size:11px; font-weight:900; padding:3px 0;
   border-radius:6px; text-align:center; letter-spacing:0.5px;
+  display:block;
 }
 .fin-line .tag.in  { color:var(--green); background:#eef9ec; }
 .fin-line .tag.out { color:var(--red);   background:#fdeeec; }
 .fin-line .amt {
   font-family:'DM Mono',monospace; font-weight:900; font-size:15px;
-  text-align:right;
+  text-align:right; padding-right:4px;
 }
 .fin-line .amt.in  { color:var(--green); }
 .fin-line .amt.out { color:var(--red); }
 .fin-line.sub .amt { font-size:13px; font-weight:700; }
-.fin-line .desc { font-size:13px; color:var(--text); line-height:1.4; }
+.fin-line .desc { font-size:13px; color:var(--text); line-height:1.4; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 .fin-line.sub .desc { color:var(--text-soft); font-size:12px; }
 .fin-line .desc .meta { font-size:11px; color:var(--text-soft); margin-left:6px; font-weight:400; }
-.fin-line .actions { display:flex; gap:2px; }
+.fin-line .actions { display:flex; gap:2px; justify-content:flex-end; }
+.fin-kind-toggle { display:flex; gap:8px; }
+.fin-kind-btn {
+  flex:1; padding:11px; border:1.5px solid var(--gray-border);
+  background:white; border-radius:10px;
+  font-size:14px; font-weight:700; cursor:pointer; font-family:inherit;
+  color:var(--text-soft); transition:all 0.15s;
+}
+.fin-kind-btn:hover { border-color:var(--red); }
+.fin-kind-btn.active[data-kind="income"]  { background:var(--green); color:white; border-color:var(--green); }
+.fin-kind-btn.active[data-kind="expense"] { background:var(--red); color:white; border-color:var(--red); }
 .fin-week-note {
   font-size:12px; color:#7a4500; background:#fff8e1;
   padding:8px 12px; border-radius:8px; margin-top:8px;
@@ -3672,7 +3688,6 @@ function _financeRenderKpi(term, sum) {
       <div class="fin-kpi expense"><div class="lbl">累計支出</div><div class="val">${_finFmt(sum.totalExpense)}</div></div>
       <div class="fin-kpi balance"><div class="lbl">目前結餘</div><div class="val">${_finFmt(sum.currentBalance)}</div></div>
       <div class="fin-kpi"><div class="lbl">會議週次</div><div class="val">${sum.weeks}</div></div>
-      <div class="fin-kpi"><div class="lbl">平均付費</div><div class="val">${sum.avgPaid}</div></div>
     </div>
   `;
 }
@@ -4099,12 +4114,15 @@ async function refreshFinance() {
   }
 }
 
+const FINANCE_TYPE_SUGGESTIONS = {
+  income:  ['入席費', '額外收入', '職董贊助', '主席贊助', '報名費', '入會費'],
+  expense: ['早餐', '額外支出', '印製品請款', '生日蛋糕', '桌牌', '獎狀', '名牌', '競賽獎金', '主持費', '攝影師', '場地費', '董顧大使費用', '會員DM', 'BOD文宣']
+};
+
 function openFinanceAdd() {
   if (CR !== 'admin') { showToast('僅 admin 可新增'); return; }
-  if (!_financeParsed || !_financeParsed.terms.length) { showToast('資料未載入'); return; }
+  if (!_financeTermTab) { showToast('請先選擇屆別'); return; }
 
-  const sheets = _financeParsed.terms.map(t => t.name);
-  const defaultSheet = _financeTermTab || sheets[0];
   const today = new Date();
   const todayStr = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
 
@@ -4113,68 +4131,48 @@ function openFinanceAdd() {
   overlay.id = 'financeAddModal';
   overlay.innerHTML = `
     <div class="modal-box">
-      <div class="modal-title">＋ 新增財務紀錄</div>
-      <div style="display:flex;gap:10px;margin-bottom:14px;">
-        <div class="modal-field" style="flex:1;margin-bottom:0;">
-          <div class="modal-label">屆別</div>
-          <select class="modal-input" id="finAddSheet">
-            ${sheets.map(s => `<option value="${_escH(s)}" ${s===defaultSheet?'selected':''}>${_escH(s)}</option>`).join('')}
-          </select>
+      <div class="modal-title">＋ 新增紀錄</div>
+      <div style="font-size:12px;color:var(--text-soft);margin-bottom:14px;">寫入：<b style="color:var(--red);">${_escH(_financeTermTab)}</b></div>
+
+      <div class="modal-field">
+        <div class="modal-label">類型</div>
+        <div class="fin-kind-toggle">
+          <button type="button" class="fin-kind-btn" data-kind="income"  onclick="_setFinAddKind('income')">收入</button>
+          <button type="button" class="fin-kind-btn active" data-kind="expense" onclick="_setFinAddKind('expense')">支出</button>
         </div>
-        <div class="modal-field" style="flex:1;margin-bottom:0;">
+        <input type="hidden" id="finAddKind" value="expense">
+      </div>
+
+      <div class="modal-field">
+        <div class="modal-label">性質（點選欄位會顯示常用選項）</div>
+        <input type="text" class="modal-input" id="finAddType" list="finTypeList" placeholder="例如：早餐 / 入席費 / 印製品請款" autocomplete="off">
+        <datalist id="finTypeList"></datalist>
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <div class="modal-field" style="flex:2;">
           <div class="modal-label">日期</div>
-          <input type="text" class="modal-input" id="finAddDate" value="${todayStr}" placeholder="2026/05/01">
+          <input type="text" class="modal-input" id="finAddDate" value="${todayStr}">
+        </div>
+        <div class="modal-field" style="flex:1;">
+          <div class="modal-label">金額</div>
+          <input type="number" class="modal-input" id="finAddAmount" placeholder="0" inputmode="numeric">
         </div>
       </div>
 
-      <div style="background:#f9ecec;border-radius:10px;padding:12px 14px;margin-bottom:12px;">
-        <div style="font-size:13px;font-weight:900;color:var(--red);margin-bottom:8px;">入席費</div>
-        <div style="display:flex;gap:8px;">
-          <div class="modal-field" style="flex:1;margin-bottom:0;">
-            <div class="modal-label">收入</div>
-            <input type="number" class="modal-input" id="finAddIncome" placeholder="0" inputmode="numeric">
-          </div>
-          <div class="modal-field" style="flex:1;margin-bottom:0;">
-            <div class="modal-label">額外支出</div>
-            <input type="number" class="modal-input" id="finAddExtra1" placeholder="0" inputmode="numeric">
-          </div>
+      <div style="display:flex;gap:10px;">
+        <div class="modal-field" style="flex:1;">
+          <div class="modal-label">付費人數（選填）</div>
+          <input type="number" class="modal-input" id="finAddPaid" placeholder="0" inputmode="numeric">
         </div>
-        <div class="modal-field" style="margin-top:8px;margin-bottom:0;">
-          <div class="modal-label">額外支出說明</div>
-          <input type="text" class="modal-input" id="finAddExtra1Desc" placeholder="例如：康康印製品請款">
-        </div>
-      </div>
-
-      <div style="background:#eef5ee;border-radius:10px;padding:12px 14px;margin-bottom:12px;">
-        <div style="font-size:13px;font-weight:900;color:var(--green);margin-bottom:8px;">早餐</div>
-        <div style="display:flex;gap:8px;">
-          <div class="modal-field" style="flex:1;margin-bottom:0;">
-            <div class="modal-label">支出</div>
-            <input type="number" class="modal-input" id="finAddExpense" placeholder="0" inputmode="numeric">
-          </div>
-          <div class="modal-field" style="width:80px;margin-bottom:0;">
-            <div class="modal-label">付費</div>
-            <input type="number" class="modal-input" id="finAddPaid" placeholder="0" inputmode="numeric">
-          </div>
-          <div class="modal-field" style="width:80px;margin-bottom:0;">
-            <div class="modal-label">總人</div>
-            <input type="number" class="modal-input" id="finAddTotal" placeholder="0" inputmode="numeric">
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:8px;">
-          <div class="modal-field" style="flex:1;margin-bottom:0;">
-            <div class="modal-label">額外支出</div>
-            <input type="number" class="modal-input" id="finAddExtra2" placeholder="0" inputmode="numeric">
-          </div>
-          <div class="modal-field" style="flex:2;margin-bottom:0;">
-            <div class="modal-label">額外支出說明</div>
-            <input type="text" class="modal-input" id="finAddExtra2Desc" placeholder="例如：生日蛋糕請款">
-          </div>
+        <div class="modal-field" style="flex:1;">
+          <div class="modal-label">總人數（選填）</div>
+          <input type="number" class="modal-input" id="finAddTotal" placeholder="0" inputmode="numeric">
         </div>
       </div>
 
       <div class="modal-field">
-        <div class="modal-label">備註</div>
+        <div class="modal-label">備註（選填）</div>
         <input type="text" class="modal-input" id="finAddNote" placeholder="例如：阿寶、文豪未繳">
       </div>
 
@@ -4185,6 +4183,17 @@ function openFinanceAdd() {
     </div>
   `;
   document.body.appendChild(overlay);
+  _setFinAddKind('expense');
+}
+
+function _setFinAddKind(kind) {
+  const hidden = document.getElementById('finAddKind');
+  if (hidden) hidden.value = kind;
+  document.querySelectorAll('.fin-kind-btn').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
+  const list = document.getElementById('finTypeList');
+  if (list) {
+    list.innerHTML = (FINANCE_TYPE_SUGGESTIONS[kind] || []).map(t => `<option value="${_escH(t)}">`).join('');
+  }
 }
 
 function closeFinanceAdd() {
@@ -4193,25 +4202,19 @@ function closeFinanceAdd() {
 }
 
 async function submitFinanceAdd() {
-  const sheet  = document.getElementById('finAddSheet').value;
+  const sheet  = _financeTermTab;
   const date   = document.getElementById('finAddDate').value.trim();
-  const income = +document.getElementById('finAddIncome').value || 0;
-  const e1     = +document.getElementById('finAddExtra1').value || 0;
-  const e1Desc = document.getElementById('finAddExtra1Desc').value.trim();
-  const expense= +document.getElementById('finAddExpense').value || 0;
+  const kind   = document.getElementById('finAddKind').value;
+  const type   = document.getElementById('finAddType').value.trim();
+  const amount = +document.getElementById('finAddAmount').value || 0;
   const paid   = +document.getElementById('finAddPaid').value || 0;
   const total  = +document.getElementById('finAddTotal').value || 0;
-  const e2     = +document.getElementById('finAddExtra2').value || 0;
-  const e2Desc = document.getElementById('finAddExtra2Desc').value.trim();
   const note   = document.getElementById('finAddNote').value.trim();
 
-  if (!date) { showToast('請填日期'); return; }
-  if (!income && !expense && !e1 && !e2) { showToast('收入/支出至少填一項'); return; }
-
-  const items = [
-    { type: '入席費', income, extraExpense: e1, extraDesc: e1Desc, note },
-    { type: '早餐',   expense, paid, total, extraExpense: e2, extraDesc: e2Desc }
-  ];
+  if (!sheet)  { showToast('請先選擇屆別'); return; }
+  if (!date)   { showToast('請填日期'); return; }
+  if (!type)   { showToast('請填性質'); return; }
+  if (!amount) { showToast('請填金額'); return; }
 
   const btn = document.getElementById('finAddSave');
   btn.disabled = true; btn.textContent = '儲存中...';
@@ -4219,7 +4222,7 @@ async function submitFinanceAdd() {
   try {
     const res = await fetch(FINANCE_API_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'append', sheet, date, items })
+      body: JSON.stringify({ action: 'append', sheet, date, type, kind, amount, paid, total, note })
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || 'unknown');

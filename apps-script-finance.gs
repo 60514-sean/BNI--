@@ -52,69 +52,64 @@ function doPost(e) {
 }
 
 /**
- * 新增整週紀錄（自動跨月插入標題、自動算結餘）
+ * 新增單筆紀錄（自動跨月插入月份標題、自動算結餘）
  *  body = {
  *    action: 'append',
  *    sheet:  '億展第六屆',
  *    date:   '2026/05/01',
- *    items:  [
- *      { type:'入席費', income:0, extraExpense:0, extraDesc:'', note:'' },
- *      { type:'早餐',   expense:0, paid:0, total:0, extraExpense:0, extraDesc:'' }
- *    ]
+ *    type:   '入席費',         // 性質（自由文字，前端有常用建議）
+ *    kind:   'income',         // 'income' or 'expense'
+ *    amount: 31500,
+ *    paid:   0,                // optional
+ *    total:  0,                // optional
+ *    note:   ''
  *  }
  */
 function _handleAppend(body) {
   const ss = SpreadsheetApp.openById(FINANCE_SHEET_ID);
   const sheet = ss.getSheetByName(body.sheet);
   if (!sheet) return _resp({ ok: false, error: '找不到分頁：' + body.sheet });
-  if (!body.items || !body.items.length) return _resp({ ok: false, error: '無新增項目' });
 
   const lastRow = sheet.getLastRow();
   let runningBal = _findLastBalance(sheet, lastRow);
   let cursor = lastRow;
 
-  // 偵測跨月 → 插入月份標題列
+  // 跨月 → 插入月份標題列
   const newMonth = _monthOfDate(body.date);
   const lastMonth = _findLastMonth(sheet, lastRow);
   if (newMonth && lastMonth && newMonth !== lastMonth) {
-    const termLabel = body.sheet.replace(/^億展/, '');  // 億展第六屆 → 第六屆
+    const termLabel = body.sheet.replace(/^億展/, '');
     const monthLabel = termLabel + String(parseInt(newMonth.split('-')[1])) + '月';
-    const headerRow = ['', monthLabel, '', '', '', '', '', '', '', '', ''];
-    sheet.getRange(cursor + 1, 1, 1, 11).setValues([headerRow]);
+    sheet.getRange(cursor + 1, 1, 1, 11).setValues([['', monthLabel, '', '', '', '', '', '', '', '', '']]);
     cursor++;
   }
 
-  const newRows = body.items.map(function (item, idx) {
-    const income      = _num(item.income);
-    const expense     = _num(item.expense);
-    const extraIncome = _num(item.extraIncome);
-    const extraExpense= _num(item.extraExpense);
+  const type   = body.type || '';
+  const kind   = (body.kind || 'expense').toLowerCase();
+  const amount = _num(body.amount);
+  const paid   = _num(body.paid);
+  const total  = _num(body.total);
+  const note   = body.note || '';
 
-    runningBal = runningBal + income - expense;
-    const balCol5 = runningBal;
-    runningBal = runningBal + extraIncome - extraExpense;
-    const balCol10 = runningBal;
+  if (kind === 'income') runningBal += amount;
+  else                   runningBal -= amount;
 
-    const extraIncomeCell  = extraIncome ? (item.extraIncomeDesc ? extraIncome + '（' + item.extraIncomeDesc + '）' : extraIncome) : '';
-    const extraExpenseCell = extraExpense ? (item.extraDesc ? extraExpense + '（' + item.extraDesc + '）' : extraExpense) : '';
+  const row = [
+    body.date || '',                          // A 日期
+    type,                                     // B 性質
+    kind === 'income'  ? (amount || '') : '', // C 收入
+    kind === 'expense' ? (amount || '') : '', // D 支出
+    runningBal,                               // E 結餘
+    paid  || '',                              // F 付費人數
+    total || '',                              // G 總人數
+    '',                                       // H 額外收入（簡化後不再使用）
+    '',                                       // I 額外支出
+    runningBal,                               // J 結餘
+    note                                      // K 備註
+  ];
 
-    return [
-      idx === 0 ? body.date : '',  // A 日期
-      item.type || '',             // B 性質
-      income || '',                // C 收入
-      expense || '',               // D 支出
-      balCol5,                     // E 結餘
-      _num(item.paid) || '',       // F 付費人數
-      _num(item.total) || '',      // G 總人數
-      extraIncomeCell,             // H 額外收入
-      extraExpenseCell,            // I 額外支出
-      balCol10,                    // J 結餘（最終）
-      item.note || ''              // K 備註
-    ];
-  });
-
-  sheet.getRange(cursor + 1, 1, newRows.length, 11).setValues(newRows);
-  return _resp({ ok: true, lastBalance: runningBal, addedRows: newRows.length });
+  sheet.getRange(cursor + 1, 1, 1, 11).setValues([row]);
+  return _resp({ ok: true, lastBalance: runningBal, addedRows: 1 });
 }
 
 /**
