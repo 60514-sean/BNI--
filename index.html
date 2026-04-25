@@ -359,6 +359,59 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   box-sizing: border-box;
 }
 
+/* 會員桌牌（一張 A4 兩位不同會員；底圖 4 段由下到上：正→180°→正→180°） */
+.placard-sheet.mplacard-sheet {
+  justify-content: center;
+  align-items: center;
+  color: inherit;
+}
+.mplacard-row {
+  width: 180mm;
+  height: 70mm;
+  position: relative;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.mplacard-row.rotated { transform: rotate(180deg); }
+.mplacard-row.empty { visibility: hidden; }
+.mplacard-name-box {
+  position: absolute;
+  left: 32.93%;
+  top: 30.23%;
+  width: 65.85%;
+  height: 60.46%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36mm;
+  font-weight: 900;
+  letter-spacing: 3mm;
+  padding-left: 3mm;
+  line-height: 1;
+  color: #8a8a8a;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.mplacard-industry-box {
+  position: absolute;
+  right: 6.26%;
+  top: 6.05%;
+  width: 51.46%;
+  height: 28.66%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 12mm;
+  font-weight: 900;
+  letter-spacing: 1mm;
+  color: var(--red);
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
 /* MEMBER PAGE */
 .member-search {
   width: 100%; padding: 12px 16px; margin-bottom: 14px;
@@ -498,7 +551,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
     <button class="ptab" id="ptab_dm" onclick="switchTab('dm')">會員<br>DM</button>
     <button class="ptab" id="ptab_signin" onclick="switchTab('signin')">出席<br>簽到</button>
     <button class="ptab" id="ptab_guesttrack" onclick="switchTab('guesttrack')">來賓<br>追蹤</button>
-    <button class="ptab" id="ptab_placard" onclick="switchTab('placard')">來賓<br>桌牌</button>
+    <button class="ptab" id="ptab_placard" onclick="switchTab('placard')">桌牌<br>製作</button>
   </div>
   <div class="content" id="todoContent" style="display:none"></div>
   <div class="content" id="mainContent"></div>
@@ -603,7 +656,7 @@ const TAB_LIST = [
   { id: 'dm',         label: '會員DM' },
   { id: 'signin',     label: '出席簽到' },
   { id: 'guesttrack', label: '來賓追蹤' },
-  { id: 'placard',    label: '來賓桌牌' }
+  { id: 'placard',    label: '桌牌製作' }
 ];
 
 function _normalizeUser(u) {
@@ -1286,7 +1339,7 @@ function switchTab(tab) {
   if (tab === 'dm')         { document.getElementById('headerTitle').textContent = '會員DM'; renderDM(); }
   if (tab === 'signin')     { document.getElementById('headerTitle').textContent = '出席簽到'; renderSignin(); }
   if (tab === 'guesttrack') { document.getElementById('headerTitle').textContent = '來賓追蹤'; renderGuestTrack(); }
-  if (tab === 'placard')    { document.getElementById('headerTitle').textContent = '來賓桌牌'; renderPlacard(); }
+  if (tab === 'placard')    { document.getElementById('headerTitle').textContent = '桌牌製作'; renderPlacard(); }
 }
 
 // ===== TODO =====
@@ -3006,37 +3059,92 @@ async function _deleteGuest(year, row) {
   }
 }
 
-// ===== 來賓桌牌 =====
+// ===== 桌牌製作 =====
+let _placardSubTab = 'guest';        // 'guest' | 'member'
+
+function _placardSwitch(v) { _placardSubTab = v; renderPlacard(); }
+
 async function renderPlacard() {
   _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
   const el = document.getElementById('placardContent');
   el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
-  if (_guestData === null) await fetchGuests();
-  if (_guestData === null) { el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試 <button class="btn" style="margin-left:12px;background:var(--red);color:white;" onclick="_guestData=null;renderPlacard()">重試</button></div>`; return; }
 
-  const weekGuests = _getWeekGuestsForSignin();
+  const tab = _placardSubTab;
+  if (tab === 'guest' && _guestData === null) await fetchGuests();
+  if (tab === 'guest' && _guestData === null) { el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試 <button class="btn" style="margin-left:12px;background:var(--red);color:white;" onclick="_guestData=null;renderPlacard()">重試</button></div>`; return; }
+  if (tab === 'member' && !_memberData) await fetchMembers();
+  if (tab === 'member' && !_memberData) { el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試</div>`; return; }
+
+  const subBtn = (v, label) => `<button class="signin-subtab ${tab===v?'active':''}" onclick="_placardSwitch('${v}')">${label}</button>`;
+
+  const weekGuests = tab === 'guest' ? _getWeekGuestsForSignin() : [];
+  const members    = tab === 'member' ? [..._memberData] : [];
+  const count = tab === 'guest' ? weekGuests.length : members.length;
+  const title = tab === 'guest' ? '來賓桌牌' : '會員桌牌';
+  const desc  = tab === 'guest'
+    ? `本周 ${count} 位 · ${count} 張 A4（每張 1 位，上下對摺為立牌）`
+    : `共 ${count} 位會員 · ${count} 張 A4（每張 1 位，上下對摺為立牌）`;
+
   el.innerHTML = `<div class="placard-wrapper">
     <div class="card" style="margin-bottom:14px;padding:16px 20px;">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
         <div>
-          <div style="font-size:16px;font-weight:900;color:var(--text);">來賓桌牌</div>
-          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">本周 ${weekGuests.length} 位 · ${weekGuests.length} 張 A4（每張 1 位，上下對摺為立牌）</div>
+          <div style="font-size:16px;font-weight:900;color:var(--text);">${title}</div>
+          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">${desc}</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-primary" onclick="printPlacards()" ${weekGuests.length===0?'disabled':''}>匯出 PDF</button>
-          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="_guestData=null;renderPlacard()">重整</button>
+          <button class="btn btn-primary" onclick="printPlacards()" ${count===0?'disabled':''}>匯出 PDF</button>
+          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="${tab==='guest'?'_guestData':'_memberData'}=null;renderPlacard()">重整</button>
         </div>
       </div>
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        ${subBtn('guest','來賓')}
+        ${subBtn('member','會員')}
+      </div>
     </div>
-    ${weekGuests.length === 0
-      ? `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">本周沒有來賓資料<br><span style="font-size:12px;">請先在「來賓追蹤」新增本周邀約的來賓</span></div>`
-      : `<div class="placard-preview-outer" id="placardOuter">
-          <div class="placard-preview-inner" id="placardInner">${weekGuests.map(_placardSheetHtml).join('')}</div>
-        </div>`
-    }
+    ${_placardBodyHtml(tab, weekGuests, members)}
   </div>`;
   _scalePlacard();
+}
+
+function _placardBodyHtml(tab, weekGuests, members) {
+  if (tab === 'guest') {
+    if (!weekGuests.length) {
+      return `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">本周沒有來賓資料<br><span style="font-size:12px;">請先在「來賓追蹤」新增本周邀約的來賓</span></div>`;
+    }
+    return `<div class="placard-preview-outer" id="placardOuter">
+        <div class="placard-preview-inner" id="placardInner">${weekGuests.map(_placardSheetHtml).join('')}</div>
+      </div>`;
+  }
+  if (!members.length) {
+    return `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">沒有會員資料</div>`;
+  }
+  return `<div class="placard-preview-outer" id="placardOuter">
+      <div class="placard-preview-inner" id="placardInner">${_buildMemberPlacardSheets(members)}</div>
+    </div>`;
+}
+
+function _buildMemberPlacardSheets(members) {
+  let html = '';
+  for (let i = 0; i < members.length; i += 2) {
+    html += _memberPlacardSheetHtml(members[i], members[i + 1] || null);
+  }
+  return html;
+}
+
+function _memberPlacardSheetHtml(memberA, memberB) {
+  const bg = `background-image:url('member_bg/1.png');`;
+  const content = (m) => m ? `
+    <div class="mplacard-industry-box">${_escH(m.specialty || '')}</div>
+    <div class="mplacard-name-box">${_escH(m.name || '')}</div>` : '';
+  const rowB_empty = memberB ? '' : 'empty';
+  return `<div class="placard-sheet mplacard-sheet">
+    <div class="mplacard-row rotated ${rowB_empty}" style="${bg}">${content(memberB)}</div>
+    <div class="mplacard-row ${rowB_empty}" style="${bg}">${content(memberB)}</div>
+    <div class="mplacard-row rotated" style="${bg}">${content(memberA)}</div>
+    <div class="mplacard-row" style="${bg}">${content(memberA)}</div>
+  </div>`;
 }
 
 function _placardSheetHtml(g) {
@@ -3100,7 +3208,8 @@ async function printPlacards() {
       if (i > 0) doc.addPage();
       doc.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 210, 297);
     }
-    doc.save(`BNI-來賓桌牌-${_todayIso()}.pdf`);
+    const fname = _placardSubTab === 'member' ? '會員桌牌' : '來賓桌牌';
+    doc.save(`BNI-${fname}-${_todayIso()}.pdf`);
     showToast('PDF 已下載');
   } catch {
     showToast('PDF 產生失敗，請重試');
