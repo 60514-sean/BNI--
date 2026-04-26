@@ -998,7 +998,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   font-family:inherit; outline:none; color:var(--text); background:white;
   width:100%; box-sizing:border-box;
 }
-.meet-field textarea { resize:vertical; min-height:42px; }
+.meet-field textarea { resize:vertical; min-height:38px; line-height:1.4; }
 .meet-field input:focus,
 .meet-field textarea:focus,
 .meet-field select:focus { border-color:var(--red); }
@@ -1038,9 +1038,9 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .meet-preview-inner { display:inline-block; min-width:100%; }
 .meet-preview-sheet {
   background:white; box-shadow:var(--shadow-lg);
-  padding:14mm 10mm; box-sizing:border-box;
+  padding:14mm 8mm; box-sizing:border-box;
   font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;
-  color:#1a1a2e; min-width:740px;
+  color:#1a1a2e; min-width:820px;
 }
 .meet-pv-title {
   text-align:center; font-size:22pt; font-weight:900;
@@ -1056,11 +1056,12 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   word-break:break-word; line-height:1.35;
 }
 .meet-pv-table th { background:#f1f3f5; font-weight:900; height:7mm; font-size:10pt; }
-.meet-pv-table .col-no { width:7%; }
-.meet-pv-table .col-topic { width:28%; text-align:left; padding-left:3mm; }
-.meet-pv-table .col-presenter { width:10%; }
-.meet-pv-table .col-dur { width:9%; }
-.meet-pv-table .col-st, .meet-pv-table .col-et { width:9%; }
+.meet-pv-table .col-no { width:6%; }
+.meet-pv-table .col-topic { width:24%; text-align:left; padding-left:3mm; }
+.meet-pv-table .col-presenter { width:11%; }
+.meet-pv-table .col-dur { width:8%; }
+.meet-pv-table .col-st, .meet-pv-table .col-et { width:8%; }
+.meet-pv-table .col-actual { width:7%; font-weight:900; color:#666; letter-spacing:1mm; }
 .meet-pv-table .col-note { width:28%; text-align:left; padding-left:3mm; }
 .meet-pv-table tr.is-title td.col-topic { color:var(--red); font-weight:900; }
 .meet-pv-table td.col-presenter.color-blue { color:#2563eb; font-weight:800; }
@@ -5224,56 +5225,116 @@ async function confirmReceivableDelete(rowIndex) {
 }
 
 // ===== 例會流程 =====
-const _MEET_LS_DRAFT = 'bni_meeting_draft_v1';
-const _MEET_LS_VERS  = 'bni_meeting_versions_v1';
+const _MEET_LS_DRAFT = 'bni_meeting_draft_v2';
+const _MEET_LS_VERS  = 'bni_meeting_versions_v2';
 
-const _MEET_BASE = [
-  { topic:'來賓報到、交流、拍照', presenter:'活動', minutes:30, note:'07:00 拍照' },
-  { topic:'主席開場', presenter:'主席', minutes:2, note:'' },
-  { topic:'主席歡迎來賓並介紹領導團隊', presenter:'主席', minutes:3, note:'不傳麥克風 主席統一介紹' },
-  { topic:'BNI的宗旨及概況', presenter:'主席', minutes:5, note:'計時4分半按一聲，5分鐘按兩聲' },
-  { topic:'教育培訓時間', presenter:'教育', minutes:4, note:'計時3分半按一聲，4分鐘按兩聲', presenterColor:'blue' },
-  { topic:'表揚優秀會員', presenter:'副主席', minutes:3, note:'' },
-  { topic:'傳遞名片盒', presenter:'主席', minutes:1, note:'請章辰協助傳遞名片盒-第一桌開始' },
-  { topic:'會員40秒專業呈現', presenter:'主席', minutes:21, note:'計時30秒按一聲，40秒按兩聲' },
-  { topic:'來賓15秒自我介紹', presenter:'主席', minutes:7, note:'計時10秒按一聲，15秒按兩聲' },
-  { topic:'副主席報告', presenter:'副主席', minutes:3, note:'計時1分半按一聲，2分鐘按兩聲' },
-  { topic:'會員委員會報告', presenter:'委員會', minutes:3, note:'計時2分半按一聲，3分鐘按兩聲', presenterColor:'blue' },
-  { topic:'秘書財務報告/未來六周主題講者', presenter:'秘財', minutes:1, note:'' },
-  { topic:'會員八分鐘主題簡報', presenter:'主題簡報', minutes:10, note:'7分半按一聲，8分鐘按兩聲，秘財收尾1分', titleHighlight:true, presenterColor:'blue' },
-  { topic:'會員12秒業務引薦時間', presenter:'主席', minutes:7, note:'計時12秒按一聲' },
-  { topic:'來賓分享10秒', presenter:'主席', minutes:5, note:'計時10秒按一聲' },
-  { topic:'引薦單查核', presenter:'副主席', minutes:3, note:'計時2分半按一聲，3分鐘按兩聲' },
-  { topic:'秘書財務報告會員申請資格', presenter:'秘財', minutes:4, note:'計時3分半按一聲，4分鐘按兩聲' },
-  { topic:'主席感謝來賓', presenter:'主席', minutes:2, note:'計時1分半按一聲，2分鐘按兩聲' },
-  { topic:'活動協調人報告', presenter:'活動', minutes:2, note:'計時1分半按一聲，2分鐘按兩聲' },
-  { topic:'抽獎時間', presenter:'副主席', minutes:2, note:'計時1分半按一聲、2分按兩聲' },
-  { topic:'會議結束', presenter:'主席', minutes:2, note:'' }
+// 一般正式例會基底（21 項，新版 25 秒/10 秒/10 秒）
+const _MEET_NORMAL_BASE = [
+  { topic:'會員報到、交流、拍照', presenter:'活動', minutes:30, note:'□計時 06:55拍照' },
+  { topic:'主席開場', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
+  { topic:'主席歡迎來賓\n介紹領導團隊', presenter:'主席', minutes:4, note:'□計時 3:30按●，4:00按●●' },
+  { topic:'BNI的宗旨及概況', presenter:'主席', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'教育培訓時間', presenter:'教育', minutes:3, note:'□計時 2:30按●，3:00按●●', presenterColor:'blue' },
+  { topic:'表揚優秀會員', presenter:'副主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
+  { topic:'傳遞會員名片盒', presenter:'主席', minutes:1.5, note:'請跑麥手協助傳遞名片盒\nDJ手側桌開始' },
+  { topic:'會員25秒專業呈現', presenter:'主席', minutes:21, note:'□計時 0:15按●，0:25按●●' },
+  { topic:'來賓10秒自我介紹', presenter:'主席', minutes:2, note:'□計時 0:10按●，0:15按●●' },
+  { topic:'副主席報告', presenter:'副主席', minutes:3, note:'□計時 2:30按●，3:00按●●' },
+  { topic:'會員委員會報告', presenter:'委員會', minutes:2, note:'□計時 1:30按●，2:00按●●', presenterColor:'blue' },
+  { topic:'秘書財務報告\n未來六週主題講者', presenter:'秘財', minutes:1.5, note:'□計時 1:00按●，1:30按●●' },
+  { topic:'主題簡報', presenter:'主題簡報', minutes:11, note:'□計時 4:30按●，5:00按●●', titleHighlight:true, presenterColor:'blue' },
+  { topic:'會員10秒業務引薦時間', presenter:'主席', minutes:10, note:'□計時 0:10按●●' },
+  { topic:'來賓分享10秒', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
+  { topic:'引薦單查核', presenter:'副主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
+  { topic:'秘書財務報告\n會員申請資格', presenter:'秘財', minutes:4, note:'□計時 3:30按●，4:00按●●' },
+  { topic:'主席感謝來賓', presenter:'主席', minutes:1, note:'□計時 0:30按●，1:00按●●' },
+  { topic:'活動協調人報告', presenter:'活動', minutes:3, note:'□計時 2:30按●，3:00按●●' },
+  { topic:'抽獎時間', presenter:'副主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
+  { topic:'會議結束', presenter:'主席', minutes:1, note:'□計時 0:30按●，1:00按●●' }
 ];
 
-function _meetMakeTemplate(extras) {
-  const arr = _MEET_BASE.map(x => ({ ...x }));
+// 共識會議基底（22 項，屆別交接專用）
+const _MEET_CONSENSUS_BASE = [
+  { topic:'會員報到、交流、拍照', presenter:'活動', minutes:20, note:'□計時 06:45拍照' },
+  { topic:'開場', presenter:'主席', minutes:1, note:'□計時 0:30按●，1:00按●●' },
+  { topic:'三長卸任感言', presenter:'秘財-卸任\n副主席-卸任\n主席-卸任', minutes:3, note:'□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●' },
+  { topic:'頒發上屆\n九長+委員+導師=感謝狀', presenter:'主席', minutes:4, note:'□不傳麥克風，主席統一介紹' },
+  { topic:'頒發本屆\n九長+委員+導師=聘書', presenter:'主席', minutes:3, note:'□不傳麥克風，主席統一介紹' },
+  { topic:'本屆領導團隊介紹', presenter:'主席', minutes:4, note:'□計時 3:30按●，4:00按●●' },
+  { topic:'布達行政小組', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
+  { topic:'報告本屆目標', presenter:'主席', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'副主席報告', presenter:'副主席', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'秘書財務報告', presenter:'秘財', minutes:8, note:'□計時 7:30按●，8:00按●●' },
+  { topic:'會員委員會報告', presenter:'委員會-1\n委員會-2', minutes:18, note:'□計時 8:30按●，9:00按●●\n□計時 8:30按●，9:00按●●', presenterColor:'blue' },
+  { topic:'教育協調人報告', presenter:'教育', minutes:4, note:'□計時 4:00按●，4:30按●●' },
+  { topic:'活動協調人', presenter:'活動', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'來賓接待人', presenter:'來賓接待', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'導師協調人', presenter:'導師', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'成長協調人', presenter:'成長', minutes:9, note:'□計時 8:30按●，9:00按●●' },
+  { topic:'網站管理員', presenter:'網站', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'上屆五冠王頒獎', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
+  { topic:'個人收穫分享(1)', presenter:'會員-1', minutes:3, note:'□計時 2:30按●，3:00按●●' },
+  { topic:'個人收穫分享(2)', presenter:'會員-2', minutes:3, note:'□計時 2:30按●，3:00按●●' },
+  { topic:'支持成長董顧時間', presenter:'董顧', minutes:3, note:'□計時 2:30按●，3:00按●●' },
+  { topic:'主席結束會議聚能', presenter:'主席', minutes:3, note:'□計時 2:30按●，3:00按●●' }
+];
+
+// 變體插入項目（在「表揚優秀會員」後、「傳遞名片盒」前）
+const _MEET_EVENTS = {
+  declareNew: { topic:'宣布新人入會\n宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
+  declareRenew: { topic:'宣布續約會員\n宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
+  declareNewRenew: { topic:'宣布續約、新人入會\n宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
+  declareExitNewRenew: { topic:'宣布出村、續約、新人入會\n宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
+  declareExitRenew: { topic:'宣布出村、續約會員\n宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
+  declareExitNew: { topic:'宣布出村、新人入會\n宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
+  newmember: { topic:'入會感言\n→五長拍照', presenter:'副主席-主持\n會員-入會', minutes:2, note:'□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●' },
+  renew: { topic:'續約感言\n→五長拍照', presenter:'副主席-主持\n會員-續約', minutes:2, note:'□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●' },
+  exit: { topic:'出村典禮', presenter:'主席-主持\n導生\n導師', minutes:3, note:'□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●\n□計時 0:30按●，0:45按●●' }
+};
+
+function _meetMakeNormal(extras) {
+  const arr = _MEET_NORMAL_BASE.map(x => ({ ...x }));
   arr.splice(6, 0, ...extras.map(x => ({ ...x })));
   return arr;
 }
 
 const _MEET_TEMPLATES = {
-  general: { name:'一般例會', items: _MEET_BASE.map(x => ({ ...x })) },
-  newmember: { name:'新會員入會', items: _meetMakeTemplate([
-    { topic:'入會人員（致詞）', presenter:'主席', minutes:5, note:'計時4分半按一聲，5分鐘按兩聲' }
-  ])},
-  exit: { name:'出村會議', items: _meetMakeTemplate([
-    { topic:'出村人員（感謝致詞）', presenter:'主席', minutes:5, note:'計時4分半按一聲，5分鐘按兩聲' }
-  ])},
-  exit_new: { name:'入會＋出村', items: _meetMakeTemplate([
-    { topic:'出村人員（感謝致詞）', presenter:'主席', minutes:5, note:'計時4分半按一聲，5分鐘按兩聲' },
-    { topic:'入會人員（致詞）', presenter:'主席', minutes:5, note:'計時4分半按一聲，5分鐘按兩聲' }
-  ])},
-  exit_renew_new: { name:'入會＋續約＋出村', items: _meetMakeTemplate([
-    { topic:'出村人員（感謝致詞）', presenter:'主席', minutes:5, note:'計時4分半按一聲，5分鐘按兩聲' },
-    { topic:'續約人員（致詞）', presenter:'主席', minutes:4, note:'計時3分半按一聲，4分鐘按兩聲' },
-    { topic:'入會人員（致詞）', presenter:'主席', minutes:5, note:'計時4分半按一聲，5分鐘按兩聲' }
-  ])}
+  consensus: {
+    name: '共識會議',
+    meetingType: '正式例會 共識會議',
+    actualDefault: '',
+    items: _MEET_CONSENSUS_BASE.map(x => ({ ...x }))
+  },
+  general: {
+    name: '一般正式例會',
+    meetingType: '正式例會',
+    actualDefault: '｜',
+    items: _MEET_NORMAL_BASE.map(x => ({ ...x }))
+  },
+  new_exit: {
+    name: '正式例會＋入會＋出村',
+    meetingType: '正式例會',
+    actualDefault: '｜',
+    items: _meetMakeNormal([_MEET_EVENTS.declareExitNew, _MEET_EVENTS.newmember, _MEET_EVENTS.exit])
+  },
+  renew_exit: {
+    name: '正式例會＋續約＋出村',
+    meetingType: '正式例會',
+    actualDefault: '｜',
+    items: _meetMakeNormal([_MEET_EVENTS.declareExitRenew, _MEET_EVENTS.renew, _MEET_EVENTS.exit])
+  },
+  full: {
+    name: '正式例會＋入會＋續約＋出村',
+    meetingType: '正式例會',
+    actualDefault: '｜',
+    items: _meetMakeNormal([_MEET_EVENTS.declareExitNewRenew, _MEET_EVENTS.newmember, _MEET_EVENTS.renew, _MEET_EVENTS.exit])
+  },
+  new_renew: {
+    name: '正式例會＋入會＋續約',
+    meetingType: '正式例會',
+    actualDefault: '｜',
+    items: _meetMakeNormal([_MEET_EVENTS.declareNewRenew, _MEET_EVENTS.newmember, _MEET_EVENTS.renew])
+  }
 };
 
 function _meetTodayDate() {
@@ -5282,13 +5343,16 @@ function _meetTodayDate() {
 }
 
 function _meetDefault() {
+  const tpl = _MEET_TEMPLATES.general;
   return {
     templateId: 'general',
     title: '億展',
     seqNum: '',
     dateStr: _meetTodayDate(),
     startTime: '06:30',
-    items: _MEET_TEMPLATES.general.items.map(x => ({ ...x })),
+    meetingType: tpl.meetingType,
+    actualDefault: tpl.actualDefault,
+    items: tpl.items.map(x => ({ ...x })),
     editMode: true
   };
 }
@@ -5320,7 +5384,13 @@ function _meetParseHHMM(s) {
 }
 function _meetFormatHHMM(min) {
   let v = ((min % (24*60)) + 24*60) % (24*60);
+  v = Math.floor(v);
   return `${String(Math.floor(v/60)).padStart(2,'0')}:${String(v%60).padStart(2,'0')}`;
+}
+function _meetParseDuration(s) {
+  const v = parseFloat(s);
+  if (!isFinite(v) || v < 0) return 0;
+  return v;
 }
 function _meetComputeTimes() {
   if (!_meetState) return [];
@@ -5328,10 +5398,14 @@ function _meetComputeTimes() {
   if (cur == null) cur = 6*60+30;
   return _meetState.items.map(it => {
     const start = cur;
-    const dur = Math.max(0, parseInt(it.minutes,10) || 0);
+    const dur = _meetParseDuration(it.minutes);
     cur += dur;
     return { start: _meetFormatHHMM(start), end: _meetFormatHHMM(cur) };
   });
+}
+function _meetFmtDur(min) {
+  const v = _meetParseDuration(min);
+  return Number.isInteger(v) ? `${v}min` : `${v}min`;
 }
 
 function renderMeeting() {
@@ -5382,6 +5456,13 @@ function _meetRenderEditor() {
       <label>分會名稱 <input type="text" value="${_escH(_meetState.title)}" onchange="_meetSetField('title', this.value)" placeholder="億展"></label>
       <label>第幾次 <input type="text" value="${_escH(_meetState.seqNum)}" onchange="_meetSetField('seqNum', this.value)" placeholder="00"></label>
       <label>起始時間 <input type="text" value="${_escH(_meetState.startTime)}" onchange="_meetSetField('startTime', this.value)" placeholder="06:30"></label>
+      <label>會議類型 <input type="text" value="${_escH(_meetState.meetingType||'正式例會')}" onchange="_meetSetField('meetingType', this.value)" placeholder="正式例會"></label>
+      <label>實際欄符號
+        <select onchange="_meetSetField('actualDefault', this.value)">
+          <option value="｜" ${_meetState.actualDefault==='｜'?'selected':''}>｜（手寫分隔）</option>
+          <option value="" ${!_meetState.actualDefault?'selected':''}>空白</option>
+        </select>
+      </label>
       <label>套用範本
         <select onchange="_meetApplyTemplate(this.value)">${tplOptions}</select>
       </label>
@@ -5404,6 +5485,9 @@ function _meetRenderEditor() {
     const t = times[idx];
     const presenterColor = it.presenterColor || '';
     const lastIdx = _meetState.items.length - 1;
+    const topicRows = Math.max(1, String(it.topic||'').split('\n').length);
+    const presenterRows = Math.max(1, String(it.presenter||'').split('\n').length);
+    const noteRows = Math.max(2, String(it.note||'').split('\n').length);
     return `
       <div class="meet-card ${it.titleHighlight?'is-title':''}">
         <div class="meet-card-head">
@@ -5416,16 +5500,16 @@ function _meetRenderEditor() {
           </div>
         </div>
         <div class="meet-field" style="margin-bottom:8px">
-          <label>議程</label>
-          <input type="text" value="${_escH(it.topic||'')}" oninput="_meetUpdateField(${idx},'topic',this.value)">
+          <label>議程（可換行多項）</label>
+          <textarea rows="${topicRows}" oninput="_meetUpdateField(${idx},'topic',this.value)">${_escH(it.topic||'')}</textarea>
           <label style="font-weight:600;color:var(--text-soft);font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;cursor:pointer">
             <input type="checkbox" ${it.titleHighlight?'checked':''} onchange="_meetToggleTitle(${idx},this.checked)" style="margin:0;width:auto"> 紅字標題（如主題簡報）
           </label>
         </div>
         <div class="meet-card-grid3">
           <div class="meet-field">
-            <label>報告人</label>
-            <input type="text" value="${_escH(it.presenter||'')}" oninput="_meetUpdateField(${idx},'presenter',this.value)">
+            <label>報告人（可換行多人）</label>
+            <textarea rows="${presenterRows}" oninput="_meetUpdateField(${idx},'presenter',this.value)">${_escH(it.presenter||'')}</textarea>
           </div>
           <div class="meet-field">
             <label>顏色</label>
@@ -5436,12 +5520,16 @@ function _meetRenderEditor() {
           </div>
           <div class="meet-field">
             <label>時長(分)</label>
-            <input type="number" min="0" value="${it.minutes}" oninput="_meetUpdateField(${idx},'minutes',this.value)">
+            <input type="number" min="0" step="0.5" value="${it.minutes}" oninput="_meetUpdateField(${idx},'minutes',this.value)">
           </div>
         </div>
         <div class="meet-field">
-          <label>實際狀況 / 備註</label>
-          <textarea rows="2" oninput="_meetUpdateField(${idx},'note',this.value)">${_escH(it.note||'')}</textarea>
+          <label>備註（可換行多行）</label>
+          <textarea rows="${noteRows}" oninput="_meetUpdateField(${idx},'note',this.value)">${_escH(it.note||'')}</textarea>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+            <button type="button" class="meet-tb-btn" style="padding:5px 10px;font-size:11px" onclick="_meetInsertNote(${idx},'□不傳麥克風，主席統一介紹')">＋不傳麥克風</button>
+            <button type="button" class="meet-tb-btn" style="padding:5px 10px;font-size:11px" onclick="_meetAutoNote(${idx})">依時長自動產生</button>
+          </div>
         </div>
         <div class="meet-add-row" style="margin-top:10px;margin-bottom:0">
           <button onclick="_meetAddRow(${idx+1})">＋ 在下方新增</button>
@@ -5463,7 +5551,9 @@ function _meetRenderPreviewArea() {
 
 function _meetRenderPreview() {
   const times = _meetComputeTimes();
-  const titleHtml = `${_meetState.dateStr||''} ${_meetState.title||''}第${_meetState.seqNum||'00'}次正式例會流程表`;
+  const meetingType = _meetState.meetingType || '正式例會';
+  const titleHtml = `${_meetState.dateStr||''} ${_meetState.title||''}第 ${_meetState.seqNum||'00'} 次${meetingType}流程表`;
+  const actual = _meetState.actualDefault || '';
   const rows = _meetState.items.map((it, idx) => {
     const t = times[idx];
     const presenterCls = it.presenterColor === 'blue' ? 'col-presenter color-blue' : 'col-presenter';
@@ -5472,10 +5562,11 @@ function _meetRenderPreview() {
       <tr class="${titleCls}">
         <td class="col-no">${idx+1}</td>
         <td class="col-topic">${_escH(it.topic||'').replace(/\n/g,'<br>')}</td>
-        <td class="${presenterCls}">${_escH(it.presenter||'')}</td>
-        <td class="col-dur">${_escH(String(it.minutes||0))}min</td>
+        <td class="${presenterCls}">${_escH(it.presenter||'').replace(/\n/g,'<br>')}</td>
+        <td class="col-dur">${_meetFmtDur(it.minutes)}</td>
         <td class="col-st">${t.start}</td>
         <td class="col-et">${t.end}</td>
+        <td class="col-actual">${_escH(actual)}</td>
         <td class="col-note">${_escH(it.note||'').replace(/\n/g,'<br>')}</td>
       </tr>
     `;
@@ -5488,10 +5579,10 @@ function _meetRenderPreview() {
           <table class="meet-pv-table">
             <colgroup>
               <col class="col-no"><col class="col-topic"><col class="col-presenter">
-              <col class="col-dur"><col class="col-st"><col class="col-et"><col class="col-note">
+              <col class="col-dur"><col class="col-st"><col class="col-et"><col class="col-actual"><col class="col-note">
             </colgroup>
             <thead>
-              <tr><th>序號</th><th>議程</th><th>報告人</th><th>時長</th><th>開始</th><th>結束</th><th>實際狀況</th></tr>
+              <tr><th>序號</th><th>議程</th><th>報告人</th><th>時長/分</th><th>開始</th><th>結束</th><th>實際</th><th>備註</th></tr>
             </thead>
             <tbody>${rows}</tbody>
           </table>
@@ -5501,13 +5592,44 @@ function _meetRenderPreview() {
   `;
 }
 
+function _meetInsertNote(idx, text) {
+  const cur = _meetState.items[idx].note || '';
+  _meetState.items[idx].note = cur ? (cur + '\n' + text) : text;
+  _meetSaveDraft();
+  _meetRenderBody();
+}
+
+function _meetAutoNote(idx) {
+  const m = _meetParseDuration(_meetState.items[idx].minutes);
+  if (m <= 0) { showToast('時長為 0，無法產生'); return; }
+  // 半分鐘前 ●、整分 ●●，但短於 1 分用秒
+  const totalSec = Math.round(m * 60);
+  let firstSec, secondSec;
+  if (totalSec <= 60) {
+    // 短於 1 分鐘：半秒+整秒
+    secondSec = totalSec;
+    firstSec = Math.max(0, totalSec - 30);
+    if (firstSec === 0 && totalSec > 10) firstSec = Math.floor(totalSec / 2);
+  } else {
+    secondSec = totalSec;
+    firstSec = totalSec - 30;
+  }
+  const fmt = s => {
+    const mm = Math.floor(s/60), ss = s%60;
+    return `${mm}:${String(ss).padStart(2,'0')}`;
+  };
+  _meetState.items[idx].note = `□計時 ${fmt(firstSec)}按●，${fmt(secondSec)}按●●`;
+  _meetSaveDraft();
+  _meetRenderBody();
+}
+
 function _meetSetField(field, value) {
   _meetState[field] = value;
   _meetSaveDraft();
   if (field === 'startTime') _meetRenderBody();
 }
 function _meetUpdateField(idx, field, value) {
-  if (field === 'minutes') value = Math.max(0, parseInt(value,10) || 0);
+  if (field === 'minutes') value = _meetParseDuration(value);
   _meetState.items[idx][field] = value;
   _meetSaveDraft();
   if (field === 'minutes') _meetRenderBody();
@@ -5544,6 +5666,8 @@ function _meetApplyTemplate(id) {
     return;
   }
   _meetState.templateId = id;
+  _meetState.meetingType = t.meetingType;
+  _meetState.actualDefault = t.actualDefault;
   _meetState.items = t.items.map(x => ({ ...x }));
   _meetSaveDraft();
   renderMeeting();
@@ -5563,6 +5687,8 @@ function _meetSaveAsVersion() {
     dateStr, seqNum, title,
     templateId: _meetState.templateId,
     startTime: _meetState.startTime,
+    meetingType: _meetState.meetingType || '正式例會',
+    actualDefault: _meetState.actualDefault || '',
     items: JSON.parse(JSON.stringify(_meetState.items)),
     savedAt: new Date().toISOString()
   };
@@ -5587,6 +5713,8 @@ function _meetLoadVersion(id) {
     seqNum: v.seqNum || '',
     dateStr: v.dateStr || _meetTodayDate(),
     startTime: v.startTime || '06:30',
+    meetingType: v.meetingType || '正式例會',
+    actualDefault: v.actualDefault || '',
     items: JSON.parse(JSON.stringify(v.items || [])),
     editMode
   };
