@@ -895,3 +895,63 @@ function _test() {
     Logger.log(sheet.getName() + ' 列數：' + sheet.getLastRow());
   });
 }
+
+// =============== 一次性：修正既有銷帳備註中的「Fri Apr 10 2026 GMT...」長日期 ===============
+/**
+ * 把所有屆別分頁中備註欄（最後一欄）內形如
+ *   "Fri Apr 10 2026 00:00:00 GMT+0800 (台北標準時間)"
+ * 的長日期字串，自動替換成 yyyy/MM/dd。
+ *   工具列「執行」→ 選 fixSettlementDateFormat → ▶
+ */
+function fixSettlementDateFormat() {
+  const ss = SpreadsheetApp.openById(FINANCE_SHEET_ID);
+  const log = [];
+  let totalFixed = 0;
+  const re = /[A-Za-z]{3} [A-Za-z]{3} \d{1,2} \d{4} [\d:]+ GMT[+\-]\d{4}(?:\s*\([^)]+\))?/g;
+
+  ss.getSheets().forEach(function (sheet) {
+    const name = sheet.getName();
+    if (name === RECEIVABLE_SHEET) return;
+    const lastCol = sheet.getLastColumn();
+    const headers = sheet.getRange(1, 1, 1, Math.min(2, lastCol)).getValues()[0];
+    if (String(headers[0]).trim() !== '日期' || String(headers[1]).trim() !== '性質') return;
+
+    const ncol = _ncolOf(sheet);
+    const noteCol = ncol; // 最後一欄就是備註
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+
+    const range = sheet.getRange(2, noteCol, lastRow - 1, 1);
+    const values = range.getValues();
+    let fixedInSheet = 0;
+
+    for (let i = 0; i < values.length; i++) {
+      const cell = values[i][0];
+      if (typeof cell !== 'string' || !cell) continue;
+      if (!re.test(cell)) { re.lastIndex = 0; continue; }
+      re.lastIndex = 0;
+      const newCell = cell.replace(re, function (m) {
+        const d = new Date(m);
+        if (isNaN(d.getTime())) return m;
+        return Utilities.formatDate(d, 'Asia/Taipei', 'yyyy/MM/dd');
+      });
+      if (newCell !== cell) {
+        sheet.getRange(i + 2, noteCol).setValue(newCell);
+        fixedInSheet++;
+      }
+    }
+
+    if (fixedInSheet > 0) {
+      log.push(name + '：修正 ' + fixedInSheet + ' 筆');
+      totalFixed += fixedInSheet;
+    } else {
+      log.push(name + '：無需修正');
+    }
+  });
+
+  Logger.log('========================================');
+  Logger.log('合計修正：' + totalFixed + ' 筆');
+  log.forEach(function (l) { Logger.log('  ' + l); });
+  Logger.log('========================================');
+  return { ok: true, totalFixed: totalFixed, log: log };
+}
