@@ -5331,44 +5331,222 @@ function _findFinanceRecord(rowIndex) {
   return null;
 }
 
+function _detectV6EditMode(r) {
+  if (r.income > 0) {
+    if (r.type === '場餐費（會員）') return 'mealMember';
+    if (r.type === '場餐費（來賓）') return 'mealGuest';
+    return 'incomeOther';
+  }
+  if (r.expense > 0) {
+    if (r.type === '飯店費用') return 'hotel';
+    return 'expenseOther';
+  }
+  return 'incomeOther';
+}
+
 function openFinanceEdit(rowIndex) {
   if (!_canEditTab('finance')) { showToast('無權限'); return; }
   const found = _findFinanceRecord(rowIndex);
   if (!found) { showToast('找不到該紀錄'); return; }
   const r = found.record;
+  const useV6 = _isV6PlusIncome();
+  const dateVal = _escH((r.date || '').replace(/\//g, '-'));
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'financeEditModal';
+
+  if (!useV6) {
+    overlay.innerHTML = `
+      <div class="modal-box">
+        <div class="modal-title">編輯紀錄（列 ${rowIndex}）</div>
+        <div class="modal-field"><div class="modal-label">日期</div>
+          <input type="date" class="modal-input" id="finEditDate" value="${dateVal}"></div>
+        <div class="modal-field"><div class="modal-label">性質</div>
+          <input type="text" class="modal-input" id="finEditType" value="${_escH(r.type)}"></div>
+        <div class="modal-row">
+          <div class="modal-field" style="flex:1;"><div class="modal-label">收入</div>
+            <input type="number" class="modal-input" id="finEditIncome" value="${r.income || ''}"></div>
+          <div class="modal-field" style="flex:1;"><div class="modal-label">支出</div>
+            <input type="number" class="modal-input" id="finEditExpense" value="${r.expense || ''}"></div>
+        </div>
+        <div class="modal-row">
+          <div class="modal-field" style="flex:1;"><div class="modal-label">付費人數</div>
+            <input type="number" class="modal-input" id="finEditPaid" value="${r.paid || ''}"></div>
+          <div class="modal-field" style="flex:1;"><div class="modal-label">總人數</div>
+            <input type="number" class="modal-input" id="finEditTotal" value="${r.total || ''}"></div>
+        </div>
+        <div class="modal-field"><div class="modal-label">備註</div>
+          <input type="text" class="modal-input" id="finEditNote" value="${_escH(r.note)}"></div>
+        <div class="modal-btns">
+          <button class="modal-del" onclick="closeFinanceEdit();confirmFinanceDelete(${rowIndex})">刪除</button>
+          <button class="modal-cancel" onclick="closeFinanceEdit()">取消</button>
+          <button class="modal-save" id="finEditSave" onclick="submitFinanceEdit(${rowIndex})">儲存</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    return;
+  }
+
+  // 第六屆+ 用 V6 介面（依紀錄性質決定子模式）
+  const mode = _detectV6EditMode(r);
+  let body = '';
+  if (mode === 'mealMember' || mode === 'mealGuest') {
+    const role  = mode === 'mealMember' ? '會員' : '來賓';
+    const n     = r.paid || 0;
+    const total = r.income || 0;
+    const price = n > 0 ? Math.round(total / n) : total;
+    body = `
+      <div class="modal-field"><div class="modal-label">日期</div>
+        <input type="date" class="modal-input" id="finEditDate" value="${dateVal}"></div>
+      <div style="font-size:12px;color:var(--red);font-weight:900;margin:6px 0 6px;">場餐費 - ${role}</div>
+      <div class="modal-row">
+        <div class="modal-field" style="flex:1;"><div class="modal-label">人數</div>
+          <input type="number" class="modal-input" id="finEditMealN" value="${n}" oninput="_updEditMeal()"></div>
+        <div class="modal-field" style="flex:1;"><div class="modal-label">單價</div>
+          <input type="number" class="modal-input" id="finEditMealP" value="${price}" oninput="_updEditMeal()"></div>
+        <div class="modal-field" style="flex:1;"><div class="modal-label">總價</div>
+          <input type="number" class="modal-input" id="finEditMealTotal" value="${total}" readonly style="background:var(--gray-light);"></div>
+      </div>`;
+  } else if (mode === 'hotel') {
+    const n     = r.paid || 0;
+    const total = r.expense || 0;
+    const price = n > 0 ? Math.round(total / n) : total;
+    body = `
+      <div class="modal-field"><div class="modal-label">日期</div>
+        <input type="date" class="modal-input" id="finEditDate" value="${dateVal}"></div>
+      <div style="font-size:12px;color:var(--red);font-weight:900;margin:6px 0 6px;">飯店費用</div>
+      <div class="modal-row">
+        <div class="modal-field" style="flex:1;"><div class="modal-label">合計人數</div>
+          <input type="number" class="modal-input" id="finEditHotelN" value="${n}" oninput="_updEditHotel()"></div>
+        <div class="modal-field" style="flex:1;"><div class="modal-label">單價</div>
+          <input type="number" class="modal-input" id="finEditHotelP" value="${price}" oninput="_updEditHotel()"></div>
+        <div class="modal-field" style="flex:1;"><div class="modal-label">總價</div>
+          <input type="number" class="modal-input" id="finEditHotelTotal" value="${total}" readonly style="background:var(--gray-light);"></div>
+      </div>
+      <div class="modal-field"><div class="modal-label">備註</div>
+        <input type="text" class="modal-input" id="finEditNote" value="${_escH(r.note || '')}"></div>`;
+  } else if (mode === 'incomeOther') {
+    body = `
+      <div class="modal-field"><div class="modal-label">日期</div>
+        <input type="date" class="modal-input" id="finEditDate" value="${dateVal}"></div>
+      <div class="modal-row">
+        <div class="modal-field" style="flex:2;"><div class="modal-label">收入來源</div>
+          <input type="text" class="modal-input" id="finEditIncSrc" value="${_escH(r.type || '')}"></div>
+        <div class="modal-field" style="flex:1;"><div class="modal-label">費用</div>
+          <input type="number" class="modal-input" id="finEditIncAmt" value="${r.income || ''}"></div>
+      </div>
+      <div class="modal-field"><div class="modal-label">備註</div>
+        <input type="text" class="modal-input" id="finEditNote" value="${_escH(r.note || '')}"></div>`;
+  } else { // expenseOther
+    const q     = r.paid || 1;
+    const total = r.expense || 0;
+    const price = q > 0 ? Math.round(total / q) : total;
+    body = `
+      <div class="modal-field"><div class="modal-label">日期</div>
+        <input type="date" class="modal-input" id="finEditDate" value="${dateVal}"></div>
+      <div class="modal-field"><div class="modal-label">內容</div>
+        <input type="text" class="modal-input" id="finEditExpDesc" value="${_escH(r.type || '')}"></div>
+      <div class="modal-row">
+        <div class="modal-field" style="flex:1;"><div class="modal-label">單價</div>
+          <input type="number" class="modal-input" id="finEditExpP" value="${price}" oninput="_updEditExpOther()"></div>
+        <div class="modal-field" style="flex:1;"><div class="modal-label">數量</div>
+          <input type="number" class="modal-input" id="finEditExpQ" value="${q}" oninput="_updEditExpOther()"></div>
+        <div class="modal-field" style="flex:1;"><div class="modal-label">總價</div>
+          <input type="number" class="modal-input" id="finEditExpTotal" value="${total}" readonly style="background:var(--gray-light);"></div>
+      </div>
+      <div class="modal-field"><div class="modal-label">備註</div>
+        <input type="text" class="modal-input" id="finEditNote" value="${_escH(r.note || '')}"></div>`;
+  }
+
   overlay.innerHTML = `
     <div class="modal-box">
       <div class="modal-title">編輯紀錄（列 ${rowIndex}）</div>
-      <div class="modal-field"><div class="modal-label">日期</div>
-        <input type="date" class="modal-input" id="finEditDate" value="${_escH((r.date||'').replace(/\//g, '-'))}"></div>
-      <div class="modal-field"><div class="modal-label">性質</div>
-        <input type="text" class="modal-input" id="finEditType" value="${_escH(r.type)}"></div>
-      <div style="display:flex;gap:8px;">
-        <div class="modal-field" style="flex:1;"><div class="modal-label">收入</div>
-          <input type="number" class="modal-input" id="finEditIncome" value="${r.income || ''}"></div>
-        <div class="modal-field" style="flex:1;"><div class="modal-label">支出</div>
-          <input type="number" class="modal-input" id="finEditExpense" value="${r.expense || ''}"></div>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <div class="modal-field" style="flex:1;"><div class="modal-label">付費人數</div>
-          <input type="number" class="modal-input" id="finEditPaid" value="${r.paid || ''}"></div>
-        <div class="modal-field" style="flex:1;"><div class="modal-label">總人數</div>
-          <input type="number" class="modal-input" id="finEditTotal" value="${r.total || ''}"></div>
-      </div>
-      <div class="modal-field"><div class="modal-label">備註</div>
-        <input type="text" class="modal-input" id="finEditNote" value="${_escH(r.note)}"></div>
+      ${body}
       <div class="modal-btns">
         <button class="modal-del" onclick="closeFinanceEdit();confirmFinanceDelete(${rowIndex})">刪除</button>
         <button class="modal-cancel" onclick="closeFinanceEdit()">取消</button>
-        <button class="modal-save" id="finEditSave" onclick="submitFinanceEdit(${rowIndex})">儲存</button>
+        <button class="modal-save" id="finEditSave" onclick="_submitFinanceEditV6(${rowIndex}, '${mode}')">儲存</button>
       </div>
-    </div>
-  `;
+    </div>`;
   document.body.appendChild(overlay);
+}
+
+function _updEditMeal() {
+  const n = +document.getElementById('finEditMealN').value || 0;
+  const p = +document.getElementById('finEditMealP').value || 0;
+  document.getElementById('finEditMealTotal').value = (n * p) || '';
+}
+function _updEditHotel() {
+  const n = +document.getElementById('finEditHotelN').value || 0;
+  const p = +document.getElementById('finEditHotelP').value || 0;
+  document.getElementById('finEditHotelTotal').value = (n * p) || '';
+}
+function _updEditExpOther() {
+  const p = +document.getElementById('finEditExpP').value || 0;
+  const q = +document.getElementById('finEditExpQ').value || 0;
+  document.getElementById('finEditExpTotal').value = (p * q) || '';
+}
+
+async function _submitFinanceEditV6(rowIndex, mode) {
+  const sheet = _financeTermTab;
+  const date  = document.getElementById('finEditDate').value.trim().replace(/-/g, '/');
+  if (!date) { showToast('請填日期'); return; }
+  const v = { date };
+
+  if (mode === 'mealMember' || mode === 'mealGuest') {
+    const n = +document.getElementById('finEditMealN').value || 0;
+    const p = +document.getElementById('finEditMealP').value || 0;
+    const total = n * p;
+    if (!total) { showToast('請填人數與單價'); return; }
+    v.type = mode === 'mealMember' ? '場餐費（會員）' : '場餐費（來賓）';
+    v.income = total; v.expense = 0; v.paid = n; v.total = n; v.note = '';
+  } else if (mode === 'hotel') {
+    const n = +document.getElementById('finEditHotelN').value || 0;
+    const p = +document.getElementById('finEditHotelP').value || 0;
+    const total = n * p;
+    if (!total) { showToast('請填合計人數與單價'); return; }
+    v.type = '飯店費用';
+    v.income = 0; v.expense = total; v.paid = n; v.total = n;
+    v.note = document.getElementById('finEditNote').value.trim();
+  } else if (mode === 'incomeOther') {
+    const src = document.getElementById('finEditIncSrc').value.trim();
+    const amt = +document.getElementById('finEditIncAmt').value || 0;
+    if (!src) { showToast('請填收入來源'); return; }
+    if (!amt) { showToast('請填費用'); return; }
+    v.type = src;
+    v.income = amt; v.expense = 0; v.paid = 0; v.total = 0;
+    v.note = document.getElementById('finEditNote').value.trim();
+  } else { // expenseOther
+    const desc = document.getElementById('finEditExpDesc').value.trim();
+    const p    = +document.getElementById('finEditExpP').value || 0;
+    const q    = +document.getElementById('finEditExpQ').value || 0;
+    const total = p * q;
+    if (!desc)  { showToast('請填內容'); return; }
+    if (!total) { showToast('請填單價與數量'); return; }
+    v.type = desc;
+    v.income = 0; v.expense = total; v.paid = q; v.total = q;
+    const userNote = document.getElementById('finEditNote').value.trim();
+    v.note = userNote || (q > 1 ? `${p} × ${q}` : '');
+  }
+
+  const btn = document.getElementById('finEditSave');
+  btn.disabled = true; btn.textContent = '儲存中...';
+  try {
+    const res = await fetch(FINANCE_API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'update', sheet, rowIndex, values: v })
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'unknown');
+    showToast('已更新');
+    closeFinanceEdit();
+    await _fetchFinance();
+    renderFinance();
+  } catch (err) {
+    showToast('更新失敗：' + (err.message || err));
+    btn.disabled = false; btn.textContent = '儲存';
+  }
 }
 
 function closeFinanceEdit() {
