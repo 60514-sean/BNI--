@@ -4924,7 +4924,7 @@ function openFinanceAdd() {
   if (!_financeTermTab) { showToast('請先選擇屆別'); return; }
 
   const today = new Date();
-  const todayStr = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -4952,7 +4952,7 @@ function openFinanceAdd() {
       <div style="display:flex;gap:10px;">
         <div class="modal-field" style="flex:2;">
           <div class="modal-label">日期</div>
-          <input type="text" class="modal-input" id="finAddDate" value="${todayStr}">
+          <input type="date" class="modal-input" id="finAddDate" value="${todayStr}">
         </div>
         <div class="modal-field" style="flex:1;">
           <div class="modal-label">金額</div>
@@ -5003,7 +5003,7 @@ function closeFinanceAdd() {
 
 async function submitFinanceAdd() {
   const sheet  = _financeTermTab;
-  const date   = document.getElementById('finAddDate').value.trim();
+  const date   = document.getElementById('finAddDate').value.trim().replace(/-/g, '/');
   const kind   = document.getElementById('finAddKind').value;
   const type   = document.getElementById('finAddType').value.trim();
   const amount = +document.getElementById('finAddAmount').value || 0;
@@ -5068,7 +5068,7 @@ function openFinanceEdit(rowIndex) {
     <div class="modal-box">
       <div class="modal-title">編輯紀錄（列 ${rowIndex}）</div>
       <div class="modal-field"><div class="modal-label">日期</div>
-        <input type="text" class="modal-input" id="finEditDate" value="${_escH(r.date)}"></div>
+        <input type="date" class="modal-input" id="finEditDate" value="${_escH((r.date||'').replace(/\//g, '-'))}"></div>
       <div class="modal-field"><div class="modal-label">性質</div>
         <input type="text" class="modal-input" id="finEditType" value="${_escH(r.type)}"></div>
       <div style="display:flex;gap:8px;">
@@ -5103,7 +5103,7 @@ function closeFinanceEdit() {
 async function submitFinanceEdit(rowIndex) {
   const sheet = _financeTermTab;
   const v = {
-    date:        document.getElementById('finEditDate').value.trim(),
+    date:        document.getElementById('finEditDate').value.trim().replace(/-/g, '/'),
     type:        document.getElementById('finEditType').value.trim(),
     income:      +document.getElementById('finEditIncome').value || 0,
     expense:     +document.getElementById('finEditExpense').value || 0,
@@ -5168,7 +5168,7 @@ function openFinanceSpecial() {
   const sheets = _financeParsed.terms.map(t => t.name);
   const defaultSheet = _financeTermTab || sheets[0];
   const today = new Date();
-  const todayStr = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -5185,7 +5185,7 @@ function openFinanceSpecial() {
         </div>
         <div class="modal-field" style="flex:1;margin-bottom:0;">
           <div class="modal-label">日期</div>
-          <input type="text" class="modal-input" id="finSpDate" value="${todayStr}">
+          <input type="date" class="modal-input" id="finSpDate" value="${todayStr}">
         </div>
       </div>
       <div class="modal-field" style="margin-bottom:14px;">
@@ -5238,7 +5238,7 @@ function closeFinanceSpecial() {
 
 async function submitFinanceSpecial() {
   const sheet = document.getElementById('finSpSheet').value;
-  const date  = document.getElementById('finSpDate').value.trim();
+  const date  = document.getElementById('finSpDate').value.trim().replace(/-/g, '/');
   const title = document.getElementById('finSpTitle').value.trim();
   const note  = document.getElementById('finSpNote').value.trim();
 
@@ -5378,7 +5378,7 @@ function confirmReceivableSettle(rowIndex) {
   if (!_financeParsed || !_financeParsed.terms.length) { showToast('資料未載入'); return; }
 
   const today = new Date();
-  const todayStr = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   const sheets = _financeParsed.terms.map(t => t.name);
   const defaultSheet = _financeTermTab || sheets[0];
 
@@ -5395,7 +5395,7 @@ function confirmReceivableSettle(rowIndex) {
       </div>
       <div class="modal-field">
         <div class="modal-label">銷帳日期（補繳日）</div>
-        <input type="text" class="modal-input" id="recvSettleDate" value="${todayStr}" placeholder="2026/03/15">
+        <input type="date" class="modal-input" id="recvSettleDate" value="${todayStr}">
       </div>
       <div class="modal-field">
         <div class="modal-label">寫入屆別</div>
@@ -5418,7 +5418,7 @@ function closeReceivableSettle() {
 }
 
 async function submitReceivableSettle(rowIndex) {
-  const settleDate  = document.getElementById('recvSettleDate').value.trim();
+  const settleDate  = document.getElementById('recvSettleDate').value.trim().replace(/-/g, '/');
   const settleSheet = document.getElementById('recvSettleSheet').value;
   if (!settleDate)  { showToast('請填銷帳日期'); return; }
   if (!settleSheet) { showToast('請選擇寫入屆別'); return; }
