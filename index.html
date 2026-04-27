@@ -1367,12 +1367,30 @@ function _canEditTask(t) {
   const owners = t.owners || (t.owner ? [t.owner] : []);
   return owners.includes(CU);
 }
-// 判斷登入者是否擁有指定頁籤的編輯權（admin 一律 true；其他人看 editableTabs 是否包含該 tabId）
+// 判斷登入者是否擁有指定頁籤的編輯權
+// - admin 一律 true
+// - 角色「報到組」對 'finance' 預設 true（比照負責人）；唯一關閉方式：admin 把 finance ON/OFF 切到 OFF
+//   （即 allowedTabs 含 finance、editableTabs 不含 finance；屬於明確關閉）
+// - 其他情況依 editableTabs 判斷
 function _canEditTab(tabId) {
   if (CR === 'admin') return true;
   if (!CU) return false;
   const userObj = getConfig().users.find(u => (u.names || []).includes(CU));
-  return !!(userObj && (userObj.editableTabs || []).includes(tabId));
+  if (!userObj) return false;
+  if (tabId === 'finance' && userObj.role === '報到組') {
+    const allowed  = (userObj.allowedTabs  || []).includes('finance');
+    const editable = (userObj.editableTabs || []).includes('finance');
+    if (allowed && !editable) return false; // admin 明確切 OFF
+    return true;                            // 預設可編
+  }
+  return (userObj.editableTabs || []).includes(tabId);
+}
+
+// 角色「報到組」進入後 finance 頁籤一律可見（即使 admin 沒勾，也能看到）
+function _visibleTabsForUser(userObj) {
+  const set = new Set((userObj && userObj.allowedTabs) || []);
+  if (userObj && userObj.role === '報到組') set.add('finance');
+  return [...set];
 }
 // 工事清單：依使用者「main」頁籤的 ON/OFF 決定可見範圍
 //   ON  → 看全部任務
@@ -1435,7 +1453,7 @@ async function doLogin() {
   document.getElementById('pageTabs').style.display = 'flex';
 
   // 套用頁籤權限：admin 看全部；一般使用者依 allowedTabs 限制
-  const allowed = isAdmin ? TAB_LIST.map(t => t.id) : (userObj?.allowedTabs || []);
+  const allowed = isAdmin ? TAB_LIST.map(t => t.id) : _visibleTabsForUser(userObj);
   _applyTabPermissions(allowed);
 
   currentDay = TODAY_DAY;
@@ -4397,7 +4415,7 @@ function _financeRenderMonthWeeks(m) {
       const noteToggle = (L.main && L.hasNote)
         ? `<span class="note-toggle ${L.kind || ''} ${L.noteOpen?'open':''}" onclick="event.stopPropagation();toggleFinanceNote(${L.rowIndex})" title="${L.noteOpen?'收合':'展開'}備註">▶</span>`
         : '';
-      const isClickable = (CR === 'admin' && L.main);
+      const isClickable = (_canEditTab('finance') && L.main);
       const cls = `fin-line${L.sub?' sub':''}${isClickable?' clickable':''}`;
       const onClick = isClickable ? ` onclick="openFinanceEdit(${L.rowIndex})"` : '';
       return `
@@ -4620,8 +4638,8 @@ function renderFinance() {
       <select class="fin-term-select" onchange="switchFinanceTerm(this.value)">
         ${terms.map(t => `<option value="${_escH(t.name)}" ${t.name===_financeTermTab?'selected':''}>${_escH(t.name)}</option>`).join('')}
       </select>
-      ${CR === 'admin' ? `<button class="fin-tb-btn primary" onclick="openFinanceAdd()">＋ 紀錄</button>` : ''}
-      ${CR === 'admin' ? `<button class="fin-tb-btn" onclick="openFinanceSpecial()">＋ 特殊</button>` : ''}
+      ${_canEditTab('finance') ? `<button class="fin-tb-btn primary" onclick="openFinanceAdd()">＋ 紀錄</button>` : ''}
+      ${_canEditTab('finance') ? `<button class="fin-tb-btn" onclick="openFinanceSpecial()">＋ 特殊</button>` : ''}
       <button class="fin-tb-btn" onclick="refreshFinance()" title="重新整理">↻</button>
     </div>
   `;
