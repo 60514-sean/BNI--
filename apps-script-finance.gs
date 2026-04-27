@@ -361,7 +361,11 @@ function _handleSettleReceivable(body) {
   const member = String(row[1] || '').trim();
   const item   = String(row[2] || '').trim() || '入席費';
   const amount = _num(row[3]);
-  const origDate = String(row[0] || '').trim();
+  // 原欠款日：sheet 上若以 Date 物件儲存，String(Date) 會出現 "Fri Apr 10 2026 00:00..."
+  // 統一格式化為 yyyy/MM/dd
+  const origDate = (row[0] instanceof Date)
+    ? Utilities.formatDate(row[0], 'Asia/Taipei', 'yyyy/MM/dd')
+    : String(row[0] || '').trim();
   if (!amount) return _resp({ ok: false, error: '金額為 0' });
 
   const settleDate = body.settleDate || _today();
