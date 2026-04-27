@@ -1150,7 +1150,7 @@ async function _bgRefresh() {
   if (_refreshP) return _refreshP;
   _refreshP = fetch(API_URL, { signal: AbortSignal.timeout(8000) })
     .then(r => r.json())
-    .then(j => { if (j && typeof j === 'object' && !j.error) { Object.assign(cache, j); _lsSave(); } })
+    .then(j => { if (j && typeof j === 'object' && !j.error) { Object.assign(cache, j); _invalidateCfg(); _lsSave(); } })
     .catch(() => {})
     .finally(() => { _refreshP = null; });
   return _refreshP;
@@ -1177,20 +1177,34 @@ let _saveRunning = false;
 async function _drainSaveQueue() {
   if (_saveRunning || _saveQueue.size === 0) return;
   _saveRunning = true;
-  const [[key, data]] = _saveQueue;
-  _saveQueue.delete(key);
   try {
-    await _apiPost({ key, data });
-  } catch {}
-  _saveRunning = false;
-  _drainSaveQueue();
+    // 同 batch 內所有 key 並行送出（同 key 多次寫已被 Map.set 覆蓋為最後一次）
+    const tasks = [];
+    for (const [key, data] of _saveQueue) {
+      tasks.push(_apiPost({ key, data }).catch(() => {}));
+    }
+    _saveQueue.clear();
+    await Promise.all(tasks);
+  } finally {
+    _saveRunning = false;
+    if (_saveQueue.size > 0) _drainSaveQueue();
+  }
 }
 
 async function apiSave(key, data) {
   cache[key] = data;
+  if (key === '__config__') _invalidateCfg();
   _lsSave();
   _saveQueue.set(key, data);
   _drainSaveQueue();
+}
+
+function _debounce(fn, ms) {
+  let t;
+  return function(...args) {
+    clearTimeout(t);
+    t = setTimeout(() => fn.apply(this, args), ms);
+  };
 }
 
 function _apiPost(payload) {
@@ -1264,8 +1278,13 @@ function _normalizeTask(t) {
 }
 function _seedTasksFromTaskData() { return TASK_DATA.map(_normalizeTask); }
 
+let _cfgResolved = null;
+function _invalidateCfg() { _cfgResolved = null; }
+
 function getConfig() {
+  if (_cfgResolved) return _cfgResolved;
   const c = cache['__config__'];
+  let result;
   if (c && c.adminPassword) {
     let tasks;
     if (Array.isArray(c.tasks)) {
@@ -1276,9 +1295,12 @@ function getConfig() {
       const custom = (c.customTasks || []).map(_normalizeTask);
       tasks = [...seed, ...custom];
     }
-    return { ...c, users: (c.users || []).map(_normalizeUser), tasks };
+    result = { ...c, users: (c.users || []).map(_normalizeUser), tasks };
+  } else {
+    result = { adminPassword: DEFAULT_ADMIN, users: DEFAULT_USERS.map(_normalizeUser), tasks: _seedTasksFromTaskData() };
   }
-  return { adminPassword: DEFAULT_ADMIN, users: DEFAULT_USERS.map(_normalizeUser), tasks: _seedTasksFromTaskData() };
+  _cfgResolved = result;
+  return result;
 }
 async function saveConfigData(cfg) { await apiSave('__config__', cfg); }
 
@@ -1727,7 +1749,7 @@ function _addUserName(i) {
   if (!u) return;
   u.names = u.names || [];
   u.names.push('');
-  showSettings();
+  _refreshUserRow(i);
 }
 
 function _removeUserName(i, j) {
@@ -1736,7 +1758,7 @@ function _removeUserName(i, j) {
   if (!u || !u.names) return;
   u.names.splice(j, 1);
   if (u.names.length === 0) u.names.push('');
-  showSettings();
+  _refreshUserRow(i);
 }
 
 function _toggleUserTab(i, tabId, checked) {
@@ -1781,48 +1803,7 @@ function showSettings() {
   // 保留使用者輸入欄位的當前值（重新渲染前先從 DOM 讀回）
   _captureUserInputsToCfg();
 
-  const usersHtml = cfgUsers.map((u, i) => {
-    const namesArr = (u.names && u.names.length) ? u.names : [''];
-    const namesHtml = namesArr.map((n, j) => `
-      <div style="display:flex;gap:6px;align-items:stretch;margin-bottom:6px;min-width:0;">
-        <input type="text" value="${_escH(n)}" id="usr_${i}_${j}" placeholder="例如：康康" style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
-        <button class="btn-danger" onclick="_removeUserName(${i}, ${j})" style="flex-shrink:0;padding:0 14px;font-size:18px;line-height:1;" title="移除此登入名稱">−</button>
-      </div>`).join('');
-    const roleOpts = `<option value="">— 未指定 —</option>` +
-      GUEST_ROLES.map(r => `<option value="${r}"${u.role === r ? ' selected' : ''}>${r}</option>`).join('');
-    const tabsHtml = TAB_LIST.map(t => {
-      const visible  = (u.allowedTabs||[]).includes(t.id);
-      const editable = (u.editableTabs||[]).includes(t.id);
-      const wrapStyle = `display:inline-flex;align-items:stretch;border:1.5px solid ${visible?'#10b981':'var(--gray-border)'};border-radius:999px;overflow:hidden;font-size:12px;background:${visible?'#d1fae5':'transparent'};`;
-      const nameStyle = `display:inline-flex;align-items:center;gap:4px;padding:3px 8px;cursor:pointer;color:${visible?'#065f46':'var(--text-soft)'};`;
-      const onStyle  = `display:inline-flex;align-items:center;padding:3px 7px;cursor:pointer;border-left:1px solid ${editable?'#059669':'#a7f3d0'};background:${editable?'#10b981':'#fff'};color:${editable?'#fff':'#9ca3af'};font-weight:700;font-size:10px;letter-spacing:0.5px;`;
-      const onLabel  = editable ? 'ON' : 'OFF';
-      const onTitle  = editable ? '可編輯（點擊改為唯讀）' : '唯讀（點擊改為可編輯）';
-      return `
-        <div style="${wrapStyle}" title="${visible ? (editable ? '可看 + 可編輯' : '可看 + 唯讀') : '不可見'}">
-          <label style="${nameStyle}">
-            <input type="checkbox" ${visible?'checked':''} onchange="_toggleUserTab(${i}, '${t.id}', this.checked); showSettings();" style="margin:0;cursor:pointer;">
-            ${t.label}
-          </label>
-          ${visible ? `<span style="${onStyle}" title="${onTitle}" onclick="_toggleUserTabEdit(${i}, '${t.id}', ${!editable}); showSettings();">${onLabel}</span>` : ''}
-        </div>`;
-    }).join('');
-    return `
-      <div class="user-row" id="ur_${i}" style="padding:12px;border:1.5px solid var(--red);border-radius:10px;margin-bottom:10px;box-sizing:border-box;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px;">
-          <div style="font-size:11px;color:var(--text-soft);font-weight:600;">角色</div>
-          <button class="btn-danger" onclick="removeUser(${i})" style="flex-shrink:0;font-size:11px;padding:4px 10px;">刪除整組</button>
-        </div>
-        <select onchange="_setUserRole(${i}, this.value); showSettings();" style="width:100%;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;margin-bottom:10px;background:white;">
-          ${roleOpts}
-        </select>
-        <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">登入名稱（可多個）</div>
-        ${namesHtml}
-        <button class="add-btn" onclick="_addUserName(${i})" style="margin-top:0;margin-bottom:10px;font-size:12px;padding:6px 10px;">+ 新增登入名稱</button>
-        <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">可見頁籤</div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap;">${tabsHtml}</div>
-      </div>`;
-  }).join('');
+  const usersHtml = cfgUsers.map((u, i) => _renderUserRowHtml(u, i)).join('');
 
   const catOpts  = CAT_ORDER.map(c => `<option value="${c}">${c}</option>`).join('');
   const freqOpts = ['每週','視需要','月底','每月首週','每月末週'].map(f => `<option value="${f}">${f}</option>`).join('');
@@ -1927,6 +1908,63 @@ function toggleAcc(id) {
   if (open && id === 'acc2') renderCtDay(document.getElementById('ctDayPicker').value || DAYS[0]);
 }
 
+// 設定頁：產出單一使用者列的 HTML（供首次渲染與局部更新共用）
+function _renderUserRowHtml(u, i) {
+  const namesArr = (u.names && u.names.length) ? u.names : [''];
+  const namesHtml = namesArr.map((n, j) => `
+      <div style="display:flex;gap:6px;align-items:stretch;margin-bottom:6px;min-width:0;">
+        <input type="text" value="${_escH(n)}" id="usr_${i}_${j}" placeholder="例如：康康" style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+        <button class="btn-danger" onclick="_removeUserName(${i}, ${j})" style="flex-shrink:0;padding:0 14px;font-size:18px;line-height:1;" title="移除此登入名稱">−</button>
+      </div>`).join('');
+  const roleOpts = `<option value="">— 未指定 —</option>` +
+    GUEST_ROLES.map(r => `<option value="${r}"${u.role === r ? ' selected' : ''}>${r}</option>`).join('');
+  const tabsHtml = TAB_LIST.map(t => {
+    const visible  = (u.allowedTabs||[]).includes(t.id);
+    const editable = (u.editableTabs||[]).includes(t.id);
+    const wrapStyle = `display:inline-flex;align-items:stretch;border:1.5px solid ${visible?'#10b981':'var(--gray-border)'};border-radius:999px;overflow:hidden;font-size:12px;background:${visible?'#d1fae5':'transparent'};`;
+    const nameStyle = `display:inline-flex;align-items:center;gap:4px;padding:3px 8px;cursor:pointer;color:${visible?'#065f46':'var(--text-soft)'};`;
+    const onStyle  = `display:inline-flex;align-items:center;padding:3px 7px;cursor:pointer;border-left:1px solid ${editable?'#059669':'#a7f3d0'};background:${editable?'#10b981':'#fff'};color:${editable?'#fff':'#9ca3af'};font-weight:700;font-size:10px;letter-spacing:0.5px;`;
+    const onLabel  = editable ? 'ON' : 'OFF';
+    const onTitle  = editable ? '可編輯（點擊改為唯讀）' : '唯讀（點擊改為可編輯）';
+    return `
+        <div style="${wrapStyle}" title="${visible ? (editable ? '可看 + 可編輯' : '可看 + 唯讀') : '不可見'}">
+          <label style="${nameStyle}">
+            <input type="checkbox" ${visible?'checked':''} onchange="_toggleUserTab(${i}, '${t.id}', this.checked); _refreshUserRow(${i});" style="margin:0;cursor:pointer;">
+            ${t.label}
+          </label>
+          ${visible ? `<span style="${onStyle}" title="${onTitle}" onclick="_toggleUserTabEdit(${i}, '${t.id}', ${!editable}); _refreshUserRow(${i});">${onLabel}</span>` : ''}
+        </div>`;
+  }).join('');
+  return `
+      <div class="user-row" id="ur_${i}" style="padding:12px;border:1.5px solid var(--red);border-radius:10px;margin-bottom:10px;box-sizing:border-box;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px;">
+          <div style="font-size:11px;color:var(--text-soft);font-weight:600;">角色</div>
+          <button class="btn-danger" onclick="removeUser(${i})" style="flex-shrink:0;font-size:11px;padding:4px 10px;">刪除整組</button>
+        </div>
+        <select onchange="_setUserRole(${i}, this.value)" style="width:100%;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;margin-bottom:10px;background:white;">
+          ${roleOpts}
+        </select>
+        <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">登入名稱（可多個）</div>
+        ${namesHtml}
+        <button class="add-btn" onclick="_addUserName(${i})" style="margin-top:0;margin-bottom:10px;font-size:12px;padding:6px 10px;">+ 新增登入名稱</button>
+        <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">可見頁籤</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">${tabsHtml}</div>
+      </div>`;
+}
+
+// 設定頁：只更新單一使用者列（避免 toggle 一個 chip 就重繪整個設定畫面）
+function _refreshUserRow(i) {
+  const el = document.getElementById('ur_' + i);
+  if (!el) return;
+  const u = cfgUsers[i];
+  if (!u) { el.remove(); return; }
+  // 替換前先把現場 input 的值同步進 cfgUsers，避免名稱被舊值覆寫
+  _captureUserInputsToCfg();
+  const tmp = document.createElement('div');
+  tmp.innerHTML = _renderUserRowHtml(cfgUsers[i], i);
+  el.replaceWith(tmp.firstElementChild);
+}
+
 function renderCtDay(day) {
   const list = cfgTasks.map((t, idx) => ({ ...t, _idx: idx })).filter(t => t.day === day);
   const itemsHtml = list.map(t => {
@@ -1985,8 +2023,13 @@ function _toggleEditingOwner(name, checked) {
   if (box) box.innerHTML = _renderTaskOwnerChips();
 }
 
-function addUser()     { _captureUserInputsToCfg(); cfgUsers.push({ names: [''], role: '', allowedTabs: [], editableTabs: [] }); showSettings(); }
-function removeUser(i) { _captureUserInputsToCfg(); cfgUsers.splice(i, 1); showSettings(); }
+function _refreshUsersContainer() {
+  const container = document.getElementById('usersContainer');
+  if (!container) { showSettings(); return; }
+  container.innerHTML = cfgUsers.map((u, idx) => _renderUserRowHtml(u, idx)).join('');
+}
+function addUser()     { _captureUserInputsToCfg(); cfgUsers.push({ names: [''], role: '', allowedTabs: [], editableTabs: [] }); _refreshUsersContainer(); }
+function removeUser(i) { _captureUserInputsToCfg(); cfgUsers.splice(i, 1); _refreshUsersContainer(); }
 
 function removeTask(i) {
   if (!confirm('確定刪除此任務？已儲存的進度紀錄會保留但此任務將不再顯示。')) return;
@@ -2311,11 +2354,12 @@ async function renderMembers() {
   if (_memberFilter === '90')  list = list.filter(m => parseInt(m.renewDays) <= 89);
   const canEdit = CR === 'admin';
   const btnStyle = (f, bg, color) => `padding:7px 12px;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;background:${_memberFilter===f?bg:'white'};color:${_memberFilter===f?color:bg};border:1.5px solid ${bg};`;
-  let html = `<div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
-    <input class="member-search" type="text" placeholder="搜尋姓名、專業別、公司..." value="${_escH(_memberSearch)}" oninput="_memberSearch=this.value;_filterMemberCards()" autocomplete="off" style="margin-bottom:0;flex:1;">
+  const parts = [];
+  parts.push(`<div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
+    <input class="member-search" type="text" placeholder="搜尋姓名、專業別、公司..." value="${_escH(_memberSearch)}" oninput="_memberSearch=this.value;_debouncedFilterMembers()" autocomplete="off" style="margin-bottom:0;flex:1;">
     <button onclick="_memberData=null;renderMembers()" style="flex-shrink:0;padding:11px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">重整</button>
-  </div>`;
-  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+  </div>`);
+  parts.push(`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
     <span id="memberCount" style="font-size:13px;color:var(--text-soft);">${list.length} 位會員</span>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
       <button onclick="_memberFilter=_memberFilter==='120'?'':'120';renderMembers()" style="${btnStyle('120','#d4ac0d','white')}">120天</button>
@@ -2323,17 +2367,18 @@ async function renderMembers() {
       ${canEdit ? `<button onclick="openManageIndustries()" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text-soft);">產業鏈設定</button>
         <button onclick="openAddMember()" style="padding:7px 16px;background:var(--red);color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ 新增會員</button>` : ''}
     </div>
-  </div>`;
-  html += `<div class="member-grid">`;
-  list.forEach(m => {
+  </div>`);
+  parts.push(`<div class="member-grid">`);
+  for (let k = 0; k < list.length; k++) {
+    const m = list[k];
     const days = parseInt(m.renewDays);
     const daysBg    = days>=120?'#eaf7ee':days>=90?'#fef9e7':'#fdecea';
     const daysColor = days>=120?'#27ae60':days>=90?'#d4ac0d':'#c0392b';
     const _ds = [m.name,m.specialty,m.company,m.industry,m.service].filter(Boolean).join(' ').toLowerCase();
-    html += `<div class="member-card" data-search="${_escH(_ds)}" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
+    parts.push(`<div class="member-card" data-search="${_escH(_ds)}" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 12px;">
         ${m.photo
-          ? `<img src="${_escH(m.photo)}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2.5px solid var(--red);" onerror="this.style.display='none'">`
+          ? `<img src="${_escH(m.photo)}" loading="lazy" decoding="async" style="width:60px;height:60px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2.5px solid var(--red);" onerror="this.style.display='none'">`
           : `<div style="width:60px;height:60px;border-radius:50%;flex-shrink:0;background:#e8ecf0;border:2.5px solid var(--red);box-sizing:border-box;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:22px;font-weight:900;">?</div>`}
         <div style="flex:1;min-width:0;">
           ${m.specialty?`<div style="margin-bottom:6px;"><span style="display:inline-block;background:var(--red);color:white;font-size:11px;font-weight:900;padding:3px 12px;border-radius:20px;letter-spacing:0.5px;">${_escH(m.specialty)}</span></div>`:''}
@@ -2354,11 +2399,11 @@ async function renderMembers() {
           ${m.renewStatus==='TRUE'?`<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:#eaf7ee;color:#27ae60;">已續約</span>`:`<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:#fdecea;color:#c0392b;">未續約</span>`}
         </div>
       </div>
-    </div>`;
-  });
-  if (list.length === 0) html += `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">查無符合條件的會員</div>`;
-  html += `<div id="memberNoResult" style="display:none;text-align:center;padding:48px 20px;color:var(--text-soft);">查無搜尋結果</div></div>`;
-  document.getElementById('memberContent').innerHTML = html;
+    </div>`);
+  }
+  if (list.length === 0) parts.push(`<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">查無符合條件的會員</div>`);
+  parts.push(`<div id="memberNoResult" style="display:none;text-align:center;padding:48px 20px;color:var(--text-soft);">查無搜尋結果</div></div>`);
+  document.getElementById('memberContent').innerHTML = parts.join('');
   _filterMemberCards();
 }
 
@@ -2376,6 +2421,7 @@ function _filterMemberCards() {
   const countEl = document.getElementById('memberCount');
   if (countEl) countEl.textContent = (q ? shown : cards.length) + ' 位會員';
 }
+const _debouncedFilterMembers = _debounce(_filterMemberCards, 100);
 
 function _escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -3397,7 +3443,7 @@ async function renderGuestTrack() {
         ${subBtn('week','本周來賓')}
         ${subBtn('all','歷屆來賓')}
       </div>
-      ${tab === 'all' ? `<input type="text" placeholder="搜尋姓名／產業／邀請人..." value="${_escH(_guestSearch)}" oninput="_guestSearch=this.value;_renderGuestListOnly()" style="width:100%;margin-top:10px;padding:10px 14px;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;outline:none;">` : ''}
+      ${tab === 'all' ? `<input type="text" placeholder="搜尋姓名／產業／邀請人..." value="${_escH(_guestSearch)}" oninput="_guestSearch=this.value;_debouncedRenderGuestList()" style="width:100%;margin-top:10px;padding:10px 14px;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;outline:none;">` : ''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
         ${tab === 'all' ? _yearSelectHtml() : ''}
         ${_statusSelectHtml()}
@@ -3508,6 +3554,7 @@ function _renderGuestListOnly() {
     inp.setSelectionRange(len, len);
   }
 }
+const _debouncedRenderGuestList = _debounce(_renderGuestListOnly, 150);
 
 function _guestSubSwitch(v) { _guestSubTab = v; _guestSearch = ''; _guestStatusFilter = ''; _guestYearFilter = 0; renderGuestTrack(); }
 
