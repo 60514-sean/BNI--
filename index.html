@@ -5105,6 +5105,10 @@ function openFinanceAdd() {
               <input type="number" class="modal-input" id="finAddV6ExpOtherPrice" placeholder="0" inputmode="numeric" oninput="_updV6ExpOther()">
             </div>
             <div class="modal-field" style="flex:1;">
+              <div class="modal-label">數量</div>
+              <input type="number" class="modal-input" id="finAddV6ExpOtherQty" placeholder="1" inputmode="numeric" oninput="_updV6ExpOther()">
+            </div>
+            <div class="modal-field" style="flex:1;">
               <div class="modal-label">總價</div>
               <input type="number" class="modal-input" id="finAddV6ExpOtherTotal" placeholder="0" readonly style="background:var(--gray-light);">
             </div>
@@ -5185,7 +5189,8 @@ function _updV6Hotel() {
 }
 function _updV6ExpOther() {
   const p = +document.getElementById('finAddV6ExpOtherPrice').value || 0;
-  document.getElementById('finAddV6ExpOtherTotal').value = p || '';
+  const q = +document.getElementById('finAddV6ExpOtherQty').value || 0;
+  document.getElementById('finAddV6ExpOtherTotal').value = (p * q) || '';
 }
 
 function closeFinanceAdd() {
@@ -5240,9 +5245,12 @@ async function submitFinanceAdd() {
     } else if (kind === 'expense' && v6Type === '其他') {
       const desc = document.getElementById('finAddV6ExpOtherDesc').value.trim();
       const p    = +document.getElementById('finAddV6ExpOtherPrice').value || 0;
-      if (!desc) { showToast('請填內容'); return; }
-      if (!p)    { showToast('請填單價'); return; }
-      records.push({ date, type: desc, kind: 'expense', amount: p, paid: 0, total: 0, note: '' });
+      const q    = +document.getElementById('finAddV6ExpOtherQty').value || 0;
+      const total = p * q;
+      if (!desc)  { showToast('請填內容'); return; }
+      if (!p)     { showToast('請填單價'); return; }
+      if (!q)     { showToast('請填數量'); return; }
+      records.push({ date, type: desc, kind: 'expense', amount: total, paid: q, total: q, note: q > 1 ? `${p} × ${q}` : '' });
     }
   } else {
     const date   = document.getElementById('finAddDate').value.trim().replace(/-/g, '/');
