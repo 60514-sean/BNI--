@@ -1246,12 +1246,13 @@ function _normalizeUser(u) {
 }
 
 // 一次性 owner 名稱遷移表（舊名 → 新名）
-const _OWNER_RENAME = { '康康': 'K', '麥莉': 'K', '簡報顧問': 'K' };
-function _renameOwner(n) { return _OWNER_RENAME[n] || n; }
+// 一次性 owner 名稱遷移表（舊名 → 新名；對應到 '' 表示移除指派）
+const _OWNER_RENAME = { '康康': 'K', '麥莉': 'K', '簡報顧問': 'K', '報到組員': '' };
+function _renameOwner(n) { return Object.prototype.hasOwnProperty.call(_OWNER_RENAME, n) ? _OWNER_RENAME[n] : n; }
 
 function _normalizeTask(t) {
   const raw = Array.isArray(t.owners) ? t.owners.filter(n => n) : (t.owner ? [t.owner] : []);
-  const owners = [...new Set(raw.map(_renameOwner))];
+  const owners = [...new Set(raw.map(_renameOwner).filter(n => n))];
   return {
     id: t.id,
     day: t.day || '',
@@ -1315,16 +1316,16 @@ const TASK_DATA = [
   { id:22, day:'週三', owner:'K',    task:'確認新人SLOGAN表完成',                               cat:'會員',    freq:'每週' },
   { id:23, day:'週四', owner:'K', task:'21:00 與下兩週簡報講者最終re稿',                    cat:'簡報',    freq:'每週' },
   { id:24, day:'週四', owner:'K',    task:'群組提醒例會前注意事項',                              cat:'例會',    freq:'每週' },
-  { id:25, day:'週四', owner:'報到組員', task:'印會員/來賓簽到表',                                  cat:'例會',    freq:'每週' },
-  { id:26, day:'週四', owner:'報到組員', task:'印流程表 x7份、slogan表',                            cat:'例會',    freq:'每週' },
-  { id:27, day:'週四', owner:'報到組員', task:'印來賓桌牌',                                         cat:'例會',    freq:'每週' },
+  { id:25, day:'週四', owner:'', task:'印會員/來賓簽到表',                                  cat:'例會',    freq:'每週' },
+  { id:26, day:'週四', owner:'', task:'印流程表 x7份、slogan表',                            cat:'例會',    freq:'每週' },
+  { id:27, day:'週四', owner:'', task:'印來賓桌牌',                                         cat:'例會',    freq:'每週' },
   { id:28, day:'週四', owner:'K',    task:'月底早上提醒明天繳錢',                                cat:'財務',    freq:'月底' },
   { id:29, day:'週五', owner:'K',    task:'開例會/報告',                                        cat:'例會',    freq:'每週' },
   { id:30, day:'週五', owner:'K',    task:'群組例會後提醒或表揚',                                cat:'例會',    freq:'每週' },
   { id:31, day:'週五', owner:'K',    task:'續約會員追蹤',                                       cat:'續約',    freq:'每週' },
-  { id:32, day:'週五', owner:'報到組員', task:'攜帶獎狀、流程表',                                   cat:'例會',    freq:'每週' },
-  { id:33, day:'週五', owner:'報到組員', task:'資金費用請款（場餐費700元）',                         cat:'財務',    freq:'每週' },
-  { id:34, day:'週五', owner:'報到組員', task:'資金費用收入記錄',                                   cat:'財務',    freq:'每週' },
+  { id:32, day:'週五', owner:'', task:'攜帶獎狀、流程表',                                   cat:'例會',    freq:'每週' },
+  { id:33, day:'週五', owner:'', task:'資金費用請款（場餐費700元）',                         cat:'財務',    freq:'每週' },
+  { id:34, day:'週五', owner:'', task:'資金費用收入記錄',                                   cat:'財務',    freq:'每週' },
   { id:35, day:'週六', owner:'K',    task:'key 來賓資料到 Connect',                             cat:'例會',    freq:'每週' },
   { id:36, day:'週六', owner:'K',    task:'基礎建設日（一對一主題簡報、續約關心、基礎建設）',      cat:'基礎建設', freq:'每週' },
   { id:37, day:'週日', owner:'K',    task:'跟新會員要照片、名片放相簿',                           cat:'會員',    freq:'視需要' },
