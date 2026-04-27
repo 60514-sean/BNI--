@@ -4429,9 +4429,6 @@ function _financeRenderMonthWeeks(m) {
 
     const lastRec = rs[rs.length - 1];
     const finalBal = lastRec ? lastRec.finalBalance : 0;
-    const weekNet = rs.reduce((s, r) => s + r.income - r.expense + r.extraIncome - r.extraExpense, 0);
-    const deltaCls = weekNet >= 0 ? 'in' : 'out';
-    const deltaSign = weekNet >= 0 ? '+' : '';
 
     return `
       <div class="fin-week">
@@ -4439,7 +4436,6 @@ function _financeRenderMonthWeeks(m) {
           <span class="fin-week-date">${_escH(date)}</span>
           <span class="fin-week-balance">
             結餘 ${_finFmt(finalBal)}
-            <span class="delta ${deltaCls}">${deltaSign}${_finFmt(weekNet)}</span>
           </span>
         </div>
         ${linesHtml}
