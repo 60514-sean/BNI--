@@ -1367,6 +1367,13 @@ function _canEditTask(t) {
   const owners = t.owners || (t.owner ? [t.owner] : []);
   return owners.includes(CU);
 }
+// 判斷登入者是否擁有指定頁籤的編輯權（admin 一律 true；其他人看 editableTabs 是否包含該 tabId）
+function _canEditTab(tabId) {
+  if (CR === 'admin') return true;
+  if (!CU) return false;
+  const userObj = getConfig().users.find(u => (u.names || []).includes(CU));
+  return !!(userObj && (userObj.editableTabs || []).includes(tabId));
+}
 // 工事清單：依使用者「main」頁籤的 ON/OFF 決定可見範圍
 //   ON  → 看全部任務
 //   OFF → 只看「指派給自己 + 全體」
@@ -4768,7 +4775,7 @@ function _financeRenderReceivables() {
         <option value="paid"   ${_receivableFilter==='paid'?'selected':''}>已繳 ${paid.length}</option>
         <option value="all"    ${_receivableFilter==='all'?'selected':''}>全部 ${list.length}</option>
       </select>
-      ${CR === 'admin' ? `<button class="btn btn-primary" style="padding:7px 14px;font-size:12px;" onclick="openReceivableAdd()">＋ 新增應收</button>` : ''}
+      ${_canEditTab('finance') ? `<button class="btn btn-primary" style="padding:7px 14px;font-size:12px;" onclick="openReceivableAdd()">＋ 新增應收</button>` : ''}
     </div>
   `;
 
@@ -4783,7 +4790,7 @@ function _financeRenderReceivables() {
       const isPaid = r.status === '已繳';
       const settleTxt = isPaid && r.settleDate
         ? `已銷 ${_escH(r.settleDate)}${r.settleSheet?'·'+_escH(r.settleSheet):''}` : '';
-      const adminBtns = CR === 'admin'
+      const adminBtns = _canEditTab('finance')
         ? (isPaid
           ? `<button class="btn-act del" onclick="confirmReceivableDelete(${r.rowIndex})">×</button>`
           : `<button class="btn-act settle" onclick="confirmReceivableSettle(${r.rowIndex})">銷帳</button><button class="btn-act del" onclick="confirmReceivableDelete(${r.rowIndex})">×</button>`)
