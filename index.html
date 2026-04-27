@@ -690,12 +690,14 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-week-head .delta.in  { background:white; color:var(--green); }
 .fin-week-head .delta.out { background:white; color:var(--red); }
 .note-toggle {
-  display:inline-block; color:var(--text-soft); font-size:10px; line-height:1;
-  cursor:pointer; padding:3px 7px; margin-left:6px;
+  display:inline-flex; align-items:center; justify-content:center;
+  color:var(--text-soft); font-size:10px; line-height:1;
+  cursor:pointer; padding:3px 6px; width:24px; height:20px; box-sizing:border-box;
   border:1px solid var(--gray-border); border-radius:4px;
   transition:transform 0.15s, background 0.15s;
-  user-select:none; vertical-align:middle;
+  user-select:none;
 }
+.note-toggle-placeholder { display:block; width:24px; }
 .note-toggle:hover { background:var(--gray-light); }
 .note-toggle.open { transform:rotate(90deg); }
 .note-toggle.in  { color:var(--green); border-color:#bfe5b8; }
@@ -706,7 +708,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .fin-week-balance .delta.in { background:#eef9ec; color:var(--green); }
 .fin-week-balance .delta.out { background:#fdeeec; color:var(--red); }
 .fin-line {
-  display:grid; grid-template-columns:54px 110px 1fr;
+  display:grid; grid-template-columns:54px 24px 110px 1fr;
   gap:10px; align-items:center;
   padding:9px 8px;
   border-bottom:1px solid var(--gray-border);
@@ -751,14 +753,16 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   .fin-week-balance { font-size:12px; }
   .fin-week-balance .delta { font-size:10px; padding:1px 6px; margin-left:6px; }
   .fin-line {
-    grid-template-columns: 50px 1fr;
+    grid-template-columns: 50px 24px 1fr;
     grid-template-rows: auto auto;
-    gap: 4px 10px;
+    gap: 4px 8px;
     padding: 10px 8px;
   }
   .fin-line .tag { grid-row:1; grid-column:1; }
+  .fin-line .note-toggle,
+  .fin-line .note-toggle-placeholder { grid-row:1; grid-column:2; }
   .fin-line .amt {
-    grid-row:1; grid-column:2;
+    grid-row:1; grid-column:3;
     text-align:right; font-size:17px; padding-right:4px;
   }
   .fin-line .desc {
@@ -4413,15 +4417,16 @@ function _financeRenderMonthWeeks(m) {
       const tagHtml = L.kind ? `<span class="tag ${L.kind}">${tag}</span>` : `<span></span>`;
       const noteToggle = (L.main && L.hasNote)
         ? `<span class="note-toggle ${L.kind || ''} ${L.noteOpen?'open':''}" onclick="event.stopPropagation();toggleFinanceNote(${L.rowIndex})" title="${L.noteOpen?'收合':'展開'}備註">▶</span>`
-        : '';
+        : `<span class="note-toggle-placeholder"></span>`;
       const isClickable = (_canEditTab('finance') && L.main);
       const cls = `fin-line${L.sub?' sub':''}${isClickable?' clickable':''}`;
       const onClick = isClickable ? ` onclick="openFinanceEdit(${L.rowIndex})"` : '';
       return `
         <div class="${cls}"${onClick}>
           ${tagHtml}
+          ${noteToggle}
           <span class="amt ${L.kind || ''}">${amtStr}</span>
-          <span class="desc">${_escH(L.desc)}${L.meta?`<span class="meta">${L.meta}</span>`:''}${noteToggle}</span>
+          <span class="desc">${_escH(L.desc)}${L.meta?`<span class="meta">${L.meta}</span>`:''}</span>
         </div>
       `;
     }).join('');
