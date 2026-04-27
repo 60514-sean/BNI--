@@ -1797,17 +1797,17 @@ function showSettings() {
         </div>`;
     }).join('');
     return `
-      <div class="user-row" id="ur_${i}" style="padding:12px;border:1.5px solid var(--gray-border);border-radius:10px;margin-bottom:10px;box-sizing:border-box;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-          <div style="font-size:11px;color:var(--text-soft);font-weight:600;">登入名稱（可多個）</div>
+      <div class="user-row" id="ur_${i}" style="padding:12px;border:1.5px solid var(--red);border-radius:10px;margin-bottom:10px;box-sizing:border-box;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px;">
+          <div style="font-size:11px;color:var(--text-soft);font-weight:600;">角色</div>
           <button class="btn-danger" onclick="removeUser(${i})" style="flex-shrink:0;font-size:11px;padding:4px 10px;">刪除整組</button>
         </div>
-        ${namesHtml}
-        <button class="add-btn" onclick="_addUserName(${i})" style="margin-top:0;margin-bottom:10px;font-size:12px;padding:6px 10px;">+ 新增登入名稱</button>
-        <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">角色</div>
         <select onchange="_setUserRole(${i}, this.value); showSettings();" style="width:100%;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;margin-bottom:10px;background:white;">
           ${roleOpts}
         </select>
+        <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">登入名稱（可多個）</div>
+        ${namesHtml}
+        <button class="add-btn" onclick="_addUserName(${i})" style="margin-top:0;margin-bottom:10px;font-size:12px;padding:6px 10px;">+ 新增登入名稱</button>
         <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">可見頁籤</div>
         <div style="display:flex;gap:5px;flex-wrap:wrap;">${tabsHtml}</div>
       </div>`;
