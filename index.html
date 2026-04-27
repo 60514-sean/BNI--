@@ -5002,14 +5002,11 @@ function openFinanceAdd() {
         </div>
       </div>
 
-      <!-- ===== 第六屆+ 收入專用區塊 ===== -->
+      <!-- ===== 第六屆+ 專用區塊（收入 / 支出共用） ===== -->
       <div id="finAddV6" style="display:none;">
         <div class="modal-field">
-          <div class="modal-label">收入類型</div>
-          <select class="modal-input" id="finAddV6Type" onchange="_setFinAddV6Type(this.value)">
-            <option value="場餐費">場餐費</option>
-            <option value="其他">其他</option>
-          </select>
+          <div class="modal-label" id="finAddV6TypeLabel">類型</div>
+          <select class="modal-input" id="finAddV6Type" onchange="_setFinAddV6Type(this.value)"></select>
         </div>
 
         <div class="modal-field">
@@ -5017,43 +5014,43 @@ function openFinanceAdd() {
           <input type="date" class="modal-input" id="finAddDateV6" value="${todayStr}">
         </div>
 
-        <!-- 場餐費子區塊 -->
-        <div id="finAddV6Meal">
-          <div style="font-size:12px;color:var(--red);font-weight:900;margin:6px 0 6px;">會員</div>
+        <!-- 收入：場餐費 -->
+        <div id="finAddV6Meal" style="display:none;">
+          <div style="font-size:12px;color:var(--red);font-weight:900;margin:6px 0;">會員</div>
           <div class="modal-row">
             <div class="modal-field" style="flex:1;">
-              <div class="modal-label">會員人數</div>
-              <input type="number" class="modal-input" id="finAddV6MemPaid" placeholder="0" inputmode="numeric">
+              <div class="modal-label">人數</div>
+              <input type="number" class="modal-input" id="finAddV6MemPaid" placeholder="0" inputmode="numeric" oninput="_updV6MealMember()">
             </div>
             <div class="modal-field" style="flex:1;">
-              <div class="modal-label">費用</div>
-              <input type="number" class="modal-input" id="finAddV6MemAmt" placeholder="0" inputmode="numeric">
+              <div class="modal-label">單價</div>
+              <input type="number" class="modal-input" id="finAddV6MemPrice" placeholder="0" inputmode="numeric" oninput="_updV6MealMember()">
             </div>
-          </div>
-          <div class="modal-field">
-            <div class="modal-label">備註</div>
-            <input type="text" class="modal-input" id="finAddV6MemNote" placeholder="">
+            <div class="modal-field" style="flex:1;">
+              <div class="modal-label">總價</div>
+              <input type="number" class="modal-input" id="finAddV6MemTotal" placeholder="0" readonly style="background:var(--gray-light);">
+            </div>
           </div>
 
           <div style="font-size:12px;color:var(--red);font-weight:900;margin:14px 0 6px;">來賓</div>
           <div class="modal-row">
             <div class="modal-field" style="flex:1;">
-              <div class="modal-label">來賓人數</div>
-              <input type="number" class="modal-input" id="finAddV6GstPaid" placeholder="0" inputmode="numeric">
+              <div class="modal-label">人數</div>
+              <input type="number" class="modal-input" id="finAddV6GstPaid" placeholder="0" inputmode="numeric" oninput="_updV6MealGuest()">
             </div>
             <div class="modal-field" style="flex:1;">
-              <div class="modal-label">費用</div>
-              <input type="number" class="modal-input" id="finAddV6GstAmt" placeholder="0" inputmode="numeric">
+              <div class="modal-label">單價</div>
+              <input type="number" class="modal-input" id="finAddV6GstPrice" placeholder="0" inputmode="numeric" oninput="_updV6MealGuest()">
+            </div>
+            <div class="modal-field" style="flex:1;">
+              <div class="modal-label">總價</div>
+              <input type="number" class="modal-input" id="finAddV6GstTotal" placeholder="0" readonly style="background:var(--gray-light);">
             </div>
           </div>
-          <div class="modal-field">
-            <div class="modal-label">備註</div>
-            <input type="text" class="modal-input" id="finAddV6GstNote" placeholder="">
-          </div>
-          <div style="font-size:11px;color:var(--text-soft);margin-top:-4px;margin-bottom:8px;">兩組可只填其一，留白該組就不會建立紀錄。</div>
+          <div style="font-size:11px;color:var(--text-soft);margin-bottom:8px;">兩組可只填其一，留白該組就不會建立紀錄。</div>
         </div>
 
-        <!-- 其他子區塊 -->
+        <!-- 收入：其他 -->
         <div id="finAddV6Other" style="display:none;">
           <div class="modal-row">
             <div class="modal-field" style="flex:2;">
@@ -5063,6 +5060,53 @@ function openFinanceAdd() {
             <div class="modal-field" style="flex:1;">
               <div class="modal-label">費用</div>
               <input type="number" class="modal-input" id="finAddV6OtherAmt" placeholder="0" inputmode="numeric">
+            </div>
+          </div>
+        </div>
+
+        <!-- 支出：飯店費用 -->
+        <div id="finAddV6Hotel" style="display:none;">
+          <div class="modal-row">
+            <div class="modal-field" style="flex:1;">
+              <div class="modal-label">會員</div>
+              <input type="number" class="modal-input" id="finAddV6HotelMem" placeholder="0" inputmode="numeric" oninput="_updV6Hotel()">
+            </div>
+            <div class="modal-field" style="flex:1;">
+              <div class="modal-label">來賓</div>
+              <input type="number" class="modal-input" id="finAddV6HotelGst" placeholder="0" inputmode="numeric" oninput="_updV6Hotel()">
+            </div>
+            <div class="modal-field" style="flex:1;">
+              <div class="modal-label">董顧</div>
+              <input type="number" class="modal-input" id="finAddV6HotelCons" placeholder="0" inputmode="numeric" oninput="_updV6Hotel()">
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--text-soft);margin:-4px 0 8px;">合計人數：<b id="finAddV6HotelSumDisp" style="color:var(--text);">0</b> 人</div>
+          <div class="modal-row">
+            <div class="modal-field" style="flex:1;">
+              <div class="modal-label">單價</div>
+              <input type="number" class="modal-input" id="finAddV6HotelPrice" placeholder="0" inputmode="numeric" oninput="_updV6Hotel()">
+            </div>
+            <div class="modal-field" style="flex:1;">
+              <div class="modal-label">總價</div>
+              <input type="number" class="modal-input" id="finAddV6HotelTotal" placeholder="0" readonly style="background:var(--gray-light);">
+            </div>
+          </div>
+        </div>
+
+        <!-- 支出:其他 -->
+        <div id="finAddV6ExpOther" style="display:none;">
+          <div class="modal-field">
+            <div class="modal-label">內容</div>
+            <input type="text" class="modal-input" id="finAddV6ExpOtherDesc" placeholder="例如：印製品請款">
+          </div>
+          <div class="modal-row">
+            <div class="modal-field" style="flex:1;">
+              <div class="modal-label">單價</div>
+              <input type="number" class="modal-input" id="finAddV6ExpOtherPrice" placeholder="0" inputmode="numeric" oninput="_updV6ExpOther()">
+            </div>
+            <div class="modal-field" style="flex:1;">
+              <div class="modal-label">總價</div>
+              <input type="number" class="modal-input" id="finAddV6ExpOtherTotal" placeholder="0" readonly style="background:var(--gray-light);">
             </div>
           </div>
         </div>
@@ -5086,19 +5130,62 @@ function _setFinAddKind(kind) {
   if (list) {
     list.innerHTML = (FINANCE_TYPE_SUGGESTIONS[kind] || []).map(t => `<option value="${_escH(t)}">`).join('');
   }
-  // 第六屆+ 收入：切換為「場餐費 / 其他」專用區塊
-  const useV6 = (kind === 'income' && _isV6PlusIncome());
+  // 第六屆+ 收入或支出：切換為下拉專用區塊
+  const useV6 = _isV6PlusIncome(); // 第六屆+ 收支都用 V6
   const v6 = document.getElementById('finAddV6');
   const normal = document.getElementById('finAddNormal');
-  if (v6) v6.style.display    = useV6 ? '' : 'none';
+  if (v6) v6.style.display = useV6 ? '' : 'none';
   if (normal) normal.style.display = useV6 ? 'none' : '';
+  if (useV6) {
+    // 設定下拉選項與 label
+    const sel = document.getElementById('finAddV6Type');
+    const lbl = document.getElementById('finAddV6TypeLabel');
+    if (kind === 'income') {
+      lbl.textContent = '收入類型';
+      sel.innerHTML = `<option value="場餐費">場餐費</option><option value="其他">其他</option>`;
+    } else {
+      lbl.textContent = '支出類型';
+      sel.innerHTML = `<option value="飯店費用">飯店費用</option><option value="其他">其他</option>`;
+    }
+    _setFinAddV6Type(sel.value);
+  }
 }
 
 function _setFinAddV6Type(value) {
-  const meal  = document.getElementById('finAddV6Meal');
-  const other = document.getElementById('finAddV6Other');
-  if (meal)  meal.style.display  = value === '其他' ? 'none' : '';
-  if (other) other.style.display = value === '其他' ? '' : 'none';
+  const kind = document.getElementById('finAddKind')?.value || 'expense';
+  const meal     = document.getElementById('finAddV6Meal');
+  const other    = document.getElementById('finAddV6Other');
+  const hotel    = document.getElementById('finAddV6Hotel');
+  const expOther = document.getElementById('finAddV6ExpOther');
+  if (meal)     meal.style.display     = (kind === 'income' && value === '場餐費') ? '' : 'none';
+  if (other)    other.style.display    = (kind === 'income' && value === '其他')   ? '' : 'none';
+  if (hotel)    hotel.style.display    = (kind === 'expense' && value === '飯店費用') ? '' : 'none';
+  if (expOther) expOther.style.display = (kind === 'expense' && value === '其他')     ? '' : 'none';
+}
+
+// 即時計算（總價 = 人數 × 單價 / 加總人數 × 單價）
+function _updV6MealMember() {
+  const n = +document.getElementById('finAddV6MemPaid').value || 0;
+  const p = +document.getElementById('finAddV6MemPrice').value || 0;
+  document.getElementById('finAddV6MemTotal').value = n * p || '';
+}
+function _updV6MealGuest() {
+  const n = +document.getElementById('finAddV6GstPaid').value || 0;
+  const p = +document.getElementById('finAddV6GstPrice').value || 0;
+  document.getElementById('finAddV6GstTotal').value = n * p || '';
+}
+function _updV6Hotel() {
+  const m = +document.getElementById('finAddV6HotelMem').value || 0;
+  const g = +document.getElementById('finAddV6HotelGst').value || 0;
+  const c = +document.getElementById('finAddV6HotelCons').value || 0;
+  const sum = m + g + c;
+  const p = +document.getElementById('finAddV6HotelPrice').value || 0;
+  document.getElementById('finAddV6HotelSumDisp').textContent = sum;
+  document.getElementById('finAddV6HotelTotal').value = sum * p || '';
+}
+function _updV6ExpOther() {
+  const p = +document.getElementById('finAddV6ExpOtherPrice').value || 0;
+  document.getElementById('finAddV6ExpOtherTotal').value = p || '';
 }
 
 function closeFinanceAdd() {
@@ -5109,7 +5196,7 @@ function closeFinanceAdd() {
 async function submitFinanceAdd() {
   const sheet  = _financeTermTab;
   const kind   = document.getElementById('finAddKind').value;
-  const useV6  = (kind === 'income' && _isV6PlusIncome());
+  const useV6  = _isV6PlusIncome(); // 第六屆+ 收支都用 V6
 
   if (!sheet) { showToast('請先選擇屆別'); return; }
 
@@ -5121,22 +5208,41 @@ async function submitFinanceAdd() {
     if (!date) { showToast('請填日期'); return; }
     const v6Type = document.getElementById('finAddV6Type').value;
 
-    if (v6Type === '場餐費') {
-      const memPaid = +document.getElementById('finAddV6MemPaid').value || 0;
-      const memAmt  = +document.getElementById('finAddV6MemAmt').value  || 0;
-      const memNote = document.getElementById('finAddV6MemNote').value.trim();
-      const gstPaid = +document.getElementById('finAddV6GstPaid').value || 0;
-      const gstAmt  = +document.getElementById('finAddV6GstAmt').value  || 0;
-      const gstNote = document.getElementById('finAddV6GstNote').value.trim();
-      if (memAmt) records.push({ date, type: '場餐費（會員）', kind: 'income', amount: memAmt, paid: memPaid, total: memPaid, note: memNote });
-      if (gstAmt) records.push({ date, type: '場餐費（來賓）', kind: 'income', amount: gstAmt, paid: gstPaid, total: gstPaid, note: gstNote });
-      if (!records.length) { showToast('會員或來賓費用至少填一組'); return; }
-    } else { // 其他
+    if (kind === 'income' && v6Type === '場餐費') {
+      const memN = +document.getElementById('finAddV6MemPaid').value || 0;
+      const memP = +document.getElementById('finAddV6MemPrice').value || 0;
+      const gstN = +document.getElementById('finAddV6GstPaid').value || 0;
+      const gstP = +document.getElementById('finAddV6GstPrice').value || 0;
+      const memTotal = memN * memP;
+      const gstTotal = gstN * gstP;
+      if (memTotal) records.push({ date, type: '場餐費（會員）', kind: 'income', amount: memTotal, paid: memN, total: memN, note: '' });
+      if (gstTotal) records.push({ date, type: '場餐費（來賓）', kind: 'income', amount: gstTotal, paid: gstN, total: gstN, note: '' });
+      if (!records.length) { showToast('會員或來賓兩組至少填一組（人數×單價）'); return; }
+    } else if (kind === 'income' && v6Type === '其他') {
       const src = document.getElementById('finAddV6OtherSrc').value.trim();
       const amt = +document.getElementById('finAddV6OtherAmt').value || 0;
       if (!src) { showToast('請填收入來源'); return; }
       if (!amt) { showToast('請填費用'); return; }
       records.push({ date, type: src, kind: 'income', amount: amt, paid: 0, total: 0, note: '' });
+    } else if (kind === 'expense' && v6Type === '飯店費用') {
+      const m = +document.getElementById('finAddV6HotelMem').value || 0;
+      const g = +document.getElementById('finAddV6HotelGst').value || 0;
+      const c = +document.getElementById('finAddV6HotelCons').value || 0;
+      const p = +document.getElementById('finAddV6HotelPrice').value || 0;
+      const sum = m + g + c;
+      const total = sum * p;
+      if (!sum)   { showToast('請填會員/來賓/董顧人數'); return; }
+      if (!total) { showToast('請填單價'); return; }
+      records.push({
+        date, type: '飯店費用', kind: 'expense', amount: total, paid: sum, total: sum,
+        note: `會員${m}/來賓${g}/董顧${c} × ${p}`
+      });
+    } else if (kind === 'expense' && v6Type === '其他') {
+      const desc = document.getElementById('finAddV6ExpOtherDesc').value.trim();
+      const p    = +document.getElementById('finAddV6ExpOtherPrice').value || 0;
+      if (!desc) { showToast('請填內容'); return; }
+      if (!p)    { showToast('請填單價'); return; }
+      records.push({ date, type: desc, kind: 'expense', amount: p, paid: 0, total: 0, note: '' });
     }
   } else {
     const date   = document.getElementById('finAddDate').value.trim().replace(/-/g, '/');
