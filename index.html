@@ -4633,7 +4633,6 @@ function renderFinance() {
       <select class="fin-term-select" onchange="switchFinanceTerm(this.value)">
         ${terms.map(t => `<option value="${_escH(t.name)}" ${t.name===_financeTermTab?'selected':''}>${_escH(t.name)}</option>`).join('')}
       </select>
-      ${_canEditTab('finance') ? `<button class="fin-tb-btn" onclick="openFinanceSpecial()">＋ 特殊</button>` : ''}
       <button class="fin-tb-btn" onclick="refreshFinance()" title="重新整理">↻</button>
     </div>
   `;
