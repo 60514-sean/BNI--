@@ -1230,8 +1230,8 @@ const TAB_LIST = [
 ];
 
 function _normalizeUser(u) {
-  if (typeof u === 'string') return { names: [u], role: '', allowedTabs: [] };
-  if (!u) return { names: [], role: '', allowedTabs: [] };
+  if (typeof u === 'string') return { names: [u], role: '', allowedTabs: [], editableTabs: [] };
+  if (!u) return { names: [], role: '', allowedTabs: [], editableTabs: [] };
   // 兼容舊格式 {name, roles[]} → 新格式 {names[], role}
   let names;
   if (Array.isArray(u.names)) names = u.names.filter(n => n);
@@ -1239,7 +1239,10 @@ function _normalizeUser(u) {
   else names = [];
   let role = u.role || '';
   if (!role && Array.isArray(u.roles) && u.roles.length) role = u.roles[0];
-  return { names, role, allowedTabs: u.allowedTabs || [] };
+  const allowedTabs = u.allowedTabs || [];
+  // 兼容舊資料：沒有 editableTabs 時，預設所有可見頁籤都可編輯
+  const editableTabs = Array.isArray(u.editableTabs) ? u.editableTabs.filter(t => allowedTabs.includes(t)) : [...allowedTabs];
+  return { names, role, allowedTabs, editableTabs };
 }
 
 function getConfig() {
@@ -1644,7 +1647,7 @@ function openSettings() {
   if (CR !== 'admin') { showToast('無權限'); return; }
   // 從 config 初始化暫存陣列，然後渲染
   const cfg = getConfig();
-  cfgUsers = cfg.users.map(u => ({ names: [...(u.names || [])], role: u.role || '', allowedTabs: [...(u.allowedTabs || [])] }));
+  cfgUsers = cfg.users.map(u => ({ names: [...(u.names || [])], role: u.role || '', allowedTabs: [...(u.allowedTabs || [])], editableTabs: [...(u.editableTabs || [])] }));
   cfgCustomTasks = [...(cfg.customTasks || [])];
   showSettings();
 }
@@ -1659,7 +1662,8 @@ function _captureUserInputsToCfg() {
     return {
       names,
       role: u.role || '',
-      allowedTabs: u.allowedTabs || []
+      allowedTabs: u.allowedTabs || [],
+      editableTabs: u.editableTabs || []
     };
   });
 }
@@ -1692,8 +1696,22 @@ function _toggleUserTab(i, tabId, checked) {
   const u = cfgUsers[i];
   if (!u) return;
   u.allowedTabs = u.allowedTabs || [];
-  if (checked && !u.allowedTabs.includes(tabId)) u.allowedTabs.push(tabId);
-  if (!checked) u.allowedTabs = u.allowedTabs.filter(t => t !== tabId);
+  u.editableTabs = u.editableTabs || [];
+  if (checked) {
+    if (!u.allowedTabs.includes(tabId)) u.allowedTabs.push(tabId);
+    if (!u.editableTabs.includes(tabId)) u.editableTabs.push(tabId); // 預設可編輯
+  } else {
+    u.allowedTabs = u.allowedTabs.filter(t => t !== tabId);
+    u.editableTabs = u.editableTabs.filter(t => t !== tabId);
+  }
+}
+
+function _toggleUserTabEdit(i, tabId, checked) {
+  const u = cfgUsers[i];
+  if (!u) return;
+  u.editableTabs = u.editableTabs || [];
+  if (checked && !u.editableTabs.includes(tabId)) u.editableTabs.push(tabId);
+  if (!checked) u.editableTabs = u.editableTabs.filter(t => t !== tabId);
 }
 
 function showSettings() {
@@ -1725,11 +1743,23 @@ function showSettings() {
       </div>`).join('');
     const roleOpts = `<option value="">— 未指定 —</option>` +
       GUEST_ROLES.map(r => `<option value="${r}"${u.role === r ? ' selected' : ''}>${r}</option>`).join('');
-    const tabsHtml = TAB_LIST.map(t => `
-      <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;border:1.5px solid var(--gray-border);border-radius:999px;cursor:pointer;${(u.allowedTabs||[]).includes(t.id)?'background:#d1fae5;border-color:#10b981;color:#065f46;':'color:var(--text-soft);'}">
-        <input type="checkbox" ${(u.allowedTabs||[]).includes(t.id)?'checked':''} onchange="_toggleUserTab(${i}, '${t.id}', this.checked); showSettings();" style="margin:0;cursor:pointer;">
-        ${t.label}
-      </label>`).join('');
+    const tabsHtml = TAB_LIST.map(t => {
+      const visible  = (u.allowedTabs||[]).includes(t.id);
+      const editable = (u.editableTabs||[]).includes(t.id);
+      const wrapStyle = `display:inline-flex;align-items:stretch;border:1.5px solid ${visible?'#10b981':'var(--gray-border)'};border-radius:999px;overflow:hidden;font-size:12px;background:${visible?'#d1fae5':'transparent'};`;
+      const nameStyle = `display:inline-flex;align-items:center;gap:4px;padding:3px 8px;cursor:pointer;color:${visible?'#065f46':'var(--text-soft)'};`;
+      const onStyle  = `display:inline-flex;align-items:center;padding:3px 7px;cursor:pointer;border-left:1px solid ${editable?'#059669':'#a7f3d0'};background:${editable?'#10b981':'#fff'};color:${editable?'#fff':'#9ca3af'};font-weight:700;font-size:10px;letter-spacing:0.5px;`;
+      const onLabel  = editable ? 'ON' : 'OFF';
+      const onTitle  = editable ? '可編輯（點擊改為唯讀）' : '唯讀（點擊改為可編輯）';
+      return `
+        <div style="${wrapStyle}" title="${visible ? (editable ? '可看 + 可編輯' : '可看 + 唯讀') : '不可見'}">
+          <label style="${nameStyle}">
+            <input type="checkbox" ${visible?'checked':''} onchange="_toggleUserTab(${i}, '${t.id}', this.checked); showSettings();" style="margin:0;cursor:pointer;">
+            ${t.label}
+          </label>
+          ${visible ? `<span style="${onStyle}" title="${onTitle}" onclick="_toggleUserTabEdit(${i}, '${t.id}', ${!editable}); showSettings();">${onLabel}</span>` : ''}
+        </div>`;
+    }).join('');
     return `
       <div class="user-row" id="ur_${i}" style="padding:12px;border:1.5px solid var(--gray-border);border-radius:10px;margin-bottom:10px;box-sizing:border-box;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
@@ -1872,7 +1902,7 @@ function renderCtDay(day) {
   if (fw) fw.style.display = 'none';
 }
 
-function addUser()     { _captureUserInputsToCfg(); cfgUsers.push({ names: [''], role: '', allowedTabs: [] }); showSettings(); }
+function addUser()     { _captureUserInputsToCfg(); cfgUsers.push({ names: [''], role: '', allowedTabs: [], editableTabs: [] }); showSettings(); }
 function removeUser(i) { _captureUserInputsToCfg(); cfgUsers.splice(i, 1); showSettings(); }
 
 function removeCustomTask(i) {
