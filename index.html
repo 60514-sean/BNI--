@@ -614,14 +614,14 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   background:white; border-radius:14px; box-shadow:var(--shadow);
   padding:20px 18px; margin-bottom:14px;
   display:grid;
-  grid-template-columns:1fr 1.3fr 1fr;
+  grid-template-columns:1fr 1.3fr;
   gap:16px 0;
 }
 .fin-summary-cell {
   text-align:center; padding:2px 14px;
   display:flex; flex-direction:column; justify-content:center; align-items:center;
 }
-.fin-summary-cell:not(:nth-child(3n+1)) {
+.fin-summary-cell:not(:nth-child(2n+1)) {
   border-left:1px solid var(--gray-border);
 }
 .fin-summary-cell .lbl {
@@ -4354,10 +4354,6 @@ function _financeRenderKpi(term, sum) {
         <div class="lbl">目前結餘</div>
         <div class="val">${_finFmt(sum.currentBalance)}</div>
       </div>
-      <div class="fin-summary-cell income">
-        <div class="lbl">累計收入</div>
-        <div class="val">+${_finFmt(sum.totalIncome)}</div>
-      </div>
       <div class="fin-summary-cell updated">
         <div class="lbl">資料更新</div>
         <div class="val">${_escH(updated || '—')}</div>
@@ -4365,10 +4361,6 @@ function _financeRenderKpi(term, sum) {
       <div class="fin-summary-cell">
         <div class="lbl">期初結餘</div>
         <div class="val">${_finFmt(term.initial)}</div>
-      </div>
-      <div class="fin-summary-cell expense">
-        <div class="lbl">累計支出</div>
-        <div class="val">-${_finFmt(sum.totalExpense)}</div>
       </div>
     </div>
   `;
