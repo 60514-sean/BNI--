@@ -5390,6 +5390,23 @@ function openFinanceEdit(rowIndex) {
 
   // 第六屆+ 用 V6 介面（依紀錄性質決定子模式）
   const mode = _detectV6EditMode(r);
+  const editKind = (mode === 'hotel' || mode === 'expenseOther') ? 'expense' : 'income';
+  // 共用上方：類型 toggle（disabled）+ 子類型下拉（disabled）
+  const v6TypeOptions = editKind === 'income'
+    ? `<option value="場餐費" ${(mode==='mealMember'||mode==='mealGuest')?'selected':''}>場餐費</option><option value="其他" ${mode==='incomeOther'?'selected':''}>其他</option>`
+    : `<option value="飯店費用" ${mode==='hotel'?'selected':''}>飯店費用</option><option value="其他" ${mode==='expenseOther'?'selected':''}>其他</option>`;
+  const v6Header = `
+    <div class="modal-field">
+      <div class="modal-label">類型</div>
+      <div class="fin-kind-toggle">
+        <button type="button" class="fin-kind-btn ${editKind==='income'?'active':''}" data-kind="income" disabled>收入</button>
+        <button type="button" class="fin-kind-btn ${editKind==='expense'?'active':''}" data-kind="expense" disabled>支出</button>
+      </div>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">${editKind==='income'?'收入類型':'支出類型'}</div>
+      <select class="modal-input" disabled style="background:var(--gray-light);">${v6TypeOptions}</select>
+    </div>`;
   let body = '';
   if (mode === 'mealMember' || mode === 'mealGuest') {
     const editingMember = mode === 'mealMember';
@@ -5403,12 +5420,6 @@ function openFinanceEdit(rowIndex) {
     const gstP = !editingMember ? price : 0;
     const gstT = !editingMember ? total : 0;
     body = `
-      <div class="modal-field">
-        <div class="modal-label">收入類型</div>
-        <select class="modal-input" disabled style="background:var(--gray-light);">
-          <option>場餐費</option>
-        </select>
-      </div>
       <div class="modal-field"><div class="modal-label">日期</div>
         <input type="date" class="modal-input" id="finEditDate" value="${dateVal}"></div>
       <div style="font-size:12px;color:var(--red);font-weight:900;margin:6px 0;">會員</div>
@@ -5450,12 +5461,6 @@ function openFinanceEdit(rowIndex) {
         <input type="text" class="modal-input" id="finEditNote" value="${_escH(r.note || '')}"></div>`;
   } else if (mode === 'incomeOther') {
     body = `
-      <div class="modal-field">
-        <div class="modal-label">收入類型</div>
-        <select class="modal-input" disabled style="background:var(--gray-light);">
-          <option>其他</option>
-        </select>
-      </div>
       <div class="modal-field"><div class="modal-label">日期</div>
         <input type="date" class="modal-input" id="finEditDate" value="${dateVal}"></div>
       <div class="modal-row">
@@ -5490,6 +5495,7 @@ function openFinanceEdit(rowIndex) {
   overlay.innerHTML = `
     <div class="modal-box">
       <div class="modal-title">編輯紀錄（列 ${rowIndex}）</div>
+      ${v6Header}
       ${body}
       <div class="modal-btns">
         <button class="modal-del" onclick="closeFinanceEdit();confirmFinanceDelete(${rowIndex})">刪除</button>
