@@ -119,30 +119,42 @@ function _handleAppend(body) {
   const total  = _num(body.total);
   const note   = body.note || '';
 
-  if (kind === 'income') runningBal += amount;
-  else                   runningBal -= amount;
-
-  // 共用前 7 欄
+  // 共用前 7 欄（E 結餘留空，後面 setFormula）
   const row = [
     body.date || '',                            // A 日期
     type,                                       // B 性質
     kind === 'income'  ? (amount || '') : '',   // C 收入
     kind === 'expense' ? (amount || '') : '',   // D 支出
-    runningBal,                                 // E 結餘
+    '',                                         // E 結餘（公式）
     paid  || '',                                // F 付費人數
     total || '',                                // G 總人數
   ];
   if (ncol === 11) {
-    row.push('');           // H 額外收入
-    row.push('');           // I 額外支出
-    row.push(runningBal);   // J 結餘
-    row.push(note);         // K 備註
+    row.push('');   // H 額外收入
+    row.push('');   // I 額外支出
+    row.push('');   // J 結餘（公式）
+    row.push(note); // K 備註
   } else {
-    row.push(note);         // H 備註
+    row.push(note); // H 備註
   }
 
-  sheet.getRange(cursor + 1, 1, 1, ncol).setValues([row]);
-  return _resp({ ok: true, lastBalance: runningBal, addedRows: 1, sheet: sheet.getName(), routed: routed });
+  const newR = cursor + 1;
+  sheet.getRange(newR, 1, 1, ncol).setValues([row]);
+  _setBalanceFormulas(sheet, newR, ncol);
+  SpreadsheetApp.flush();
+  const lastBal = sheet.getRange(newR, ncol === 11 ? 10 : 5).getValue();
+  return _resp({ ok: true, lastBalance: lastBal, addedRows: 1, sheet: sheet.getName(), routed: routed });
+}
+
+// 套用 E 欄結餘公式（與 legacy 11 欄分頁的 J 欄）
+function _setBalanceFormulas(sheet, r, ncol) {
+  sheet.getRange(r, 5).setFormula('=$E$2+SUM(C$3:C' + r + ')-SUM(D$3:D' + r + ')');
+  if (ncol === 11) {
+    sheet.getRange(r, 10).setFormula(
+      '=E' + r + '+IFERROR(VALUE(REGEXEXTRACT(H' + r + '&"","[0-9.]+")),0)' +
+      '-IFERROR(VALUE(REGEXEXTRACT(I' + r + '&"","[0-9.]+")),0)'
+    );
+  }
 }
 
 /**
@@ -171,14 +183,12 @@ function _handleAppendSpecial(body) {
 
   const ncol = _ncolOf(sheet);
   const lastRow = sheet.getLastRow();
-  let runningBal = _findLastBalance(sheet, lastRow);
 
   const titleAmt = _num(body.titleAmount);
-  runningBal += titleAmt;
 
   const rows = [];
 
-  // 標題列
+  // 標題列（E 留空，不套公式 → 結餘留空白；C 欄帶 titleAmt 會被下方明細列的 SUM 公式自動納入）
   const titleRow = [body.date || '', body.title, titleAmt || '', '', '', '', ''];
   if (ncol === 11) {
     titleRow.push('', '', '', body.note || '');
@@ -187,14 +197,13 @@ function _handleAppendSpecial(body) {
   }
   rows.push(titleRow);
 
-  // 明細列
+  // 明細列（E/J 留空，下方批次 setFormula）
   (body.items || []).forEach(function (it) {
     const inc = _num(it.income);
     const exp = _num(it.expense);
-    runningBal = runningBal + inc - exp;
-    const r = ['', it.name || '', inc || '', exp || '', runningBal, '', ''];
+    const r = ['', it.name || '', inc || '', exp || '', '', '', ''];
     if (ncol === 11) {
-      r.push('', '', runningBal, it.note || '');
+      r.push('', '', '', it.note || '');
     } else {
       r.push(it.note || '');
     }
@@ -202,7 +211,14 @@ function _handleAppendSpecial(body) {
   });
 
   sheet.getRange(lastRow + 1, 1, rows.length, ncol).setValues(rows);
-  return _resp({ ok: true, lastBalance: runningBal, addedRows: rows.length });
+  // 對明細列（rows[1..]）套公式；rows[0] 是標題列保持空白
+  for (let i = 1; i < rows.length; i++) {
+    _setBalanceFormulas(sheet, lastRow + 1 + i, ncol);
+  }
+  SpreadsheetApp.flush();
+  const lastR = lastRow + rows.length;
+  const lastBal = sheet.getRange(lastR, ncol === 11 ? 10 : 5).getValue();
+  return _resp({ ok: true, lastBalance: lastBal, addedRows: rows.length });
 }
 
 /**
@@ -221,13 +237,14 @@ function _handleUpdate(body) {
   const v = body.values || {};
   const rng = sheet.getRange(body.rowIndex, 1, 1, ncol);
   const cur = rng.getValues()[0];
+  const formulas = rng.getFormulas()[0]; // 公式（若不是公式則為空字串）
   const out = cur.slice();
 
   if (v.date !== undefined)    out[0] = v.date;
   if (v.type !== undefined)    out[1] = v.type;
   if (v.income !== undefined)  out[2] = _num(v.income) || '';
   if (v.expense !== undefined) out[3] = _num(v.expense) || '';
-  if (v.balance !== undefined) out[4] = _num(v.balance);
+  // E 結餘改由公式計算，不接受外部覆蓋
   if (v.paid !== undefined)    out[5] = _num(v.paid) || '';
   if (v.total !== undefined)   out[6] = _num(v.total) || '';
 
@@ -240,14 +257,37 @@ function _handleUpdate(body) {
       const n = _num(v.extraExpense);
       out[8] = n ? (v.extraDesc ? n + '（' + v.extraDesc + '）' : n) : '';
     }
-    if (v.finalBalance !== undefined) out[9] = _num(v.finalBalance);
+    // J 最終結餘改由公式計算
     if (v.note !== undefined)         out[10] = v.note;
   } else {
     if (v.note !== undefined) out[7] = v.note;
   }
 
+  // E、J 欄先以原值佔位寫入，下面再用 setFormula 還原（如果原本是公式）
+  out[4] = '';
+  if (isLegacy) out[9] = '';
+
   rng.setValues([out]);
-  _recalcBalancesFrom(sheet, body.rowIndex + 1);
+
+  // 還原 E 與 J 欄：若原本是公式 → 重新 setFormula；若無公式但屬一般紀錄列 → 套上新公式
+  const r = body.rowIndex;
+  const wasMonthHeaderOrTitle = !cur[4] && !formulas[4]; // E 原本就空（月份標題列/特殊標題列）→ 不套公式
+  if (formulas[4]) {
+    sheet.getRange(r, 5).setFormula(formulas[4]);
+  } else if (!wasMonthHeaderOrTitle) {
+    sheet.getRange(r, 5).setFormula('=$E$2+SUM(C$3:C' + r + ')-SUM(D$3:D' + r + ')');
+  }
+  if (isLegacy) {
+    if (formulas[9]) {
+      sheet.getRange(r, 10).setFormula(formulas[9]);
+    } else if (!wasMonthHeaderOrTitle && cur[9] !== '' && cur[9] !== null) {
+      sheet.getRange(r, 10).setFormula(
+        '=E' + r + '+IFERROR(VALUE(REGEXEXTRACT(H' + r + '&"","[0-9.]+")),0)' +
+        '-IFERROR(VALUE(REGEXEXTRACT(I' + r + '&"","[0-9.]+")),0)'
+      );
+    }
+  }
+  // 公式自動跟著新數值重算，不再需要 _recalcBalancesFrom
   return _resp({ ok: true });
 }
 
@@ -261,8 +301,7 @@ function _handleDelete(body) {
   if (!sheet) return _resp({ ok: false, error: '找不到分頁：' + body.sheet });
   if (!body.rowIndex || body.rowIndex < 2) return _resp({ ok: false, error: 'rowIndex 必須 >= 2' });
   sheet.deleteRow(body.rowIndex);
-  // 從刪除位置開始重算結餘
-  _recalcBalancesFrom(sheet, body.rowIndex);
+  // E/J 欄為公式（=$E$2+SUM(...)-SUM(...)），刪除整列後 SUM 範圍由 Sheets 自動調整，不需重算
   return _resp({ ok: true });
 }
 
@@ -777,6 +816,73 @@ function _resp(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// =============== 一次性：把現有結餘從「值」改為「公式」 ===============
+/**
+ * 把指定屆別分頁的 E 欄（與 legacy 11 欄分頁的 J 欄）改成公式：
+ *   E{r} = $E$2 + SUM(C$3:C{r}) - SUM(D$3:D{r})
+ *   J{r} = E{r} + (H 內的數字) - (I 內的數字)   ← legacy only
+ * 只對「原本 E 欄有值」的列套公式；月份標題列、特殊活動標題列（E 原本就空）保持空白。
+ * E2（期初結餘）保持為手動填入的值。
+ */
+function convertBalancesToFormula(sheetName) {
+  const ss = SpreadsheetApp.openById(FINANCE_SHEET_ID);
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) throw new Error('找不到分頁：' + sheetName);
+  const ncol = _ncolOf(sheet);
+  const isLegacy = ncol === 11;
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 3) return { ok: true, sheet: sheetName, converted: 0 };
+
+  const range = sheet.getRange(3, 1, lastRow - 2, ncol);
+  const values = range.getValues();
+  let converted = 0;
+
+  for (let i = 0; i < values.length; i++) {
+    const r = i + 3;
+    const e = values[i][4];
+    if (e !== '' && e !== null) {
+      sheet.getRange(r, 5).setFormula('=$E$2+SUM(C$3:C' + r + ')-SUM(D$3:D' + r + ')');
+      converted++;
+    }
+    if (isLegacy) {
+      const j = values[i][9];
+      if (j !== '' && j !== null) {
+        sheet.getRange(r, 10).setFormula(
+          '=E' + r + '+IFERROR(VALUE(REGEXEXTRACT(H' + r + '&"","[0-9.]+")),0)' +
+          '-IFERROR(VALUE(REGEXEXTRACT(I' + r + '&"","[0-9.]+")),0)'
+        );
+      }
+    }
+  }
+  Logger.log(sheetName + '：已轉換 ' + converted + ' 列為公式');
+  return { ok: true, sheet: sheetName, converted: converted };
+}
+
+/** 把所有屆別分頁（億展開頭）的結餘都轉成公式 */
+function convertAllTermsBalancesToFormula() {
+  const ss = SpreadsheetApp.openById(FINANCE_SHEET_ID);
+  const log = [];
+  ss.getSheets().forEach(function (sheet) {
+    const name = sheet.getName();
+    if (name === RECEIVABLE_SHEET) return;
+    const headers = sheet.getRange(1, 1, 1, Math.min(2, sheet.getLastColumn())).getValues()[0];
+    if (String(headers[0]).trim() !== '日期' || String(headers[1]).trim() !== '性質') {
+      log.push(name + '：跳過（非屆別結構）');
+      return;
+    }
+    try {
+      const r = convertBalancesToFormula(name);
+      log.push(name + '：完成（' + r.converted + ' 列）');
+    } catch (e) {
+      log.push(name + '：失敗 - ' + e.message);
+    }
+  });
+  Logger.log('========================================');
+  log.forEach(function (l) { Logger.log('  ' + l); });
+  Logger.log('========================================');
+  return { ok: true, log: log };
 }
 
 function _test() {
