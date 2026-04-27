@@ -5280,7 +5280,7 @@ async function submitFinanceSpecial() {
 function openReceivableAdd() {
   if (!_canEditTab('finance')) { showToast('無權限'); return; }
   const today = new Date();
-  const todayStr = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
   // 取會員清單作為下拉選單（若已載入）
   const memberOptions = (typeof _memberData !== 'undefined' && Array.isArray(_memberData))
@@ -5296,7 +5296,7 @@ function openReceivableAdd() {
       <div style="display:flex;gap:10px;">
         <div class="modal-field" style="flex:1;">
           <div class="modal-label">日期（欠款發生日）</div>
-          <input type="text" class="modal-input" id="recvAddDate" value="${todayStr}">
+          <input type="date" class="modal-input" id="recvAddDate" value="${todayStr}">
         </div>
         <div class="modal-field" style="flex:1;">
           <div class="modal-label">會員</div>
@@ -5342,7 +5342,8 @@ function closeReceivableAdd() {
 }
 
 async function submitReceivableAdd() {
-  const date   = document.getElementById('recvAddDate').value.trim();
+  const dateRaw = document.getElementById('recvAddDate').value.trim();
+  const date    = dateRaw.replace(/-/g, '/'); // type=date 給 YYYY-MM-DD，後端用 YYYY/MM/DD
   const member = document.getElementById('recvAddMember').value.trim();
   const item   = document.getElementById('recvAddItem').value.trim() || '入席費';
   const amount = +document.getElementById('recvAddAmount').value || 0;
