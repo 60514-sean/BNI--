@@ -1230,12 +1230,16 @@ const TAB_LIST = [
 ];
 
 function _normalizeUser(u) {
-  if (typeof u === 'string') return { name: u, roles: [], allowedTabs: [] };
-  return {
-    name: (u && u.name) || '',
-    roles: (u && u.roles) || [],
-    allowedTabs: (u && u.allowedTabs) || []
-  };
+  if (typeof u === 'string') return { names: [u], role: '', allowedTabs: [] };
+  if (!u) return { names: [], role: '', allowedTabs: [] };
+  // 兼容舊格式 {name, roles[]} → 新格式 {names[], role}
+  let names;
+  if (Array.isArray(u.names)) names = u.names.filter(n => n);
+  else if (u.name) names = [u.name];
+  else names = [];
+  let role = u.role || '';
+  if (!role && Array.isArray(u.roles) && u.roles.length) role = u.roles[0];
+  return { names, role, allowedTabs: u.allowedTabs || [] };
 }
 
 function getConfig() {
@@ -1330,13 +1334,13 @@ async function doLogin() {
   if (!name) return;
 
   let cfg = getConfig();
-  let userObj = cfg.users.find(u => u.name === name) || null;
+  let userObj = cfg.users.find(u => (u.names || []).includes(name)) || null;
   let isAdmin = name === cfg.adminPassword;
 
   if (!userObj && !isAdmin) {
     await Promise.race([_bgRefresh(), new Promise(r => setTimeout(r, 3000))]);
     cfg = getConfig();
-    userObj = cfg.users.find(u => u.name === name) || null;
+    userObj = cfg.users.find(u => (u.names || []).includes(name)) || null;
     isAdmin = name === cfg.adminPassword;
   } else {
     _bgRefresh();
@@ -1640,28 +1644,48 @@ function openSettings() {
   if (CR !== 'admin') { showToast('無權限'); return; }
   // 從 config 初始化暫存陣列，然後渲染
   const cfg = getConfig();
-  cfgUsers = cfg.users.map(u => ({ name: u.name || '', roles: [...(u.roles || [])], allowedTabs: [...(u.allowedTabs || [])] }));
+  cfgUsers = cfg.users.map(u => ({ names: [...(u.names || [])], role: u.role || '', allowedTabs: [...(u.allowedTabs || [])] }));
   cfgCustomTasks = [...(cfg.customTasks || [])];
   showSettings();
 }
 
 function _captureUserInputsToCfg() {
   cfgUsers = cfgUsers.map((u, i) => {
-    const nameInp = document.getElementById(`usr_${i}`);
+    const oldNames = (u.names && u.names.length) ? u.names : [''];
+    const names = oldNames.map((n, j) => {
+      const inp = document.getElementById(`usr_${i}_${j}`);
+      return inp ? inp.value.trim() : n;
+    });
     return {
-      name: nameInp ? nameInp.value.trim() : (u.name || ''),
-      roles: u.roles || [],
+      names,
+      role: u.role || '',
       allowedTabs: u.allowedTabs || []
     };
   });
 }
 
-function _toggleUserRole(i, role, checked) {
+function _setUserRole(i, role) {
   const u = cfgUsers[i];
   if (!u) return;
-  u.roles = u.roles || [];
-  if (checked && !u.roles.includes(role)) u.roles.push(role);
-  if (!checked) u.roles = u.roles.filter(r => r !== role);
+  u.role = role || '';
+}
+
+function _addUserName(i) {
+  _captureUserInputsToCfg();
+  const u = cfgUsers[i];
+  if (!u) return;
+  u.names = u.names || [];
+  u.names.push('');
+  showSettings();
+}
+
+function _removeUserName(i, j) {
+  _captureUserInputsToCfg();
+  const u = cfgUsers[i];
+  if (!u || !u.names) return;
+  u.names.splice(j, 1);
+  if (u.names.length === 0) u.names.push('');
+  showSettings();
 }
 
 function _toggleUserTab(i, tabId, checked) {
@@ -1693,11 +1717,14 @@ function showSettings() {
   _captureUserInputsToCfg();
 
   const usersHtml = cfgUsers.map((u, i) => {
-    const rolesHtml = GUEST_ROLES.map(r => `
-      <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;border:1.5px solid var(--gray-border);border-radius:999px;cursor:pointer;${(u.roles||[]).includes(r)?'background:#fef3c7;border-color:#fbbf24;color:#92400e;':'color:var(--text-soft);'}">
-        <input type="checkbox" ${(u.roles||[]).includes(r)?'checked':''} onchange="_toggleUserRole(${i}, '${r}', this.checked); showSettings();" style="margin:0;cursor:pointer;">
-        ${r}
-      </label>`).join('');
+    const namesArr = (u.names && u.names.length) ? u.names : [''];
+    const namesHtml = namesArr.map((n, j) => `
+      <div style="display:flex;gap:6px;align-items:stretch;margin-bottom:6px;min-width:0;">
+        <input type="text" value="${_escH(n)}" id="usr_${i}_${j}" placeholder="例如：康康" style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+        <button class="btn-danger" onclick="_removeUserName(${i}, ${j})" style="flex-shrink:0;padding:0 14px;font-size:18px;line-height:1;" title="移除此登入名稱">−</button>
+      </div>`).join('');
+    const roleOpts = `<option value="">— 未指定 —</option>` +
+      GUEST_ROLES.map(r => `<option value="${r}"${u.role === r ? ' selected' : ''}>${r}</option>`).join('');
     const tabsHtml = TAB_LIST.map(t => `
       <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;border:1.5px solid var(--gray-border);border-radius:999px;cursor:pointer;${(u.allowedTabs||[]).includes(t.id)?'background:#d1fae5;border-color:#10b981;color:#065f46;':'color:var(--text-soft);'}">
         <input type="checkbox" ${(u.allowedTabs||[]).includes(t.id)?'checked':''} onchange="_toggleUserTab(${i}, '${t.id}', this.checked); showSettings();" style="margin:0;cursor:pointer;">
@@ -1705,13 +1732,16 @@ function showSettings() {
       </label>`).join('');
     return `
       <div class="user-row" id="ur_${i}" style="padding:12px;border:1.5px solid var(--gray-border);border-radius:10px;margin-bottom:10px;box-sizing:border-box;">
-        <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">登入名稱</div>
-        <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:10px;min-width:0;">
-          <input type="text" value="${_escH(u.name)}" id="usr_${i}" placeholder="例如：康康" style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
-          <button class="btn-danger" onclick="removeUser(${i})" style="flex-shrink:0;">刪除</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div style="font-size:11px;color:var(--text-soft);font-weight:600;">登入名稱（可多個）</div>
+          <button class="btn-danger" onclick="removeUser(${i})" style="flex-shrink:0;font-size:11px;padding:4px 10px;">刪除整組</button>
         </div>
+        ${namesHtml}
+        <button class="add-btn" onclick="_addUserName(${i})" style="margin-top:0;margin-bottom:10px;font-size:12px;padding:6px 10px;">+ 新增登入名稱</button>
         <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">角色</div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;">${rolesHtml}</div>
+        <select onchange="_setUserRole(${i}, this.value); showSettings();" style="width:100%;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;margin-bottom:10px;background:white;">
+          ${roleOpts}
+        </select>
         <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">可見頁籤</div>
         <div style="display:flex;gap:5px;flex-wrap:wrap;">${tabsHtml}</div>
       </div>`;
@@ -1842,7 +1872,7 @@ function renderCtDay(day) {
   if (fw) fw.style.display = 'none';
 }
 
-function addUser()     { _captureUserInputsToCfg(); cfgUsers.push({ name: '', roles: [], allowedTabs: [] }); showSettings(); }
+function addUser()     { _captureUserInputsToCfg(); cfgUsers.push({ names: [''], role: '', allowedTabs: [] }); showSettings(); }
 function removeUser(i) { _captureUserInputsToCfg(); cfgUsers.splice(i, 1); showSettings(); }
 
 function removeCustomTask(i) {
@@ -1873,7 +1903,9 @@ async function saveSettings() {
   if (CR !== 'admin') { showToast('無權限'); return; }
   const adminPw = document.getElementById('adminPw').value.trim();
   _captureUserInputsToCfg();
-  const users = cfgUsers.filter(u => u.name);
+  const users = cfgUsers
+    .map(u => ({ ...u, names: (u.names || []).map(n => (n || '').trim()).filter(n => n) }))
+    .filter(u => u.names.length);
   await saveConfigData({ adminPassword: adminPw, users, customTasks: cfgCustomTasks });
   await _bgRefresh();
   showToast('設定已儲存');
