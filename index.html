@@ -1955,10 +1955,12 @@ function renderCtDay(day) {
 }
 
 function _cfgAllNames() {
+  // 先把「使用者名單」中現場 input 的值同步到 cfgUsers，避免漏掉剛新增/修改但未儲存的名稱
+  try { _captureUserInputsToCfg(); } catch (e) {}
   const names = new Set();
   const adminInp = document.getElementById('adminPw');
   if (adminInp && adminInp.value.trim()) names.add(adminInp.value.trim());
-  cfgUsers.forEach(u => (u.names || []).forEach(n => { if (n) names.add(n); }));
+  cfgUsers.forEach(u => (u.names || []).forEach(n => { if (n && n.trim()) names.add(n.trim()); }));
   return [...names];
 }
 
