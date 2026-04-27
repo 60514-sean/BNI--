@@ -5023,9 +5023,36 @@ async function submitFinanceAdd() {
   if (!type)   { showToast('請填性質'); return; }
   if (!amount) { showToast('請填金額'); return; }
 
-  const btn = document.getElementById('finAddSave');
-  btn.disabled = true; btn.textContent = '儲存中...';
+  // ===== 樂觀更新：本地立即插入新列、立即關閉 modal 與重繪，避免使用者等網路 =====
+  let optimisticPushed = false;
+  if (_financeRaw?.sheets?.[sheet]?.length) {
+    const sheetData = _financeRaw.sheets[sheet];
+    const ncol = sheetData[0]?.length || 8;
+    let lastBal = 0;
+    for (let i = sheetData.length - 1; i >= 0; i--) {
+      const v = Number(sheetData[i][4]);
+      if (!isNaN(v) && sheetData[i][4] !== '' && sheetData[i][4] !== null) { lastBal = v; break; }
+    }
+    const newBal = kind === 'income' ? lastBal + amount : lastBal - amount;
+    const newRow = new Array(ncol).fill('');
+    newRow[0] = date;
+    newRow[1] = type;
+    newRow[2] = kind === 'income'  ? amount : '';
+    newRow[3] = kind === 'expense' ? amount : '';
+    newRow[4] = newBal;
+    newRow[5] = paid  || '';
+    newRow[6] = total || '';
+    newRow[ncol - 1] = note;
+    if (ncol === 11) newRow[9] = newBal;
+    sheetData.push(newRow);
+    _financeParsed = _parseFinance(_financeRaw);
+    optimisticPushed = true;
+  }
+  closeFinanceAdd();
+  if (optimisticPushed) renderFinance();
+  showToast(optimisticPushed ? '已新增' : '儲存中…');
 
+  // ===== 真正 POST 在背景同步 =====
   try {
     const res = await fetch(FINANCE_API_URL, {
       method: 'POST',
@@ -5033,21 +5060,17 @@ async function submitFinanceAdd() {
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || 'unknown');
-    const msg = j.routed && j.sheet
-      ? `已寫入「${j.sheet}」（依日期自動路由）`
-      : `已新增（結餘 ${j.lastBalance ? j.lastBalance.toLocaleString() : '-'}）`;
-    showToast(msg);
-    closeFinanceAdd();
-    if (j.sheet && j.sheet !== _financeTermTab && _financeParsed?.terms.find(t => t.name === j.sheet)) {
-      _financeTermTab = j.sheet;
-    } else if (j.routed && j.sheet) {
-      _financeTermTab = j.sheet; // even if not yet in cache, set so next render picks it
-    }
-    await _fetchFinance();
-    renderFinance();
+    if (j.routed && j.sheet) _financeTermTab = j.sheet;
+    // 後端可能會插入月份標題列、做屆別自動路由，背景拉一次真實資料覆蓋
+    _fetchFinance().then(() => { if (_activeTab === 'finance') renderFinance(); });
   } catch (err) {
+    // 回滾本地樂觀更新
+    if (optimisticPushed && _financeRaw?.sheets?.[sheet]?.length) {
+      _financeRaw.sheets[sheet].pop();
+      _financeParsed = _parseFinance(_financeRaw);
+      renderFinance();
+    }
     showToast('儲存失敗：' + (err.message || err));
-    btn.disabled = false; btn.textContent = '儲存';
   }
 }
 
@@ -5242,8 +5265,18 @@ async function submitReceivableAdd() {
   if (!member) { showToast('請填會員姓名'); return; }
   if (!amount) { showToast('請填金額'); return; }
 
-  const btn = document.getElementById('recvAddSave');
-  btn.disabled = true; btn.textContent = '儲存中...';
+  // 樂觀更新：本地立即新增應收
+  let optimisticPushed = false;
+  if (_financeRaw?.sheets?.['應收追蹤']) {
+    const ar = _financeRaw.sheets['應收追蹤'];
+    ar.push([date, member, item, amount, '未繳', '', '', note]);
+    _financeParsed = _parseFinance(_financeRaw);
+    optimisticPushed = true;
+  }
+  closeReceivableAdd();
+  if (optimisticPushed) renderFinance();
+  showToast(optimisticPushed ? '已新增應收' : '儲存中…');
+
   try {
     const res = await fetch(FINANCE_API_URL, {
       method: 'POST',
@@ -5251,13 +5284,14 @@ async function submitReceivableAdd() {
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || 'unknown');
-    showToast('已新增應收');
-    closeReceivableAdd();
-    await _fetchFinance();
-    renderFinance();
+    _fetchFinance().then(() => { if (_activeTab === 'finance') renderFinance(); });
   } catch (err) {
+    if (optimisticPushed && _financeRaw?.sheets?.['應收追蹤']) {
+      _financeRaw.sheets['應收追蹤'].pop();
+      _financeParsed = _parseFinance(_financeRaw);
+      renderFinance();
+    }
     showToast('儲存失敗：' + (err.message || err));
-    btn.disabled = false; btn.textContent = '新增';
   }
 }
 
