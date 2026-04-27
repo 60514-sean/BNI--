@@ -1681,6 +1681,8 @@ function showSettings() {
   document.getElementById('signinContent').style.display     = 'none';
   document.getElementById('guestTrackContent').style.display = 'none';
   document.getElementById('placardContent').style.display    = 'none';
+  document.getElementById('financeContent').style.display    = 'none';
+  document.getElementById('meetingContent').style.display    = 'none';
   // 隱藏頁籤列，只留設定畫面
   document.getElementById('pageTabs').style.display = 'none';
   ['ptab_todo','ptab_main','ptab_member','ptab_dm','ptab_signin','ptab_guesttrack','ptab_placard'].forEach(id => document.getElementById(id)?.classList.remove('active'));
