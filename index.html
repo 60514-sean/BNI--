@@ -4330,15 +4330,24 @@ function _loadFinanceFromCache() {
 
 function _termSummary(term) {
   let inc = 0, exp = 0, exInc = 0, exExp = 0;
-  let totalPaid = 0, totalCnt = 0, weeks = 0;
+  let totalPaid = 0, totalCnt = 0;
+  const weekSet = new Set();
   const months = {};
   for (const r of term.records) {
     inc += r.income;
     exp += r.expense;
     exInc += r.extraIncome;
     exExp += r.extraExpense;
-    if (r.paid > 0) { totalPaid += r.paid; weeks++; }
+    if (r.paid > 0) totalPaid += r.paid;
     if (r.total > 0) totalCnt += r.total;
+    if (r.date) {
+      const d = new Date(r.date);
+      if (!isNaN(d.getTime())) {
+        const sunday = new Date(d);
+        sunday.setDate(d.getDate() - d.getDay());
+        weekSet.add(`${sunday.getFullYear()}-${String(sunday.getMonth()+1).padStart(2,'0')}-${String(sunday.getDate()).padStart(2,'0')}`);
+      }
+    }
     if (r.ym) {
       if (!months[r.ym]) months[r.ym] = { ym: r.ym, records: [], inc: 0, exp: 0, lastBal: 0 };
       months[r.ym].records.push(r);
@@ -4347,6 +4356,7 @@ function _termSummary(term) {
       if (r.finalBalance) months[r.ym].lastBal = r.finalBalance;
     }
   }
+  const weeks = weekSet.size;
   const last = term.records[term.records.length - 1];
   return {
     totalIncome: inc + exInc,
