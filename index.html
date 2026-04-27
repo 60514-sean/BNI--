@@ -612,16 +612,23 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 }
 .fin-summary {
   background:white; border-radius:14px; box-shadow:var(--shadow);
-  padding:20px 18px; margin-bottom:14px;
+  padding:18px 14px; margin-bottom:14px;
   display:grid;
-  grid-template-columns:1fr 1.3fr;
-  gap:16px 0;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:14px 0;
 }
 .fin-summary-cell {
-  text-align:center; padding:2px 14px;
+  text-align:center; padding:2px 10px;
   display:flex; flex-direction:column; justify-content:center; align-items:center;
 }
-.fin-summary-cell:not(:nth-child(2n+1)) {
+/* hero（目前結餘）跨整列，與下方分隔 */
+.fin-summary-cell.hero {
+  grid-column:1 / -1;
+  border-bottom:1px solid var(--gray-border);
+  padding-bottom:14px;
+}
+/* 下方第 2、3 個 cell（期初結餘、資料更新）加左分隔線 */
+.fin-summary-cell:nth-child(n+3) {
   border-left:1px solid var(--gray-border);
 }
 .fin-summary-cell .lbl {
@@ -4346,21 +4353,21 @@ function _financeRenderKpi(term, sum) {
     : '';
   return `
     <div class="fin-summary">
-      <div class="fin-summary-cell">
-        <div class="lbl">會議週次</div>
-        <div class="val">${sum.weeks}</div>
-      </div>
       <div class="fin-summary-cell hero">
         <div class="lbl">目前結餘</div>
         <div class="val">${_finFmt(sum.currentBalance)}</div>
       </div>
-      <div class="fin-summary-cell updated">
-        <div class="lbl">資料更新</div>
-        <div class="val">${_escH(updated || '—')}</div>
+      <div class="fin-summary-cell">
+        <div class="lbl">會議週次</div>
+        <div class="val">${sum.weeks}</div>
       </div>
       <div class="fin-summary-cell">
         <div class="lbl">期初結餘</div>
         <div class="val">${_finFmt(term.initial)}</div>
+      </div>
+      <div class="fin-summary-cell updated">
+        <div class="lbl">資料更新</div>
+        <div class="val">${_escH(updated || '—')}</div>
       </div>
     </div>
   `;
