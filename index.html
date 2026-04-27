@@ -1245,11 +1245,17 @@ function _normalizeUser(u) {
   return { names, role, allowedTabs, editableTabs };
 }
 
+// 一次性 owner 名稱遷移表（舊名 → 新名）
+const _OWNER_RENAME = { '康康': 'K' };
+function _renameOwner(n) { return _OWNER_RENAME[n] || n; }
+
 function _normalizeTask(t) {
+  const raw = Array.isArray(t.owners) ? t.owners.filter(n => n) : (t.owner ? [t.owner] : []);
+  const owners = [...new Set(raw.map(_renameOwner))];
   return {
     id: t.id,
     day: t.day || '',
-    owners: Array.isArray(t.owners) ? t.owners.filter(n => n) : (t.owner ? [t.owner] : []),
+    owners,
     task: t.task || '',
     cat: t.cat || '',
     freq: t.freq || ''
@@ -1285,44 +1291,44 @@ async function saveNoteData(d)  { await apiSave(`__notes_${getWeekKey()}__`, d);
 // ===== TASK DATA =====
 // id 為永久固定識別碼，不可更改，新增任務請使用新的 id
 const TASK_DATA = [
-  { id:1,  day:'週日', owner:'康康',    task:'提醒EDM手，週一繳交3張PPT圖<br>1.未來6周簡報主題簡報預告<br>2.當周、下周16:9主題簡報EDM',  cat:'例會',    freq:'每週' },
-  { id:2,  day:'週日', owner:'康康',    task:'查看三個月內會員有誰，並提醒續約',                   cat:'續約',    freq:'每週' },
+  { id:1,  day:'週日', owner:'K',    task:'提醒EDM手，週一繳交3張PPT圖<br>1.未來6周簡報主題簡報預告<br>2.當周、下周16:9主題簡報EDM',  cat:'例會',    freq:'每週' },
+  { id:2,  day:'週日', owner:'K',    task:'查看三個月內會員有誰，並提醒續約',                   cat:'續約',    freq:'每週' },
   { id:3,  day:'週日', owner:'簡報顧問', task:'每週簡報工作進度回報',                              cat:'簡報',    freq:'每週' },
   { id:4,  day:'週日', owner:'簡報顧問', task:'提醒顧問於中午12:00前填寫顧問輔導表',                 cat:'簡報',    freq:'每週' },
-  { id:5,  day:'週日', owner:'康康',    task:'確認八週內皆有簡報人選',                             cat:'簡報',    freq:'每週' },
+  { id:5,  day:'週日', owner:'K',    task:'確認八週內皆有簡報人選',                             cat:'簡報',    freq:'每週' },
   { id:6,  day:'週日', owner:'麥莉',    task:'提醒EDM手PO出下兩週的主題簡報EDM',                   cat:'簡報',    freq:'每週' },
-  { id:7,  day:'週一', owner:'康康',    task:'請執秘印每週主題簡報感謝狀（每月最後一週印當月）',    cat:'例會',    freq:'每月末週' },
-  { id:8,  day:'週一', owner:'康康',    task:'領導團隊論壇簡報準備（每月第一週）',                  cat:'例會',    freq:'每月首週' },
-  { id:9,  day:'週二', owner:'康康',    task:'PO出本週例會流程表（領導團隊群、秘財群組）',           cat:'例會',    freq:'每週' },
-  { id:10, day:'週一', owner:'康康',    task:'五冠王獎狀 ➔ 副主席、執秘',                         cat:'例會',    freq:'每週' },
-  { id:11, day:'週一', owner:'康康',    task:'提醒五長隔天繳交簡報',                               cat:'例會',    freq:'每週' },
-  { id:12, day:'週一', owner:'康康',    task:'買續約黑緞帶，告知並安排上台',                        cat:'續約',    freq:'視需要' },
+  { id:7,  day:'週一', owner:'K',    task:'請執秘印每週主題簡報感謝狀（每月最後一週印當月）',    cat:'例會',    freq:'每月末週' },
+  { id:8,  day:'週一', owner:'K',    task:'領導團隊論壇簡報準備（每月第一週）',                  cat:'例會',    freq:'每月首週' },
+  { id:9,  day:'週二', owner:'K',    task:'PO出本週例會流程表（領導團隊群、秘財群組）',           cat:'例會',    freq:'每週' },
+  { id:10, day:'週一', owner:'K',    task:'五冠王獎狀 ➔ 副主席、執秘',                         cat:'例會',    freq:'每週' },
+  { id:11, day:'週一', owner:'K',    task:'提醒五長隔天繳交簡報',                               cat:'例會',    freq:'每週' },
+  { id:12, day:'週一', owner:'K',    task:'買續約黑緞帶，告知並安排上台',                        cat:'續約',    freq:'視需要' },
   { id:13, day:'週一', owner:'簡報顧問', task:'確認簡報進度/繳交資料',                             cat:'簡報',    freq:'每週' },
-  { id:14, day:'週日', owner:'康康',    task:'新簡報人選加入簡報準備群',                            cat:'簡報',    freq:'每週' },
-  { id:15, day:'週一', owner:'康康',    task:'每週簡報進度公告',                                   cat:'簡報',    freq:'每週' },
-  { id:16, day:'週一', owner:'康康',    task:'更新續約進度',                                       cat:'續約',    freq:'每週' },
-  { id:17, day:'週二', owner:'康康',    task:'繳交秘財簡報內容，新人放入八大產業 ➔ DJ手',           cat:'例會',    freq:'每週' },
-  { id:18, day:'週二', owner:'康康',    task:'確認當周主題簡報講者',                                cat:'簡報',    freq:'每週' },
-  { id:19, day:'週一', owner:'康康',    task:'每週確認上週財務紀錄表',                              cat:'財務',    freq:'每週' },
-  { id:20, day:'週三', owner:'康康',    task:'在三長會議回報三個月內續約會員進度',                   cat:'續約',    freq:'每週' },
-  { id:21, day:'週三', owner:'康康',    task:'練習秘財（簡報者/締結）',                             cat:'例會',    freq:'每週' },
-  { id:22, day:'週三', owner:'康康',    task:'確認新人SLOGAN表完成',                               cat:'會員',    freq:'每週' },
+  { id:14, day:'週日', owner:'K',    task:'新簡報人選加入簡報準備群',                            cat:'簡報',    freq:'每週' },
+  { id:15, day:'週一', owner:'K',    task:'每週簡報進度公告',                                   cat:'簡報',    freq:'每週' },
+  { id:16, day:'週一', owner:'K',    task:'更新續約進度',                                       cat:'續約',    freq:'每週' },
+  { id:17, day:'週二', owner:'K',    task:'繳交秘財簡報內容，新人放入八大產業 ➔ DJ手',           cat:'例會',    freq:'每週' },
+  { id:18, day:'週二', owner:'K',    task:'確認當周主題簡報講者',                                cat:'簡報',    freq:'每週' },
+  { id:19, day:'週一', owner:'K',    task:'每週確認上週財務紀錄表',                              cat:'財務',    freq:'每週' },
+  { id:20, day:'週三', owner:'K',    task:'在三長會議回報三個月內續約會員進度',                   cat:'續約',    freq:'每週' },
+  { id:21, day:'週三', owner:'K',    task:'練習秘財（簡報者/締結）',                             cat:'例會',    freq:'每週' },
+  { id:22, day:'週三', owner:'K',    task:'確認新人SLOGAN表完成',                               cat:'會員',    freq:'每週' },
   { id:23, day:'週四', owner:'簡報顧問', task:'21:00 與下兩週簡報講者最終re稿',                    cat:'簡報',    freq:'每週' },
-  { id:24, day:'週四', owner:'康康',    task:'群組提醒例會前注意事項',                              cat:'例會',    freq:'每週' },
+  { id:24, day:'週四', owner:'K',    task:'群組提醒例會前注意事項',                              cat:'例會',    freq:'每週' },
   { id:25, day:'週四', owner:'報到組員', task:'印會員/來賓簽到表',                                  cat:'例會',    freq:'每週' },
   { id:26, day:'週四', owner:'報到組員', task:'印流程表 x7份、slogan表',                            cat:'例會',    freq:'每週' },
   { id:27, day:'週四', owner:'報到組員', task:'印來賓桌牌',                                         cat:'例會',    freq:'每週' },
-  { id:28, day:'週四', owner:'康康',    task:'月底早上提醒明天繳錢',                                cat:'財務',    freq:'月底' },
-  { id:29, day:'週五', owner:'康康',    task:'開例會/報告',                                        cat:'例會',    freq:'每週' },
-  { id:30, day:'週五', owner:'康康',    task:'群組例會後提醒或表揚',                                cat:'例會',    freq:'每週' },
-  { id:31, day:'週五', owner:'康康',    task:'續約會員追蹤',                                       cat:'續約',    freq:'每週' },
+  { id:28, day:'週四', owner:'K',    task:'月底早上提醒明天繳錢',                                cat:'財務',    freq:'月底' },
+  { id:29, day:'週五', owner:'K',    task:'開例會/報告',                                        cat:'例會',    freq:'每週' },
+  { id:30, day:'週五', owner:'K',    task:'群組例會後提醒或表揚',                                cat:'例會',    freq:'每週' },
+  { id:31, day:'週五', owner:'K',    task:'續約會員追蹤',                                       cat:'續約',    freq:'每週' },
   { id:32, day:'週五', owner:'報到組員', task:'攜帶獎狀、流程表',                                   cat:'例會',    freq:'每週' },
   { id:33, day:'週五', owner:'報到組員', task:'資金費用請款（場餐費700元）',                         cat:'財務',    freq:'每週' },
   { id:34, day:'週五', owner:'報到組員', task:'資金費用收入記錄',                                   cat:'財務',    freq:'每週' },
-  { id:35, day:'週六', owner:'康康',    task:'key 來賓資料到 Connect',                             cat:'例會',    freq:'每週' },
-  { id:36, day:'週六', owner:'康康',    task:'基礎建設日（一對一主題簡報、續約關心、基礎建設）',      cat:'基礎建設', freq:'每週' },
-  { id:37, day:'週日', owner:'康康',    task:'跟新會員要照片、名片放相簿',                           cat:'會員',    freq:'視需要' },
-  { id:38, day:'週一', owner:'康康',    task:'導生畢業確認通知 ➔ 導師群組',                         cat:'會員',    freq:'視需要' },
+  { id:35, day:'週六', owner:'K',    task:'key 來賓資料到 Connect',                             cat:'例會',    freq:'每週' },
+  { id:36, day:'週六', owner:'K',    task:'基礎建設日（一對一主題簡報、續約關心、基礎建設）',      cat:'基礎建設', freq:'每週' },
+  { id:37, day:'週日', owner:'K',    task:'跟新會員要照片、名片放相簿',                           cat:'會員',    freq:'視需要' },
+  { id:38, day:'週一', owner:'K',    task:'導生畢業確認通知 ➔ 導師群組',                         cat:'會員',    freq:'視需要' },
 ];
 
 const TASK_IDX = new Map(TASK_DATA.map(t => [t, t.id]));
