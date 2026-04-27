@@ -4633,7 +4633,6 @@ function renderFinance() {
       <select class="fin-term-select" onchange="switchFinanceTerm(this.value)">
         ${terms.map(t => `<option value="${_escH(t.name)}" ${t.name===_financeTermTab?'selected':''}>${_escH(t.name)}</option>`).join('')}
       </select>
-      ${_canEditTab('finance') ? `<button class="fin-tb-btn primary" onclick="openFinanceAdd()">＋ 紀錄</button>` : ''}
       ${_canEditTab('finance') ? `<button class="fin-tb-btn" onclick="openFinanceSpecial()">＋ 特殊</button>` : ''}
       <button class="fin-tb-btn" onclick="refreshFinance()" title="重新整理">↻</button>
     </div>
@@ -4645,7 +4644,10 @@ function renderFinance() {
     ${_financeRenderReceivables()}
     <div class="fin-section-title-row">
       <div class="fin-section-title">月份明細</div>
-      ${_financeRenderMonthPicker(sum)}
+      <div style="display:flex;gap:8px;align-items:center;">
+        ${_financeRenderMonthPicker(sum)}
+        ${_canEditTab('finance') ? `<button class="btn btn-primary" style="padding:7px 14px;font-size:12px;white-space:nowrap;" onclick="openFinanceAdd()">新增</button>` : ''}
+      </div>
     </div>
     ${_renderMonthsBlock(term, sum)}
     ${_financeRenderSpecial(term)}
@@ -4788,7 +4790,7 @@ function _financeRenderReceivables() {
         <option value="paid"   ${_receivableFilter==='paid'?'selected':''}>已繳 ${paid.length}</option>
         <option value="all"    ${_receivableFilter==='all'?'selected':''}>全部 ${list.length}</option>
       </select>
-      ${_canEditTab('finance') ? `<button class="btn btn-primary" style="padding:7px 14px;font-size:12px;" onclick="openReceivableAdd()">＋ 新增應收</button>` : ''}
+      ${_canEditTab('finance') ? `<button class="btn btn-primary" style="padding:7px 14px;font-size:12px;" onclick="openReceivableAdd()">新增</button>` : ''}
     </div>
   `;
 
