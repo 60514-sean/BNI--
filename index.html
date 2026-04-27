@@ -4920,7 +4920,7 @@ const FINANCE_TYPE_SUGGESTIONS = {
 };
 
 function openFinanceAdd() {
-  if (CR !== 'admin') { showToast('僅 admin 可新增'); return; }
+  if (!_canEditTab('finance')) { showToast('無權限'); return; }
   if (!_financeTermTab) { showToast('請先選擇屆別'); return; }
 
   const today = new Date();
@@ -5056,7 +5056,7 @@ function _findFinanceRecord(rowIndex) {
 }
 
 function openFinanceEdit(rowIndex) {
-  if (CR !== 'admin') { showToast('僅 admin 可編輯'); return; }
+  if (!_canEditTab('finance')) { showToast('無權限'); return; }
   const found = _findFinanceRecord(rowIndex);
   if (!found) { showToast('找不到該紀錄'); return; }
   const r = found.record;
@@ -5133,7 +5133,7 @@ async function submitFinanceEdit(rowIndex) {
 
 // ===== 刪除 =====
 function confirmFinanceDelete(rowIndex) {
-  if (CR !== 'admin') { showToast('僅 admin 可刪除'); return; }
+  if (!_canEditTab('finance')) { showToast('無權限'); return; }
   const found = _findFinanceRecord(rowIndex);
   if (!found) { showToast('找不到該紀錄'); return; }
   const r = found.record;
@@ -5161,7 +5161,7 @@ async function _doFinanceDelete(sheet, rowIndex) {
 // ===== 特殊活動 =====
 let _specialItemSeq = 0;
 function openFinanceSpecial() {
-  if (CR !== 'admin') { showToast('僅 admin 可新增'); return; }
+  if (!_canEditTab('finance')) { showToast('無權限'); return; }
   if (!_financeParsed || !_financeParsed.terms.length) { showToast('資料未載入'); return; }
 
   _specialItemSeq = 0;
@@ -5278,7 +5278,7 @@ async function submitFinanceSpecial() {
 
 // ===== 應收追蹤 =====
 function openReceivableAdd() {
-  if (CR !== 'admin') { showToast('僅 admin 可新增'); return; }
+  if (!_canEditTab('finance')) { showToast('無權限'); return; }
   const today = new Date();
   const todayStr = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
 
@@ -5371,7 +5371,7 @@ async function submitReceivableAdd() {
 }
 
 function confirmReceivableSettle(rowIndex) {
-  if (CR !== 'admin') return;
+  if (!_canEditTab('finance')) return;
   const r = ((_financeParsed && _financeParsed.receivables) || []).find(x => x.rowIndex === rowIndex);
   if (!r) return;
   if (!_financeParsed || !_financeParsed.terms.length) { showToast('資料未載入'); return; }
@@ -5442,7 +5442,7 @@ async function submitReceivableSettle(rowIndex) {
 }
 
 async function confirmReceivableDelete(rowIndex) {
-  if (CR !== 'admin') return;
+  if (!_canEditTab('finance')) return;
   const r = ((_financeParsed && _financeParsed.receivables) || []).find(x => x.rowIndex === rowIndex);
   if (!r) return;
   if (!confirm(`確定刪除應收紀錄？\n${r.member} ${r.item} ${_finFmt(r.amount)}\n\n（這只刪除應收清單列；已銷帳的收入紀錄不會被刪）`)) return;
