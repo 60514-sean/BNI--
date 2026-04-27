@@ -1344,6 +1344,16 @@ function _canEditTask(t) {
   const owners = t.owners || (t.owner ? [t.owner] : []);
   return owners.includes(CU);
 }
+// 工事清單：依使用者「main」頁籤的 ON/OFF 決定可見範圍
+//   ON  → 看全部任務
+//   OFF → 只看「指派給自己 + 全體」
+function _mainVisibleTasks() {
+  const all = getAllTasks();
+  if (CR === 'admin') return all;
+  const userObj = getConfig().users.find(u => (u.names || []).includes(CU));
+  const showAll = !!(userObj && (userObj.editableTabs || []).includes('main'));
+  return showAll ? all : all.filter(t => _taskVisibleToUser(t, CU));
+}
 
 const DAYS = ['週日','週一','週二','週三','週四','週五','週六'];
 const TODAY_DAY = DAYS[new Date().getDay()];
@@ -1451,7 +1461,7 @@ function renderMain() {
   const notes = getNoteData();
 
   const ALL_TASKS = getAllTasks();
-  const visibleTasks  = CR === 'admin' ? ALL_TASKS : ALL_TASKS.filter(t => _taskVisibleToUser(t, CU));
+  const visibleTasks  = _mainVisibleTasks();
   const filteredByDay = currentDay === '全部' ? visibleTasks : visibleTasks.filter(t => t.day === currentDay);
   const total = visibleTasks.length;
   const done  = visibleTasks.filter(t => prog[t.id]).length;
@@ -1644,7 +1654,7 @@ async function toggleTask(idx, cb) {
   const t      = getAllTasks().find(t => t.id === idx);
   if (!t) return;
   const dayKey = currentDay === '全部' ? t.day : currentDay;
-  const vis    = getAllTasks().filter(t2 => CR === 'admin' || _taskVisibleToUser(t2, CU));
+  const vis    = _mainVisibleTasks();
   const catTasks = vis.filter(t2 => t2.cat === t.cat && t2.day === t.day);
   const catDone  = catTasks.filter(t2 => prog[t2.id]).length;
   const badge = document.getElementById(`catbadge_cat_${dayKey}_${t.cat}`);
