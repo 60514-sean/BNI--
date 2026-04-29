@@ -951,6 +951,8 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   font-family:inherit; white-space:nowrap;
 }
 .meet-tb-btn:hover { border-color:var(--red); color:var(--red); }
+.meet-tb-btn:disabled { opacity:0.4; cursor:not-allowed; }
+.meet-tb-btn:disabled:hover { border-color:var(--gray-border); color:var(--text); }
 .meet-tb-btn.primary { background:var(--red); color:white; border-color:var(--red); }
 .meet-tb-btn.primary:hover { background:var(--red-dark); border-color:var(--red-dark); color:white; }
 .meet-tb-btn.active { background:var(--red); color:white; border-color:var(--red); }
@@ -1022,6 +1024,17 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .meet-field select:focus { border-color:var(--red); }
 .meet-card-grid3 { display:grid; grid-template-columns:1.2fr 1fr 0.8fr; gap:8px; margin-bottom:8px; }
 @media(max-width:520px) { .meet-card-grid3 { grid-template-columns:1fr 1fr; } .meet-card-grid3 .meet-field:first-child { grid-column:1 / -1; } }
+.meet-time-status {
+  background:white; border:1.5px solid var(--gray-border);
+  padding:10px 14px; border-radius:10px; margin-bottom:12px;
+  font-size:13px; font-weight:700; text-align:center;
+  color:var(--text);
+}
+.meet-time-status.over {
+  border-color:var(--red); background:#fff5f4; color:var(--red);
+  border-width:2px;
+}
+.meet-time-status b { font-weight:900; }
 .meet-add-row { display:flex; justify-content:center; margin-bottom:10px; }
 .meet-add-row button {
   padding:8px 16px; font-size:13px; font-weight:700;
@@ -1062,7 +1075,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 }
 .meet-pv-title {
   text-align:center; font-size:22pt; font-weight:900;
-  color:var(--red); margin-bottom:6mm; letter-spacing:1px;
+  color:#1a1a2e; margin-bottom:6mm; letter-spacing:1px;
 }
 .meet-pv-table {
   width:100%; border-collapse:collapse; font-size:10.5pt;
@@ -1075,14 +1088,29 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 }
 .meet-pv-table th { background:#f1f3f5; font-weight:900; height:7mm; font-size:10pt; }
 .meet-pv-table .col-no { width:6%; }
+.meet-pv-table td.col-no.meet-pv-no-btn {
+  cursor:pointer; user-select:none; font-weight:800;
+  color: var(--red);
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.meet-pv-table td.col-no.meet-pv-no-btn:hover {
+  background:#1a1a2e; color:#fff;
+  box-shadow:inset 0 0 0 0.4mm #1a1a2e;
+}
+@media print {
+  .meet-pv-table td.col-no.meet-pv-no-btn { cursor:default; color:#000 !important; }
+  .meet-pv-table td.col-no.meet-pv-no-btn:hover { background:transparent; color:#000 !important; box-shadow:none; }
+}
+.meet-print-mode .meet-pv-table td.col-no.meet-pv-no-btn { color:#000 !important; }
+.meet-print-mode .meet-pv-table td.col-no.meet-pv-no-btn:hover { color:#000 !important; }
 .meet-pv-table .col-topic { width:24%; text-align:left; padding-left:3mm; }
 .meet-pv-table .col-presenter { width:11%; }
 .meet-pv-table .col-dur { width:8%; }
 .meet-pv-table .col-st, .meet-pv-table .col-et { width:8%; }
 .meet-pv-table .col-actual { width:7%; font-weight:900; color:#666; letter-spacing:1mm; }
 .meet-pv-table .col-note { width:28%; text-align:left; padding-left:3mm; }
-.meet-pv-table tr.is-title td.col-topic { color:var(--red); font-weight:900; }
-.meet-pv-table td.col-presenter.color-blue { color:#2563eb; font-weight:800; }
+.meet-pv-table tr.is-title td.col-topic { color:#1a1a2e; font-weight:900; }
+.meet-pv-table td.col-presenter.color-blue { color:#1a1a2e; font-weight:800; }
 @media print {
   body * { visibility:hidden !important; }
   #meetingPrintArea, #meetingPrintArea * { visibility:visible !important; }
@@ -1761,7 +1789,25 @@ function openSettings() {
   const cfg = getConfig();
   cfgUsers = cfg.users.map(u => ({ names: [...(u.names || [])], role: u.role || '', allowedTabs: [...(u.allowedTabs || [])], editableTabs: [...(u.editableTabs || [])] }));
   cfgTasks = (cfg.tasks || []).map(t => ({ ...t, owners: [...(t.owners || [])] }));
+  cfgMeetingStaff = Object.assign(
+    { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 入會:'', 續約:'', 出村:'' },
+    cfg.meetingStaff || {}
+  );
   showSettings();
+}
+
+let cfgMeetingStaff = { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 入會:'', 續約:'', 出村:'' };
+
+function _renderMeetingStaffBlock() {
+  const row = (label, key, ph) => `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="flex-shrink:0;width:60px;font-size:13px;font-weight:700;color:var(--text);">${label}</div>
+      <input type="text" value="${_escH(cfgMeetingStaff[key]||'')}" oninput="cfgMeetingStaff['${key}']=this.value" placeholder="${ph}" style="flex:1;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+    </div>`;
+  const roles = MEETING_ROLES.map(r => row(r, r, '姓名')).join('');
+  const memberSep = `<div style="font-size:11px;color:var(--text-soft);font-weight:600;margin:14px 0 8px;">本週會員（每週調整）</div>`;
+  const members = MEETING_MEMBERS.map(e => row(e, e, '本週會員姓名')).join('');
+  return roles + memberSep + members;
 }
 
 function _captureUserInputsToCfg() {
@@ -1854,7 +1900,7 @@ function showSettings() {
   const dayPickerOpts = DAYS.map(d => `<option value="${d}">${d}</option>`).join('');
 
   // 記錄目前展開狀態
-  const accOpen = ['acc0','acc1','acc2'].map(id => { const el = document.getElementById(id); return el ? el.style.display !== 'none' : false; });
+  const accOpen = ['acc0','acc1','acc2','acc3'].map(id => { const el = document.getElementById(id); return el ? el.style.display !== 'none' : false; });
   const ctDay   = document.getElementById('ctDayPicker')?.value || DAYS[0];
 
   document.getElementById('mainContent').innerHTML = `
@@ -1925,12 +1971,22 @@ function showSettings() {
         </div>
       </div>
     </div>
+    <div class="card">
+      <div class="acc-header" onclick="toggleAcc('acc3')">
+        <div class="card-title" style="margin:0;">職務名單（例會自動帶人名）</div>
+        <span class="acc-arrow" id="acc3-arrow">&#9654;</span>
+      </div>
+      <div class="acc-body" id="acc3" style="display:none;">
+        <p class="hint" style="margin-bottom:12px;">設定 5 個職務人名，例會流程「主席 / 副主席 / 秘財 / 教育 / 活動」欄會自動帶入。多人換行（例如三長卸任感言）保持原樣不替換。</p>
+        ${_renderMeetingStaffBlock()}
+      </div>
+    </div>
     <div class="btn-row">
       <button class="btn btn-primary" onclick="saveSettings()">儲存設定</button>
       <button class="btn btn-secondary" onclick="exitSettings()">取消</button>
     </div>`;
   // 還原展開狀態
-  ['acc0','acc1','acc2'].forEach((id, i) => {
+  ['acc0','acc1','acc2','acc3'].forEach((id, i) => {
     if (accOpen[i]) {
       document.getElementById(id).style.display = '';
       document.getElementById(id + '-arrow').classList.add('open');
@@ -2123,7 +2179,7 @@ async function saveSettings() {
   const users = cfgUsers
     .map(u => ({ ...u, names: (u.names || []).map(n => (n || '').trim()).filter(n => n) }))
     .filter(u => u.names.length);
-  await saveConfigData({ adminPassword: adminPw, users, tasks: cfgTasks });
+  await saveConfigData({ adminPassword: adminPw, users, tasks: cfgTasks, meetingStaff: cfgMeetingStaff });
   await _bgRefresh();
   showToast('設定已儲存');
   setTimeout(() => exitSettings(), 600);
@@ -3386,11 +3442,16 @@ const GUEST_STATUS_COLORS = {
   '已填單待繳費':   { bg:'#fde68a', fg:'#78350f' },
   '婉拒/停止追蹤':  { bg:'#fee2e2', fg:'#991b1b' }
 };
+const JOIN_PROBABILITIES = ['未評估','高'];
+const JOIN_PROB_COLORS = {
+  '未評估': { bg:'#f4f6f8', fg:'#999' },
+  '高':     { bg:'#fee2e2', fg:'#991b1b' }
+};
 let _guestData = null;
 let _guestSubTab = 'week';   // 'week' | 'all'
 let _guestSearch = '';
 let _guestStatusFilter = ''; // '' = 全部，否則為特定狀態
-let _guestYearFilter = 0;    // 0 = 全部，否則為特定年份
+let _guestTermFilter = 0;    // 0 = 全部，否則為特定屆數（1, 2, 3, ...）
 
 function _parseDateStr(s) {
   if (!s) return null;
@@ -3436,6 +3497,12 @@ function _guestLatestDate(g) {
   return valid.length ? new Date(Math.max(...valid.map(d => d.getTime()))) : null;
 }
 
+const HIGH_POTENTIAL_KEY = '__highPotential__';
+const HIGH_POTENTIAL_LABEL = '高機率入會';
+function _isHighPotentialGuest(g) {
+  return g.joinProb === '高';
+}
+
 async function fetchGuests() {
   try {
     const r = await fetch(API_URL + '?action=listGuests&t=' + Date.now());
@@ -3464,9 +3531,11 @@ async function renderGuestTrack() {
   // 依「本周/歷屆 + 搜尋」先縮小範圍，再基於此算各狀態筆數，最後才套狀態篩選
   const scopeFiltered = _filterGuestsScope(tab);
   const statusCounts = _countByStatus(scopeFiltered);
-  const guests = _guestStatusFilter
-    ? scopeFiltered.filter(g => (g.status || '待追蹤') === _guestStatusFilter)
-    : scopeFiltered;
+  const guests = !_guestStatusFilter
+    ? scopeFiltered
+    : (_guestStatusFilter === HIGH_POTENTIAL_KEY
+        ? scopeFiltered.filter(_isHighPotentialGuest)
+        : scopeFiltered.filter(g => (g.status || '待追蹤') === _guestStatusFilter));
 
   const rangeText = tab === 'week' ? `本周（${_weekRangeText()}）` : '歷屆全部';
 
@@ -3475,7 +3544,7 @@ async function renderGuestTrack() {
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
         <div>
           <div style="font-size:16px;font-weight:900;color:var(--text);">來賓追蹤</div>
-          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">${rangeText} · 共 ${guests.length} 位${_guestStatusFilter ? ` · 狀態：${_escH(_guestStatusFilter)}` : ''}</div>
+          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">${rangeText} · 共 ${guests.length} 位${_guestStatusFilter ? ` · 狀態：${_escH(_guestStatusFilter === HIGH_POTENTIAL_KEY ? HIGH_POTENTIAL_LABEL : _guestStatusFilter)}` : ''}</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-primary" onclick="openGuestModal()">+ 新增來賓</button>
@@ -3488,7 +3557,7 @@ async function renderGuestTrack() {
       </div>
       ${tab === 'all' ? `<input type="text" placeholder="搜尋姓名／產業／邀請人..." value="${_escH(_guestSearch)}" oninput="_guestSearch=this.value;_debouncedRenderGuestList()" style="width:100%;margin-top:10px;padding:10px 14px;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;outline:none;">` : ''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
-        ${tab === 'all' ? _yearSelectHtml() : ''}
+        ${tab === 'all' ? _termSelectHtml() : ''}
         ${_statusSelectHtml()}
       </div>
     </div>
@@ -3509,8 +3578,8 @@ function _filterGuestsScope(tab, applyYear = true) {
       (g.company||'').toLowerCase().includes(q)
     );
   }
-  if (tab === 'all' && applyYear && _guestYearFilter) {
-    list = list.filter(g => g.year === _guestYearFilter);
+  if (tab === 'all' && applyYear && _guestTermFilter) {
+    list = list.filter(g => _getTermFromDate(g.firstVisit) === _guestTermFilter);
   }
   if (tab === 'week') {
     const { mon, sun } = _weekRange();
@@ -3527,28 +3596,63 @@ function _filterGuestsScope(tab, applyYear = true) {
   return list;
 }
 
-function _countByYear(list) {
+// 屆數規則：第 1 屆 2024/2~2024/3（特例 2 個月），之後每 6 個月一屆，第 2 屆從 2024/4 開始
+function _getTermFromDate(dateStr) {
+  const d = dateStr instanceof Date ? dateStr : _parseDateStr(dateStr);
+  if (!d) return null;
+  const ym = d.getFullYear() * 12 + d.getMonth(); // 月份 0-based
+  const term1Start = 2024 * 12 + 1; // 2024/02
+  const term1End   = 2024 * 12 + 2; // 2024/03
+  const term2Start = 2024 * 12 + 3; // 2024/04
+  if (ym < term1Start) return null;
+  if (ym <= term1End) return 1;
+  return Math.floor((ym - term2Start) / 6) + 2;
+}
+
+function _getTermDateRange(term) {
+  if (term === 1) {
+    return { start: new Date(2024, 1, 1), end: new Date(2024, 2, 31, 23, 59, 59, 999) };
+  }
+  const startYM = 2024 * 12 + 3 + (term - 2) * 6;
+  const endYM = startYM + 5;
+  const startYear = Math.floor(startYM / 12);
+  const startMonth = startYM % 12;
+  const endYear = Math.floor(endYM / 12);
+  const endMonth = endYM % 12;
+  const endDay = new Date(endYear, endMonth + 1, 0).getDate();
+  return {
+    start: new Date(startYear, startMonth, 1),
+    end:   new Date(endYear, endMonth, endDay, 23, 59, 59, 999)
+  };
+}
+
+function _termLabel(term) {
+  const r = _getTermDateRange(term);
+  const fmt = d => `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`;
+  return `第${term}屆（${fmt(r.start)}~${fmt(r.end)}）`;
+}
+
+function _countByTerm(list) {
   const c = {};
-  list.forEach(g => { c[g.year] = (c[g.year] || 0) + 1; });
+  list.forEach(g => {
+    const t = _getTermFromDate(g.firstVisit);
+    if (t) c[t] = (c[t] || 0) + 1;
+  });
   return c;
 }
 
-function _availableYears() {
+function _availableTerms() {
   if (!_guestData) return [];
-  return [...new Set(_guestData.map(g => g.year))].sort((a,b) => b - a);
+  const set = new Set();
+  _guestData.forEach(g => {
+    const t = _getTermFromDate(g.firstVisit);
+    if (t) set.add(t);
+  });
+  return [...set].sort((a,b) => b - a);
 }
 
-function _yearChipHtml(year, count) {
-  const isActive = _guestYearFilter === year;
-  const label = year === 0 ? `全部 ${count}` : `${year} ${count}`;
-  const bg = isActive ? 'var(--red)' : 'white';
-  const fg = isActive ? 'white' : 'var(--text-soft)';
-  const border = isActive ? 'var(--red)' : 'var(--gray-border)';
-  return `<button onclick="_setYearFilter(${year})" style="padding:6px 12px;border-radius:999px;border:1.5px solid ${border};background:${bg};color:${fg};font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;${count===0?'opacity:0.4;':''}">${label}</button>`;
-}
-
-function _setYearFilter(y) {
-  _guestYearFilter = (_guestYearFilter === y) ? 0 : y;
+function _setTermFilter(t) {
+  _guestTermFilter = (_guestTermFilter === t) ? 0 : t;
   renderGuestTrack();
 }
 
@@ -3565,19 +3669,21 @@ function _statusSelectHtml() {
   // 狀態篩選的「每個選項計數」以「目前 tab + 搜尋 + 年份」為 scope，不套狀態本身
   const scope = _filterGuestsScope(_guestSubTab);
   const counts = _countByStatus(scope);
+  const highCount = scope.filter(_isHighPotentialGuest).length;
   return `<select onchange="_setStatusFilter(this.value)" class="guest-filter-sel">
     <option value="" ${!_guestStatusFilter?'selected':''}>全部狀態・${scope.length} 筆</option>
+    <option value="${HIGH_POTENTIAL_KEY}" ${_guestStatusFilter===HIGH_POTENTIAL_KEY?'selected':''}>${HIGH_POTENTIAL_LABEL}・${highCount} 筆</option>
     ${GUEST_STATUSES.map(s => `<option value="${s}" ${_guestStatusFilter===s?'selected':''}>${_escH(s)}・${counts[s]||0} 筆</option>`).join('')}
   </select>`;
 }
 
-function _yearSelectHtml() {
-  const scopeNoYear = _filterGuestsScope(_guestSubTab, false);
-  const yCounts = _countByYear(scopeNoYear);
-  const years = _availableYears();
-  return `<select onchange="_setYearFilter(+this.value)" class="guest-filter-sel">
-    <option value="0" ${_guestYearFilter===0?'selected':''}>全部年份・${scopeNoYear.length} 筆</option>
-    ${years.map(y => `<option value="${y}" ${_guestYearFilter===y?'selected':''}>${y} 年・${yCounts[y]||0} 筆</option>`).join('')}
+function _termSelectHtml() {
+  const scopeNoTerm = _filterGuestsScope(_guestSubTab, false);
+  const tCounts = _countByTerm(scopeNoTerm);
+  const terms = _availableTerms();
+  return `<select onchange="_setTermFilter(+this.value)" class="guest-filter-sel">
+    <option value="0" ${_guestTermFilter===0?'selected':''}>全部屆數・${scopeNoTerm.length} 筆</option>
+    ${terms.map(t => `<option value="${t}" ${_guestTermFilter===t?'selected':''}>${_termLabel(t)}・${tCounts[t]||0} 筆</option>`).join('')}
   </select>`;
 }
 
@@ -3599,12 +3705,19 @@ function _renderGuestListOnly() {
 }
 const _debouncedRenderGuestList = _debounce(_renderGuestListOnly, 150);
 
-function _guestSubSwitch(v) { _guestSubTab = v; _guestSearch = ''; _guestStatusFilter = ''; _guestYearFilter = 0; renderGuestTrack(); }
+function _guestSubSwitch(v) { _guestSubTab = v; _guestSearch = ''; _guestStatusFilter = ''; _guestTermFilter = 0; renderGuestTrack(); }
 
 function _guestStatusBadge(status) {
   const s = status || '待追蹤';
   const c = GUEST_STATUS_COLORS[s] || GUEST_STATUS_COLORS['待追蹤'];
   return `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${c.bg};color:${c.fg};font-size:11px;font-weight:700;white-space:nowrap;">${_escH(s)}</span>`;
+}
+
+function _joinProbBadge(joinProb) {
+  const p = joinProb || '未評估';
+  if (p === '未評估') return '';
+  const c = JOIN_PROB_COLORS[p] || JOIN_PROB_COLORS['未評估'];
+  return `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${c.bg};color:${c.fg};font-size:11px;font-weight:700;white-space:nowrap;">入會機率：${_escH(p)}</span>`;
 }
 
 function _guestCardHtml(g) {
@@ -3627,6 +3740,7 @@ function _guestCardHtml(g) {
           <span style="font-size:16px;font-weight:900;color:var(--text);">${_escH(g.name)}</span>
           ${g.title ? `<span style="color:var(--text-soft);font-size:13px;font-weight:500;">${_escH(g.title)}</span>` : ''}
           ${_guestStatusBadge(g.status)}
+          ${_joinProbBadge(g.joinProb)}
         </div>
         <div style="font-size:12px;color:var(--text-soft);margin-top:4px;line-height:1.5;">
           ${g.industry ? `<span>${_escH(g.industry)}</span>` : ''}
@@ -3695,11 +3809,19 @@ async function openGuestModal(gKey) {
       <div class="modal-label">首次參訪日</div>
       <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
     </div>
-    <div class="modal-field">
-      <div class="modal-label">狀態</div>
-      <select class="modal-input" id="gm_status">
-        ${GUEST_STATUSES.map(s => `<option value="${s}" ${g?.status===s?'selected':''}>${s}</option>`).join('')}
-      </select>
+    <div style="display:flex;gap:10px;">
+      <div class="modal-field" style="flex:1 1 0;min-width:0;margin-bottom:14px;">
+        <div class="modal-label">狀態</div>
+        <select class="modal-input" id="gm_status">
+          ${GUEST_STATUSES.map(s => `<option value="${s}" ${g?.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="modal-field" style="flex:1 1 0;min-width:0;margin-bottom:14px;">
+        <div class="modal-label">入會機率</div>
+        <select class="modal-input" id="gm_joinProb">
+          ${JOIN_PROBABILITIES.map(p => `<option value="${p}" ${(g?.joinProb||'未評估')===p?'selected':''}>${p}</option>`).join('')}
+        </select>
+      </div>
     </div>
     <div style="display:flex;gap:10px;">
       <div class="modal-field" style="flex:3 1 0;min-width:0;margin-bottom:14px;">
@@ -3846,6 +3968,7 @@ async function saveGuest(gKey) {
     phone:         document.getElementById('gm_phone').value.trim(),
     postVisitNote: document.getElementById('gm_postVisit').value.trim(),
     status:        document.getElementById('gm_status').value,
+    joinProb:      document.getElementById('gm_joinProb').value,
     tracks:        JSON.stringify(_guestModalTracks.filter(t => t.note && t.note.trim()))
   };
 
@@ -5892,30 +6015,57 @@ async function confirmReceivableDelete(rowIndex) {
 // ===== 例會流程 =====
 const _MEET_LS_DRAFT = 'bni_meeting_draft_v2';
 const _MEET_LS_VERS  = 'bni_meeting_versions_v2';
+const MEETING_ROLES   = ['主席','副主席','秘財','教育','活動'];
+const MEETING_MEMBERS = ['入會','續約','出村']; // 對應「會員-入會 / 會員-續約 / 會員-出村」
+
+function _meetingPresenterMatch(line) {
+  const trimmed = line.trim();
+  // 1) 職務或職務-後綴（如「主席」、「副主席-主持」、「秘財-卸任」）
+  const sortedRoles = [...MEETING_ROLES].sort((a, b) => b.length - a.length);
+  const rolePattern = new RegExp('^(' + sortedRoles.join('|') + ')(-.*)?$');
+  let m = trimmed.match(rolePattern);
+  if (m) return { type: 'role', key: m[1], origPart: m[1] };
+  // 2) 會員-入會 / 會員-續約 / 會員-出村
+  const memberPattern = new RegExp('^會員-(' + MEETING_MEMBERS.join('|') + ')$');
+  m = trimmed.match(memberPattern);
+  if (m) return { type: 'member', key: m[1], origPart: '會員' };
+  return null;
+}
+
+function _resolveMeetingPresenter(presenter) {
+  if (!presenter) return presenter;
+  const map = getConfig().meetingStaff || {};
+  return String(presenter).split('\n').map(line => {
+    const matched = _meetingPresenterMatch(line);
+    if (matched && map[matched.key]) return line.replace(matched.origPart, map[matched.key]);
+    return line;
+  }).join('\n');
+}
 
 // 一般正式例會基底（21 項，新版 25 秒/10 秒/10 秒）
+// fixed:true 表示時長為固定值，編輯 modal 中時長欄位會鎖定
 const _MEET_NORMAL_BASE = [
-  { topic:'會員報到、交流、拍照', presenter:'活動', minutes:30, note:'□計時 06:55拍照' },
-  { topic:'主席開場', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
-  { topic:'主席歡迎來賓\n介紹領導團隊', presenter:'主席', minutes:4, note:'□計時 3:30按●，4:00按●●' },
-  { topic:'BNI的宗旨及概況', presenter:'主席', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'會員報到、交流、拍照', presenter:'活動', minutes:30, note:'□計時 06:55拍照', fixed:true },
+  { topic:'主席開場', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●', fixed:true },
+  { topic:'主席歡迎來賓\n介紹領導團隊', presenter:'主席', minutes:4, note:'□計時 3:30按●，4:00按●●', fixed:true },
+  { topic:'BNI的宗旨及概況', presenter:'主席', minutes:5, note:'□計時 4:30按●，5:00按●●', fixed:true },
   { topic:'教育培訓時間', presenter:'教育', minutes:3, note:'□計時 2:30按●，3:00按●●', presenterColor:'blue' },
-  { topic:'表揚優秀會員', presenter:'副主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
-  { topic:'傳遞會員名片盒', presenter:'主席', minutes:1.5, note:'請跑麥手協助傳遞名片盒\nDJ手側桌開始' },
+  { topic:'表揚優秀會員', presenter:'副主席', minutes:2, note:'□計時 1:30按●，2:00按●●', fixed:true },
+  { topic:'傳遞會員名片盒', presenter:'主席', minutes:1.5, note:'請跑麥手協助傳遞名片盒\nDJ手側桌開始', fixed:true },
   { topic:'會員25秒專業呈現', presenter:'主席', minutes:21, note:'□計時 0:15按●，0:25按●●' },
   { topic:'來賓10秒自我介紹', presenter:'主席', minutes:2, note:'□計時 0:10按●，0:15按●●' },
-  { topic:'副主席報告', presenter:'副主席', minutes:3, note:'□計時 2:30按●，3:00按●●' },
-  { topic:'會員委員會報告', presenter:'委員會', minutes:2, note:'□計時 1:30按●，2:00按●●', presenterColor:'blue' },
-  { topic:'秘書財務報告\n未來六週主題講者', presenter:'秘財', minutes:1.5, note:'□計時 1:00按●，1:30按●●' },
+  { topic:'副主席報告', presenter:'副主席', minutes:3, note:'□計時 2:30按●，3:00按●●', fixed:true },
+  { topic:'會員委員會報告', presenter:'委員會', minutes:2, note:'□計時 1:30按●，2:00按●●', presenterColor:'blue', fixed:true },
+  { topic:'秘書財務報告\n未來六週主題講者', presenter:'秘財', minutes:1.5, note:'□計時 1:00按●，1:30按●●', fixed:true },
   { topic:'主題簡報', presenter:'主題簡報', minutes:11, note:'□計時 4:30按●，5:00按●●', titleHighlight:true, presenterColor:'blue' },
   { topic:'會員10秒業務引薦時間', presenter:'主席', minutes:10, note:'□計時 0:10按●●' },
   { topic:'來賓分享10秒', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
-  { topic:'引薦單查核', presenter:'副主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
-  { topic:'秘書財務報告\n會員申請資格', presenter:'秘財', minutes:4, note:'□計時 3:30按●，4:00按●●' },
-  { topic:'主席感謝來賓', presenter:'主席', minutes:1, note:'□計時 0:30按●，1:00按●●' },
-  { topic:'活動協調人報告', presenter:'活動', minutes:3, note:'□計時 2:30按●，3:00按●●' },
-  { topic:'抽獎時間', presenter:'副主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
-  { topic:'會議結束', presenter:'主席', minutes:1, note:'□計時 0:30按●，1:00按●●' }
+  { topic:'引薦單查核', presenter:'副主席', minutes:2, note:'□計時 1:30按●，2:00按●●', fixed:true },
+  { topic:'秘書財務報告\n會員申請資格', presenter:'秘財', minutes:4, note:'□計時 3:30按●，4:00按●●', fixed:true },
+  { topic:'主席感謝來賓', presenter:'主席', minutes:1, note:'□計時 0:30按●，1:00按●●', fixed:true },
+  { topic:'活動協調人報告', presenter:'活動', minutes:3, note:'□計時 2:30按●，3:00按●●', fixed:true },
+  { topic:'抽獎時間', presenter:'副主席', minutes:2, note:'□計時 1:30按●，2:00按●●', fixed:true },
+  { topic:'會議結束', presenter:'主席', minutes:1, note:'□計時 0:30按●，1:00按●●', fixed:true }
 ];
 
 // 共識會議基底（22 項，屆別交接專用）
@@ -5954,7 +6104,7 @@ const _MEET_EVENTS = {
   declareExitNew: { topic:'宣布出村、新人入會\n宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
   newmember: { topic:'入會感言\n→五長拍照', presenter:'副主席-主持\n會員-入會', minutes:2, note:'□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●' },
   renew: { topic:'續約感言\n→五長拍照', presenter:'副主席-主持\n會員-續約', minutes:2, note:'□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●' },
-  exit: { topic:'出村典禮', presenter:'主席-主持\n導生\n導師', minutes:3, note:'□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●\n□計時 0:30按●，0:45按●●' }
+  exit: { topic:'出村典禮', presenter:'主席-主持\n會員-出村\n導師', minutes:3, note:'□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●\n□計時 0:30按●，0:45按●●' }
 };
 
 function _meetMakeNormal(extras) {
@@ -6015,10 +6165,10 @@ function _meetDefault() {
     seqNum: '',
     dateStr: _meetTodayDate(),
     startTime: '06:30',
+    targetEndTime: '08:30',
     meetingType: tpl.meetingType,
     actualDefault: tpl.actualDefault,
-    items: tpl.items.map(x => ({ ...x })),
-    editMode: true
+    items: tpl.items.map(x => ({ ...x }))
   };
 }
 
@@ -6073,6 +6223,32 @@ function _meetFmtDur(min) {
   return Number.isInteger(v) ? `${v}min` : `${v}min`;
 }
 
+function _meetTimeStatus() {
+  if (!_meetState) return null;
+  const start = _meetParseHHMM(_meetState.startTime);
+  const startMin = (start == null) ? (6*60+30) : start;
+  const totalDur = (_meetState.items||[]).reduce((s, it) => s + _meetParseDuration(it.minutes), 0);
+  const endMin = startMin + totalDur;
+  const tgt = _meetParseHHMM(_meetState.targetEndTime || '08:30');
+  const tgtMin = (tgt == null) ? (8*60+30) : tgt;
+  const diff = Math.round(endMin - tgtMin);
+  return {
+    endStr: _meetFormatHHMM(endMin),
+    targetStr: _meetFormatHHMM(tgtMin),
+    diff,
+    over: diff > 0
+  };
+}
+
+function _meetAfterEdit() {
+  _meetSaveDraft();
+  _meetRenderBody();
+  const s = _meetTimeStatus();
+  if (s && s.over) {
+    showToast(`總時長超過 ${s.diff} 分鐘，預計 ${s.endStr} 結束（目標 ${s.targetStr}），請調整`);
+  }
+}
+
 function renderMeeting() {
   if (!_meetState) {
     _meetState = _meetLoadDraft() || _meetDefault();
@@ -6082,8 +6258,7 @@ function renderMeeting() {
   el.innerHTML = `
     <div class="meet-wrapper">
       <div class="meet-toolbar">
-        <button class="meet-tb-btn ${_meetState.editMode?'active':''}" onclick="_meetSetMode(true)">編輯</button>
-        <button class="meet-tb-btn ${!_meetState.editMode?'active':''}" onclick="_meetSetMode(false)">預覽</button>
+        <button class="meet-tb-btn" onclick="_meetOpenSettings()">會議設定</button>
         <span style="flex:1"></span>
         <button class="meet-tb-btn primary" onclick="_meetExportPDF()">輸出 PDF</button>
         <button class="meet-tb-btn primary" onclick="_meetExportJPG()">輸出 JPG</button>
@@ -6094,19 +6269,24 @@ function renderMeeting() {
   _meetRenderBody();
 }
 
-function _meetSetMode(isEdit) {
-  _meetState.editMode = !!isEdit;
-  _meetSaveDraft();
-  renderMeeting();
-}
-
 function _meetRenderBody() {
   const body = document.getElementById('meetBody');
   if (!body) return;
-  body.innerHTML = _meetState.editMode ? _meetRenderEditor() : _meetRenderPreviewArea();
+  const s = _meetTimeStatus();
+  const statusHtml = (s && s.over) ? `
+    <div class="meet-time-status over">
+      預計結束 <b>${s.endStr}</b>（目標 <b>${s.targetStr}</b>）·
+      超過 <b>${s.diff}</b> 分鐘，請縮短時長
+    </div>
+  ` : '';
+  body.innerHTML = statusHtml + _meetRenderPreviewArea() + `
+    <div class="meet-add-row" style="margin-top:6px">
+      <button onclick="_meetAddRow(${_meetState.items.length})">＋ 新增到結尾</button>
+    </div>
+  `;
 }
 
-function _meetRenderEditor() {
+function _meetOpenSettings() {
   const tplOptions = Object.entries(_MEET_TEMPLATES)
     .map(([id,t]) => `<option value="${id}" ${_meetState.templateId===id?'selected':''}>${_escH(t.name)}</option>`)
     .join('');
@@ -6115,99 +6295,284 @@ function _meetRenderEditor() {
     ? versions.map(v => `<option value="${_escH(v.id)}">${_escH(v.dateStr||'')}${v.seqNum?` 第${_escH(v.seqNum)}次`:''}</option>`).join('')
     : '';
 
-  const headerHtml = `
-    <div class="meet-header-card">
-      <label>日期 <input type="text" value="${_escH(_meetState.dateStr)}" onchange="_meetSetField('dateStr', this.value)" placeholder="2026/04/26"></label>
-      <label>分會名稱 <input type="text" value="${_escH(_meetState.title)}" onchange="_meetSetField('title', this.value)" placeholder="億展"></label>
-      <label>第幾次 <input type="text" value="${_escH(_meetState.seqNum)}" onchange="_meetSetField('seqNum', this.value)" placeholder="00"></label>
-      <label>起始時間 <input type="text" value="${_escH(_meetState.startTime)}" onchange="_meetSetField('startTime', this.value)" placeholder="06:30"></label>
-      <label>會議類型 <input type="text" value="${_escH(_meetState.meetingType||'正式例會')}" onchange="_meetSetField('meetingType', this.value)" placeholder="正式例會"></label>
-      <label>實際欄符號
-        <select onchange="_meetSetField('actualDefault', this.value)">
-          <option value="｜" ${_meetState.actualDefault==='｜'?'selected':''}>｜（手寫分隔）</option>
-          <option value="" ${!_meetState.actualDefault?'selected':''}>空白</option>
-        </select>
-      </label>
-      <label>套用範本
-        <select onchange="_meetApplyTemplate(this.value)">${tplOptions}</select>
-      </label>
-      <label>歷史紀錄
-        <select onchange="if(this.value){_meetLoadVersion(this.value);}this.value=''">
-          <option value="">${versions.length?'（選擇載入）':'（尚無紀錄）'}</option>
-          ${verOptions}
-        </select>
-      </label>
-    </div>
-    <div class="meet-toolbar" style="justify-content:flex-end;margin-bottom:14px">
-      <button class="meet-tb-btn" onclick="_meetSaveAsVersion()">另存新版</button>
-      <button class="meet-tb-btn" onclick="_meetManageVersions()">版本管理</button>
-      <button class="meet-tb-btn" onclick="_meetReset()">重設為範本</button>
-    </div>
-  `;
-
-  const times = _meetComputeTimes();
-  const itemsHtml = _meetState.items.map((it, idx) => {
-    const t = times[idx];
-    const presenterColor = it.presenterColor || '';
-    const lastIdx = _meetState.items.length - 1;
-    const topicRows = Math.max(1, String(it.topic||'').split('\n').length);
-    const presenterRows = Math.max(1, String(it.presenter||'').split('\n').length);
-    const noteRows = Math.max(2, String(it.note||'').split('\n').length);
-    return `
-      <div class="meet-card ${it.titleHighlight?'is-title':''}">
-        <div class="meet-card-head">
-          <div class="meet-card-num">${idx+1}</div>
-          <div class="meet-card-time">${t.start} → ${t.end}</div>
-          <div class="meet-card-actions">
-            <button title="上移" onclick="_meetMoveRow(${idx},-1)" ${idx===0?'disabled':''}>↑</button>
-            <button title="下移" onclick="_meetMoveRow(${idx},1)" ${idx===lastIdx?'disabled':''}>↓</button>
-            <button title="刪除" class="danger" onclick="_meetDelRow(${idx})">×</button>
-          </div>
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'meetSettingsModal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-title">會議設定</div>
+      <div class="modal-row">
+        <div class="modal-field" style="flex:1">
+          <div class="modal-label">日期</div>
+          <input class="modal-input" id="ms_dateStr" value="${_escH(_meetState.dateStr)}" placeholder="2026/04/26">
         </div>
-        <div class="meet-field" style="margin-bottom:8px">
-          <label>議程（可換行多項）</label>
-          <textarea rows="${topicRows}" oninput="_meetUpdateField(${idx},'topic',this.value)">${_escH(it.topic||'')}</textarea>
-          <label style="font-weight:600;color:var(--text-soft);font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;cursor:pointer">
-            <input type="checkbox" ${it.titleHighlight?'checked':''} onchange="_meetToggleTitle(${idx},this.checked)" style="margin:0;width:auto"> 紅字標題（如主題簡報）
-          </label>
-        </div>
-        <div class="meet-card-grid3">
-          <div class="meet-field">
-            <label>報告人（可換行多人）</label>
-            <textarea rows="${presenterRows}" oninput="_meetUpdateField(${idx},'presenter',this.value)">${_escH(it.presenter||'')}</textarea>
-          </div>
-          <div class="meet-field">
-            <label>顏色</label>
-            <select onchange="_meetUpdateField(${idx},'presenterColor',this.value);_meetRenderBody()">
-              <option value="" ${!presenterColor?'selected':''}>黑色</option>
-              <option value="blue" ${presenterColor==='blue'?'selected':''}>藍色</option>
-            </select>
-          </div>
-          <div class="meet-field">
-            <label>時長(分)</label>
-            <input type="number" min="0" step="0.5" value="${it.minutes}" oninput="_meetUpdateField(${idx},'minutes',this.value)">
-          </div>
-        </div>
-        <div class="meet-field">
-          <label>備註（可換行多行）</label>
-          <textarea rows="${noteRows}" oninput="_meetUpdateField(${idx},'note',this.value)">${_escH(it.note||'')}</textarea>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
-            <button type="button" class="meet-tb-btn" style="padding:5px 10px;font-size:11px" onclick="_meetInsertNote(${idx},'□不傳麥克風，主席統一介紹')">＋不傳麥克風</button>
-            <button type="button" class="meet-tb-btn" style="padding:5px 10px;font-size:11px" onclick="_meetAutoNote(${idx})">依時長自動產生</button>
-          </div>
-        </div>
-        <div class="meet-add-row" style="margin-top:10px;margin-bottom:0">
-          <button onclick="_meetAddRow(${idx+1})">＋ 在下方新增</button>
+        <div class="modal-field" style="flex:1">
+          <div class="modal-label">第幾次</div>
+          <input class="modal-input" id="ms_seqNum" value="${_escH(_meetState.seqNum)}" placeholder="00">
         </div>
       </div>
-    `;
-  }).join('');
-
-  return headerHtml + itemsHtml + `
-    <div class="meet-add-row">
-      <button onclick="_meetAddRow(${_meetState.items.length})">＋ 新增到結尾</button>
+      <div class="modal-row">
+        <div class="modal-field" style="flex:1">
+          <div class="modal-label">分會名稱</div>
+          <input class="modal-input" id="ms_title" value="${_escH(_meetState.title)}" placeholder="億展">
+        </div>
+        <div class="modal-field" style="flex:1">
+          <div class="modal-label">會議類型</div>
+          <input class="modal-input" id="ms_meetingType" value="${_escH(_meetState.meetingType||'正式例會')}" placeholder="正式例會">
+        </div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field" style="flex:1">
+          <div class="modal-label">起始時間</div>
+          <input class="modal-input" id="ms_startTime" value="${_escH(_meetState.startTime)}" placeholder="06:30">
+        </div>
+        <div class="modal-field" style="flex:1">
+          <div class="modal-label">目標結束時間</div>
+          <input class="modal-input" id="ms_targetEndTime" value="${_escH(_meetState.targetEndTime||'08:30')}" placeholder="08:30">
+        </div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field" style="flex:1">
+          <div class="modal-label">實際欄符號</div>
+          <select class="modal-input" id="ms_actualDefault" style="appearance:auto;background:white;">
+            <option value="｜" ${_meetState.actualDefault==='｜'?'selected':''}>｜（手寫分隔）</option>
+            <option value="" ${!_meetState.actualDefault?'selected':''}>空白</option>
+          </select>
+        </div>
+        <div class="modal-field" style="flex:1"></div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field" style="flex:1">
+          <div class="modal-label">套用範本</div>
+          <select class="modal-input" style="appearance:auto;background:white;" onchange="_meetSettingsApplyTemplate(this.value)">${tplOptions}</select>
+        </div>
+        <div class="modal-field" style="flex:1">
+          <div class="modal-label">歷史紀錄</div>
+          <select class="modal-input" style="appearance:auto;background:white;" onchange="_meetSettingsLoadVersion(this.value)">
+            <option value="">${versions.length?'（選擇載入）':'（尚無紀錄）'}</option>
+            ${verOptions}
+          </select>
+        </div>
+      </div>
+      <div class="modal-btns" style="flex-wrap:wrap;gap:8px;margin-top:10px">
+        <button class="meet-tb-btn" onclick="_meetCommitSettingsModal();_meetSaveAsVersion()">另存新版</button>
+        <button class="meet-tb-btn" onclick="_meetCommitSettingsModal();_meetCloseSettings();_meetManageVersions()">版本管理</button>
+        <button class="meet-tb-btn" onclick="_meetCommitSettingsModal();_meetCloseSettings();_meetReset()">重設為範本</button>
+      </div>
+      <div class="modal-btns">
+        <button class="modal-save" onclick="_meetCommitSettingsModal();_meetCloseSettings();_meetAfterEdit()">完成</button>
+        <button class="modal-cancel" onclick="_meetCloseSettings()">取消</button>
+      </div>
     </div>
   `;
+  document.body.appendChild(overlay);
+}
+
+function _meetCloseSettings() {
+  const m = document.getElementById('meetSettingsModal');
+  if (m) m.remove();
+}
+
+function _meetCommitSettingsModal() {
+  const v = id => document.getElementById(id);
+  if (v('ms_dateStr')) _meetState.dateStr = v('ms_dateStr').value;
+  if (v('ms_seqNum')) _meetState.seqNum = v('ms_seqNum').value;
+  if (v('ms_title')) _meetState.title = v('ms_title').value;
+  if (v('ms_meetingType')) _meetState.meetingType = v('ms_meetingType').value || '正式例會';
+  if (v('ms_startTime')) _meetState.startTime = v('ms_startTime').value || '06:30';
+  if (v('ms_targetEndTime')) _meetState.targetEndTime = v('ms_targetEndTime').value || '08:30';
+  if (v('ms_actualDefault')) _meetState.actualDefault = v('ms_actualDefault').value;
+  _meetSaveDraft();
+}
+
+function _meetSettingsApplyTemplate(id) {
+  if (!id) return;
+  if (id === _meetState.templateId) return;
+  _meetCommitSettingsModal();
+  _meetCloseSettings();
+  _meetApplyTemplate(id);
+}
+
+function _meetSettingsLoadVersion(id) {
+  if (!id) return;
+  _meetCommitSettingsModal();
+  _meetCloseSettings();
+  _meetLoadVersion(id);
+}
+
+function _meetOpenRowEditor(idx) {
+  const it = _meetState.items[idx];
+  if (!it) return;
+  const lastIdx = _meetState.items.length - 1;
+  const topicRows = Math.max(2, String(it.topic||'').split('\n').length);
+  const presenterRows = Math.max(2, String(it.presenter||'').split('\n').length);
+  const noteRows = Math.max(3, String(it.note||'').split('\n').length);
+  const presenterLocked = (() => {
+    const lines = String(it.presenter||'').split('\n');
+    if (!lines.length) return false;
+    return lines.every(l => _meetingPresenterMatch(l) !== null);
+  })();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'meetRowModal';
+  overlay.dataset.idx = String(idx);
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-title">第 ${idx+1} 項</div>
+      <div class="modal-field">
+        <div class="modal-label">議程（可換行多項）</div>
+        <textarea class="modal-input" id="mr_topic" rows="${topicRows}" style="resize:vertical;line-height:1.4">${_escH(it.topic||'')}</textarea>
+        <label style="font-weight:600;color:var(--text-soft);font-size:12px;margin-top:8px;display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="mr_titleHl" ${it.titleHighlight?'checked':''} style="margin:0;width:auto"> 紅字標題（如主題簡報）
+        </label>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field" style="flex:2">
+          <div class="modal-label">報告人（可換行多人）${presenterLocked?'<span style="color:var(--text-soft);font-weight:500;font-size:11px;margin-left:6px;">· 此職務由「設定 → 職務名單」管理，不可在此編輯</span>':''}</div>
+          <textarea class="modal-input" id="mr_presenter" rows="${presenterRows}" ${presenterLocked?'readonly':''} style="resize:vertical;line-height:1.4;${presenterLocked?'background:#f5f5f5;color:var(--text-soft);cursor:not-allowed;':''}">${_escH(it.presenter||'')}</textarea>
+        </div>
+        <div class="modal-field" style="flex:1">
+          <div class="modal-label">顏色</div>
+          <select class="modal-input" id="mr_color" style="appearance:auto;background:white;">
+            <option value="" ${!it.presenterColor?'selected':''}>黑色</option>
+            <option value="blue" ${it.presenterColor==='blue'?'selected':''}>藍色</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">
+          時長(分)
+          ${(it.defaultMinutes != null) ? `<span style="color:var(--text-soft);font-weight:500;margin-left:8px">建議 ${it.defaultMinutes} 分</span>` : ''}
+        </div>
+        <input class="modal-input" id="mr_minutes" type="number" min="0" step="0.5" value="${it.minutes}" ${it.fixed?'readonly':''} style="${it.fixed?'background:#f5f5f5;color:var(--text-soft);cursor:not-allowed':''}">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center">
+          <label style="font-weight:600;color:var(--text-soft);font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="mr_fixed" ${it.fixed?'checked':''} style="margin:0;width:auto" onchange="_meetModalToggleFixed(this.checked)"> 鎖定時長（固定不可調整）
+          </label>
+          ${(it.defaultMinutes != null) ? `<button type="button" class="meet-tb-btn" style="padding:5px 10px;font-size:11px" onclick="_meetModalRevertMinutes(${it.defaultMinutes})">重設為建議 ${it.defaultMinutes} 分</button>` : ''}
+        </div>
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">備註（可換行多行）</div>
+        <textarea class="modal-input" id="mr_note" rows="${noteRows}" style="resize:vertical;line-height:1.4">${_escH(it.note||'')}</textarea>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+          <button type="button" class="meet-tb-btn" style="padding:6px 10px;font-size:12px" onclick="_meetModalAppendNote('□不傳麥克風，主席統一介紹')">＋不傳麥克風</button>
+          <button type="button" class="meet-tb-btn" style="padding:6px 10px;font-size:12px" onclick="_meetModalAutoNote()">依時長自動產生</button>
+        </div>
+      </div>
+      <div class="modal-btns" style="flex-wrap:wrap;gap:8px">
+        <button class="meet-tb-btn" onclick="_meetModalMoveRow(-1)" ${idx===0?'disabled':''}>↑ 上移</button>
+        <button class="meet-tb-btn" onclick="_meetModalMoveRow(1)" ${idx===lastIdx?'disabled':''}>↓ 下移</button>
+      </div>
+      <div class="modal-btns">
+        <button class="modal-save" onclick="_meetSaveRowEditor()">儲存</button>
+        <button class="modal-cancel" onclick="_meetCloseRowEditor()">取消</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  setTimeout(() => { document.getElementById('mr_topic')?.focus(); }, 30);
+}
+
+function _meetRowModalIdx() {
+  const m = document.getElementById('meetRowModal');
+  return m ? parseInt(m.dataset.idx, 10) : -1;
+}
+
+function _meetCloseRowEditor() {
+  const m = document.getElementById('meetRowModal');
+  if (m) m.remove();
+}
+
+function _meetCommitRowModal() {
+  const idx = _meetRowModalIdx();
+  if (idx < 0) return -1;
+  const it = _meetState.items[idx];
+  if (!it) return -1;
+  const v = id => document.getElementById(id);
+  if (v('mr_topic')) it.topic = v('mr_topic').value;
+  if (v('mr_presenter') && !v('mr_presenter').hasAttribute('readonly')) it.presenter = v('mr_presenter').value;
+  if (v('mr_color')) it.presenterColor = v('mr_color').value;
+  if (v('mr_minutes')) it.minutes = _meetParseDuration(v('mr_minutes').value);
+  if (v('mr_note')) it.note = v('mr_note').value;
+  if (v('mr_titleHl')) it.titleHighlight = v('mr_titleHl').checked;
+  const f = v('mr_fixed'); if (f) it.fixed = f.checked;
+  return idx;
+}
+
+function _meetModalToggleFixed(checked) {
+  const inp = document.getElementById('mr_minutes');
+  if (!inp) return;
+  if (checked) {
+    inp.setAttribute('readonly', 'readonly');
+    inp.style.background = '#f5f5f5';
+    inp.style.color = 'var(--text-soft)';
+    inp.style.cursor = 'not-allowed';
+  } else {
+    inp.removeAttribute('readonly');
+    inp.style.background = '';
+    inp.style.color = '';
+    inp.style.cursor = '';
+  }
+}
+
+function _meetModalRevertMinutes(d) {
+  const inp = document.getElementById('mr_minutes');
+  if (!inp) return;
+  if (inp.hasAttribute('readonly')) {
+    showToast('已鎖定，請先取消鎖定再重設');
+    return;
+  }
+  inp.value = d;
+}
+
+function _meetSaveRowEditor() {
+  _meetCommitRowModal();
+  _meetCloseRowEditor();
+  _meetAfterEdit();
+}
+
+function _meetModalAppendNote(text) {
+  const ta = document.getElementById('mr_note');
+  if (!ta) return;
+  ta.value = ta.value ? (ta.value + '\n' + text) : text;
+  ta.focus();
+}
+
+function _meetModalAutoNote() {
+  const minInput = document.getElementById('mr_minutes');
+  const m = _meetParseDuration(minInput?.value);
+  if (m <= 0) { showToast('時長為 0，無法產生'); return; }
+  const totalSec = Math.round(m * 60);
+  let firstSec, secondSec;
+  if (totalSec <= 60) {
+    secondSec = totalSec;
+    firstSec = Math.max(0, totalSec - 30);
+    if (firstSec === 0 && totalSec > 10) firstSec = Math.floor(totalSec / 2);
+  } else {
+    secondSec = totalSec;
+    firstSec = totalSec - 30;
+  }
+  const fmt = s => {
+    const mm = Math.floor(s/60), ss = s%60;
+    return `${mm}:${String(ss).padStart(2,'0')}`;
+  };
+  const note = `□計時 ${fmt(firstSec)}按●，${fmt(secondSec)}按●●`;
+  const ta = document.getElementById('mr_note');
+  if (ta) ta.value = note;
+}
+
+function _meetModalMoveRow(dir) {
+  const idx = _meetCommitRowModal();
+  if (idx < 0) return;
+  const j = idx + dir;
+  if (j < 0 || j >= _meetState.items.length) return;
+  const items = _meetState.items;
+  [items[idx], items[j]] = [items[j], items[idx]];
+  _meetCloseRowEditor();
+  _meetAfterEdit();
+  _meetOpenRowEditor(j);
 }
 
 function _meetRenderPreviewArea() {
@@ -6223,11 +6588,17 @@ function _meetRenderPreview() {
     const t = times[idx];
     const presenterCls = it.presenterColor === 'blue' ? 'col-presenter color-blue' : 'col-presenter';
     const titleCls = it.titleHighlight ? 'is-title' : '';
+    const presenterLines = String(it.presenter||'').split('\n');
+    const presenterAllLocked = !!it.presenter && presenterLines.every(l => _meetingPresenterMatch(l) !== null);
+    const fullyLocked = it.fixed === true && presenterAllLocked;
+    const noTd = fullyLocked
+      ? `<td class="col-no" style="cursor:default;color:var(--text-soft);">${idx+1}</td>`
+      : `<td class="col-no meet-pv-no-btn" title="點擊編輯此項" onclick="_meetOpenRowEditor(${idx})">${idx+1}</td>`;
     return `
       <tr class="${titleCls}">
-        <td class="col-no">${idx+1}</td>
+        ${noTd}
         <td class="col-topic">${_escH(it.topic||'').replace(/\n/g,'<br>')}</td>
-        <td class="${presenterCls}">${_escH(it.presenter||'').replace(/\n/g,'<br>')}</td>
+        <td class="${presenterCls}">${_escH(_resolveMeetingPresenter(it.presenter||'')).replace(/\n/g,'<br>')}</td>
         <td class="col-dur">${_meetFmtDur(it.minutes)}</td>
         <td class="col-st">${t.start}</td>
         <td class="col-et">${t.end}</td>
@@ -6257,71 +6628,9 @@ function _meetRenderPreview() {
   `;
 }
 
-function _meetInsertNote(idx, text) {
-  const cur = _meetState.items[idx].note || '';
-  _meetState.items[idx].note = cur ? (cur + '\n' + text) : text;
-  _meetSaveDraft();
-  _meetRenderBody();
-}
-
-function _meetAutoNote(idx) {
-  const m = _meetParseDuration(_meetState.items[idx].minutes);
-  if (m <= 0) { showToast('時長為 0，無法產生'); return; }
-  // 半分鐘前 ●、整分 ●●，但短於 1 分用秒
-  const totalSec = Math.round(m * 60);
-  let firstSec, secondSec;
-  if (totalSec <= 60) {
-    // 短於 1 分鐘：半秒+整秒
-    secondSec = totalSec;
-    firstSec = Math.max(0, totalSec - 30);
-    if (firstSec === 0 && totalSec > 10) firstSec = Math.floor(totalSec / 2);
-  } else {
-    secondSec = totalSec;
-    firstSec = totalSec - 30;
-  }
-  const fmt = s => {
-    const mm = Math.floor(s/60), ss = s%60;
-    return `${mm}:${String(ss).padStart(2,'0')}`;
-  };
-  _meetState.items[idx].note = `□計時 ${fmt(firstSec)}按●，${fmt(secondSec)}按●●`;
-  _meetSaveDraft();
-  _meetRenderBody();
-}
-
-function _meetSetField(field, value) {
-  _meetState[field] = value;
-  _meetSaveDraft();
-  if (field === 'startTime') _meetRenderBody();
-}
-function _meetUpdateField(idx, field, value) {
-  if (field === 'minutes') value = _meetParseDuration(value);
-  _meetState.items[idx][field] = value;
-  _meetSaveDraft();
-  if (field === 'minutes') _meetRenderBody();
-}
-function _meetToggleTitle(idx, checked) {
-  _meetState.items[idx].titleHighlight = !!checked;
-  _meetSaveDraft();
-  _meetRenderBody();
-}
-function _meetMoveRow(idx, dir) {
-  const j = idx + dir;
-  if (j < 0 || j >= _meetState.items.length) return;
-  const items = _meetState.items;
-  [items[idx], items[j]] = [items[j], items[idx]];
-  _meetSaveDraft();
-  _meetRenderBody();
-}
-function _meetDelRow(idx) {
-  if (!confirm('刪除這列？')) return;
-  _meetState.items.splice(idx, 1);
-  _meetSaveDraft();
-  _meetRenderBody();
-}
 function _meetAddRow(idx) {
   _meetState.items.splice(idx, 0, { topic:'', presenter:'', minutes:1, note:'' });
-  _meetSaveDraft();
-  _meetRenderBody();
+  _meetAfterEdit();
 }
 function _meetApplyTemplate(id) {
   const t = _MEET_TEMPLATES[id];
@@ -6333,7 +6642,7 @@ function _meetApplyTemplate(id) {
   _meetState.templateId = id;
   _meetState.meetingType = t.meetingType;
   _meetState.actualDefault = t.actualDefault;
-  _meetState.items = t.items.map(x => ({ ...x }));
+  _meetState.items = t.items.map(x => ({ ...x, defaultMinutes: x.minutes }));
   _meetSaveDraft();
   renderMeeting();
 }
@@ -6352,6 +6661,7 @@ function _meetSaveAsVersion() {
     dateStr, seqNum, title,
     templateId: _meetState.templateId,
     startTime: _meetState.startTime,
+    targetEndTime: _meetState.targetEndTime || '08:30',
     meetingType: _meetState.meetingType || '正式例會',
     actualDefault: _meetState.actualDefault || '',
     items: JSON.parse(JSON.stringify(_meetState.items)),
@@ -6371,17 +6681,16 @@ function _meetSaveAsVersion() {
 function _meetLoadVersion(id) {
   const v = _meetLoadVersions().find(x => x.id === id);
   if (!v) return;
-  const editMode = _meetState ? _meetState.editMode : true;
   _meetState = {
     templateId: v.templateId || 'general',
     title: v.title || '億展',
     seqNum: v.seqNum || '',
     dateStr: v.dateStr || _meetTodayDate(),
     startTime: v.startTime || '06:30',
+    targetEndTime: v.targetEndTime || '08:30',
     meetingType: v.meetingType || '正式例會',
     actualDefault: v.actualDefault || '',
-    items: JSON.parse(JSON.stringify(v.items || [])),
-    editMode
+    items: JSON.parse(JSON.stringify(v.items || []))
   };
   _meetSaveDraft();
   renderMeeting();
@@ -6400,7 +6709,7 @@ function _meetManageVersions() {
     <div class="meet-version-list">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <div style="font-size:13px;font-weight:900;color:var(--text)">歷史版本（${versions.length}）</div>
-        <button class="meet-tb-btn" onclick="_meetRenderBody()">返回編輯</button>
+        <button class="meet-tb-btn" onclick="_meetRenderBody()">返回</button>
       </div>
       ${versions.map(v => `
         <div class="meet-version-item">
@@ -6424,15 +6733,7 @@ function _meetDelVersion(id) {
 }
 
 async function _meetExportPDF() {
-  const wasEdit = _meetState.editMode;
-  _meetState.editMode = false;
-  _meetRenderBody();
-  await new Promise(r => setTimeout(r, 100));
   window.print();
-  setTimeout(() => {
-    _meetState.editMode = wasEdit;
-    _meetRenderBody();
-  }, 800);
 }
 
 async function _meetExportJPG() {
@@ -6440,17 +6741,9 @@ async function _meetExportJPG() {
   try {
     await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
   } catch { showToast('JPG 套件載入失敗，請確認網路'); return; }
-  const wasEdit = _meetState.editMode;
-  _meetState.editMode = false;
-  _meetRenderBody();
-  await new Promise(r => setTimeout(r, 120));
   const sheet = document.querySelector('#meetingPrintArea .meet-preview-sheet');
-  if (!sheet) {
-    _meetState.editMode = wasEdit;
-    _meetRenderBody();
-    showToast('找不到預覽區');
-    return;
-  }
+  if (!sheet) { showToast('找不到預覽區'); return; }
+  document.body.classList.add('meet-print-mode');
   try {
     const canvas = await html2canvas(sheet, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
     const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
@@ -6465,8 +6758,7 @@ async function _meetExportJPG() {
   } catch (e) {
     showToast('JPG 匯出失敗');
   } finally {
-    _meetState.editMode = wasEdit;
-    _meetRenderBody();
+    document.body.classList.remove('meet-print-mode');
   }
 }
 
