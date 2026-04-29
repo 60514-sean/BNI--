@@ -3805,30 +3805,30 @@ async function openGuestModal(gKey) {
   overlay.innerHTML = `<div class="modal-box" onclick="event.stopPropagation()">
     <div class="modal-title">${isEdit ? '編輯來賓' : '新增來賓'}</div>
 
-    <div class="modal-field">
-      <div class="modal-label">首次參訪日</div>
-      <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
-    </div>
-    <div style="display:flex;gap:10px;">
-      <div class="modal-field" style="flex:1 1 0;min-width:0;margin-bottom:14px;">
+    <div class="modal-row">
+      <div class="modal-field" style="flex:1 1 0;min-width:0;">
+        <div class="modal-label">首次參訪日</div>
+        <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
+      </div>
+      <div class="modal-field" style="flex:1 1 0;min-width:0;">
         <div class="modal-label">狀態</div>
         <select class="modal-input" id="gm_status">
           ${GUEST_STATUSES.map(s => `<option value="${s}" ${g?.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </div>
-      <div class="modal-field" style="flex:1 1 0;min-width:0;margin-bottom:14px;">
+      <div class="modal-field" style="flex:1 1 0;min-width:0;">
         <div class="modal-label">入會機率</div>
         <select class="modal-input" id="gm_joinProb">
           ${JOIN_PROBABILITIES.map(p => `<option value="${p}" ${(g?.joinProb||'未評估')===p?'selected':''}>${p}</option>`).join('')}
         </select>
       </div>
     </div>
-    <div style="display:flex;gap:10px;">
-      <div class="modal-field" style="flex:3 1 0;min-width:0;margin-bottom:14px;">
+    <div class="modal-row">
+      <div class="modal-field" style="flex:3 1 0;min-width:0;">
         <div class="modal-label">姓名 <span style="color:var(--red);">*</span></div>
         <input class="modal-input" type="text" id="gm_name" value="${_escH(g?.name || '')}" placeholder="例：王大明">
       </div>
-      <div class="modal-field" style="flex:1 1 0;min-width:0;margin-bottom:14px;">
+      <div class="modal-field" style="flex:1 1 0;min-width:0;">
         <div class="modal-label">稱謂</div>
         <select class="modal-input" id="gm_title">
           <option value="" ${!g?.title?'selected':''}>（無）</option>
