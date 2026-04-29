@@ -539,6 +539,16 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   outline: none; transition: border 0.2s;
 }
 .modal-input:focus { border-color: var(--red); }
+/* iOS Safari 的 type=date 內部文字預設置中，強制靠左對齊與其他 input 一致 */
+.modal-input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  text-align: left;
+  min-height: 46px;
+  background: white;
+}
+.modal-input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+.modal-input[type="date"]::-webkit-calendar-picker-indicator { margin-left: auto; }
 .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
 /* modal 內並排欄位的容器：手機版自動堆疊避免擠壓 */
 .modal-row { display:flex; gap:10px; }
