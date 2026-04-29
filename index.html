@@ -3805,11 +3805,11 @@ async function openGuestModal(gKey) {
   overlay.innerHTML = `<div class="modal-box" onclick="event.stopPropagation()">
     <div class="modal-title">${isEdit ? '編輯來賓' : '新增來賓'}</div>
 
+    <div class="modal-field">
+      <div class="modal-label">首次參訪日</div>
+      <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
+    </div>
     <div class="modal-row">
-      <div class="modal-field" style="flex:1 1 0;min-width:0;">
-        <div class="modal-label">首次參訪日</div>
-        <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
-      </div>
       <div class="modal-field" style="flex:1 1 0;min-width:0;">
         <div class="modal-label">狀態</div>
         <select class="modal-input" id="gm_status">
