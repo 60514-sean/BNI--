@@ -340,6 +340,23 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   white-space: nowrap;
   box-sizing: border-box;
 }
+.placard-industry-box {
+  position: absolute;
+  left: 28.94%;
+  top: 6%;
+  width: 60%;
+  height: 22%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-size: 13mm;
+  font-weight: 900;
+  letter-spacing: 0.5mm;
+  line-height: 1;
+  color: var(--red);
+  white-space: nowrap;
+  box-sizing: border-box;
+}
 .placard-inviter-box {
   position: absolute;
   left: 78.48%;
@@ -4265,8 +4282,10 @@ function _memberPlacardSheetHtml(memberA, memberB) {
 function _placardSheetHtml(g) {
   const name = _escH(g.name || '');
   const inviter = _escH(g.inviter || '');
+  const industry = _escH(g.industry || '');
   const contentHtml = `
     <div class="placard-content">
+      <div class="placard-industry-box">${industry}</div>
       <div class="placard-name-box">${name}</div>
       <div class="placard-inviter-box">${inviter}</div>
     </div>`;
