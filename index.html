@@ -3445,17 +3445,22 @@ async function printSignin() {
 }
 
 // ===== GUEST TRACK =====
-const GUEST_STATUSES = ['待追蹤','持續追蹤','已填單待繳費','婉拒/停止追蹤'];
+const GUEST_STATUSES = ['待追蹤','持續追蹤','已填單待繳費','審核中','已入會','轉別分會','婉拒/停止追蹤'];
 const GUEST_STATUS_COLORS = {
   '待追蹤':         { bg:'#f4f6f8', fg:'#666' },
   '持續追蹤':       { bg:'#fef3c7', fg:'#92400e' },
   '已填單待繳費':   { bg:'#fde68a', fg:'#78350f' },
+  '審核中':         { bg:'#e0f2fe', fg:'#075985' },
+  '已入會':         { bg:'#dcfce7', fg:'#166534' },
+  '轉別分會':       { bg:'#ede9fe', fg:'#5b21b6' },
   '婉拒/停止追蹤':  { bg:'#fee2e2', fg:'#991b1b' }
 };
-const JOIN_PROBABILITIES = ['未評估','高'];
+const JOIN_PROBABILITIES = ['未評估','高','中','低'];
 const JOIN_PROB_COLORS = {
   '未評估': { bg:'#f4f6f8', fg:'#999' },
-  '高':     { bg:'#fee2e2', fg:'#991b1b' }
+  '高':     { bg:'#fee2e2', fg:'#991b1b' },
+  '中':     { bg:'#fed7aa', fg:'#9a3412' },
+  '低':     { bg:'#dbeafe', fg:'#1e40af' }
 };
 let _guestData = null;
 let _guestSubTab = 'week';   // 'week' | 'all'
@@ -3756,7 +3761,7 @@ function _guestCardHtml(g) {
           ${g.industry ? `<span>${_escH(g.industry)}</span>` : ''}
           ${g.company ? ` · <span>${_escH(g.company)}</span>` : ''}
         </div>
-        ${g.firstVisit ? `<div style="font-size:12px;color:var(--text-soft);margin-top:2px;">首訪 <b style="color:var(--text);">${_escH(g.firstVisit)}</b></div>` : ''}
+        ${g.firstVisit ? `<div style="font-size:12px;color:var(--text-soft);margin-top:2px;">${g.visitType === '二次' ? '二次參訪' : '首訪'} <b style="color:var(--text);">${_escH(g.firstVisit)}</b></div>` : ''}
         <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">
           ${g.inviter ? `邀約：<b style="color:var(--text);">${_escH(g.inviter)}</b>` : ''}
           ${g.closer ? `　締結：<b style="color:var(--text);">${_escH(g.closer)}</b>` : ''}
@@ -3764,8 +3769,10 @@ function _guestCardHtml(g) {
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0;">
-        <button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="openGuestModal('${gKey}')">編輯</button>
-        <button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:#c0392b;" onclick="deleteGuestConfirm('${gKey}')">刪除</button>
+        ${g._pending
+          ? `<span style="padding:6px 12px;font-size:12px;color:var(--text-soft);background:#f4f6f8;border-radius:6px;">同步中...</span>`
+          : `<button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="openGuestModal('${gKey}')">編輯</button>
+             <button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:#c0392b;" onclick="deleteGuestConfirm('${gKey}')">刪除</button>`}
       </div>
     </div>
     ${g.postVisitNote ? `<div style="background:#fafbfc;padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.5;margin-top:6px;">
@@ -3816,7 +3823,15 @@ async function openGuestModal(gKey) {
     <div class="modal-title">${isEdit ? '編輯來賓' : '新增來賓'}</div>
 
     <div class="modal-field">
-      <div class="modal-label">首次參訪日</div>
+      <div class="modal-label">參訪日</div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
+        <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;">
+          <input type="radio" name="gm_visitType" value="首次" ${(g?.visitType||'首次')==='首次'?'checked':''}>首次參訪
+        </label>
+        <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;">
+          <input type="radio" name="gm_visitType" value="二次" ${g?.visitType==='二次'?'checked':''}>二次參訪
+        </label>
+      </div>
       <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
     </div>
     <div class="modal-row">
@@ -3967,15 +3982,43 @@ function _selectMemberSuggest(inputId, name) {
 async function saveGuest(gKey) {
   const name = document.getElementById('gm_name').value.trim();
   if (!name) { showToast('請輸入姓名'); return; }
-  const payload = {
+  const phone = document.getElementById('gm_phone').value.trim();
+
+  // 新增時偵測重複：同姓名（且若兩邊都有電話則需相符）→ 提示改為編輯既有資料
+  if (!gKey && Array.isArray(_guestData)) {
+    const dupes = _guestData.filter(x => {
+      if ((x.name || '').trim() !== name) return false;
+      const xp = (x.phone || '').trim();
+      if (xp && phone && xp !== phone) return false;
+      return true;
+    });
+    if (dupes.length) {
+      dupes.sort((a, b) => (b.firstVisit || '').localeCompare(a.firstVisit || ''));
+      const d = dupes[0];
+      const ok = confirm(
+        `資料庫中已有「${d.name}」` +
+        (d.phone ? `（電話 ${d.phone}）` : '') +
+        `\n首訪日：${d.firstVisit || '未填'}\n\n` +
+        `按「確定」改為編輯該筆既有資料\n按「取消」仍以新來賓建立`
+      );
+      if (ok) {
+        closeGuestModal();
+        openGuestModal(`${d.year}-${d.sheetRow}`);
+        return;
+      }
+    }
+  }
+
+  const fields = {
     firstVisit:    document.getElementById('gm_firstVisit').value,
+    visitType:     document.querySelector('input[name="gm_visitType"]:checked')?.value || '首次',
     inviter:       document.getElementById('gm_inviter').value.trim(),
     closer:        document.getElementById('gm_closer').value.trim(),
     name:          name,
     title:         document.getElementById('gm_title').value,
     industry:      document.getElementById('gm_industry').value.trim(),
     company:       document.getElementById('gm_company').value.trim(),
-    phone:         document.getElementById('gm_phone').value.trim(),
+    phone:         phone,
     postVisitNote: document.getElementById('gm_postVisit').value.trim(),
     status:        document.getElementById('gm_status').value,
     joinProb:      document.getElementById('gm_joinProb').value,
@@ -3983,23 +4026,44 @@ async function saveGuest(gKey) {
   };
 
   closeGuestModal();
-  showToast(gKey ? '儲存中...' : '新增中...');
 
-  try {
+  // 樂觀更新：先改本地資料 + 立即重渲染 + 立即提示，API 在背景同步
+  if (Array.isArray(_guestData)) {
     if (gKey) {
       const [year, row] = gKey.split('-').map(Number);
-      payload.action = 'updateGuest';
-      payload.year = year;
-      payload.sheetRow = row;
+      const idx = _guestData.findIndex(x => x.year === year && x.sheetRow === row);
+      if (idx >= 0) _guestData[idx] = { ..._guestData[idx], ...fields };
     } else {
-      payload.action = 'addGuest';
+      const yr = Number((fields.firstVisit || _todayIso()).slice(0, 4)) || new Date().getFullYear();
+      _guestData.unshift({ ...fields, year: yr, sheetRow: -Date.now(), _pending: true });
     }
-    await _apiPost(payload);
-    _guestData = null;
-    await renderGuestTrack();
+    renderGuestTrack();
     showToast(gKey ? '已儲存' : '已新增');
+  } else {
+    showToast(gKey ? '儲存中...' : '新增中...');
+  }
+
+  const payload = { ...fields };
+  if (gKey) {
+    const [year, row] = gKey.split('-').map(Number);
+    payload.action = 'updateGuest';
+    payload.year = year;
+    payload.sheetRow = row;
+  } else {
+    payload.action = 'addGuest';
+  }
+
+  try {
+    await _apiPost(payload);
+    if (!gKey) {
+      // 新增需要拿到正式 sheetRow，背景重抓但不阻塞 UI
+      _guestData = null;
+      renderGuestTrack();
+    }
   } catch (e) {
-    showToast('失敗，請重試');
+    showToast('同步失敗，請重新整理');
+    _guestData = null;
+    renderGuestTrack();
   }
 }
 
@@ -4012,14 +4076,20 @@ function deleteGuestConfirm(gKey) {
 }
 
 async function _deleteGuest(year, row) {
-  showToast('刪除中...');
+  // 樂觀刪除：先從本地移除 + 立即重渲染 + 立即提示，API 在背景同步
+  if (Array.isArray(_guestData)) {
+    _guestData = _guestData.filter(x => !(x.year === year && x.sheetRow === row));
+    renderGuestTrack();
+    showToast('已刪除');
+  } else {
+    showToast('刪除中...');
+  }
   try {
     await _apiPost({ action: 'deleteGuest', year, sheetRow: row });
-    _guestData = null;
-    await renderGuestTrack();
-    showToast('已刪除');
   } catch {
-    showToast('刪除失敗，請重試');
+    showToast('同步失敗，請重新整理');
+    _guestData = null;
+    renderGuestTrack();
   }
 }
 
