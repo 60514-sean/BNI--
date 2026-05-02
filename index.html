@@ -1541,7 +1541,10 @@ async function doLogin() {
 
   if (!userObj && !isAdmin) { document.getElementById('loginError').textContent = '找不到此姓名，請確認後重試'; return; }
   CU = name; CR = isAdmin ? 'admin' : 'user';
-  try { localStorage.setItem(LS_LAST_USER, name); } catch {}
+  try {
+    localStorage.setItem(LS_LAST_USER, name);
+    sessionStorage.setItem('bni_session', JSON.stringify({ name, role: CR }));
+  } catch {}
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'flex';
   document.getElementById('userChip').textContent = name;
@@ -1587,6 +1590,7 @@ function _applyTabPermissions(allowedIds) {
 function doLogout() {
   CU = null; CR = null;
   _memberData = null;
+  try { sessionStorage.removeItem('bni_session'); } catch {}
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('appPage').style.display = 'none';
   document.getElementById('pageTabs').style.display = 'none';
@@ -1595,6 +1599,18 @@ function doLogout() {
 }
 
 document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+// 同一分頁 session 內若曾登入過（PDF 返回、頁面重新載入），自動還原；新分頁則會看到登入畫面
+(async () => {
+  try {
+    const s = sessionStorage.getItem('bni_session');
+    if (!s) return;
+    const sess = JSON.parse(s);
+    if (!sess || !sess.name) return;
+    document.getElementById('nameInput').value = sess.name;
+    await doLogin();
+  } catch {}
+})();
 
 
 const CAT_ORDER = ['例會','簡報','續約','財務','會員','基礎建設'];
@@ -6985,7 +7001,7 @@ function _meetDelVersion(id) {
 }
 
 async function _meetExportPDF() {
-  showToast('PDF 產生中...');
+  showLoader(true, 'PDF 產生中...');
   try {
     await Promise.all([
       _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),
@@ -6993,19 +7009,16 @@ async function _meetExportPDF() {
     ]);
   } catch (e) {
     console.error('[PDF script load]', e);
+    showLoader(false);
     showToast('PDF 套件載入失敗，請確認網路');
     return;
   }
   const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-  if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); return; }
+  if (!jsPDFCtor) { showLoader(false); showToast('jsPDF 初始化失敗'); return; }
   const sheet = document.querySelector('#meetingPrintArea .meet-preview-sheet');
-  const printArea = document.getElementById('meetingPrintArea');
-  if (!sheet || !printArea) { showToast('找不到預覽區'); return; }
-  // 把整個 print area 暫時移到螢幕外，避免使用者看到展開動作
-  const origCss = printArea.style.cssText;
-  printArea.style.cssText = origCss + ';position:fixed !important;left:-99999px !important;top:0 !important;z-index:-1 !important;pointer-events:none !important;';
+  if (!sheet) { showLoader(false); showToast('找不到預覽區'); return; }
   document.body.classList.add('meet-print-mode');
-  await new Promise(r => setTimeout(r, 80)); // 等 layout 更新
+  await new Promise(r => setTimeout(r, 80)); // 等 layout 更新（loader 覆蓋住）
   try {
     const canvas = await html2canvas(sheet, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
     const imgData = canvas.toDataURL('image/jpeg', 0.92);
@@ -7028,20 +7041,17 @@ async function _meetExportPDF() {
     showToast('PDF 匯出失敗：' + (e && e.message ? e.message : e));
   } finally {
     document.body.classList.remove('meet-print-mode');
-    printArea.style.cssText = origCss;
+    showLoader(false);
   }
 }
 
 async function _meetExportJPG() {
-  showToast('JPG 產生中...');
+  showLoader(true, 'JPG 產生中...');
   try {
     await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-  } catch { showToast('JPG 套件載入失敗，請確認網路'); return; }
+  } catch { showLoader(false); showToast('JPG 套件載入失敗，請確認網路'); return; }
   const sheet = document.querySelector('#meetingPrintArea .meet-preview-sheet');
-  const printArea = document.getElementById('meetingPrintArea');
-  if (!sheet || !printArea) { showToast('找不到預覽區'); return; }
-  const origCss = printArea.style.cssText;
-  printArea.style.cssText = origCss + ';position:fixed !important;left:-99999px !important;top:0 !important;z-index:-1 !important;pointer-events:none !important;';
+  if (!sheet) { showLoader(false); showToast('找不到預覽區'); return; }
   document.body.classList.add('meet-print-mode');
   await new Promise(r => setTimeout(r, 80));
   try {
@@ -7059,7 +7069,7 @@ async function _meetExportJPG() {
     showToast('JPG 匯出失敗');
   } finally {
     document.body.classList.remove('meet-print-mode');
-    printArea.style.cssText = origCss;
+    showLoader(false);
   }
 }
 
