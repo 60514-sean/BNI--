@@ -6960,7 +6960,28 @@ function _meetDelVersion(id) {
 }
 
 async function _meetExportPDF() {
-  window.print();
+  showToast('PDF 產生中...');
+  try {
+    await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  } catch { showToast('PDF 套件載入失敗，請確認網路'); return; }
+  const sheet = document.querySelector('#meetingPrintArea .meet-preview-sheet');
+  if (!sheet) { showToast('找不到預覽區'); return; }
+  document.body.classList.add('meet-print-mode');
+  try {
+    const canvas = await html2canvas(sheet, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+    const safeName = `例會流程_${_meetState.dateStr || _meetTodayDate()}_第${_meetState.seqNum||'00'}次`.replace(/[\\/:*?"<>|]/g,'_');
+    pdf.save(safeName + '.pdf');
+    showToast('PDF 已下載');
+  } catch (e) {
+    showToast('PDF 匯出失敗');
+  } finally {
+    document.body.classList.remove('meet-print-mode');
+  }
 }
 
 async function _meetExportJPG() {
