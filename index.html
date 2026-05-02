@@ -1510,6 +1510,9 @@ let cfgTasks = [];        // 設定頁暫存：所有週進度任務
 let _editingTaskIdx = null;
 let _editingOwners = [];
 
+const LS_LAST_USER = 'bni_last_user';
+const LS_LOGGED_OUT = 'bni_logged_out';
+
 async function doLogin() {
   const name = document.getElementById('nameInput').value.trim();
   if (!name) return;
@@ -1529,6 +1532,7 @@ async function doLogin() {
 
   if (!userObj && !isAdmin) { document.getElementById('loginError').textContent = '找不到此姓名，請確認後重試'; return; }
   CU = name; CR = isAdmin ? 'admin' : 'user';
+  try { localStorage.setItem(LS_LAST_USER, name); localStorage.removeItem(LS_LOGGED_OUT); } catch {}
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'flex';
   document.getElementById('userChip').textContent = name;
@@ -1577,11 +1581,27 @@ function doLogout() {
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('appPage').style.display = 'none';
   document.getElementById('pageTabs').style.display = 'none';
-  document.getElementById('nameInput').value = '';
+  // 保留 LS_LAST_USER 供下次快速登入；標記為已登出
+  try { localStorage.setItem(LS_LOGGED_OUT, '1'); } catch {}
+  const saved = (() => { try { return localStorage.getItem(LS_LAST_USER) || ''; } catch { return ''; } })();
+  document.getElementById('nameInput').value = saved;
   document.getElementById('loginError').textContent = '';
 }
 
 document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+// 自動登入：localStorage 有上次登入名稱且非主動登出，自動登入；
+//          若主動登出，僅預填姓名供快速登入。
+(async () => {
+  try {
+    const saved = localStorage.getItem(LS_LAST_USER);
+    if (!saved) return;
+    document.getElementById('nameInput').value = saved;
+    const loggedOut = localStorage.getItem(LS_LOGGED_OUT);
+    if (loggedOut) return;
+    await doLogin();
+  } catch {}
+})();
 
 const CAT_ORDER = ['例會','簡報','續約','財務','會員','基礎建設'];
 const CAT_COLOR = '#c0392b';
