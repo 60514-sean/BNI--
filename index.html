@@ -6982,34 +6982,39 @@ function _meetDelVersion(id) {
 async function _meetExportPDF() {
   showToast('PDF 產生中...');
   try {
-    await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-    await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-  } catch { showToast('PDF 套件載入失敗，請確認網路'); return; }
+    await Promise.all([
+      _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),
+      _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+    ]);
+  } catch (e) {
+    console.error('[PDF script load]', e);
+    showToast('PDF 套件載入失敗，請確認網路');
+    return;
+  }
   const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
   if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); return; }
   const sheet = document.querySelector('#meetingPrintArea .meet-preview-sheet');
   if (!sheet) { showToast('找不到預覽區'); return; }
   document.body.classList.add('meet-print-mode');
-  // 等待 layout 重新計算（清除 transform 等）
-  await new Promise(r => setTimeout(r, 80));
+  await new Promise(r => setTimeout(r, 80)); // 等 layout 更新
   try {
     const canvas = await html2canvas(sheet, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
     const imgData = canvas.toDataURL('image/jpeg', 0.92);
     const pdf = new jsPDFCtor({ orientation: 'p', unit: 'mm', format: 'a4' });
     pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
-    const safeName = `例會流程_${_meetState.dateStr || _meetTodayDate()}_第${_meetState.seqNum||'00'}次`.replace(/[\\/:*?"<>|]/g,'_');
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    if (isIOS) {
-      // iOS Safari .save() 會被擋，改開新分頁顯示 PDF
-      const blob = pdf.output('blob');
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      showToast('PDF 已產生（請在新分頁儲存）');
-    } else {
-      pdf.save(safeName + '.pdf');
-      showToast('PDF 已下載');
-    }
+    const safeName = `例會流程_${_meetState.dateStr || _meetTodayDate()}_第${_meetState.seqNum||'00'}次`.replace(/[\\/:*?"<>|]/g,'_') + '.pdf';
+    // 用 <a> 觸發：桌機 download 屬性下載；行動裝置在新分頁開啟
+    const blob = pdf.output('blob');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = safeName;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { try { a.remove(); URL.revokeObjectURL(url); } catch {} }, 2000);
+    showToast('PDF 已產生');
   } catch (e) {
     console.error('[PDF export]', e);
     showToast('PDF 匯出失敗：' + (e && e.message ? e.message : e));
