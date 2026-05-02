@@ -1088,25 +1088,27 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .meet-preview-inner { display:inline-block; min-width:100%; }
 .meet-preview-sheet {
   background:white; box-shadow:var(--shadow-lg);
-  padding:14mm 8mm; box-sizing:border-box;
+  width:210mm; height:297mm;
+  padding:8mm; box-sizing:border-box;
   font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;
-  color:#1a1a2e; min-width:960px;
+  color:#1a1a2e;
   transform-origin: top left;
 }
 .meet-pv-title {
-  text-align:center; font-size:24pt; font-weight:900;
-  color:#1a1a2e; margin-bottom:6mm; letter-spacing:1px;
+  text-align:center; font-size:16pt; font-weight:900;
+  color:#1a1a2e; margin-bottom:4mm; letter-spacing:1px;
 }
 .meet-pv-table {
-  width:100%; border-collapse:collapse; font-size:12pt;
+  width:100%; border-collapse:collapse; font-size:9pt;
   table-layout:fixed;
+  border:1.5pt solid #1a1a2e;
 }
 .meet-pv-table th, .meet-pv-table td {
-  border:0.3mm solid #1a1a2e; padding:2.2mm 2.5mm;
+  border:0.3mm solid #1a1a2e; padding:1.2mm 1.5mm;
   text-align:center; vertical-align:middle;
-  word-break:break-word; line-height:1.4;
+  word-break:break-word; line-height:1.3;
 }
-.meet-pv-table th { background:#f1f3f5; font-weight:900; height:8mm; font-size:11pt; white-space:nowrap; }
+.meet-pv-table th { background:#1a1a2e; color:#fff; font-weight:900; height:5mm; font-size:9pt; white-space:nowrap; border-bottom:1.5pt solid #1a1a2e; border-left-color:#fff; border-right-color:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .meet-pv-table .col-no { width:5%; }
 .meet-pv-table td.col-no.meet-pv-no-btn {
   cursor:pointer; user-select:none; font-weight:800;
@@ -1118,6 +1120,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   background:#1a1a2e; color:#fff !important;
 }
 .meet-pv-table tr.is-serial-row + tr.is-serial-row td.col-no { border-top:0.3mm solid #fff !important; }
+.meet-pv-table tbody tr.is-serial-row:first-child td.col-no.is-serial-highlight { border-top:1.5pt solid #fff !important; }
 .meet-pv-table td.col-no.meet-pv-no-btn:hover {
   background:#1a1a2e; color:#fff;
   box-shadow:inset 0 0 0 0.4mm #1a1a2e;
@@ -1127,6 +1130,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   .meet-pv-table td.col-no.meet-pv-no-btn:hover { background:transparent; color:#000 !important; box-shadow:none; }
   .meet-pv-table td.col-no.is-serial-highlight { background:#1a1a2e !important; color:#fff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .meet-pv-table tr.is-serial-row + tr.is-serial-row td.col-no { border-top:0.3mm solid #fff !important; }
+  .meet-pv-table tbody tr.is-serial-row:first-child td.col-no.is-serial-highlight { border-top:1.5pt solid #fff !important; }
 }
 .meet-print-mode .meet-pv-table td.col-no.meet-pv-no-btn { color:#000 !important; }
 .meet-print-mode .meet-pv-table td.col-no.meet-pv-no-btn:hover { color:#000 !important; }
@@ -1149,8 +1153,9 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   #meetingPrintArea { position:absolute; left:0; top:0; width:100%; padding:0 !important; }
   #meetingPrintArea .meet-preview-outer { overflow:visible !important; }
   #meetingPrintArea .meet-preview-inner { width:auto !important; height:auto !important; }
-  #meetingPrintArea .meet-preview-sheet { box-shadow:none !important; padding:0 !important; min-width:0 !important; transform:none !important; }
-  @page { size:A4 portrait; margin:8mm; }
+  #meetingPrintArea .meet-preview-sheet { box-shadow:none !important; transform:none !important; }
+  #meetingPrintArea .meet-pv-table tr { page-break-inside:avoid; break-inside:avoid; }
+  @page { size:A4 portrait; margin:0; }
 }
 </style>
 </head>
@@ -6436,8 +6441,34 @@ function _meetRenderBody() {
     </div>
   ` : '';
   body.innerHTML = statusHtml + _meetRenderPreviewArea();
+  _meetExpandRows();
   _meetFitPreview();
   _meetEnsureFitListener();
+}
+
+function _meetExpandRows() {
+  const sheet = document.querySelector('#meetingPrintArea .meet-preview-sheet');
+  if (!sheet) return;
+  const title = sheet.querySelector('.meet-pv-title');
+  const table = sheet.querySelector('.meet-pv-table');
+  if (!title || !table) return;
+  const thead = table.querySelector('thead');
+  const tbody = table.querySelector('tbody');
+  if (!tbody) return;
+  // 重設先前設定
+  tbody.querySelectorAll('tr').forEach(tr => { tr.style.height = ''; });
+  const cs = getComputedStyle(sheet);
+  const innerH = sheet.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const titleCs = getComputedStyle(title);
+  const titleH = title.offsetHeight + parseFloat(titleCs.marginTop) + parseFloat(titleCs.marginBottom);
+  const theadH = thead ? thead.offsetHeight : 0;
+  const naturalH = tbody.offsetHeight;
+  const availableH = innerH - titleH - theadH;
+  if (availableH <= naturalH) return; // 內容已填滿或超出
+  const rows = tbody.querySelectorAll('tr');
+  if (!rows.length) return;
+  const rowH = availableH / rows.length;
+  rows.forEach(tr => { tr.style.height = rowH + 'px'; });
 }
 
 function _meetFitPreview() {
