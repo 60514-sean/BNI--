@@ -3155,7 +3155,7 @@ function _loadScript(src) {
 
 async function printDM() {
   if (!_memberData) return;
-  showToast('PDF 產生中，請稍候...');
+  showLoader(true, 'PDF 產生中...');
 
   try {
     await Promise.all([
@@ -3163,6 +3163,7 @@ async function printDM() {
       _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
     ]);
   } catch {
+    showLoader(false);
     showToast('載入失敗，請確認網路連線');
     return;
   }
@@ -3295,6 +3296,7 @@ async function printDM() {
     showToast('PDF 產生失敗，請重試');
   } finally {
     document.body.removeChild(wrap);
+    showLoader(false);
   }
 }
 
@@ -3479,13 +3481,13 @@ function _scaleSignin() {
 window.addEventListener('resize', () => { if (_activeTab === 'signin') _scaleSignin(); });
 
 async function printSignin() {
-  showToast('PDF 產生中，請稍候...');
+  showLoader(true, 'PDF 產生中...');
   try {
     await Promise.all([
       _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
       _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
     ]);
-  } catch { showToast('載入失敗，請確認網路連線'); return; }
+  } catch { showLoader(false); showToast('載入失敗，請確認網路連線'); return; }
 
   const sheets = document.querySelectorAll('#signinInner .signin-sheet');
   if (!sheets.length) return;
@@ -3518,6 +3520,7 @@ async function printSignin() {
     showToast('PDF 產生失敗，請重試');
   } finally {
     document.body.removeChild(wrap);
+    showLoader(false);
   }
 }
 
@@ -4372,13 +4375,13 @@ function _scalePlacard() {
 window.addEventListener('resize', () => { if (_activeTab === 'placard') _scalePlacard(); });
 
 async function printPlacards() {
-  showToast('PDF 產生中，請稍候...');
+  showLoader(true, 'PDF 產生中...');
   try {
     await Promise.all([
       _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
       _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
     ]);
-  } catch { showToast('載入失敗，請確認網路'); return; }
+  } catch { showLoader(false); showToast('載入失敗，請確認網路'); return; }
 
   const sheets = document.querySelectorAll('#placardInner .placard-sheet');
   if (!sheets.length) return;
@@ -4409,6 +4412,7 @@ async function printPlacards() {
     showToast('PDF 產生失敗，請重試');
   } finally {
     document.body.removeChild(wrap);
+    showLoader(false);
   }
 }
 
@@ -7018,10 +7022,15 @@ async function _meetExportPDF() {
   const sheet = document.querySelector('#meetingPrintArea .meet-preview-sheet');
   if (!sheet) { showLoader(false); showToast('找不到預覽區'); return; }
   document.body.classList.add('meet-print-mode');
-  await new Promise(r => setTimeout(r, 80)); // 等 layout 更新（loader 覆蓋住）
+  await new Promise(r => setTimeout(r, 100)); // 等 layout 更新
   try {
-    const canvas = await html2canvas(sheet, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
-    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    console.log('[PDF] start html2canvas, sheet=', sheet.offsetWidth, 'x', sheet.offsetHeight);
+    const canvas = await Promise.race([
+      html2canvas(sheet, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, imageTimeout: 5000 }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('截圖逾時 60 秒')), 60000))
+    ]);
+    console.log('[PDF] canvas ready', canvas.width, 'x', canvas.height);
+    const imgData = canvas.toDataURL('image/jpeg', 0.9);
     const pdf = new jsPDFCtor({ orientation: 'p', unit: 'mm', format: 'a4' });
     pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
     const safeName = `例會流程_${_meetState.dateStr || _meetTodayDate()}_第${_meetState.seqNum||'00'}次`.replace(/[\\/:*?"<>|]/g,'_') + '.pdf';
