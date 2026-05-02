@@ -1590,23 +1590,12 @@ function doLogout() {
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('appPage').style.display = 'none';
   document.getElementById('pageTabs').style.display = 'none';
-  // 保留 LS_LAST_USER 供下次快速登入（預填用）
-  const saved = (() => { try { return localStorage.getItem(LS_LAST_USER) || ''; } catch { return ''; } })();
-  document.getElementById('nameInput').value = saved;
+  document.getElementById('nameInput').value = '';
   document.getElementById('loginError').textContent = '';
 }
 
 document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
-// 預填上次登入名稱供快速登入（不自動登入，使用者仍需按登入鈕或 Enter）
-(() => {
-  try {
-    const saved = localStorage.getItem(LS_LAST_USER);
-    if (!saved) return;
-    const inp = document.getElementById('nameInput');
-    if (inp) inp.value = saved;
-  } catch {}
-})();
 
 const CAT_ORDER = ['例會','簡報','續約','財務','會員','基礎建設'];
 const CAT_COLOR = '#c0392b';
