@@ -1234,7 +1234,17 @@ async function _bgRefresh() {
   if (_refreshP) return _refreshP;
   _refreshP = fetch(API_URL, { signal: AbortSignal.timeout(8000) })
     .then(r => r.json())
-    .then(j => { if (j && typeof j === 'object' && !j.error) { Object.assign(cache, j); _invalidateCfg(); _lsSave(); } })
+    .then(j => {
+      if (j && typeof j === 'object' && !j.error) {
+        Object.assign(cache, j);
+        _invalidateCfg();
+        _lsSave();
+        // 若已登入，背景刷新完成後重新渲染當前頁籤，避免顯示舊資料
+        if (CU && _activeTab && typeof switchTab === 'function') {
+          try { switchTab(_activeTab); } catch {}
+        }
+      }
+    })
     .catch(() => {})
     .finally(() => { _refreshP = null; });
   return _refreshP;
@@ -3247,8 +3257,9 @@ async function printDM() {
   wrap.appendChild(pageEl);
   document.body.appendChild(wrap);
 
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3', compress: true });
+  const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); return; }
+  const doc = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a3', compress: true });
 
   try {
     for (let i = 0; i < 2; i++) {
@@ -3259,16 +3270,26 @@ async function printDM() {
         new Promise(r => { img.onload = r; img.onerror = r; })
       ));
       const canvas = await html2canvas(pageEl, {
-        scale: 2,
+        scale: 1.5,
         useCORS: true,
         allowTaint: false,
         logging: false,
         backgroundColor: '#ffffff'
       });
       if (i > 0) doc.addPage();
-      doc.addImage(canvas.toDataURL('image/jpeg', 0.85), 'JPEG', 0, 0, 420, 297);
+      doc.addImage(canvas.toDataURL('image/jpeg', 0.78), 'JPEG', 0, 0, 420, 297);
     }
-    doc.save('BNI-億展分會-會員名錄.pdf');
+    // 用 <a> 觸發下載；iOS Safari 用 target=_blank 在新分頁開啟
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'BNI-億展分會-會員名錄.pdf';
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { try { a.remove(); URL.revokeObjectURL(url); } catch {} }, 2000);
     showToast('PDF 已下載');
   } catch {
     showToast('PDF 產生失敗，請重試');
