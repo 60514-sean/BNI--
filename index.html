@@ -1230,6 +1230,7 @@ function _lsSave() {
 }
 
 let _refreshP = null;
+let _needsPostLoginRender = false; // 登入時設 true，下次背景刷新成功後重新渲染一次
 async function _bgRefresh() {
   if (_refreshP) return _refreshP;
   _refreshP = fetch(API_URL, { signal: AbortSignal.timeout(8000) })
@@ -1239,8 +1240,9 @@ async function _bgRefresh() {
         Object.assign(cache, j);
         _invalidateCfg();
         _lsSave();
-        // 若已登入，背景刷新完成後重新渲染當前頁籤，避免顯示舊資料
-        if (CU && _activeTab && typeof switchTab === 'function') {
+        // 僅在登入後首次刷新成功時重新渲染，避免後續刷新打斷編輯
+        if (_needsPostLoginRender && CU && _activeTab && typeof switchTab === 'function') {
+          _needsPostLoginRender = false;
           try { switchTab(_activeTab); } catch {}
         }
       }
@@ -1520,7 +1522,6 @@ let cfgTasks = [];        // 設定頁暫存：所有週進度任務
 let _editingTaskIdx = null;
 let _editingOwners = [];
 
-const LS_LAST_USER = 'bni_last_user';
 
 async function doLogin() {
   const name = document.getElementById('nameInput').value.trim();
@@ -1541,8 +1542,8 @@ async function doLogin() {
 
   if (!userObj && !isAdmin) { document.getElementById('loginError').textContent = '找不到此姓名，請確認後重試'; return; }
   CU = name; CR = isAdmin ? 'admin' : 'user';
+  _needsPostLoginRender = true;
   try {
-    localStorage.setItem(LS_LAST_USER, name);
     sessionStorage.setItem('bni_session', JSON.stringify({ name, role: CR }));
   } catch {}
   document.getElementById('loginPage').style.display = 'none';
@@ -3153,6 +3154,19 @@ function _loadScript(src) {
   });
 }
 
+// 用 <a> 觸發 PDF blob 下載；桌機會直接下載，行動裝置在新分頁開啟（iOS Safari 不支援 download 屬性）
+function _downloadPdfBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { try { a.remove(); URL.revokeObjectURL(url); } catch {} }, 2000);
+}
+
 async function printDM() {
   if (!_memberData) return;
   showLoader(true, 'PDF 產生中...');
@@ -3280,17 +3294,7 @@ async function printDM() {
       if (i > 0) doc.addPage();
       doc.addImage(canvas.toDataURL('image/jpeg', 0.78), 'JPEG', 0, 0, 420, 297);
     }
-    // 用 <a> 觸發下載；iOS Safari 用 target=_blank 在新分頁開啟
-    const blob = doc.output('blob');
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'BNI-億展分會-會員名錄.pdf';
-    a.target = '_blank';
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { try { a.remove(); URL.revokeObjectURL(url); } catch {} }, 2000);
+    _downloadPdfBlob(doc.output('blob'), 'BNI-億展分會-會員名錄.pdf');
     showToast('PDF 已下載');
   } catch {
     showToast('PDF 產生失敗，請重試');
@@ -3497,8 +3501,9 @@ async function printSignin() {
   document.body.appendChild(wrap);
 
   try {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+    const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); return; }
+    const doc = new jsPDFCtor({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
     for (let i = 0; i < sheets.length; i++) {
       wrap.innerHTML = '';
       const clone = sheets[i].cloneNode(true);
@@ -3514,7 +3519,7 @@ async function printSignin() {
     const fn = _signinSubTab === 'member'
       ? `BNI-億展分會-會員出席簽到-${_signinDate}.pdf`
       : `BNI-億展分會-來賓出席簽到-${_signinDate}.pdf`;
-    doc.save(fn);
+    _downloadPdfBlob(doc.output('blob'), fn);
     showToast('PDF 已下載');
   } catch {
     showToast('PDF 產生失敗，請重試');
@@ -4391,8 +4396,9 @@ async function printPlacards() {
   document.body.appendChild(wrap);
 
   try {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+    const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); return; }
+    const doc = new jsPDFCtor({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
     for (let i = 0; i < sheets.length; i++) {
       wrap.innerHTML = '';
       const clone = sheets[i].cloneNode(true);
@@ -4406,7 +4412,7 @@ async function printPlacards() {
       doc.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 210, 297);
     }
     const fname = _placardSubTab === 'member' ? '會員桌牌' : '來賓桌牌';
-    doc.save(`BNI-${fname}-${_todayIso()}.pdf`);
+    _downloadPdfBlob(doc.output('blob'), `BNI-${fname}-${_todayIso()}.pdf`);
     showToast('PDF 已下載');
   } catch {
     showToast('PDF 產生失敗，請重試');
@@ -7034,16 +7040,7 @@ async function _meetExportPDF() {
     const pdf = new jsPDFCtor({ orientation: 'p', unit: 'mm', format: 'a4' });
     pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
     const safeName = `例會流程_${_meetState.dateStr || _meetTodayDate()}_第${_meetState.seqNum||'00'}次`.replace(/[\\/:*?"<>|]/g,'_') + '.pdf';
-    const blob = pdf.output('blob');
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = safeName;
-    a.target = '_blank';
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { try { a.remove(); URL.revokeObjectURL(url); } catch {} }, 2000);
+    _downloadPdfBlob(pdf.output('blob'), safeName);
     showToast('PDF 已產生');
   } catch (e) {
     console.error('[PDF export]', e);
