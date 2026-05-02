@@ -1521,7 +1521,6 @@ let _editingTaskIdx = null;
 let _editingOwners = [];
 
 const LS_LAST_USER = 'bni_last_user';
-const LS_LOGGED_OUT = 'bni_logged_out';
 
 async function doLogin() {
   const name = document.getElementById('nameInput').value.trim();
@@ -1542,7 +1541,7 @@ async function doLogin() {
 
   if (!userObj && !isAdmin) { document.getElementById('loginError').textContent = '找不到此姓名，請確認後重試'; return; }
   CU = name; CR = isAdmin ? 'admin' : 'user';
-  try { localStorage.setItem(LS_LAST_USER, name); localStorage.removeItem(LS_LOGGED_OUT); } catch {}
+  try { localStorage.setItem(LS_LAST_USER, name); } catch {}
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'flex';
   document.getElementById('userChip').textContent = name;
@@ -1591,8 +1590,7 @@ function doLogout() {
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('appPage').style.display = 'none';
   document.getElementById('pageTabs').style.display = 'none';
-  // 保留 LS_LAST_USER 供下次快速登入；標記為已登出
-  try { localStorage.setItem(LS_LOGGED_OUT, '1'); } catch {}
+  // 保留 LS_LAST_USER 供下次快速登入（預填用）
   const saved = (() => { try { return localStorage.getItem(LS_LAST_USER) || ''; } catch { return ''; } })();
   document.getElementById('nameInput').value = saved;
   document.getElementById('loginError').textContent = '';
@@ -1600,16 +1598,13 @@ function doLogout() {
 
 document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
-// 自動登入：localStorage 有上次登入名稱且非主動登出，自動登入；
-//          若主動登出，僅預填姓名供快速登入。
-(async () => {
+// 預填上次登入名稱供快速登入（不自動登入，使用者仍需按登入鈕或 Enter）
+(() => {
   try {
     const saved = localStorage.getItem(LS_LAST_USER);
     if (!saved) return;
-    document.getElementById('nameInput').value = saved;
-    const loggedOut = localStorage.getItem(LS_LOGGED_OUT);
-    if (loggedOut) return;
-    await doLogin();
+    const inp = document.getElementById('nameInput');
+    if (inp) inp.value = saved;
   } catch {}
 })();
 
@@ -7015,7 +7010,11 @@ async function _meetExportPDF() {
   const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
   if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); return; }
   const sheet = document.querySelector('#meetingPrintArea .meet-preview-sheet');
-  if (!sheet) { showToast('找不到預覽區'); return; }
+  const printArea = document.getElementById('meetingPrintArea');
+  if (!sheet || !printArea) { showToast('找不到預覽區'); return; }
+  // 把整個 print area 暫時移到螢幕外，避免使用者看到展開動作
+  const origCss = printArea.style.cssText;
+  printArea.style.cssText = origCss + ';position:fixed !important;left:-99999px !important;top:0 !important;z-index:-1 !important;pointer-events:none !important;';
   document.body.classList.add('meet-print-mode');
   await new Promise(r => setTimeout(r, 80)); // 等 layout 更新
   try {
@@ -7024,7 +7023,6 @@ async function _meetExportPDF() {
     const pdf = new jsPDFCtor({ orientation: 'p', unit: 'mm', format: 'a4' });
     pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
     const safeName = `例會流程_${_meetState.dateStr || _meetTodayDate()}_第${_meetState.seqNum||'00'}次`.replace(/[\\/:*?"<>|]/g,'_') + '.pdf';
-    // 用 <a> 觸發：桌機 download 屬性下載；行動裝置在新分頁開啟
     const blob = pdf.output('blob');
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -7041,6 +7039,7 @@ async function _meetExportPDF() {
     showToast('PDF 匯出失敗：' + (e && e.message ? e.message : e));
   } finally {
     document.body.classList.remove('meet-print-mode');
+    printArea.style.cssText = origCss;
   }
 }
 
@@ -7050,8 +7049,12 @@ async function _meetExportJPG() {
     await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
   } catch { showToast('JPG 套件載入失敗，請確認網路'); return; }
   const sheet = document.querySelector('#meetingPrintArea .meet-preview-sheet');
-  if (!sheet) { showToast('找不到預覽區'); return; }
+  const printArea = document.getElementById('meetingPrintArea');
+  if (!sheet || !printArea) { showToast('找不到預覽區'); return; }
+  const origCss = printArea.style.cssText;
+  printArea.style.cssText = origCss + ';position:fixed !important;left:-99999px !important;top:0 !important;z-index:-1 !important;pointer-events:none !important;';
   document.body.classList.add('meet-print-mode');
+  await new Promise(r => setTimeout(r, 80));
   try {
     const canvas = await html2canvas(sheet, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
     const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
@@ -7067,6 +7070,7 @@ async function _meetExportJPG() {
     showToast('JPG 匯出失敗');
   } finally {
     document.body.classList.remove('meet-print-mode');
+    printArea.style.cssText = origCss;
   }
 }
 
