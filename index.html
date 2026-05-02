@@ -1062,14 +1062,6 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   border-width:2px;
 }
 .meet-time-status b { font-weight:900; }
-.meet-add-row { display:flex; justify-content:center; margin-bottom:10px; }
-.meet-add-row button {
-  padding:8px 16px; font-size:13px; font-weight:700;
-  border-radius:8px; border:1.5px dashed var(--red);
-  background:white; color:var(--red); cursor:pointer;
-  font-family:inherit;
-}
-.meet-add-row button:hover { background:#fff5f4; }
 .meet-version-list {
   background:white; border-radius:12px; box-shadow:var(--shadow);
   padding:14px 16px; margin-bottom:12px;
@@ -6443,11 +6435,7 @@ function _meetRenderBody() {
       超過 <b>${s.diff}</b> 分鐘，請縮短時長
     </div>
   ` : '';
-  body.innerHTML = statusHtml + _meetRenderPreviewArea() + `
-    <div class="meet-add-row" style="margin-top:6px">
-      <button onclick="_meetAddRow(${_meetState.items.length})">＋ 新增到結尾</button>
-    </div>
-  `;
+  body.innerHTML = statusHtml + _meetRenderPreviewArea();
   _meetFitPreview();
   _meetEnsureFitListener();
 }
@@ -6526,7 +6514,7 @@ function _meetOpenSettings() {
       <div class="modal-row">
         <div class="modal-field" style="flex:1">
           <div class="modal-label">日期</div>
-          <input class="modal-input" id="ms_dateStr" value="${_escH(_meetState.dateStr)}" placeholder="2026/04/26">
+          <input class="modal-input" type="date" id="ms_dateStr" value="${_escH((_meetState.dateStr||'').replace(/\//g,'-'))}">
         </div>
         <div class="modal-field" style="flex:1">
           <div class="modal-label">第幾次</div>
@@ -6579,7 +6567,7 @@ function _meetCloseSettings() {
 
 function _meetCommitSettingsModal() {
   const v = id => document.getElementById(id);
-  if (v('ms_dateStr')) _meetState.dateStr = v('ms_dateStr').value;
+  if (v('ms_dateStr')) _meetState.dateStr = (v('ms_dateStr').value || '').replace(/-/g,'/');
   if (v('ms_seqNum')) _meetState.seqNum = v('ms_seqNum').value;
   _meetSaveDraft();
   _meetSaveStaffToConfig();
@@ -6799,10 +6787,6 @@ function _meetRenderPreview() {
   `;
 }
 
-function _meetAddRow(idx) {
-  _meetState.items.splice(idx, 0, { topic:'', presenter:'', minutes:1, note:'' });
-  _meetAfterEdit();
-}
 function _meetApplyTemplate(id) {
   const t = _MEET_TEMPLATES[id];
   if (!t) return;
