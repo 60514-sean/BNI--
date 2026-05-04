@@ -275,8 +275,8 @@ function _downloadPdfBlob(blob, filename) {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
-  a.target = '_blank';
-  a.rel = 'noopener';
+  // 不加 target='_blank'：避免某些瀏覽器把 PDF 開到新分頁，導致原頁面 freeze/卡頓
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { try { a.remove(); URL.revokeObjectURL(url); } catch {} }, 2000);

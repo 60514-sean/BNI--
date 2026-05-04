@@ -293,10 +293,25 @@ function _canEditTab(tabId) {
 
 // ===== 編輯鎖（OFF 狀態下：輸入欄位鎖定，按鈕仍可點）=====
 let _editLockPaused = false;
-function _pauseEditLock() { _editLockPaused = true; }
+function _pauseEditLock() {
+  _editLockPaused = true;
+  // 暫停期間徹底中止 observer，避免大量 mutation 累積
+  if (_editLockObserver) {
+    _editLockObserver.disconnect();
+    _editLockObserver = null;
+  }
+}
 function _resumeEditLock() {
   _editLockPaused = false;
-  setTimeout(() => _applyEditLock(_activeTab), 120);
+  const finish = () => {
+    _applyEditLock(_activeTab);
+    _startEditLockObserver();
+  };
+  if (window.requestIdleCallback) {
+    requestIdleCallback(finish, { timeout: 500 });
+  } else {
+    setTimeout(finish, 200);
+  }
 }
 function _applyEditLock(tabId) {
   if (_editLockPaused) return;
