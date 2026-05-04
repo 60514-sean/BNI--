@@ -370,26 +370,34 @@ function _startEditLockObserver() {
   _applyEditLock(_activeTab);
 }
 
-// 當分頁從背景切回前景時，強制重置鎖與 observer，避免 PDF 切到新分頁後狀態殘留
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible') return;
-  if (_editLockTimer) { clearTimeout(_editLockTimer); _editLockTimer = null; }
-  if (_editLockPaused) {
-    _editLockPaused = false;
-    _startEditLockObserver();
-  }
-  setTimeout(() => _applyEditLock(_activeTab), 100);
-});
+// 重新計算當前使用者允許的 tabs，重新渲染 menu dropdown（保險：避免狀態殘留導致 dropdown 空白）
+function _refreshMenuDropdown() {
+  if (!CU) return;
+  const dd = document.getElementById('menuDropdown');
+  if (!dd) return;
+  const cfg = getConfig();
+  const userObj = cfg.users.find(u => (u.names || []).includes(CU));
+  const isAdmin = CR === 'admin';
+  const allowed = isAdmin ? TAB_LIST.map(t => t.id) : (userObj ? _visibleTabsForUser(userObj) : []);
+  if (typeof _renderMenuDropdown === 'function') _renderMenuDropdown(allowed, isAdmin);
+}
 
-// 視窗 focus 時也做同樣的事（部分瀏覽器只觸發 focus）
-window.addEventListener('focus', () => {
+// 當分頁從背景切回前景時，強制重置鎖與 observer，並重新渲染 menu，避免 PDF 切到新分頁後狀態殘留
+function _resetUiAfterReturn() {
   if (_editLockTimer) { clearTimeout(_editLockTimer); _editLockTimer = null; }
   if (_editLockPaused) {
     _editLockPaused = false;
     _startEditLockObserver();
   }
+  // 重新渲染 menu dropdown（避免 dropdown 內容空白）
+  _refreshMenuDropdown();
   setTimeout(() => _applyEditLock(_activeTab), 100);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') _resetUiAfterReturn();
 });
+window.addEventListener('focus', _resetUiAfterReturn);
+window.addEventListener('pageshow', _resetUiAfterReturn);
 
 // 角色「報到組」進入後 finance 頁籤一律可見（即使 admin 沒勾，也能看到）
 function _visibleTabsForUser(userObj) {
