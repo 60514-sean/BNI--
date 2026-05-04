@@ -1227,7 +1227,7 @@ try { const s = localStorage.getItem(LS_KEY); if (s) cache = JSON.parse(s); } ca
 
 // 防 race condition：記錄最近 push 的 key，避免 _bgRefresh 拿回舊資料覆蓋剛勾選/編輯的修改
 const _recentSaves = new Map();
-const _SAVE_GRACE_MS = 8000;
+const _SAVE_GRACE_MS = 30000;
 
 function _lsSave() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(cache)); } catch {}
@@ -1604,7 +1604,18 @@ function _applyTabPermissions(allowedIds) {
   });
 }
 
-function doLogout() {
+async function doLogout() {
+  // 等 _saveQueue 內的 push 全部送出 + GAS 寫入緩衝（避免登出時最後一次修改沒到雲端）
+  if (_saveQueue.size > 0 || _saveRunning) {
+    showToast('儲存中…');
+    let waitCount = 0;
+    while ((_saveQueue.size > 0 || _saveRunning) && waitCount < 50) {
+      await new Promise(r => setTimeout(r, 100));
+      waitCount++;
+    }
+    // GAS 寫入緩衝：no-cors push 沒辦法等 GAS 確認，固定再等 1.5 秒
+    await new Promise(r => setTimeout(r, 1500));
+  }
   CU = null; CR = null;
   _memberData = null;
   try { sessionStorage.removeItem('bni_session'); } catch {}
