@@ -41,12 +41,11 @@ async function doLogin() {
   document.getElementById('appPage').style.display = 'flex';
   document.getElementById('userChip').textContent = name;
   document.getElementById('userChip').style.display = 'none'; // 依需求隱藏使用者名稱標記
-  document.getElementById('settingsBtn').style.display = isAdmin ? 'inline-block' : 'none';
-  document.getElementById('pageTabs').style.display = 'flex';
+  document.getElementById('menuBtn').style.display = 'flex';
 
   // 套用頁籤權限：admin 看全部；一般使用者依 allowedTabs 限制
   const allowed = isAdmin ? TAB_LIST.map(t => t.id) : _visibleTabsForUser(userObj);
-  _applyTabPermissions(allowed);
+  _renderMenuDropdown(allowed, isAdmin);
 
   currentDay = TODAY_DAY;
   // 預設停在第一個允許的 tab；若都沒權限，保留空白畫面
@@ -56,7 +55,7 @@ async function doLogin() {
     switchTab(firstTab);
   } else {
     // 沒有任何頁籤 → 空畫面 + 提示
-    document.getElementById('headerTitle').textContent = '歡迎';
+    const ml = document.getElementById('menuLabel'); if (ml) ml.textContent = '歡迎';
     ['todoContent','mainContent','memberContent','dmContent','signinContent','guestTrackContent','placardContent','financeContent','meetingContent'].forEach(id => {
       const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
@@ -71,13 +70,6 @@ async function doLogin() {
   }
 }
 
-function _applyTabPermissions(allowedIds) {
-  TAB_LIST.forEach(t => {
-    const btn = document.getElementById('ptab_' + t.id);
-    if (!btn) return;
-    btn.style.display = allowedIds.includes(t.id) ? '' : 'none';
-  });
-}
 
 async function doLogout() {
   // 等 _saveQueue 內的 push 全部送出 + GAS 寫入緩衝（避免登出時最後一次修改沒到雲端）
@@ -96,7 +88,8 @@ async function doLogout() {
   try { sessionStorage.removeItem('bni_session'); } catch {}
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('appPage').style.display = 'none';
-  document.getElementById('pageTabs').style.display = 'none';
+  document.getElementById('menuBtn').style.display = 'none';
+  closeMenu();
   document.getElementById('nameInput').value = '';
   document.getElementById('loginError').textContent = '';
 }

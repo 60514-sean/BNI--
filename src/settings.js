@@ -127,7 +127,7 @@ function _toggleUserTabEdit(i, tabId, checked) {
 }
 
 function showSettings() {
-  document.getElementById('headerTitle').textContent = '系統設定';
+  const ml = document.getElementById('menuLabel'); if (ml) ml.textContent = '系統設定';
   document.getElementById('todoContent').style.display       = 'none';
   document.getElementById('mainContent').style.display       = '';
   document.getElementById('memberContent').style.display     = 'none';
@@ -137,10 +137,8 @@ function showSettings() {
   document.getElementById('placardContent').style.display    = 'none';
   document.getElementById('financeContent').style.display    = 'none';
   document.getElementById('meetingContent').style.display    = 'none';
-  // 隱藏頁籤列，只留設定畫面
-  document.getElementById('pageTabs').style.display = 'none';
-  ['ptab_todo','ptab_main','ptab_member','ptab_dm','ptab_signin','ptab_guesttrack','ptab_placard'].forEach(id => document.getElementById(id)?.classList.remove('active'));
   _activeTab = 'settings';
+  _updateMenuActive('settings');
   const cfg = getConfig();
 
   // 保留使用者輸入欄位的當前值（重新渲染前先從 DOM 讀回）
@@ -436,8 +434,6 @@ async function saveSettings() {
 }
 
 function exitSettings() {
-  // 恢復頁籤列 + 回到主頁
-  document.getElementById('pageTabs').style.display = 'flex';
   switchTab('main');
 }
 

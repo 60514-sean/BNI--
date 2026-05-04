@@ -1,6 +1,12 @@
 // ===== PAGE TAB =====
 let _activeTab = 'main';
 
+const TAB_LABELS = {
+  todo:'待辦事項', main:'工事清單', member:'會員資料', dm:'會員DM',
+  signin:'出席簽到', guesttrack:'來賓追蹤', placard:'桌牌製作',
+  finance:'財務控管', meeting:'例會流程', settings:'系統設定'
+};
+
 function switchTab(tab) {
   _activeTab = tab;
   document.getElementById('todoContent').style.display       = tab === 'todo'       ? '' : 'none';
@@ -12,24 +18,76 @@ function switchTab(tab) {
   document.getElementById('placardContent').style.display    = tab === 'placard'    ? '' : 'none';
   document.getElementById('financeContent').style.display    = tab === 'finance'    ? '' : 'none';
   document.getElementById('meetingContent').style.display    = tab === 'meeting'    ? '' : 'none';
-  document.getElementById('ptab_todo').classList.toggle('active',       tab === 'todo');
-  document.getElementById('ptab_main').classList.toggle('active',       tab === 'main');
-  document.getElementById('ptab_member').classList.toggle('active',     tab === 'member');
-  document.getElementById('ptab_dm').classList.toggle('active',         tab === 'dm');
-  document.getElementById('ptab_signin').classList.toggle('active',     tab === 'signin');
-  document.getElementById('ptab_guesttrack').classList.toggle('active', tab === 'guesttrack');
-  document.getElementById('ptab_placard').classList.toggle('active',    tab === 'placard');
-  document.getElementById('ptab_finance').classList.toggle('active',    tab === 'finance');
-  document.getElementById('ptab_meeting').classList.toggle('active',    tab === 'meeting');
-  if (tab === 'todo')       { document.getElementById('headerTitle').textContent = '待辦事項'; renderTodo(); }
-  if (tab === 'main')       { document.getElementById('headerTitle').textContent = '秘書財務小組'; renderMain(); }
-  if (tab === 'member')     { document.getElementById('headerTitle').textContent = '會員資料'; renderMembers(); }
-  if (tab === 'dm')         { document.getElementById('headerTitle').textContent = '會員DM'; renderDM(); }
-  if (tab === 'signin')     { document.getElementById('headerTitle').textContent = '出席簽到'; renderSignin(); }
-  if (tab === 'guesttrack') { document.getElementById('headerTitle').textContent = '來賓追蹤'; renderGuestTrack(); }
-  if (tab === 'placard')    { document.getElementById('headerTitle').textContent = '桌牌製作'; renderPlacard(); }
-  if (tab === 'finance')    { document.getElementById('headerTitle').textContent = '財務控管'; renderFinance(); }
-  if (tab === 'meeting')    { document.getElementById('headerTitle').textContent = '例會流程'; renderMeeting(); }
+  _updateMenuActive(tab);
+  const label = TAB_LABELS[tab] || '';
+  const ml = document.getElementById('menuLabel');
+  if (ml) ml.textContent = label;
+  if (tab === 'todo')       renderTodo();
+  if (tab === 'main')       renderMain();
+  if (tab === 'member')     renderMembers();
+  if (tab === 'dm')         renderDM();
+  if (tab === 'signin')     renderSignin();
+  if (tab === 'guesttrack') renderGuestTrack();
+  if (tab === 'placard')    renderPlacard();
+  if (tab === 'finance')    renderFinance();
+  if (tab === 'meeting')    renderMeeting();
+}
+
+function _updateMenuActive(tab) {
+  document.querySelectorAll('.menu-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+}
+
+function _renderMenuDropdown(allowedIds, isAdmin) {
+  const dd = document.getElementById('menuDropdown');
+  if (!dd) return;
+  const groups = {};
+  TAB_LIST.forEach(t => {
+    if (!allowedIds.includes(t.id)) return;
+    (groups[t.group] = groups[t.group] || []).push(t);
+  });
+  const groupHtml = MENU_GROUP_ORDER.filter(g => groups[g]).map(g =>
+    `<div class="menu-group-title">${g}</div>` +
+    groups[g].map(t => `<button class="menu-item" data-tab="${t.id}" onclick="_pickTab('${t.id}')">${t.label}</button>`).join('')
+  ).join('');
+  const settingsItem = isAdmin
+    ? `<button class="menu-item menu-settings" data-tab="settings" onclick="_pickTab('settings')">系統設定</button>`
+    : '';
+  const logoutItem = `<button class="menu-item menu-settings" onclick="closeMenu();doLogout();">登出休息</button>`;
+  dd.innerHTML = groupHtml + `<div class="menu-divider"></div>` + settingsItem + logoutItem;
+  _updateMenuActive(_activeTab);
+}
+
+function toggleMenu(ev) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  const dd = document.getElementById('menuDropdown');
+  const ov = document.getElementById('menuOverlay');
+  if (!dd || !ov) { console.warn('[menu] dropdown or overlay not found'); return; }
+  const open = dd.classList.contains('show');
+  if (open) closeMenu();
+  else { dd.classList.add('show'); ov.classList.add('show'); }
+}
+function closeMenu() {
+  const dd = document.getElementById('menuDropdown');
+  const ov = document.getElementById('menuOverlay');
+  if (dd) dd.classList.remove('show');
+  if (ov) ov.classList.remove('show');
+}
+// 額外綁 click event（保險：onclick attribute 若被某些情境清掉，這條依然生效）
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('menuBtn');
+  if (btn) btn.addEventListener('click', toggleMenu);
+});
+// DOMContentLoaded 已過時的情況也補綁
+if (document.readyState !== 'loading') {
+  const btn = document.getElementById('menuBtn');
+  if (btn) btn.addEventListener('click', toggleMenu);
+}
+function _pickTab(tab) {
+  closeMenu();
+  if (tab === 'settings') openSettings();
+  else switchTab(tab);
 }
 
 // ===== TODO =====

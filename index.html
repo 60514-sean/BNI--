@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<link rel="stylesheet" href="styles/base.css?v=20260504b">
+<link rel="stylesheet" href="styles/base.css?v=20260504g">
 </head>
 <body>
 
@@ -35,25 +35,19 @@
 <div class="app" id="appPage">
   <div class="header">
     <div class="header-left">
-      <h2 id="headerTitle">秘書財務小組</h2>
+      <button class="menu-btn" id="menuBtn" type="button" style="display:none">
+        <span class="menu-icon">&#9776;</span>
+        <span class="menu-label" id="menuLabel">工事清單</span>
+        <span class="menu-arrow">&#9662;</span>
+      </button>
+      <h2 id="headerTitle" style="display:none">秘書財務小組</h2>
     </div>
     <div class="header-right">
       <span class="user-chip" id="userChip"></span>
-      <button class="hbtn" id="settingsBtn" style="display:none" onclick="openSettings()">設定</button>
-      <button class="hbtn" onclick="doLogout()">登出</button>
     </div>
   </div>
-  <div class="page-tabs" id="pageTabs" style="display:none">
-    <button class="ptab" id="ptab_todo" onclick="switchTab('todo')">待辦<br>事項</button>
-    <button class="ptab active" id="ptab_main" onclick="switchTab('main')">工事<br>清單</button>
-    <button class="ptab" id="ptab_member" onclick="switchTab('member')">會員<br>資料</button>
-    <button class="ptab" id="ptab_dm" onclick="switchTab('dm')">會員<br>DM</button>
-    <button class="ptab" id="ptab_signin" onclick="switchTab('signin')">出席<br>簽到</button>
-    <button class="ptab" id="ptab_guesttrack" onclick="switchTab('guesttrack')">來賓<br>追蹤</button>
-    <button class="ptab" id="ptab_placard" onclick="switchTab('placard')">桌牌<br>製作</button>
-    <button class="ptab" id="ptab_finance" onclick="switchTab('finance')">財務<br>控管</button>
-    <button class="ptab" id="ptab_meeting" onclick="switchTab('meeting')">例會<br>流程</button>
-  </div>
+  <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
+  <div class="menu-dropdown" id="menuDropdown"></div>
   <div class="content" id="todoContent" style="display:none"></div>
   <div class="content" id="mainContent"></div>
   <div class="content" id="memberContent" style="display:none"></div>
@@ -68,11 +62,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="src/core.js?v=20260502b"></script>
-<script src="src/auth.js?v=20260502b"></script>
+<script src="src/core.js?v=20260504e"></script>
+<script src="src/auth.js?v=20260504e"></script>
 <script src="src/main.js?v=20260502b"></script>
-<script src="src/settings.js?v=20260504c"></script>
-<script src="src/tabs-todo.js?v=20260502b"></script>
+<script src="src/settings.js?v=20260504e"></script>
+<script src="src/tabs-todo.js?v=20260504g"></script>
 <script src="src/member.js?v=20260502b"></script>
 <script src="src/dm.js?v=20260502b"></script>
 <script src="src/signin.js?v=20260502b"></script>

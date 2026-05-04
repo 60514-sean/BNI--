@@ -126,16 +126,17 @@ const DEFAULT_USERS = ['康康', '麥莉', '報到組員', '簡報顧問'];
 const DEFAULT_ADMIN = '康康';
 const GUEST_ROLES = ['EDM手', '來賓組', '主席', '副主席', '報到組'];
 const TAB_LIST = [
-  { id: 'todo',       label: '待辦事項' },
-  { id: 'main',       label: '工事清單' },
-  { id: 'member',     label: '會員資料' },
-  { id: 'dm',         label: '會員DM' },
-  { id: 'signin',     label: '出席簽到' },
-  { id: 'guesttrack', label: '來賓追蹤' },
-  { id: 'placard',    label: '桌牌製作' },
-  { id: 'finance',    label: '財務控管' },
-  { id: 'meeting',    label: '例會流程' }
+  { id: 'todo',       label: '待辦事項', group: '日常作業' },
+  { id: 'main',       label: '工事清單', group: '日常作業' },
+  { id: 'member',     label: '會員資料', group: '會員資料' },
+  { id: 'dm',         label: '會員DM',   group: '會員資料' },
+  { id: 'signin',     label: '出席簽到', group: '來賓管理' },
+  { id: 'guesttrack', label: '來賓追蹤', group: '來賓管理' },
+  { id: 'placard',    label: '桌牌製作', group: '來賓管理' },
+  { id: 'finance',    label: '財務控管', group: '財務／例會' },
+  { id: 'meeting',    label: '例會流程', group: '財務／例會' }
 ];
+const MENU_GROUP_ORDER = ['日常作業','來賓管理','會員資料','財務／例會'];
 
 function _normalizeUser(u) {
   if (typeof u === 'string') return { names: [u], role: '', allowedTabs: [], editableTabs: [] };
