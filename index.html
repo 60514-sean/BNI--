@@ -2604,7 +2604,7 @@ async function renderMembers() {
       <div style="border-top:1px solid var(--gray-border);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fafbfc;flex-wrap:wrap;">
         <span style="font-size:12px;color:var(--text-soft);">${m.renewDate?'到期：'+_escH(m.renewDate):''}</span>
         <div style="display:flex;align-items:center;gap:6px;">
-          ${m.renewDays?`<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:${daysBg};color:${daysColor};">${_escH(m.renewDays)}天</span>`:''}
+          ${m.renewDays && m.renewStatus!=='TRUE'?`<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:${daysBg};color:${daysColor};">${_escH(m.renewDays)}天</span>`:''}
           ${m.renewStatus==='TRUE'?`<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:#eaf7ee;color:#27ae60;">已續約</span>`:`<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:#fdecea;color:#c0392b;">未續約</span>`}
         </div>
       </div>
