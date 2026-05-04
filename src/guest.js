@@ -319,7 +319,7 @@ function _guestCardHtml(g) {
         <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">
           ${g.inviter ? `邀約：<b style="color:var(--text);">${_escH(g.inviter)}</b>` : ''}
           ${g.closer ? `　締結：<b style="color:var(--text);">${_escH(g.closer)}</b>` : ''}
-          ${g.phone ? `　<a href="tel:${_escH(g.phone)}" style="color:var(--red);text-decoration:none;">${_escH(g.phone)}</a>` : ''}
+          ${g.phone ? `<span class="g-phone"><a href="tel:${_escH(g.phone)}" style="color:var(--red);text-decoration:none;">${_escH(g.phone)}</a></span>` : ''}
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0;">

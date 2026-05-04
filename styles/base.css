@@ -486,6 +486,12 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 }
 .member-edit-btn:hover { border-color: var(--red); color: var(--red); }
 
+/* 來賓追蹤 — 電話：電腦版同行，手機版換行 */
+.g-phone { margin-left: 1em; }
+@media(max-width: 640px) {
+  .g-phone { display: block; margin-left: 0; margin-top: 2px; }
+}
+
 /* INDUSTRY GROUP LIST */
 .industry-section { margin-bottom: 18px; }
 .industry-tag-wrap { margin-bottom: 0; }
