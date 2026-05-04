@@ -83,26 +83,10 @@ function _pickTab(tab) {
 }
 
 // ===== TODO =====
-let _todoMigrated = false;
-function _getTodos() {
-  // 一次性把舊版單機 localStorage('bni_todos') 遷移到當前使用者的雲端 todos
-  if (CU && !_todoMigrated && !cache[`__todos_${CU}__`]) {
-    _todoMigrated = true;
-    try {
-      const oldRaw = localStorage.getItem('bni_todos');
-      if (oldRaw) {
-        const old = JSON.parse(oldRaw);
-        if (Array.isArray(old) && old.length) {
-          cache[`__todos_${CU}__`] = old;
-          saveMyTodos(old);
-        }
-        localStorage.removeItem('bni_todos');
-      }
-    } catch {}
-  }
-  return getMyTodos();
-}
+function _getTodos() { return getMyTodos(); }
 function _saveTodos(list) { saveMyTodos(list); }
+// 啟動時清掉舊版單機 localStorage（避免跨使用者污染）
+try { localStorage.removeItem('bni_todos'); } catch {}
 
 function _getMyMessage() {
   if (!CU) return '';
