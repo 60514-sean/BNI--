@@ -645,6 +645,8 @@ function _meetRenderPreview() {
   const meetingType = _meetState.meetingType || '正式例會';
   const titleHtml = `${_meetState.dateStr||''} ${_meetState.title||''}第 ${_meetState.seqNum||'00'} 次${meetingType}流程表`;
   const actual = _meetState.actualDefault || '';
+  const topicType = (getConfig().meetingStaff || {})['主題類型'] || '主題簡報';
+  const displayTopic = (topic) => (topic === '主題簡報' && topicType === '主題日') ? '主題日' : topic;
   const rows = _meetState.items.map((it, idx) => {
     const t = times[idx];
     const titleCls = it.titleHighlight ? 'is-title' : '';
@@ -655,7 +657,7 @@ function _meetRenderPreview() {
     return `
       <tr class="${titleCls}${serialRowCls}">
         ${noTd}
-        <td class="col-topic">${_escH(it.topic||'').replace(/\n/g,'<br>')}</td>
+        <td class="col-topic">${_escH(displayTopic(it.topic||'')).replace(/\n/g,'<br>')}</td>
         <td class="col-presenter">${_escH(_resolveMeetingPresenter(it.presenter||'')).replace(/\n/g,'<br>')}</td>
         <td class="col-dur">${_meetFmtDur(it.minutes)}</td>
         <td class="col-st">${t.start}</td>
