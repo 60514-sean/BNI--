@@ -65,6 +65,85 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .hbtn:hover { background: rgba(255,255,255,0.28); }
 .content { padding: 18px; max-width: 900px; margin: 0 auto; width: 100%; }
 
+/* 設定頁 — 使用者列 */
+.user-row {
+  padding: 14px;
+  border: 1.5px solid var(--gray-border);
+  border-radius: 12px; margin-bottom: 12px;
+  background: white;
+  box-sizing: border-box;
+}
+.user-row-head {
+  display: flex; gap: 8px; align-items: stretch;
+  margin-bottom: 12px;
+}
+.user-row-name {
+  flex: 1; min-width: 0;
+  padding: 10px 14px;
+  border: 1.5px solid var(--gray-border); border-radius: 9px;
+  font-size: 15px; font-weight: 700; font-family: inherit;
+  outline: none; box-sizing: border-box; color: var(--text);
+}
+.user-row-name:focus { border-color: var(--red); }
+.user-row-name::placeholder { color: #c8c8c8; font-weight: 500; }
+.user-row-del {
+  flex-shrink: 0; padding: 0 14px; font-size: 12px;
+  border-radius: 9px;
+}
+.user-row-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+@media(max-width: 480px) {
+  .user-row-grid { grid-template-columns: 1fr; }
+}
+.user-row-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.user-row-lbl { font-size: 11px; color: var(--text-soft); font-weight: 600; }
+.user-row-select {
+  width: 100%; padding: 9px 12px;
+  border: 1.5px solid var(--gray-border); border-radius: 8px;
+  font-size: 14px; font-family: inherit; outline: none;
+  box-sizing: border-box; background: white;
+  cursor: pointer;
+}
+.user-row-select:focus { border-color: var(--red); }
+
+/* 多選下拉（可見頁面） */
+.msel-wrap { position: relative; min-width: 0; }
+.msel-btn {
+  width: 100%;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 9px 12px;
+  border: 1.5px solid var(--gray-border); border-radius: 8px;
+  background: white; cursor: pointer;
+  font-size: 13px; font-family: inherit; color: var(--text);
+  box-sizing: border-box; text-align: left;
+  transition: border-color 0.15s;
+}
+.msel-btn:hover { border-color: var(--red); }
+.msel-btn > span:first-child {
+  flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.msel-arrow { font-size: 10px; color: var(--text-soft); flex-shrink: 0; }
+.msel-panel {
+  display: none; position: absolute;
+  top: calc(100% + 4px); left: 0; right: 0;
+  background: white;
+  border: 1.5px solid var(--gray-border); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  padding: 6px; max-height: 280px; overflow-y: auto;
+  z-index: 50;
+}
+.msel-panel.open { display: block; }
+.msel-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px; border-radius: 6px;
+  cursor: pointer; font-size: 14px;
+  user-select: none;
+}
+.msel-item:hover { background: var(--gray-light); }
+.msel-item input { cursor: pointer; accent-color: var(--red); }
+
 /* TODO 待辦事項頁面 */
 .todo-wrap { display: flex; flex-direction: column; gap: 14px; }
 

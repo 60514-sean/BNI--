@@ -66,16 +66,14 @@ function _renderMeetingStaffBlock() {
 
 function _captureUserInputsToCfg() {
   cfgUsers = cfgUsers.map((u, i) => {
-    const oldNames = (u.names && u.names.length) ? u.names : [''];
-    const names = oldNames.map((n, j) => {
-      const inp = document.getElementById(`usr_${i}_${j}`);
-      return inp ? inp.value.trim() : n;
-    });
+    const inp = document.getElementById(`usr_${i}_0`);
+    const name = inp ? inp.value.trim() : (u.names?.[0] || '');
+    const allowed = u.allowedTabs || [];
     return {
-      names,
+      names: [name],
       role: u.role || '',
-      allowedTabs: u.allowedTabs || [],
-      editableTabs: u.editableTabs || []
+      allowedTabs: allowed,
+      editableTabs: [...allowed]  // 簡化：可見即可編輯
     };
   });
 }
@@ -86,45 +84,35 @@ function _setUserRole(i, role) {
   u.role = role || '';
 }
 
-function _addUserName(i) {
-  _captureUserInputsToCfg();
-  const u = cfgUsers[i];
-  if (!u) return;
-  u.names = u.names || [];
-  u.names.push('');
-  _refreshUserRow(i);
-}
-
-function _removeUserName(i, j) {
-  _captureUserInputsToCfg();
-  const u = cfgUsers[i];
-  if (!u || !u.names) return;
-  u.names.splice(j, 1);
-  if (u.names.length === 0) u.names.push('');
-  _refreshUserRow(i);
-}
-
 function _toggleUserTab(i, tabId, checked) {
   const u = cfgUsers[i];
   if (!u) return;
   u.allowedTabs = u.allowedTabs || [];
-  u.editableTabs = u.editableTabs || [];
   if (checked) {
     if (!u.allowedTabs.includes(tabId)) u.allowedTabs.push(tabId);
-    if (!u.editableTabs.includes(tabId)) u.editableTabs.push(tabId); // 預設可編輯
   } else {
     u.allowedTabs = u.allowedTabs.filter(t => t !== tabId);
-    u.editableTabs = u.editableTabs.filter(t => t !== tabId);
   }
+  u.editableTabs = [...u.allowedTabs]; // 簡化：可見即可編輯
+  // 只更新 msel 按鈕文字，不重渲整行（保留 panel 開啟狀態）
+  const labels = TAB_LIST.filter(t => u.allowedTabs.includes(t.id)).map(t => t.label);
+  const text = labels.length
+    ? `已選 ${labels.length} 個（${labels.slice(0,3).join('、')}${labels.length>3?'…':''}）`
+    : '尚未選擇任何頁面';
+  const btnSpan = document.querySelector(`#ur_${i} .msel-btn > span:first-child`);
+  if (btnSpan) btnSpan.textContent = text;
 }
 
-function _toggleUserTabEdit(i, tabId, checked) {
-  const u = cfgUsers[i];
-  if (!u) return;
-  u.editableTabs = u.editableTabs || [];
-  if (checked && !u.editableTabs.includes(tabId)) u.editableTabs.push(tabId);
-  if (!checked) u.editableTabs = u.editableTabs.filter(t => t !== tabId);
+function _mselToggle(panelId) {
+  const panels = document.querySelectorAll('.msel-panel.open');
+  panels.forEach(p => { if (p.id !== panelId) p.classList.remove('open'); });
+  document.getElementById(panelId)?.classList.toggle('open');
 }
+// 點外面關閉
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.msel-wrap')) return;
+  document.querySelectorAll('.msel-panel.open').forEach(p => p.classList.remove('open'));
+});
 
 function showSettings() {
   const ml = document.getElementById('menuLabel'); if (ml) ml.textContent = '系統設定';
@@ -251,45 +239,41 @@ function toggleAcc(id) {
 
 // 設定頁：產出單一使用者列的 HTML（供首次渲染與局部更新共用）
 function _renderUserRowHtml(u, i) {
-  const namesArr = (u.names && u.names.length) ? u.names : [''];
-  const namesHtml = namesArr.map((n, j) => `
-      <div style="display:flex;gap:6px;align-items:stretch;margin-bottom:6px;min-width:0;">
-        <input type="text" value="${_escH(n)}" id="usr_${i}_${j}" placeholder="例如：康康" style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
-        <button class="btn-danger" onclick="_removeUserName(${i}, ${j})" style="flex-shrink:0;padding:0 14px;font-size:18px;line-height:1;" title="移除此登入名稱">−</button>
-      </div>`).join('');
+  const name = (u.names && u.names[0]) || '';
   const roleOpts = `<option value="">— 未指定 —</option>` +
     GUEST_ROLES.map(r => `<option value="${r}"${u.role === r ? ' selected' : ''}>${r}</option>`).join('');
-  const tabsHtml = TAB_LIST.map(t => {
-    const visible  = (u.allowedTabs||[]).includes(t.id);
-    const editable = (u.editableTabs||[]).includes(t.id);
-    const wrapStyle = `display:inline-flex;align-items:stretch;border:1.5px solid ${visible?'#10b981':'var(--gray-border)'};border-radius:999px;overflow:hidden;font-size:12px;background:${visible?'#d1fae5':'transparent'};`;
-    const nameStyle = `display:inline-flex;align-items:center;gap:4px;padding:3px 8px;cursor:pointer;color:${visible?'#065f46':'var(--text-soft)'};`;
-    const onStyle  = `display:inline-flex;align-items:center;padding:3px 7px;cursor:pointer;border-left:1px solid ${editable?'#059669':'#a7f3d0'};background:${editable?'#10b981':'#fff'};color:${editable?'#fff':'#9ca3af'};font-weight:700;font-size:10px;letter-spacing:0.5px;`;
-    const onLabel  = editable ? 'ON' : 'OFF';
-    const onTitle  = editable ? '可編輯（點擊改為唯讀）' : '唯讀（點擊改為可編輯）';
-    return `
-        <div style="${wrapStyle}" title="${visible ? (editable ? '可看 + 可編輯' : '可看 + 唯讀') : '不可見'}">
-          <label style="${nameStyle}">
-            <input type="checkbox" ${visible?'checked':''} onchange="_toggleUserTab(${i}, '${t.id}', this.checked); _refreshUserRow(${i});" style="margin:0;cursor:pointer;">
-            ${t.label}
-          </label>
-          ${visible ? `<span style="${onStyle}" title="${onTitle}" onclick="_toggleUserTabEdit(${i}, '${t.id}', ${!editable}); _refreshUserRow(${i});">${onLabel}</span>` : ''}
-        </div>`;
-  }).join('');
+  const allowed = u.allowedTabs || [];
+  const visTabsLabels = TAB_LIST.filter(t => allowed.includes(t.id)).map(t => t.label);
+  const visBtnText = visTabsLabels.length
+    ? `已選 ${visTabsLabels.length} 個（${visTabsLabels.slice(0,3).join('、')}${visTabsLabels.length>3?'…':''}）`
+    : '尚未選擇任何頁面';
+  const visItems = TAB_LIST.map(t => `
+        <label class="msel-item">
+          <input type="checkbox" ${allowed.includes(t.id)?'checked':''} onchange="_toggleUserTab(${i},'${t.id}',this.checked)">
+          <span>${t.label}</span>
+        </label>`).join('');
   return `
-      <div class="user-row" id="ur_${i}" style="padding:12px;border:1.5px solid var(--red);border-radius:10px;margin-bottom:10px;box-sizing:border-box;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px;">
-          <div style="font-size:11px;color:var(--text-soft);font-weight:600;">角色</div>
-          <button class="btn-danger" onclick="removeUser(${i})" style="flex-shrink:0;font-size:11px;padding:4px 10px;">刪除整組</button>
+      <div class="user-row" id="ur_${i}">
+        <div class="user-row-head">
+          <input type="text" value="${_escH(name)}" id="usr_${i}_0" placeholder="登入名稱" class="user-row-name">
+          <button class="btn-danger user-row-del" onclick="removeUser(${i})">刪除</button>
         </div>
-        <select onchange="_setUserRole(${i}, this.value)" style="width:100%;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;margin-bottom:10px;background:white;">
-          ${roleOpts}
-        </select>
-        <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">登入名稱（可多個）</div>
-        ${namesHtml}
-        <button class="add-btn" onclick="_addUserName(${i})" style="margin-top:0;margin-bottom:10px;font-size:12px;padding:6px 10px;">+ 新增登入名稱</button>
-        <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">可見頁籤</div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap;">${tabsHtml}</div>
+        <div class="user-row-grid">
+          <div class="user-row-field">
+            <label class="user-row-lbl">角色</label>
+            <select class="user-row-select" onchange="_setUserRole(${i}, this.value)">${roleOpts}</select>
+          </div>
+          <div class="user-row-field">
+            <label class="user-row-lbl">可見頁面</label>
+            <div class="msel-wrap">
+              <button type="button" class="msel-btn" onclick="_mselToggle('vis_${i}_panel')">
+                <span>${visBtnText}</span>
+                <span class="msel-arrow">&#9662;</span>
+              </button>
+              <div class="msel-panel" id="vis_${i}_panel">${visItems}</div>
+            </div>
+          </div>
+        </div>
       </div>`;
 }
 
