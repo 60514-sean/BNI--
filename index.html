@@ -1747,19 +1747,19 @@ function renderFlatTasks(tasks, prog, notes) {
     const canEdit = _canEditTask(t);
     html += `<div style="border-top:1px solid #f5f5f5;" id="tc_${gi}">
       <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 18px;">
-        <input type="checkbox" class="task-cb" ${isDone?'checked':''} ${canEdit?'':'disabled'} onchange="toggleTask(${JSON.stringify(gi)},this)" style="margin-top:3px;">
+        <input type="checkbox" class="task-cb" ${isDone?'checked':''} ${canEdit?'':'disabled'} onchange="toggleTask('${gi}',this)" style="margin-top:3px;">
         <div style="flex:1;">
           <div style="font-size:14px;font-weight:500;line-height:1.5;color:${isDone?'#bbb':'var(--text)'};${isDone?'text-decoration:line-through;':''}" id="ttl_${gi}">${t.task}</div>
           <div style="display:flex;gap:6px;margin-top:3px;">
             <span class="tag tag-freq">${t.freq}</span>
           </div>
         </div>
-        <button class="task-expand-btn${note?' has-note':''}" id="eb_${gi}" onclick="toggleExpand(${JSON.stringify(gi)})">▾</button>
+        <button class="task-expand-btn${note?' has-note':''}" id="eb_${gi}" onclick="toggleExpand('${gi}')">▾</button>
       </div>
       <div class="task-detail" id="det_${gi}" style="padding:0 18px 12px 48px;">
         <div class="task-note-label">備註</div>
         ${canEdit
-          ? `<textarea class="task-note" placeholder="新增備註..." oninput="saveNote(${JSON.stringify(gi)},this.value);document.getElementById('eb_${gi}').classList.toggle('has-note',!!this.value);">${note}</textarea>`
+          ? `<textarea class="task-note" placeholder="新增備註..." oninput="saveNote('${gi}',this.value);document.getElementById('eb_${gi}').classList.toggle('has-note',!!this.value);">${note}</textarea>`
           : (note
               ? `<div style="font-size:13px;color:var(--text-soft);padding:8px 12px;background:var(--gray-light);border-radius:8px;border-left:3px solid var(--gray-border);">${note}</div>`
               : `<div style="font-size:13px;color:#ccc;">無備註</div>`)}
@@ -1790,19 +1790,19 @@ function renderCatGroups(tasks, prog, notes, dayKey) {
       const canEdit = _canEditTask(t);
       html += `<div style="border-top:1px solid #f5f5f5;" id="tc_${gi}">
         <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 18px;">
-          <input type="checkbox" class="task-cb" ${isDone?'checked':''} ${canEdit?'':'disabled'} onchange="toggleTask(${JSON.stringify(gi)},this)" style="margin-top:3px;">
+          <input type="checkbox" class="task-cb" ${isDone?'checked':''} ${canEdit?'':'disabled'} onchange="toggleTask('${gi}',this)" style="margin-top:3px;">
           <div style="flex:1;">
             <div style="font-size:14px;font-weight:500;line-height:1.5;color:${isDone?'#bbb':'var(--text)'};${isDone?'text-decoration:line-through;':''}" id="ttl_${gi}">${t.task}</div>
             <div style="display:flex;gap:6px;margin-top:3px;">
               <span class="tag tag-freq">${t.freq}</span>
             </div>
           </div>
-          <button class="task-expand-btn${note?' has-note':''}" id="eb_${gi}" onclick="toggleExpand(${JSON.stringify(gi)})">▾</button>
+          <button class="task-expand-btn${note?' has-note':''}" id="eb_${gi}" onclick="toggleExpand('${gi}')">▾</button>
         </div>
         <div class="task-detail" id="det_${gi}" style="padding:0 18px 12px 48px;">
           <div class="task-note-label">備註</div>
           ${canEdit
-            ? `<textarea class="task-note" placeholder="新增備註..." oninput="saveNote(${JSON.stringify(gi)},this.value);document.getElementById('eb_${gi}').classList.toggle('has-note',!!this.value);">${note}</textarea>`
+            ? `<textarea class="task-note" placeholder="新增備註..." oninput="saveNote('${gi}',this.value);document.getElementById('eb_${gi}').classList.toggle('has-note',!!this.value);">${note}</textarea>`
             : (note
                 ? `<div style="font-size:13px;color:var(--text-soft);padding:8px 12px;background:var(--gray-light);border-radius:8px;border-left:3px solid var(--gray-border);">${note}</div>`
                 : `<div style="font-size:13px;color:#ccc;">無備註</div>`)}
