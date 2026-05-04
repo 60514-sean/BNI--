@@ -43,6 +43,9 @@ async function doLogin() {
   document.getElementById('userChip').style.display = 'none'; // 依需求隱藏使用者名稱標記
   document.getElementById('menuBtn').style.display = 'flex';
 
+  // 啟動編輯鎖 observer（依 _canEditTab 自動鎖定 OFF 頁面的輸入欄位）
+  _startEditLockObserver();
+
   // 套用頁籤權限：admin 看全部；一般使用者依 allowedTabs 限制
   const allowed = isAdmin ? TAB_LIST.map(t => t.id) : _visibleTabsForUser(userObj);
   _renderMenuDropdown(allowed, isAdmin);

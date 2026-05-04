@@ -291,6 +291,63 @@ function _canEditTab(tabId) {
   return (userObj.editableTabs || []).includes(tabId);
 }
 
+// ===== 編輯鎖（OFF 狀態下：輸入欄位鎖定，按鈕仍可點）=====
+function _applyEditLock(tabId) {
+  if (!tabId || tabId === 'settings') return;
+  if (CR === 'admin') return; // admin 不限制
+  const canEdit = _canEditTab(tabId);
+  // 取對應 content 容器
+  const map = {
+    todo:'todoContent', main:'mainContent', member:'memberContent',
+    dm:'dmContent', signin:'signinContent', guesttrack:'guestTrackContent',
+    placard:'placardContent', finance:'financeContent', meeting:'meetingContent'
+  };
+  const targets = [];
+  if (map[tabId]) {
+    const el = document.getElementById(map[tabId]);
+    if (el) targets.push(el);
+  }
+  // Modal 內容也要一併鎖定
+  document.querySelectorAll('.modal-overlay, .modal-box, .detail-modal').forEach(m => targets.push(m));
+  targets.forEach(container => {
+    container.querySelectorAll('input, textarea, select').forEach(el => {
+      if (canEdit) {
+        el.removeAttribute('readonly');
+        if (el.dataset.lockedBy === '1') {
+          el.disabled = false;
+          el.removeAttribute('data-locked-by');
+        }
+        el.classList.remove('is-locked');
+      } else {
+        const tag = el.tagName, type = (el.type || '').toLowerCase();
+        if (tag === 'SELECT' || ['checkbox','radio','file'].includes(type)) {
+          if (!el.disabled) { el.disabled = true; el.dataset.lockedBy = '1'; }
+        } else {
+          el.setAttribute('readonly', 'readonly');
+        }
+        el.classList.add('is-locked');
+      }
+    });
+  });
+}
+
+// 監視 DOM 變動，動態套用編輯鎖
+let _editLockObserver = null;
+let _editLockTimer = null;
+function _startEditLockObserver() {
+  if (_editLockObserver) return;
+  const target = document.getElementById('appPage') || document.body;
+  _editLockObserver = new MutationObserver(() => {
+    if (_editLockTimer) return;
+    _editLockTimer = setTimeout(() => {
+      _editLockTimer = null;
+      _applyEditLock(_activeTab);
+    }, 80);
+  });
+  _editLockObserver.observe(target, { childList: true, subtree: true });
+  _applyEditLock(_activeTab);
+}
+
 // 角色「報到組」進入後 finance 頁籤一律可見（即使 admin 沒勾，也能看到）
 function _visibleTabsForUser(userObj) {
   const set = new Set((userObj && userObj.allowedTabs) || []);

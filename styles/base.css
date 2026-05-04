@@ -164,6 +164,18 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   border-color: #047857; background: #059669;
 }
 
+/* 編輯鎖（OFF）視覺樣式 */
+input.is-locked, textarea.is-locked, select.is-locked {
+  background-color: #f8f9fa !important;
+  color: #6b7280 !important;
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+input.is-locked:focus, textarea.is-locked:focus {
+  border-color: var(--gray-border) !important;
+  box-shadow: none !important;
+}
+
 /* 個人留言板（引言式 — 無底框）*/
 .todo-message {
   position: relative;
