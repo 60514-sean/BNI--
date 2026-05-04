@@ -216,10 +216,6 @@ function showSettings() {
       </div>
       <div class="acc-body" id="accMsg" style="display:none;">
         <p class="hint" style="margin-bottom:12px;">為每位使用者設定登入後在「待辦事項」最上方看到的留言。空白＝不顯示。</p>
-        <div class="msg-row">
-          <label class="msg-label">${_escH(cfg.adminPassword)}（管理員）</label>
-          <textarea id="msg_admin" rows="2" placeholder="留言給管理員…" class="msg-textarea">${_escH((cfg.messages||{})[cfg.adminPassword] || '')}</textarea>
-        </div>
         ${cfgUsers.map((u, i) => {
           const name = (u.names && u.names[0]) || '';
           if (!name) return '';
@@ -498,10 +494,8 @@ async function saveSettings() {
   const users = cfgUsers
     .map(u => ({ ...u, names: (u.names || []).map(n => (n || '').trim()).filter(n => n) }))
     .filter(u => u.names.length);
-  // 收集留言
+  // 收集留言（管理員無留言；只給一般使用者）
   const messages = {};
-  const adminMsgEl = document.getElementById('msg_admin');
-  if (adminMsgEl && adminMsgEl.value.trim()) messages[adminPw] = adminMsgEl.value.trim();
   users.forEach((u, i) => {
     const el = document.getElementById(`msg_${i}`);
     if (el && el.value.trim()) messages[u.names[0]] = el.value.trim();

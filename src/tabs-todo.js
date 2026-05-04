@@ -106,6 +106,7 @@ function _saveTodos(list) { saveMyTodos(list); }
 
 function _getMyMessage() {
   if (!CU) return '';
+  if (CR === 'admin') return ''; // 管理員不顯示留言
   return (getConfig().messages || {})[CU] || '';
 }
 
