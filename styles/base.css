@@ -164,6 +164,46 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   border-color: #047857; background: #059669;
 }
 
+/* 個人留言板（待辦頁顯示）*/
+.todo-message {
+  background: linear-gradient(135deg, #fff5f4 0%, #fef2f2 100%);
+  border-left: 4px solid var(--red);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  display: flex; gap: 12px;
+  align-items: flex-start;
+  box-shadow: 0 4px 12px rgba(192,57,43,0.08);
+}
+.todo-message-icon {
+  flex-shrink: 0; color: var(--red); padding-top: 2px;
+}
+.todo-message-body { flex: 1; min-width: 0; }
+.todo-message-title {
+  font-size: 11px; font-weight: 900;
+  color: var(--red); letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+.todo-message-text {
+  font-size: 14px; line-height: 1.65; color: var(--text);
+  white-space: pre-wrap; word-break: break-word;
+}
+
+/* 設定頁 - 留言板 textarea */
+.msg-row { margin-bottom: 14px; }
+.msg-label {
+  display: block; font-size: 13px; font-weight: 700;
+  color: var(--text); margin-bottom: 6px;
+}
+.msg-textarea {
+  width: 100%; padding: 10px 12px;
+  border: 1.5px solid var(--gray-border); border-radius: 8px;
+  font-size: 14px; font-family: inherit;
+  outline: none; box-sizing: border-box;
+  resize: vertical; min-height: 60px; line-height: 1.5;
+  color: var(--text); background: white;
+}
+.msg-textarea:focus { border-color: var(--red); }
+
 /* TODO 待辦事項頁面 */
 .todo-wrap { display: flex; flex-direction: column; gap: 14px; }
 

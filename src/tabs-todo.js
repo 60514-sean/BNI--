@@ -8,6 +8,8 @@ const TAB_LABELS = {
 };
 
 function switchTab(tab) {
+  // settings 不是一般 tab，由 openSettings 自行處理；避免 _bgRefresh 後重渲染把 settings 畫面隱藏
+  if (tab === 'settings') return;
   _activeTab = tab;
   document.getElementById('todoContent').style.display       = tab === 'todo'       ? '' : 'none';
   document.getElementById('mainContent').style.display       = tab === 'main'       ? '' : 'none';
@@ -102,12 +104,18 @@ function _getTodos() {
 }
 function _saveTodos(list) { saveMyTodos(list); }
 
+function _getMyMessage() {
+  if (!CU) return '';
+  return (getConfig().messages || {})[CU] || '';
+}
+
 function renderTodo() {
   const todos = _getTodos();
   const done  = todos.filter(t => t.done);
   const todo  = todos.filter(t => !t.done);
   const total = todos.length;
   const pct   = total ? Math.round(done.length / total * 100) : 0;
+  const myMsg = _getMyMessage();
 
   const itemHtml = (t) => `
     <div class="todo-row${t.done?' is-done':''}">
@@ -171,8 +179,22 @@ function renderTodo() {
       <div class="todo-empty-desc">新增第一項，開始今天的計畫</div>
     </div>` : '';
 
+  const messageHtml = myMsg ? `
+    <div class="todo-message">
+      <div class="todo-message-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+        </svg>
+      </div>
+      <div class="todo-message-body">
+        <div class="todo-message-title">來自負責人的訊息</div>
+        <div class="todo-message-text">${_escH(myMsg)}</div>
+      </div>
+    </div>` : '';
+
   document.getElementById('todoContent').innerHTML = `
     <div class="todo-wrap">
+      ${messageHtml}
       ${summaryHtml}
       <div class="todo-input-card">
         <input id="todoInput" type="text" placeholder="輸入待辦事項…" onkeydown="if(event.key==='Enter')addTodo()" autocomplete="off">

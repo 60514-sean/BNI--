@@ -177,7 +177,8 @@ function showSettings() {
   const dayPickerOpts = DAYS.map(d => `<option value="${d}">${d}</option>`).join('');
 
   // 記錄目前展開狀態
-  const accOpen = ['acc0','acc1','acc2'].map(id => { const el = document.getElementById(id); return el ? el.style.display !== 'none' : false; });
+  const ACC_IDS = ['acc0','acc1','accMsg','acc2'];
+  const accOpen = ACC_IDS.map(id => { const el = document.getElementById(id); return el ? el.style.display !== 'none' : false; });
   const ctDay   = document.getElementById('ctDayPicker')?.value || DAYS[0];
 
   document.getElementById('mainContent').innerHTML = `
@@ -206,6 +207,28 @@ function showSettings() {
         <p class="hint" style="margin-bottom:12px;">名稱即為登入密碼</p>
         <div id="usersContainer">${usersHtml}</div>
         <button class="add-btn" onclick="addUser()">+ 新增使用者</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="acc-header" onclick="toggleAcc('accMsg')">
+        <div class="card-title" style="margin:0;">個人留言板</div>
+        <span class="acc-arrow" id="accMsg-arrow">&#9654;</span>
+      </div>
+      <div class="acc-body" id="accMsg" style="display:none;">
+        <p class="hint" style="margin-bottom:12px;">為每位使用者設定登入後在「待辦事項」最上方看到的留言。空白＝不顯示。</p>
+        <div class="msg-row">
+          <label class="msg-label">${_escH(cfg.adminPassword)}（管理員）</label>
+          <textarea id="msg_admin" rows="2" placeholder="留言給管理員…" class="msg-textarea">${_escH((cfg.messages||{})[cfg.adminPassword] || '')}</textarea>
+        </div>
+        ${cfgUsers.map((u, i) => {
+          const name = (u.names && u.names[0]) || '';
+          if (!name) return '';
+          const msg = (cfg.messages||{})[name] || '';
+          return `<div class="msg-row">
+            <label class="msg-label">${_escH(name)}</label>
+            <textarea id="msg_${i}" rows="2" placeholder="留言給 ${_escH(name)}…" class="msg-textarea">${_escH(msg)}</textarea>
+          </div>`;
+        }).join('')}
       </div>
     </div>
     <div class="card">
@@ -253,7 +276,7 @@ function showSettings() {
       <button class="btn btn-secondary" onclick="exitSettings()">取消</button>
     </div>`;
   // 還原展開狀態
-  ['acc0','acc1','acc2'].forEach((id, i) => {
+  ACC_IDS.forEach((id, i) => {
     if (accOpen[i]) {
       document.getElementById(id).style.display = '';
       document.getElementById(id + '-arrow').classList.add('open');
@@ -475,7 +498,15 @@ async function saveSettings() {
   const users = cfgUsers
     .map(u => ({ ...u, names: (u.names || []).map(n => (n || '').trim()).filter(n => n) }))
     .filter(u => u.names.length);
-  await saveConfigData({ adminPassword: adminPw, users, tasks: cfgTasks, meetingStaff: cfgMeetingStaff });
+  // 收集留言
+  const messages = {};
+  const adminMsgEl = document.getElementById('msg_admin');
+  if (adminMsgEl && adminMsgEl.value.trim()) messages[adminPw] = adminMsgEl.value.trim();
+  users.forEach((u, i) => {
+    const el = document.getElementById(`msg_${i}`);
+    if (el && el.value.trim()) messages[u.names[0]] = el.value.trim();
+  });
+  await saveConfigData({ adminPassword: adminPw, users, tasks: cfgTasks, meetingStaff: cfgMeetingStaff, messages });
   await _bgRefresh();
   showToast('設定已儲存');
   setTimeout(() => exitSettings(), 600);
