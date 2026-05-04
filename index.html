@@ -1225,6 +1225,10 @@ const LS_KEY  = 'bni_weekly_v1';
 let cache = {};
 try { const s = localStorage.getItem(LS_KEY); if (s) cache = JSON.parse(s); } catch {}
 
+// 防 race condition：記錄最近 push 的 key，避免 _bgRefresh 拿回舊資料覆蓋剛勾選/編輯的修改
+const _recentSaves = new Map();
+const _SAVE_GRACE_MS = 8000;
+
 function _lsSave() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(cache)); } catch {}
 }
@@ -1237,7 +1241,18 @@ async function _bgRefresh() {
     .then(r => r.json())
     .then(j => {
       if (j && typeof j === 'object' && !j.error) {
-        Object.assign(cache, j);
+        const now = Date.now();
+        // 清理過期 _recentSaves
+        for (const [k, ts] of _recentSaves) {
+          if (now - ts >= _SAVE_GRACE_MS) _recentSaves.delete(k);
+        }
+        const pending = new Set(_saveQueue.keys());
+        // 不用 Object.assign 整批覆蓋；對每個 key 逐一檢查是否該保留本地版本
+        for (const k of Object.keys(j)) {
+          if (pending.has(k)) continue;       // 還在 push queue 裡
+          if (_recentSaves.has(k)) continue;  // 8 秒內剛 push 過
+          cache[k] = j[k];
+        }
         _invalidateCfg();
         _lsSave();
         // 僅在登入後首次刷新成功時重新渲染，避免後續刷新打斷編輯
@@ -1292,6 +1307,7 @@ async function apiSave(key, data) {
   if (key === '__config__') _invalidateCfg();
   _lsSave();
   _saveQueue.set(key, data);
+  _recentSaves.set(key, Date.now()); // 標記近期保存，refresh 不要覆蓋
   _drainSaveQueue();
 }
 
