@@ -1896,11 +1896,27 @@ function openSettings() {
 
 let cfgMeetingStaff = { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 委員會:'', 入會:'', 續約:'', 出村:'', 導師:'', 導生:'', 會員1:'', 會員2:'' };
 
+// 即時把 cfgMeetingStaff 同步到 cache.__config__.meetingStaff（不 push GAS，僅更新本地）
+// 同時觸發例會預覽 debounce 重渲染（讓「主題簡報」等預覽即時看到姓名替換）
+function _meetSyncStaffLive() {
+  if (CR !== 'admin') return;
+  const current = cache['__config__'] || {};
+  cache['__config__'] = { ...current, meetingStaff: { ...cfgMeetingStaff } };
+}
+const _meetLiveRender = _debounce(() => {
+  if (typeof _meetState !== 'undefined' && _meetState && _activeTab === 'meeting') _meetRenderBody();
+}, 200);
+function _meetStaffOnInput(key, val) {
+  cfgMeetingStaff[key] = val;
+  _meetSyncStaffLive();
+  _meetLiveRender();
+}
+
 function _renderMeetingStaffBlock() {
   const row = (label, key, ph) => `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
       <div style="flex-shrink:0;width:60px;font-size:13px;font-weight:700;color:var(--text);">${label}</div>
-      <input type="text" value="${_escH(cfgMeetingStaff[key]||'')}" oninput="cfgMeetingStaff['${key}']=this.value" placeholder="${ph}" style="flex:1;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+      <input type="text" value="${_escH(cfgMeetingStaff[key]||'')}" oninput="_meetStaffOnInput('${key}',this.value)" placeholder="${ph}" style="flex:1;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
     </div>`;
   const roles = MEETING_ROLES.map(r => row(r, r, '姓名')).join('');
   const memberSep = `<div style="font-size:11px;color:var(--text-soft);font-weight:600;margin:14px 0 8px;">本週會員（每週調整）</div>`;
@@ -1910,16 +1926,16 @@ function _renderMeetingStaffBlock() {
     if (e === '出村') {
       return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
         <div style="flex-shrink:0;width:60px;font-size:13px;font-weight:700;color:var(--text);">出村</div>
-        <input type="text" value="${_escH(cfgMeetingStaff['導師']||'')}" oninput="cfgMeetingStaff['導師']=this.value" placeholder="本週導師姓名" style="${inputStyle}">
-        <input type="text" value="${_escH(cfgMeetingStaff['導生']||'')}" oninput="cfgMeetingStaff['導生']=this.value" placeholder="本週導生姓名" style="${inputStyle}">
+        <input type="text" value="${_escH(cfgMeetingStaff['導師']||'')}" oninput="_meetStaffOnInput('導師',this.value)" placeholder="本週導師姓名" style="${inputStyle}">
+        <input type="text" value="${_escH(cfgMeetingStaff['導生']||'')}" oninput="_meetStaffOnInput('導生',this.value)" placeholder="本週導生姓名" style="${inputStyle}">
       </div>`;
     }
     return row(e, e, '本週會員姓名');
   }).join('');
   const speakerRow = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
     <div style="flex-shrink:0;width:60px;font-size:13px;font-weight:700;color:var(--text);">主題簡報</div>
-    <input type="text" value="${_escH(cfgMeetingStaff['會員1']||'')}" oninput="cfgMeetingStaff['會員1']=this.value" placeholder="本週會員1姓名" style="${inputStyle}">
-    <input type="text" value="${_escH(cfgMeetingStaff['會員2']||'')}" oninput="cfgMeetingStaff['會員2']=this.value" placeholder="本週會員2姓名" style="${inputStyle}">
+    <input type="text" value="${_escH(cfgMeetingStaff['會員1']||'')}" oninput="_meetStaffOnInput('會員1',this.value)" placeholder="本週會員1姓名" style="${inputStyle}">
+    <input type="text" value="${_escH(cfgMeetingStaff['會員2']||'')}" oninput="_meetStaffOnInput('會員2',this.value)" placeholder="本週會員2姓名" style="${inputStyle}">
   </div>`;
   return roles + memberSep + committeeRow + members + speakerRow;
 }
