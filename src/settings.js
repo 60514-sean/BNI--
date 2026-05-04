@@ -3,7 +3,7 @@ function openSettings() {
   if (CR !== 'admin') { showToast('無權限'); return; }
   // 從 config 初始化暫存陣列，然後渲染
   const cfg = getConfig();
-  cfgUsers = cfg.users.map(u => ({ names: [...(u.names || [])], role: u.role || '', allowedTabs: [...(u.allowedTabs || [])], editableTabs: [...(u.editableTabs || [])] }));
+  cfgUsers = cfg.users.map(u => ({ names: [...(u.names || [])], roles: [...(u.roles || (u.role ? [u.role] : []))], allowedTabs: [...(u.allowedTabs || [])], editableTabs: [...(u.editableTabs || [])] }));
   cfgTasks = (cfg.tasks || []).map(t => ({ ...t, owners: [...(t.owners || [])] }));
   cfgMeetingStaff = Object.assign(
     { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 委員會:'', 入會:'', 續約:'', 出村:'', 導師:'', 導生:'', 會員1:'', 會員2:'' },
@@ -69,38 +69,75 @@ function _captureUserInputsToCfg() {
     const inp = document.getElementById(`usr_${i}_0`);
     const name = inp ? inp.value.trim() : (u.names?.[0] || '');
     const allowed = u.allowedTabs || [];
+    const editable = (u.editableTabs || []).filter(t => allowed.includes(t));
     return {
       names: [name],
-      role: u.role || '',
+      roles: [...(u.roles || [])],
       allowedTabs: allowed,
-      editableTabs: [...allowed]  // 簡化：可見即可編輯
+      editableTabs: editable
     };
   });
 }
 
-function _setUserRole(i, role) {
+function _toggleUserRole(i, role, checked) {
   const u = cfgUsers[i];
   if (!u) return;
-  u.role = role || '';
+  u.roles = u.roles || [];
+  if (checked) {
+    if (!u.roles.includes(role)) u.roles.push(role);
+  } else {
+    u.roles = u.roles.filter(r => r !== role);
+  }
+  // 更新角色下拉按鈕文字
+  const labels = u.roles;
+  const text = labels.length
+    ? `已選 ${labels.length} 個（${labels.slice(0,3).join('、')}${labels.length>3?'…':''}）`
+    : '尚未選擇任何角色';
+  const btnSpan = document.querySelector(`#ur_${i} .role-msel-btn > span:first-child`);
+  if (btnSpan) btnSpan.textContent = text;
 }
 
 function _toggleUserTab(i, tabId, checked) {
   const u = cfgUsers[i];
   if (!u) return;
   u.allowedTabs = u.allowedTabs || [];
+  u.editableTabs = u.editableTabs || [];
   if (checked) {
     if (!u.allowedTabs.includes(tabId)) u.allowedTabs.push(tabId);
+    if (!u.editableTabs.includes(tabId)) u.editableTabs.push(tabId); // 預設可編輯
   } else {
     u.allowedTabs = u.allowedTabs.filter(t => t !== tabId);
+    u.editableTabs = u.editableTabs.filter(t => t !== tabId);
   }
-  u.editableTabs = [...u.allowedTabs]; // 簡化：可見即可編輯
-  // 只更新 msel 按鈕文字，不重渲整行（保留 panel 開啟狀態）
+  // 更新可見頁面下拉按鈕文字
   const labels = TAB_LIST.filter(t => u.allowedTabs.includes(t.id)).map(t => t.label);
   const text = labels.length
     ? `已選 ${labels.length} 個（${labels.slice(0,3).join('、')}${labels.length>3?'…':''}）`
     : '尚未選擇任何頁面';
-  const btnSpan = document.querySelector(`#ur_${i} .msel-btn > span:first-child`);
+  const btnSpan = document.querySelector(`#ur_${i} .vis-msel-btn > span:first-child`);
   if (btnSpan) btnSpan.textContent = text;
+  // 動態切換該項的 ON/OFF toggle 顯示
+  const tg = document.querySelector(`#ur_${i} [data-edit-toggle="${tabId}"]`);
+  if (tg) {
+    tg.style.display = checked ? '' : 'none';
+    tg.classList.toggle('on', checked);
+    tg.textContent = checked ? 'ON' : 'OFF';
+  }
+}
+
+function _toggleUserTabEdit(i, tabId, ev) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  const u = cfgUsers[i];
+  if (!u) return;
+  u.editableTabs = u.editableTabs || [];
+  const isOn = u.editableTabs.includes(tabId);
+  if (isOn) u.editableTabs = u.editableTabs.filter(t => t !== tabId);
+  else u.editableTabs.push(tabId);
+  const tg = document.querySelector(`#ur_${i} [data-edit-toggle="${tabId}"]`);
+  if (tg) {
+    tg.classList.toggle('on', !isOn);
+    tg.textContent = !isOn ? 'ON' : 'OFF';
+  }
 }
 
 function _mselToggle(panelId) {
@@ -240,18 +277,39 @@ function toggleAcc(id) {
 // 設定頁：產出單一使用者列的 HTML（供首次渲染與局部更新共用）
 function _renderUserRowHtml(u, i) {
   const name = (u.names && u.names[0]) || '';
-  const roleOpts = `<option value="">— 未指定 —</option>` +
-    GUEST_ROLES.map(r => `<option value="${r}"${u.role === r ? ' selected' : ''}>${r}</option>`).join('');
+
+  // 角色（多選）
+  const roles = u.roles || [];
+  const roleBtnText = roles.length
+    ? `已選 ${roles.length} 個（${roles.slice(0,3).join('、')}${roles.length>3?'…':''}）`
+    : '尚未選擇任何角色';
+  const roleItems = GUEST_ROLES.map(r => `
+        <label class="msel-item">
+          <input type="checkbox" ${roles.includes(r)?'checked':''} onchange="_toggleUserRole(${i},'${r}',this.checked)">
+          <span>${r}</span>
+        </label>`).join('');
+
+  // 可見頁面（多選 + 每項 ON/OFF 切換可編輯）
   const allowed = u.allowedTabs || [];
+  const editable = u.editableTabs || [];
   const visTabsLabels = TAB_LIST.filter(t => allowed.includes(t.id)).map(t => t.label);
   const visBtnText = visTabsLabels.length
     ? `已選 ${visTabsLabels.length} 個（${visTabsLabels.slice(0,3).join('、')}${visTabsLabels.length>3?'…':''}）`
     : '尚未選擇任何頁面';
-  const visItems = TAB_LIST.map(t => `
-        <label class="msel-item">
-          <input type="checkbox" ${allowed.includes(t.id)?'checked':''} onchange="_toggleUserTab(${i},'${t.id}',this.checked)">
+  const visItems = TAB_LIST.map(t => {
+    const isVis = allowed.includes(t.id);
+    const isEdit = editable.includes(t.id);
+    return `
+        <label class="msel-item msel-vis-item">
+          <input type="checkbox" ${isVis?'checked':''} onchange="_toggleUserTab(${i},'${t.id}',this.checked)">
           <span>${t.label}</span>
-        </label>`).join('');
+          <span class="msel-edit-toggle ${isEdit?'on':''}" data-edit-toggle="${t.id}"
+                style="${isVis?'':'display:none;'}"
+                title="ON＝可編輯，OFF＝唯讀"
+                onclick="_toggleUserTabEdit(${i},'${t.id}',event)">${isEdit?'ON':'OFF'}</span>
+        </label>`;
+  }).join('');
+
   return `
       <div class="user-row" id="ur_${i}">
         <div class="user-row-head">
@@ -260,13 +318,19 @@ function _renderUserRowHtml(u, i) {
         </div>
         <div class="user-row-grid">
           <div class="user-row-field">
-            <label class="user-row-lbl">角色</label>
-            <select class="user-row-select" onchange="_setUserRole(${i}, this.value)">${roleOpts}</select>
+            <label class="user-row-lbl">角色（可複選）</label>
+            <div class="msel-wrap">
+              <button type="button" class="msel-btn role-msel-btn" onclick="_mselToggle('role_${i}_panel')">
+                <span>${roleBtnText}</span>
+                <span class="msel-arrow">&#9662;</span>
+              </button>
+              <div class="msel-panel" id="role_${i}_panel">${roleItems}</div>
+            </div>
           </div>
           <div class="user-row-field">
-            <label class="user-row-lbl">可見頁面</label>
+            <label class="user-row-lbl">可見頁面（ON＝可編輯）</label>
             <div class="msel-wrap">
-              <button type="button" class="msel-btn" onclick="_mselToggle('vis_${i}_panel')">
+              <button type="button" class="msel-btn vis-msel-btn" onclick="_mselToggle('vis_${i}_panel')">
                 <span>${visBtnText}</span>
                 <span class="msel-arrow">&#9662;</span>
               </button>

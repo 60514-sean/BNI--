@@ -143,6 +143,26 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 }
 .msel-item:hover { background: var(--gray-light); }
 .msel-item input { cursor: pointer; accent-color: var(--red); }
+.msel-vis-item { gap: 6px; }
+.msel-vis-item span:not(.msel-edit-toggle) { flex: 1; }
+.msel-edit-toggle {
+  flex-shrink: 0;
+  padding: 2px 8px; border-radius: 6px;
+  font-size: 10px; font-weight: 900; letter-spacing: 0.5px;
+  border: 1.5px solid var(--gray-border);
+  background: white; color: #9ca3af;
+  cursor: pointer; user-select: none;
+  transition: all 0.15s;
+}
+.msel-edit-toggle.on {
+  background: #10b981; color: white; border-color: #059669;
+}
+.msel-edit-toggle:hover {
+  border-color: var(--red);
+}
+.msel-edit-toggle.on:hover {
+  border-color: #047857; background: #059669;
+}
 
 /* TODO 待辦事項頁面 */
 .todo-wrap { display: flex; flex-direction: column; gap: 14px; }

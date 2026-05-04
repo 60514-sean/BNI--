@@ -139,19 +139,19 @@ const TAB_LIST = [
 const MENU_GROUP_ORDER = ['日常作業','例會準備','會員資料','財務／例會'];
 
 function _normalizeUser(u) {
-  if (typeof u === 'string') return { names: [u], role: '', allowedTabs: [], editableTabs: [] };
-  if (!u) return { names: [], role: '', allowedTabs: [], editableTabs: [] };
-  // 兼容舊格式 {name, roles[]} → 新格式 {names[], role}
+  if (typeof u === 'string') return { names: [u], roles: [], role: '', allowedTabs: [], editableTabs: [] };
+  if (!u) return { names: [], roles: [], role: '', allowedTabs: [], editableTabs: [] };
   let names;
   if (Array.isArray(u.names)) names = u.names.filter(n => n);
   else if (u.name) names = [u.name];
   else names = [];
-  let role = u.role || '';
-  if (!role && Array.isArray(u.roles) && u.roles.length) role = u.roles[0];
+  // 角色多選：兼容舊 u.role string 與新 u.roles array
+  let roles = [];
+  if (Array.isArray(u.roles)) roles = u.roles.filter(r => r);
+  else if (u.role) roles = [u.role];
   const allowedTabs = u.allowedTabs || [];
-  // 兼容舊資料：沒有 editableTabs 時，預設所有可見頁籤都可編輯
   const editableTabs = Array.isArray(u.editableTabs) ? u.editableTabs.filter(t => allowedTabs.includes(t)) : [...allowedTabs];
-  return { names, role, allowedTabs, editableTabs };
+  return { names, roles, role: roles[0] || '', allowedTabs, editableTabs };
 }
 
 // 一次性 owner 名稱遷移表（舊名 → 新名）
@@ -282,7 +282,7 @@ function _canEditTab(tabId) {
   if (!CU) return false;
   const userObj = getConfig().users.find(u => (u.names || []).includes(CU));
   if (!userObj) return false;
-  if (tabId === 'finance' && userObj.role === '報到組') {
+  if (tabId === 'finance' && (userObj.roles || []).includes('報到組')) {
     const allowed  = (userObj.allowedTabs  || []).includes('finance');
     const editable = (userObj.editableTabs || []).includes('finance');
     if (allowed && !editable) return false; // admin 明確切 OFF
@@ -294,7 +294,7 @@ function _canEditTab(tabId) {
 // 角色「報到組」進入後 finance 頁籤一律可見（即使 admin 沒勾，也能看到）
 function _visibleTabsForUser(userObj) {
   const set = new Set((userObj && userObj.allowedTabs) || []);
-  if (userObj && userObj.role === '報到組') set.add('finance');
+  if (userObj && (userObj.roles || []).includes('報到組')) set.add('finance');
   return [...set];
 }
 // 工事清單：依使用者「main」頁籤的 ON/OFF 決定可見範圍
