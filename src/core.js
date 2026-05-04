@@ -361,15 +361,12 @@ function _visibleTabsForUser(userObj) {
   if (userObj && (userObj.roles || []).includes('報到組')) set.add('finance');
   return [...set];
 }
-// 工事清單：依使用者「main」頁籤的 ON/OFF 決定可見範圍
-//   ON  → 看全部任務
-//   OFF → 只看「指派給自己 + 全體」
+// 工事清單：admin 看全部；其他人都只看「指派給自己 + 全體」
+// ON/OFF 由 _applyEditLock 處理編輯能力，不影響可見範圍
 function _mainVisibleTasks() {
   const all = getAllTasks();
   if (CR === 'admin') return all;
-  const userObj = getConfig().users.find(u => (u.names || []).includes(CU));
-  const showAll = !!(userObj && (userObj.editableTabs || []).includes('main'));
-  return showAll ? all : all.filter(t => _taskVisibleToUser(t, CU));
+  return all.filter(t => _taskVisibleToUser(t, CU));
 }
 
 const DAYS = ['週日','週一','週二','週三','週四','週五','週六'];
