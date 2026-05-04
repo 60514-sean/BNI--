@@ -62,20 +62,21 @@ function _renderMenuDropdown(allowedIds, isAdmin) {
 }
 
 function toggleMenu(ev) {
-  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  if (ev) { ev.stopPropagation(); }
   const dd = document.getElementById('menuDropdown');
-  const ov = document.getElementById('menuOverlay');
-  if (!dd || !ov) { console.warn('[menu] dropdown or overlay not found'); return; }
-  const open = dd.classList.contains('show');
-  if (open) closeMenu();
-  else { dd.classList.add('show'); ov.classList.add('show'); }
+  if (!dd) return;
+  dd.classList.toggle('show');
 }
 function closeMenu() {
-  const dd = document.getElementById('menuDropdown');
-  const ov = document.getElementById('menuOverlay');
-  if (dd) dd.classList.remove('show');
-  if (ov) ov.classList.remove('show');
+  document.getElementById('menuDropdown')?.classList.remove('show');
 }
+// 點 dropdown 與按鈕以外的地方時關閉
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('menuDropdown');
+  if (!dd || !dd.classList.contains('show')) return;
+  if (e.target.closest('#menuBtn') || e.target.closest('#menuDropdown')) return;
+  dd.classList.remove('show');
+});
 function _pickTab(tab) {
   closeMenu();
   if (tab === 'settings') openSettings();

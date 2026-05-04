@@ -595,17 +595,12 @@ input.is-locked:focus, textarea.is-locked:focus {
 .menu-btn .menu-label { font-weight: 900; letter-spacing: 0.5px; }
 .menu-btn .menu-arrow { font-size: 10px; opacity: 0.85; }
 
-.menu-overlay {
-  display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,0.35); z-index: 9000;
-}
-.menu-overlay.show { display: block; }
-
 .menu-dropdown {
   display: none; position: fixed; top: 56px; left: 12px;
   background: white; border-radius: 14px;
+  border: 1px solid var(--gray-border);
   box-shadow: 0 12px 40px rgba(0,0,0,0.25);
-  z-index: 9100; min-width: 240px; max-width: 320px;
+  z-index: 200; min-width: 240px; max-width: 320px;
   padding: 8px 0; max-height: calc(100vh - 76px); overflow-y: auto;
 }
 .menu-dropdown.show { display: block; }
