@@ -164,34 +164,31 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   border-color: #047857; background: #059669;
 }
 
-/* 個人留言板（引言式設計）*/
+/* 個人留言板（引言式 — 無底框）*/
 .todo-message {
   position: relative;
-  background: white;
-  border-radius: var(--radius);
-  padding: 36px 40px 36px 56px;
-  box-shadow: var(--shadow);
-  overflow: hidden;
+  padding: 24px 28px 24px 44px;
+  overflow: visible;
 }
 .todo-message::before {
   content: '\201C';
   position: absolute;
-  top: 4px; left: 16px;
-  font-size: 96px;
+  top: -8px; left: 6px;
+  font-size: 80px;
   font-family: 'Noto Serif TC', Georgia, serif;
   font-weight: 700;
-  color: rgba(192, 57, 43, 0.15);
+  color: rgba(192, 57, 43, 0.18);
   line-height: 1;
   pointer-events: none;
 }
 .todo-message::after {
   content: '\201D';
   position: absolute;
-  bottom: -32px; right: 24px;
-  font-size: 96px;
+  bottom: -28px; right: 8px;
+  font-size: 80px;
   font-family: 'Noto Serif TC', Georgia, serif;
   font-weight: 700;
-  color: rgba(192, 57, 43, 0.15);
+  color: rgba(192, 57, 43, 0.18);
   line-height: 1;
   pointer-events: none;
 }
@@ -206,9 +203,9 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
   font-weight: 500;
 }
 @media(max-width: 480px) {
-  .todo-message { padding: 28px 24px 28px 44px; }
-  .todo-message::before { font-size: 76px; top: 0; left: 12px; }
-  .todo-message::after { font-size: 76px; bottom: -28px; right: 16px; }
+  .todo-message { padding: 20px 20px 20px 36px; }
+  .todo-message::before { font-size: 64px; top: -6px; left: 2px; }
+  .todo-message::after { font-size: 64px; bottom: -22px; right: 4px; }
   .todo-message-text { font-size: 14.5px; line-height: 1.8; }
 }
 
