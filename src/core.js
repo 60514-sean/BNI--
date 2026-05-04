@@ -370,6 +370,27 @@ function _startEditLockObserver() {
   _applyEditLock(_activeTab);
 }
 
+// 當分頁從背景切回前景時，強制重置鎖與 observer，避免 PDF 切到新分頁後狀態殘留
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (_editLockTimer) { clearTimeout(_editLockTimer); _editLockTimer = null; }
+  if (_editLockPaused) {
+    _editLockPaused = false;
+    _startEditLockObserver();
+  }
+  setTimeout(() => _applyEditLock(_activeTab), 100);
+});
+
+// 視窗 focus 時也做同樣的事（部分瀏覽器只觸發 focus）
+window.addEventListener('focus', () => {
+  if (_editLockTimer) { clearTimeout(_editLockTimer); _editLockTimer = null; }
+  if (_editLockPaused) {
+    _editLockPaused = false;
+    _startEditLockObserver();
+  }
+  setTimeout(() => _applyEditLock(_activeTab), 100);
+});
+
 // 角色「報到組」進入後 finance 頁籤一律可見（即使 admin 沒勾，也能看到）
 function _visibleTabsForUser(userObj) {
   const set = new Set((userObj && userObj.allowedTabs) || []);
