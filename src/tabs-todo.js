@@ -74,16 +74,6 @@ function closeMenu() {
   if (dd) dd.classList.remove('show');
   if (ov) ov.classList.remove('show');
 }
-// 額外綁 click event（保險：onclick attribute 若被某些情境清掉，這條依然生效）
-document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('menuBtn');
-  if (btn) btn.addEventListener('click', toggleMenu);
-});
-// DOMContentLoaded 已過時的情況也補綁
-if (document.readyState !== 'loading') {
-  const btn = document.getElementById('menuBtn');
-  if (btn) btn.addEventListener('click', toggleMenu);
-}
 function _pickTab(tab) {
   closeMenu();
   if (tab === 'settings') openSettings();
