@@ -331,12 +331,11 @@ function _applyEditLock(tabId) {
   });
 }
 
-// 監視 DOM 變動，動態套用編輯鎖
+// 監視 DOM 變動，動態套用編輯鎖（監視 body 因為 modal 都 append 到 body）
 let _editLockObserver = null;
 let _editLockTimer = null;
 function _startEditLockObserver() {
   if (_editLockObserver) return;
-  const target = document.getElementById('appPage') || document.body;
   _editLockObserver = new MutationObserver(() => {
     if (_editLockTimer) return;
     _editLockTimer = setTimeout(() => {
@@ -344,7 +343,7 @@ function _startEditLockObserver() {
       _applyEditLock(_activeTab);
     }, 80);
   });
-  _editLockObserver.observe(target, { childList: true, subtree: true });
+  _editLockObserver.observe(document.body, { childList: true, subtree: true });
   _applyEditLock(_activeTab);
 }
 
