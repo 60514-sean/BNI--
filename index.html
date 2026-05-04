@@ -1842,7 +1842,7 @@ async function toggleTask(idx, cb) {
   }
 
   const t      = getAllTasks().find(t => String(t.id) === String(idx));
-  if (!t) return;
+  if (!t) { console.warn('[toggleTask] 找不到 task id:', idx); return; }
   const dayKey = currentDay === '全部' ? t.day : currentDay;
   const vis    = _mainVisibleTasks();
   const catTasks = vis.filter(t2 => t2.cat === t.cat && t2.day === t.day);
@@ -2266,7 +2266,13 @@ function confirmTaskForm() {
   if (!task) { showToast('請填寫任務內容'); return; }
   const owners = [..._editingOwners];
   if (_editingTaskIdx == null) {
-    cfgTasks.push({ id: 'c' + Date.now(), day, owners, task, cat, freq });
+    // id 加上隨機字尾避免快速連續新增時撞同毫秒；也避免跟既有 id 衝突
+    const existingIds = new Set(cfgTasks.map(t => String(t.id)));
+    let newId;
+    do {
+      newId = 'c' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    } while (existingIds.has(newId));
+    cfgTasks.push({ id: newId, day, owners, task, cat, freq });
   } else {
     cfgTasks[_editingTaskIdx] = { ...cfgTasks[_editingTaskIdx], day, owners, task, cat, freq };
   }
