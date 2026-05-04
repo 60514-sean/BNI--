@@ -2559,8 +2559,9 @@ async function renderMembers() {
   if (!_memberData) await fetchMembers();
   if (!_memberData) return;
   let list = _memberData;
-  if (_memberFilter === '120') list = list.filter(m => { const d = parseInt(m.renewDays); return d >= 90 && d <= 119; });
-  if (_memberFilter === '90')  list = list.filter(m => parseInt(m.renewDays) <= 89);
+  // 已續約的會員不列入倒數天數篩選
+  if (_memberFilter === '120') list = list.filter(m => m.renewStatus !== 'TRUE' && (() => { const d = parseInt(m.renewDays); return d >= 90 && d <= 119; })());
+  if (_memberFilter === '90')  list = list.filter(m => m.renewStatus !== 'TRUE' && parseInt(m.renewDays) <= 89);
   const canEdit = CR === 'admin';
   const btnStyle = (f, bg, color) => `padding:7px 12px;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;background:${_memberFilter===f?bg:'white'};color:${_memberFilter===f?color:bg};border:1.5px solid ${bg};`;
   const parts = [];
