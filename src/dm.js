@@ -284,6 +284,7 @@ function _downloadPdfBlob(blob, filename) {
 
 async function printDM() {
   if (!_memberData) return;
+  _pauseEditLock();
   showLoader(true, 'PDF 產生中...');
 
   try {
@@ -294,6 +295,7 @@ async function printDM() {
   } catch {
     showLoader(false);
     showToast('載入失敗，請確認網路連線');
+    _resumeEditLock();
     return;
   }
 
@@ -388,7 +390,7 @@ async function printDM() {
   document.body.appendChild(wrap);
 
   const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-  if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); return; }
+  if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); document.body.removeChild(wrap); showLoader(false); _resumeEditLock(); return; }
   const doc = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a3', compress: true });
 
   try {
@@ -416,6 +418,7 @@ async function printDM() {
   } finally {
     document.body.removeChild(wrap);
     showLoader(false);
+    _resumeEditLock();
   }
 }
 

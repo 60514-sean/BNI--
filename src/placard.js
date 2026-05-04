@@ -200,16 +200,17 @@ function _scalePlacard() {
 window.addEventListener('resize', () => { if (_activeTab === 'placard') _scalePlacard(); });
 
 async function printPlacards() {
+  _pauseEditLock();
   showLoader(true, 'PDF 產生中...');
   try {
     await Promise.all([
       _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
       _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
     ]);
-  } catch { showLoader(false); showToast('載入失敗，請確認網路'); return; }
+  } catch { showLoader(false); showToast('載入失敗，請確認網路'); _resumeEditLock(); return; }
 
   const sheets = document.querySelectorAll('#placardInner .placard-sheet');
-  if (!sheets.length) return;
+  if (!sheets.length) { _resumeEditLock(); return; }
 
   const wrap = document.createElement('div');
   wrap.style.cssText = 'position:absolute;left:-9999px;top:0;background:white;';
@@ -239,6 +240,7 @@ async function printPlacards() {
   } finally {
     document.body.removeChild(wrap);
     showLoader(false);
+    _resumeEditLock();
   }
 }
 

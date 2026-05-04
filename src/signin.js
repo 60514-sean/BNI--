@@ -179,16 +179,17 @@ function _scaleSignin() {
 window.addEventListener('resize', () => { if (_activeTab === 'signin') _scaleSignin(); });
 
 async function printSignin() {
+  _pauseEditLock();
   showLoader(true, 'PDF 產生中...');
   try {
     await Promise.all([
       _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
       _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
     ]);
-  } catch { showLoader(false); showToast('載入失敗，請確認網路連線'); return; }
+  } catch { showLoader(false); showToast('載入失敗，請確認網路連線'); _resumeEditLock(); return; }
 
   const sheets = document.querySelectorAll('#signinInner .signin-sheet');
-  if (!sheets.length) return;
+  if (!sheets.length) { _resumeEditLock(); return; }
 
   const wrap = document.createElement('div');
   wrap.style.cssText = 'position:absolute;left:-9999px;top:0;background:white;';
@@ -196,7 +197,7 @@ async function printSignin() {
 
   try {
     const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-    if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); return; }
+    if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); return; /* finally 會 resume */ }
     const doc = new jsPDFCtor({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
     for (let i = 0; i < sheets.length; i++) {
       wrap.innerHTML = '';
@@ -220,6 +221,7 @@ async function printSignin() {
   } finally {
     document.body.removeChild(wrap);
     showLoader(false);
+    _resumeEditLock();
   }
 }
 

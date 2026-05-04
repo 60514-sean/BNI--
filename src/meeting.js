@@ -830,6 +830,7 @@ function _meetDelVersion(id) {
 }
 
 async function _meetExportPDF() {
+  _pauseEditLock();
   showLoader(true, 'PDF 產生中...');
   try {
     await Promise.all([
@@ -840,12 +841,13 @@ async function _meetExportPDF() {
     console.error('[PDF script load]', e);
     showLoader(false);
     showToast('PDF 套件載入失敗，請確認網路');
+    _resumeEditLock();
     return;
   }
   const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-  if (!jsPDFCtor) { showLoader(false); showToast('jsPDF 初始化失敗'); return; }
+  if (!jsPDFCtor) { showLoader(false); showToast('jsPDF 初始化失敗'); _resumeEditLock(); return; }
   const sheet = document.querySelector('#meetingPrintArea .meet-preview-sheet');
-  if (!sheet) { showLoader(false); showToast('找不到預覽區'); return; }
+  if (!sheet) { showLoader(false); showToast('找不到預覽區'); _resumeEditLock(); return; }
   document.body.classList.add('meet-print-mode');
   await new Promise(r => setTimeout(r, 100)); // 等 layout 更新
   try {
@@ -867,16 +869,18 @@ async function _meetExportPDF() {
   } finally {
     document.body.classList.remove('meet-print-mode');
     showLoader(false);
+    _resumeEditLock();
   }
 }
 
 async function _meetExportJPG() {
+  _pauseEditLock();
   showLoader(true, 'JPG 產生中...');
   try {
     await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-  } catch { showLoader(false); showToast('JPG 套件載入失敗，請確認網路'); return; }
+  } catch { showLoader(false); showToast('JPG 套件載入失敗，請確認網路'); _resumeEditLock(); return; }
   const sheet = document.querySelector('#meetingPrintArea .meet-preview-sheet');
-  if (!sheet) { showLoader(false); showToast('找不到預覽區'); return; }
+  if (!sheet) { showLoader(false); showToast('找不到預覽區'); _resumeEditLock(); return; }
   document.body.classList.add('meet-print-mode');
   await new Promise(r => setTimeout(r, 80));
   try {
@@ -895,6 +899,7 @@ async function _meetExportJPG() {
   } finally {
     document.body.classList.remove('meet-print-mode');
     showLoader(false);
+    _resumeEditLock();
   }
 }
 

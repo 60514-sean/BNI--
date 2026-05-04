@@ -292,7 +292,14 @@ function _canEditTab(tabId) {
 }
 
 // ===== 編輯鎖（OFF 狀態下：輸入欄位鎖定，按鈕仍可點）=====
+let _editLockPaused = false;
+function _pauseEditLock() { _editLockPaused = true; }
+function _resumeEditLock() {
+  _editLockPaused = false;
+  setTimeout(() => _applyEditLock(_activeTab), 120);
+}
 function _applyEditLock(tabId) {
+  if (_editLockPaused) return;
   if (!tabId || tabId === 'settings') return;
   if (CR === 'admin') return; // admin 不限制
   const canEdit = _canEditTab(tabId);
@@ -337,6 +344,7 @@ let _editLockTimer = null;
 function _startEditLockObserver() {
   if (_editLockObserver) return;
   _editLockObserver = new MutationObserver(() => {
+    if (_editLockPaused) return;  // PDF/匯出期間暫停，避免大量 DOM clone 觸發卡頓
     if (_editLockTimer) return;
     _editLockTimer = setTimeout(() => {
       _editLockTimer = null;
