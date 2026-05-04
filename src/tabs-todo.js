@@ -81,49 +81,110 @@ function _pickTab(tab) {
 }
 
 // ===== TODO =====
-function _getTodos() { try { return JSON.parse(localStorage.getItem('bni_todos') || '[]'); } catch { return []; } }
-function _saveTodos(list) { localStorage.setItem('bni_todos', JSON.stringify(list)); }
+let _todoMigrated = false;
+function _getTodos() {
+  // 一次性把舊版單機 localStorage('bni_todos') 遷移到當前使用者的雲端 todos
+  if (CU && !_todoMigrated && !cache[`__todos_${CU}__`]) {
+    _todoMigrated = true;
+    try {
+      const oldRaw = localStorage.getItem('bni_todos');
+      if (oldRaw) {
+        const old = JSON.parse(oldRaw);
+        if (Array.isArray(old) && old.length) {
+          cache[`__todos_${CU}__`] = old;
+          saveMyTodos(old);
+        }
+        localStorage.removeItem('bni_todos');
+      }
+    } catch {}
+  }
+  return getMyTodos();
+}
+function _saveTodos(list) { saveMyTodos(list); }
 
 function renderTodo() {
   const todos = _getTodos();
   const done  = todos.filter(t => t.done);
   const todo  = todos.filter(t => !t.done);
+  const total = todos.length;
+  const pct   = total ? Math.round(done.length / total * 100) : 0;
 
-  const itemHtml = (t, isLast) => `
-    <div style="display:flex;align-items:center;gap:10px;padding:12px 0;box-sizing:border-box;${isLast?'':'border-bottom:1px solid var(--gray-border);'}">
-      <label style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;min-width:22px;border-radius:50%;border:2px solid ${t.done?'var(--red)':'var(--gray-border)'};background:${t.done?'var(--red)':'white'};cursor:pointer;box-sizing:border-box;">
-        <input type="checkbox" ${t.done?'checked':''} onchange="toggleTodo('${t.id}')" style="display:none;">
-        ${t.done?`<svg width="11" height="9" viewBox="0 0 11 9" fill="none"><path d="M1 4L4.5 7.5L10 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`:''}
+  const itemHtml = (t) => `
+    <div class="todo-row${t.done?' is-done':''}">
+      <label class="todo-cb-wrap">
+        <input type="checkbox" ${t.done?'checked':''} onchange="toggleTodo('${t.id}')">
+        <span class="todo-cb">
+          ${t.done?`<svg width="12" height="10" viewBox="0 0 11 9" fill="none"><path d="M1 4L4.5 7.5L10 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`:''}
+        </span>
       </label>
-      <span style="flex:1;min-width:0;font-size:14px;line-height:1.5;word-break:break-word;${t.done?'text-decoration:line-through;color:var(--text-soft);':'color:var(--text);'}">${_escH(t.text)}</span>
-      <button onclick="deleteTodo('${t.id}')" style="flex-shrink:0;min-width:28px;width:28px;height:28px;border-radius:50%;background:var(--gray-light);border:none;color:var(--text-soft);font-size:16px;cursor:pointer;line-height:1;padding:0;">&times;</button>
+      <span class="todo-text">${_escH(t.text)}</span>
+      <button class="todo-del" onclick="deleteTodo('${t.id}')" aria-label="刪除">&times;</button>
     </div>`;
 
+  const summaryHtml = total ? `
+    <div class="todo-summary">
+      <div class="todo-summary-stat">
+        <span class="todo-summary-num">${todo.length}</span>
+        <span class="todo-summary-lbl">待辦</span>
+      </div>
+      <div class="todo-summary-stat">
+        <span class="todo-summary-num">${done.length}</span>
+        <span class="todo-summary-lbl">已完成</span>
+      </div>
+      <div class="todo-summary-stat">
+        <span class="todo-summary-num">${pct}%</span>
+        <span class="todo-summary-lbl">完成率</span>
+      </div>
+      <div class="todo-summary-bar"><div class="todo-summary-bar-fill" style="width:${pct}%"></div></div>
+    </div>` : '';
+
+  const todoSection = todo.length ? `
+    <div class="todo-section">
+      <div class="todo-section-title">
+        <span class="todo-section-dot" style="background:var(--red);"></span>
+        進行中
+        <span class="todo-section-count">${todo.length}</span>
+      </div>
+      <div class="todo-section-body">${todo.map(itemHtml).join('')}</div>
+    </div>` : '';
+
+  const doneSection = done.length ? `
+    <div class="todo-section">
+      <div class="todo-section-title">
+        <span class="todo-section-dot" style="background:var(--green);"></span>
+        已完成
+        <span class="todo-section-count" style="background:var(--green);">${done.length}</span>
+        <button class="todo-clear-btn" onclick="clearDoneTodos()">清除</button>
+      </div>
+      <div class="todo-section-body">${done.map(itemHtml).join('')}</div>
+    </div>` : '';
+
+  const emptyHtml = !total ? `
+    <div class="todo-empty">
+      <div class="todo-empty-icon">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 11l3 3L22 4"></path>
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+        </svg>
+      </div>
+      <div class="todo-empty-title">還沒有待辦事項</div>
+      <div class="todo-empty-desc">新增第一項，開始今天的計畫</div>
+    </div>` : '';
+
   document.getElementById('todoContent').innerHTML = `
-    <div class="card" style="background:linear-gradient(135deg,#c0392b 0%,#e74c3c 100%);box-shadow:none;box-sizing:border-box;">
-      <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.85);margin-bottom:10px;">新增待辦</div>
-      <div style="display:flex;gap:8px;width:100%;box-sizing:border-box;">
-        <input id="todoInput" type="text" placeholder="輸入待辦事項..." onkeydown="if(event.key==='Enter')addTodo()"
-          style="flex:1;min-width:0;font-size:16px;padding:10px 12px;border-radius:10px;border:none;outline:none;background:rgba(255,255,255,0.95);color:var(--text);font-family:inherit;box-sizing:border-box;">
-        <button onclick="addTodo()"
-          style="flex-shrink:0;padding:0 16px;border-radius:10px;background:white;color:var(--red);border:none;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;">新增</button>
+    <div class="todo-wrap">
+      ${summaryHtml}
+      <div class="todo-input-card">
+        <input id="todoInput" type="text" placeholder="輸入待辦事項…" onkeydown="if(event.key==='Enter')addTodo()" autocomplete="off">
+        <button onclick="addTodo()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          新增
+        </button>
       </div>
-    </div>
-    ${todo.length ? `<div class="card" style="box-sizing:border-box;">
-      <div style="font-size:12px;font-weight:700;color:var(--text-soft);margin-bottom:4px;">待辦 ${todo.length} 項</div>
-      ${todo.map((t,i)=>itemHtml(t, i===todo.length-1)).join('')}
-    </div>` : ''}
-    ${done.length ? `<div class="card" style="box-sizing:border-box;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-        <div style="font-size:12px;font-weight:700;color:var(--text-soft);">已完成 ${done.length} 項</div>
-        <button onclick="clearDoneTodos()" style="font-size:12px;color:var(--red);background:none;border:none;cursor:pointer;font-weight:600;font-family:inherit;padding:0;">清除已完成</button>
-      </div>
-      ${done.map((t,i)=>itemHtml(t, i===done.length-1)).join('')}
-    </div>` : ''}
-    ${!todo.length && !done.length ? `<div class="card" style="text-align:center;padding:40px 20px;color:var(--text-soft);box-sizing:border-box;">
-      <div style="font-size:32px;margin-bottom:10px;">&#10003;</div>
-      <div style="font-size:14px;">沒有待辦事項</div>
-    </div>` : ''}`;
+      ${todoSection}
+      ${doneSection}
+      ${emptyHtml}
+    </div>`;
 }
 
 function addTodo() {

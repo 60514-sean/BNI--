@@ -11,24 +11,33 @@ function renderMain() {
   const done  = visibleTasks.filter(t => prog[t.id]).length;
   const pct   = total ? Math.round(done / total * 100) : 0;
 
+  const RING_R = 46, RING_C = 2 * Math.PI * RING_R;
+  const ringOffset = RING_C * (1 - pct / 100);
   let html = `
-  <div class="date-banner">
-    <span class="date-main">${getTodayStr()}</span>
-    <span class="date-weekday">${TODAY_DAY}</span>
-  </div>
-  <div class="summary-row">
-    <div class="summary-card">
-      <div class="summary-label">完成</div>
-      <div class="summary-value" id="valDone">${done}</div>
-      <div class="summary-bar-wrap"><div class="summary-bar-fill" id="progBar" style="width:${pct}%"></div></div>
+  <div class="hero-card">
+    <div class="hero-date">
+      <span class="hero-date-main">${getTodayStr()}</span>
+      <span class="hero-date-weekday">${TODAY_DAY}</span>
     </div>
-    <div class="summary-card">
-      <div class="summary-label">待辦</div>
-      <div class="summary-value" id="valPend">${total - done}</div>
-    </div>
-    <div class="summary-card">
-      <div class="summary-label">完成率</div>
-      <div class="summary-value" id="valPct">${pct}%</div>
+    <div class="hero-body">
+      <div class="hero-ring">
+        <svg width="120" height="120" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="${RING_R}" fill="none" stroke="#f0f0f0" stroke-width="9"/>
+          <circle id="progRing" cx="60" cy="60" r="${RING_R}" fill="none"
+                  stroke="var(--red)" stroke-width="9" stroke-linecap="round"
+                  stroke-dasharray="${RING_C.toFixed(2)}" stroke-dashoffset="${ringOffset.toFixed(2)}"
+                  transform="rotate(-90 60 60)" style="transition: stroke-dashoffset 0.5s ease;"/>
+        </svg>
+        <div class="hero-ring-text">
+          <div class="hero-ring-pct" id="valPct">${pct}%</div>
+          <div class="hero-ring-sub">完成度</div>
+        </div>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><span class="hero-stat-label">完成</span><span class="hero-stat-value" id="valDone">${done}</span></div>
+        <div class="hero-stat"><span class="hero-stat-label">待辦</span><span class="hero-stat-value" id="valPend">${total - done}</span></div>
+        <div class="hero-stat"><span class="hero-stat-label">今日</span><span class="hero-stat-value">${total}</span></div>
+      </div>
     </div>
   </div>`;
 
@@ -215,7 +224,11 @@ async function toggleTask(idx, cb) {
   const total = vis.length;
   const done  = vis.filter(t2 => prog[t2.id]).length;
   const pct   = total ? Math.round(done / total * 100) : 0;
-  document.getElementById('progBar').style.width  = pct + '%';
+  const ring = document.getElementById('progRing');
+  if (ring) {
+    const c = 2 * Math.PI * 46;
+    ring.setAttribute('stroke-dashoffset', (c * (1 - pct / 100)).toFixed(2));
+  }
   document.getElementById('valDone').textContent  = done;
   document.getElementById('valPend').textContent  = total - done;
   document.getElementById('valPct').textContent   = pct + '%';

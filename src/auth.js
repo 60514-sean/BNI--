@@ -48,8 +48,8 @@ async function doLogin() {
   _renderMenuDropdown(allowed, isAdmin);
 
   currentDay = TODAY_DAY;
-  // 預設停在第一個允許的 tab；若都沒權限，保留空白畫面
-  const firstTab = allowed[0] || null;
+  // 預設停在「待辦事項」（若有權限），否則退回第一個允許的 tab
+  const firstTab = allowed.includes('todo') ? 'todo' : (allowed[0] || null);
   if (firstTab) {
     _activeTab = firstTab;
     switchTab(firstTab);

@@ -206,6 +206,16 @@ async function saveProgData(d)  { await apiSave(`__prog_${getWeekKey()}__`, d); 
 function getNoteData()  { return cache[`__notes_${getWeekKey()}__`] || {}; }
 async function saveNoteData(d)  { await apiSave(`__notes_${getWeekKey()}__`, d); }
 
+// ===== TODOS（每位使用者一份，雲端同步）=====
+function getMyTodos() {
+  if (!CU) return [];
+  return cache[`__todos_${CU}__`] || [];
+}
+async function saveMyTodos(list) {
+  if (!CU) return;
+  await apiSave(`__todos_${CU}__`, list);
+}
+
 // ===== TASK DATA =====
 // id 為永久固定識別碼，不可更改，新增任務請使用新的 id
 const TASK_DATA = [
