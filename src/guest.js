@@ -242,7 +242,7 @@ function _statusSelectHtml() {
   return `<select onchange="_setStatusFilter(this.value)" class="guest-filter-sel">
     <option value="" ${!_guestStatusFilter?'selected':''}>全部狀態・${scope.length} 筆</option>
     <option value="${HIGH_POTENTIAL_KEY}" ${_guestStatusFilter===HIGH_POTENTIAL_KEY?'selected':''}>${HIGH_POTENTIAL_LABEL}・${highCount} 筆</option>
-    ${GUEST_STATUSES.map(s => `<option value="${s}" ${_guestStatusFilter===s?'selected':''}>${_escH(s)}・${counts[s]||0} 筆</option>`).join('')}
+    ${GUEST_STATUSES.filter(s => s !== '已入會' && s !== '轉別分會').map(s => `<option value="${s}" ${_guestStatusFilter===s?'selected':''}>${_escH(s)}・${counts[s]||0} 筆</option>`).join('')}
   </select>`;
 }
 
