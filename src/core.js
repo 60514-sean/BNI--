@@ -130,13 +130,13 @@ const TAB_LIST = [
   { id: 'main',       label: '工事清單', group: '日常作業' },
   { id: 'member',     label: '會員資料', group: '會員資料' },
   { id: 'dm',         label: '會員DM',   group: '會員資料' },
-  { id: 'signin',     label: '出席簽到', group: '來賓管理' },
-  { id: 'guesttrack', label: '來賓追蹤', group: '來賓管理' },
-  { id: 'placard',    label: '桌牌製作', group: '來賓管理' },
+  { id: 'signin',     label: '出席簽到', group: '例會準備' },
+  { id: 'guesttrack', label: '來賓追蹤', group: '例會準備' },
+  { id: 'placard',    label: '桌牌製作', group: '例會準備' },
   { id: 'finance',    label: '財務控管', group: '財務／例會' },
   { id: 'meeting',    label: '例會流程', group: '財務／例會' }
 ];
-const MENU_GROUP_ORDER = ['日常作業','來賓管理','會員資料','財務／例會'];
+const MENU_GROUP_ORDER = ['日常作業','例會準備','會員資料','財務／例會'];
 
 function _normalizeUser(u) {
   if (typeof u === 'string') return { names: [u], role: '', allowedTabs: [], editableTabs: [] };
