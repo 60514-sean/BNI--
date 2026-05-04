@@ -1,0 +1,107 @@
+// ===== PAGE TAB =====
+let _activeTab = 'main';
+
+function switchTab(tab) {
+  _activeTab = tab;
+  document.getElementById('todoContent').style.display       = tab === 'todo'       ? '' : 'none';
+  document.getElementById('mainContent').style.display       = tab === 'main'       ? '' : 'none';
+  document.getElementById('memberContent').style.display     = tab === 'member'     ? '' : 'none';
+  document.getElementById('dmContent').style.display         = tab === 'dm'         ? '' : 'none';
+  document.getElementById('signinContent').style.display     = tab === 'signin'     ? '' : 'none';
+  document.getElementById('guestTrackContent').style.display = tab === 'guesttrack' ? '' : 'none';
+  document.getElementById('placardContent').style.display    = tab === 'placard'    ? '' : 'none';
+  document.getElementById('financeContent').style.display    = tab === 'finance'    ? '' : 'none';
+  document.getElementById('meetingContent').style.display    = tab === 'meeting'    ? '' : 'none';
+  document.getElementById('ptab_todo').classList.toggle('active',       tab === 'todo');
+  document.getElementById('ptab_main').classList.toggle('active',       tab === 'main');
+  document.getElementById('ptab_member').classList.toggle('active',     tab === 'member');
+  document.getElementById('ptab_dm').classList.toggle('active',         tab === 'dm');
+  document.getElementById('ptab_signin').classList.toggle('active',     tab === 'signin');
+  document.getElementById('ptab_guesttrack').classList.toggle('active', tab === 'guesttrack');
+  document.getElementById('ptab_placard').classList.toggle('active',    tab === 'placard');
+  document.getElementById('ptab_finance').classList.toggle('active',    tab === 'finance');
+  document.getElementById('ptab_meeting').classList.toggle('active',    tab === 'meeting');
+  if (tab === 'todo')       { document.getElementById('headerTitle').textContent = '待辦事項'; renderTodo(); }
+  if (tab === 'main')       { document.getElementById('headerTitle').textContent = '秘書財務小組'; renderMain(); }
+  if (tab === 'member')     { document.getElementById('headerTitle').textContent = '會員資料'; renderMembers(); }
+  if (tab === 'dm')         { document.getElementById('headerTitle').textContent = '會員DM'; renderDM(); }
+  if (tab === 'signin')     { document.getElementById('headerTitle').textContent = '出席簽到'; renderSignin(); }
+  if (tab === 'guesttrack') { document.getElementById('headerTitle').textContent = '來賓追蹤'; renderGuestTrack(); }
+  if (tab === 'placard')    { document.getElementById('headerTitle').textContent = '桌牌製作'; renderPlacard(); }
+  if (tab === 'finance')    { document.getElementById('headerTitle').textContent = '財務控管'; renderFinance(); }
+  if (tab === 'meeting')    { document.getElementById('headerTitle').textContent = '例會流程'; renderMeeting(); }
+}
+
+// ===== TODO =====
+function _getTodos() { try { return JSON.parse(localStorage.getItem('bni_todos') || '[]'); } catch { return []; } }
+function _saveTodos(list) { localStorage.setItem('bni_todos', JSON.stringify(list)); }
+
+function renderTodo() {
+  const todos = _getTodos();
+  const done  = todos.filter(t => t.done);
+  const todo  = todos.filter(t => !t.done);
+
+  const itemHtml = (t, isLast) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:12px 0;box-sizing:border-box;${isLast?'':'border-bottom:1px solid var(--gray-border);'}">
+      <label style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;min-width:22px;border-radius:50%;border:2px solid ${t.done?'var(--red)':'var(--gray-border)'};background:${t.done?'var(--red)':'white'};cursor:pointer;box-sizing:border-box;">
+        <input type="checkbox" ${t.done?'checked':''} onchange="toggleTodo('${t.id}')" style="display:none;">
+        ${t.done?`<svg width="11" height="9" viewBox="0 0 11 9" fill="none"><path d="M1 4L4.5 7.5L10 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`:''}
+      </label>
+      <span style="flex:1;min-width:0;font-size:14px;line-height:1.5;word-break:break-word;${t.done?'text-decoration:line-through;color:var(--text-soft);':'color:var(--text);'}">${_escH(t.text)}</span>
+      <button onclick="deleteTodo('${t.id}')" style="flex-shrink:0;min-width:28px;width:28px;height:28px;border-radius:50%;background:var(--gray-light);border:none;color:var(--text-soft);font-size:16px;cursor:pointer;line-height:1;padding:0;">&times;</button>
+    </div>`;
+
+  document.getElementById('todoContent').innerHTML = `
+    <div class="card" style="background:linear-gradient(135deg,#c0392b 0%,#e74c3c 100%);box-shadow:none;box-sizing:border-box;">
+      <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.85);margin-bottom:10px;">新增待辦</div>
+      <div style="display:flex;gap:8px;width:100%;box-sizing:border-box;">
+        <input id="todoInput" type="text" placeholder="輸入待辦事項..." onkeydown="if(event.key==='Enter')addTodo()"
+          style="flex:1;min-width:0;font-size:16px;padding:10px 12px;border-radius:10px;border:none;outline:none;background:rgba(255,255,255,0.95);color:var(--text);font-family:inherit;box-sizing:border-box;">
+        <button onclick="addTodo()"
+          style="flex-shrink:0;padding:0 16px;border-radius:10px;background:white;color:var(--red);border:none;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;">新增</button>
+      </div>
+    </div>
+    ${todo.length ? `<div class="card" style="box-sizing:border-box;">
+      <div style="font-size:12px;font-weight:700;color:var(--text-soft);margin-bottom:4px;">待辦 ${todo.length} 項</div>
+      ${todo.map((t,i)=>itemHtml(t, i===todo.length-1)).join('')}
+    </div>` : ''}
+    ${done.length ? `<div class="card" style="box-sizing:border-box;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text-soft);">已完成 ${done.length} 項</div>
+        <button onclick="clearDoneTodos()" style="font-size:12px;color:var(--red);background:none;border:none;cursor:pointer;font-weight:600;font-family:inherit;padding:0;">清除已完成</button>
+      </div>
+      ${done.map((t,i)=>itemHtml(t, i===done.length-1)).join('')}
+    </div>` : ''}
+    ${!todo.length && !done.length ? `<div class="card" style="text-align:center;padding:40px 20px;color:var(--text-soft);box-sizing:border-box;">
+      <div style="font-size:32px;margin-bottom:10px;">&#10003;</div>
+      <div style="font-size:14px;">沒有待辦事項</div>
+    </div>` : ''}`;
+}
+
+function addTodo() {
+  const input = document.getElementById('todoInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const todos = _getTodos();
+  todos.unshift({ id: Date.now().toString(), text, done: false });
+  _saveTodos(todos);
+  input.value = '';
+  renderTodo();
+}
+
+function toggleTodo(id) {
+  const todos = _getTodos();
+  const t = todos.find(x => x.id === id);
+  if (t) { t.done = !t.done; _saveTodos(todos); renderTodo(); }
+}
+
+function deleteTodo(id) {
+  _saveTodos(_getTodos().filter(x => x.id !== id));
+  renderTodo();
+}
+
+function clearDoneTodos() {
+  _saveTodos(_getTodos().filter(x => !x.done));
+  renderTodo();
+}
+

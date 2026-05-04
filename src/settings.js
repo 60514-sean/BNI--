@@ -1,0 +1,439 @@
+// ===== SETTINGS =====
+function openSettings() {
+  if (CR !== 'admin') { showToast('無權限'); return; }
+  // 從 config 初始化暫存陣列，然後渲染
+  const cfg = getConfig();
+  cfgUsers = cfg.users.map(u => ({ names: [...(u.names || [])], role: u.role || '', allowedTabs: [...(u.allowedTabs || [])], editableTabs: [...(u.editableTabs || [])] }));
+  cfgTasks = (cfg.tasks || []).map(t => ({ ...t, owners: [...(t.owners || [])] }));
+  cfgMeetingStaff = Object.assign(
+    { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 委員會:'', 入會:'', 續約:'', 出村:'', 導師:'', 導生:'', 會員1:'', 會員2:'' },
+    cfg.meetingStaff || {}
+  );
+  if (!cfgMeetingStaff['會員1'] && cfg.meetingStaff?.['主題1']) cfgMeetingStaff['會員1'] = cfg.meetingStaff['主題1'];
+  if (!cfgMeetingStaff['會員2'] && cfg.meetingStaff?.['主題2']) cfgMeetingStaff['會員2'] = cfg.meetingStaff['主題2'];
+  showSettings();
+}
+
+let cfgMeetingStaff = { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 委員會:'', 入會:'', 續約:'', 出村:'', 導師:'', 導生:'', 會員1:'', 會員2:'' };
+
+// 即時把 cfgMeetingStaff 同步到 cache.__config__.meetingStaff（不 push GAS，僅更新本地）
+// 同時觸發例會預覽 debounce 重渲染（讓「主題簡報」等預覽即時看到姓名替換）
+function _meetSyncStaffLive() {
+  if (CR !== 'admin') return;
+  const current = cache['__config__'] || {};
+  cache['__config__'] = { ...current, meetingStaff: { ...cfgMeetingStaff } };
+}
+const _meetLiveRender = _debounce(() => {
+  if (typeof _meetState !== 'undefined' && _meetState && _activeTab === 'meeting') _meetRenderBody();
+}, 200);
+function _meetStaffOnInput(key, val) {
+  cfgMeetingStaff[key] = val;
+  _meetSyncStaffLive();
+  _meetLiveRender();
+}
+
+function _renderMeetingStaffBlock() {
+  const row = (label, key, ph) => `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="flex-shrink:0;width:60px;font-size:13px;font-weight:700;color:var(--text);">${label}</div>
+      <input type="text" value="${_escH(cfgMeetingStaff[key]||'')}" oninput="_meetStaffOnInput('${key}',this.value)" placeholder="${ph}" style="flex:1;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+    </div>`;
+  const roles = MEETING_ROLES.map(r => row(r, r, '姓名')).join('');
+  const memberSep = `<div style="font-size:11px;color:var(--text-soft);font-weight:600;margin:14px 0 8px;">本週會員（每週調整）</div>`;
+  const inputStyle = 'flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;';
+  const committeeRow = MEETING_COMMITTEE_ROLES.map(r => row(r, r, '本週委員會姓名')).join('');
+  const members = MEETING_MEMBERS.map(e => {
+    if (e === '出村') {
+      return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div style="flex-shrink:0;width:60px;font-size:13px;font-weight:700;color:var(--text);">出村</div>
+        <input type="text" value="${_escH(cfgMeetingStaff['導師']||'')}" oninput="_meetStaffOnInput('導師',this.value)" placeholder="本週導師姓名" style="${inputStyle}">
+        <input type="text" value="${_escH(cfgMeetingStaff['導生']||'')}" oninput="_meetStaffOnInput('導生',this.value)" placeholder="本週導生姓名" style="${inputStyle}">
+      </div>`;
+    }
+    return row(e, e, '本週會員姓名');
+  }).join('');
+  const speakerRow = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+    <div style="flex-shrink:0;width:60px;font-size:13px;font-weight:700;color:var(--text);">主題簡報</div>
+    <input type="text" value="${_escH(cfgMeetingStaff['會員1']||'')}" oninput="_meetStaffOnInput('會員1',this.value)" placeholder="本週會員1姓名" style="${inputStyle}">
+    <input type="text" value="${_escH(cfgMeetingStaff['會員2']||'')}" oninput="_meetStaffOnInput('會員2',this.value)" placeholder="本週會員2姓名" style="${inputStyle}">
+  </div>`;
+  return roles + memberSep + committeeRow + members + speakerRow;
+}
+
+function _captureUserInputsToCfg() {
+  cfgUsers = cfgUsers.map((u, i) => {
+    const oldNames = (u.names && u.names.length) ? u.names : [''];
+    const names = oldNames.map((n, j) => {
+      const inp = document.getElementById(`usr_${i}_${j}`);
+      return inp ? inp.value.trim() : n;
+    });
+    return {
+      names,
+      role: u.role || '',
+      allowedTabs: u.allowedTabs || [],
+      editableTabs: u.editableTabs || []
+    };
+  });
+}
+
+function _setUserRole(i, role) {
+  const u = cfgUsers[i];
+  if (!u) return;
+  u.role = role || '';
+}
+
+function _addUserName(i) {
+  _captureUserInputsToCfg();
+  const u = cfgUsers[i];
+  if (!u) return;
+  u.names = u.names || [];
+  u.names.push('');
+  _refreshUserRow(i);
+}
+
+function _removeUserName(i, j) {
+  _captureUserInputsToCfg();
+  const u = cfgUsers[i];
+  if (!u || !u.names) return;
+  u.names.splice(j, 1);
+  if (u.names.length === 0) u.names.push('');
+  _refreshUserRow(i);
+}
+
+function _toggleUserTab(i, tabId, checked) {
+  const u = cfgUsers[i];
+  if (!u) return;
+  u.allowedTabs = u.allowedTabs || [];
+  u.editableTabs = u.editableTabs || [];
+  if (checked) {
+    if (!u.allowedTabs.includes(tabId)) u.allowedTabs.push(tabId);
+    if (!u.editableTabs.includes(tabId)) u.editableTabs.push(tabId); // 預設可編輯
+  } else {
+    u.allowedTabs = u.allowedTabs.filter(t => t !== tabId);
+    u.editableTabs = u.editableTabs.filter(t => t !== tabId);
+  }
+}
+
+function _toggleUserTabEdit(i, tabId, checked) {
+  const u = cfgUsers[i];
+  if (!u) return;
+  u.editableTabs = u.editableTabs || [];
+  if (checked && !u.editableTabs.includes(tabId)) u.editableTabs.push(tabId);
+  if (!checked) u.editableTabs = u.editableTabs.filter(t => t !== tabId);
+}
+
+function showSettings() {
+  document.getElementById('headerTitle').textContent = '系統設定';
+  document.getElementById('todoContent').style.display       = 'none';
+  document.getElementById('mainContent').style.display       = '';
+  document.getElementById('memberContent').style.display     = 'none';
+  document.getElementById('dmContent').style.display         = 'none';
+  document.getElementById('signinContent').style.display     = 'none';
+  document.getElementById('guestTrackContent').style.display = 'none';
+  document.getElementById('placardContent').style.display    = 'none';
+  document.getElementById('financeContent').style.display    = 'none';
+  document.getElementById('meetingContent').style.display    = 'none';
+  // 隱藏頁籤列，只留設定畫面
+  document.getElementById('pageTabs').style.display = 'none';
+  ['ptab_todo','ptab_main','ptab_member','ptab_dm','ptab_signin','ptab_guesttrack','ptab_placard'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+  _activeTab = 'settings';
+  const cfg = getConfig();
+
+  // 保留使用者輸入欄位的當前值（重新渲染前先從 DOM 讀回）
+  _captureUserInputsToCfg();
+
+  const usersHtml = cfgUsers.map((u, i) => _renderUserRowHtml(u, i)).join('');
+
+  const catOpts  = CAT_ORDER.map(c => `<option value="${c}">${c}</option>`).join('');
+  const freqOpts = ['每週','視需要','月底','每月首週','每月末週'].map(f => `<option value="${f}">${f}</option>`).join('');
+
+  const dayPickerOpts = DAYS.map(d => `<option value="${d}">${d}</option>`).join('');
+
+  // 記錄目前展開狀態
+  const accOpen = ['acc0','acc1','acc2'].map(id => { const el = document.getElementById(id); return el ? el.style.display !== 'none' : false; });
+  const ctDay   = document.getElementById('ctDayPicker')?.value || DAYS[0];
+
+  document.getElementById('mainContent').innerHTML = `
+    <style>
+      .acc-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;padding:2px 0;}
+      .acc-arrow{font-size:12px;color:var(--text-soft);transition:transform .2s;display:inline-block;}
+      .acc-arrow.open{transform:rotate(90deg);}
+      .acc-body{margin-top:12px;}
+    </style>
+    <div class="card">
+      <div class="acc-header" onclick="toggleAcc('acc0')">
+        <div class="card-title" style="margin:0;">管理員名稱</div>
+        <span class="acc-arrow" id="acc0-arrow">&#9654;</span>
+      </div>
+      <div class="acc-body" id="acc0" style="display:none;">
+        <div class="form-row"><input type="text" id="adminPw" value="${cfg.adminPassword}" placeholder="管理員名稱"></div>
+        <p class="hint">用此名稱登入可查看總覽及修改設定</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="acc-header" onclick="toggleAcc('acc1')">
+        <div class="card-title" style="margin:0;">使用者名單</div>
+        <span class="acc-arrow" id="acc1-arrow">&#9654;</span>
+      </div>
+      <div class="acc-body" id="acc1" style="display:none;">
+        <p class="hint" style="margin-bottom:12px;">名稱即為登入密碼</p>
+        <div id="usersContainer">${usersHtml}</div>
+        <button class="add-btn" onclick="addUser()">+ 新增使用者</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="acc-header" onclick="toggleAcc('acc2')">
+        <div class="card-title" style="margin:0;">週進度任務設定</div>
+        <span class="acc-arrow" id="acc2-arrow">&#9654;</span>
+      </div>
+      <div class="acc-body" id="acc2" style="display:none;">
+        <p class="hint" style="margin-bottom:12px;">所有任務皆可編輯與刪除。可指派給特定使用者，未指派則所有人都看得到。</p>
+        <select class="modal-input" id="ctDayPicker" onchange="renderCtDay(this.value)" style="font-size:16px;margin-bottom:14px;">${dayPickerOpts}</select>
+        <div id="ctContainer"></div>
+        <div id="ctFormWrap" style="display:none;background:var(--gray-light);border-radius:10px;padding:16px;margin-top:4px;">
+          <div id="ct_form_title" style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:12px;">新增任務</div>
+          <div style="margin-bottom:8px;">
+            <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">星期</div>
+            <select id="ct_day" class="modal-input" style="font-size:15px;"></select>
+          </div>
+          <div style="margin-bottom:8px;">
+            <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">任務內容</div>
+            <textarea id="ct_task" class="modal-input" rows="3" placeholder="描述任務內容…" style="font-size:15px;resize:none;"></textarea>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+            <div>
+              <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">分類</div>
+              <select id="ct_cat" class="modal-input" style="font-size:15px;">${catOpts}</select>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">頻率</div>
+              <select id="ct_freq" class="modal-input" style="font-size:15px;">${freqOpts}</select>
+            </div>
+          </div>
+          <div style="margin-bottom:14px;">
+            <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:6px;">指派對象（不選 = 全體可見）</div>
+            <div id="ct_owners_box" style="display:flex;flex-wrap:wrap;align-items:center;"></div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button id="ct_form_btn" class="btn btn-primary" style="flex:1;" onclick="confirmTaskForm()">加入</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('ctFormWrap').style.display='none'">取消</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveSettings()">儲存設定</button>
+      <button class="btn btn-secondary" onclick="exitSettings()">取消</button>
+    </div>`;
+  // 還原展開狀態
+  ['acc0','acc1','acc2'].forEach((id, i) => {
+    if (accOpen[i]) {
+      document.getElementById(id).style.display = '';
+      document.getElementById(id + '-arrow').classList.add('open');
+    }
+  });
+  if (accOpen[2]) {
+    document.getElementById('ctDayPicker').value = ctDay;
+    renderCtDay(ctDay);
+  }
+}
+
+function toggleAcc(id) {
+  const body  = document.getElementById(id);
+  const arrow = document.getElementById(id + '-arrow');
+  const open  = body.style.display === 'none';
+  body.style.display  = open ? '' : 'none';
+  arrow.classList.toggle('open', open);
+  if (open && id === 'acc2') renderCtDay(document.getElementById('ctDayPicker').value || DAYS[0]);
+}
+
+// 設定頁：產出單一使用者列的 HTML（供首次渲染與局部更新共用）
+function _renderUserRowHtml(u, i) {
+  const namesArr = (u.names && u.names.length) ? u.names : [''];
+  const namesHtml = namesArr.map((n, j) => `
+      <div style="display:flex;gap:6px;align-items:stretch;margin-bottom:6px;min-width:0;">
+        <input type="text" value="${_escH(n)}" id="usr_${i}_${j}" placeholder="例如：康康" style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+        <button class="btn-danger" onclick="_removeUserName(${i}, ${j})" style="flex-shrink:0;padding:0 14px;font-size:18px;line-height:1;" title="移除此登入名稱">−</button>
+      </div>`).join('');
+  const roleOpts = `<option value="">— 未指定 —</option>` +
+    GUEST_ROLES.map(r => `<option value="${r}"${u.role === r ? ' selected' : ''}>${r}</option>`).join('');
+  const tabsHtml = TAB_LIST.map(t => {
+    const visible  = (u.allowedTabs||[]).includes(t.id);
+    const editable = (u.editableTabs||[]).includes(t.id);
+    const wrapStyle = `display:inline-flex;align-items:stretch;border:1.5px solid ${visible?'#10b981':'var(--gray-border)'};border-radius:999px;overflow:hidden;font-size:12px;background:${visible?'#d1fae5':'transparent'};`;
+    const nameStyle = `display:inline-flex;align-items:center;gap:4px;padding:3px 8px;cursor:pointer;color:${visible?'#065f46':'var(--text-soft)'};`;
+    const onStyle  = `display:inline-flex;align-items:center;padding:3px 7px;cursor:pointer;border-left:1px solid ${editable?'#059669':'#a7f3d0'};background:${editable?'#10b981':'#fff'};color:${editable?'#fff':'#9ca3af'};font-weight:700;font-size:10px;letter-spacing:0.5px;`;
+    const onLabel  = editable ? 'ON' : 'OFF';
+    const onTitle  = editable ? '可編輯（點擊改為唯讀）' : '唯讀（點擊改為可編輯）';
+    return `
+        <div style="${wrapStyle}" title="${visible ? (editable ? '可看 + 可編輯' : '可看 + 唯讀') : '不可見'}">
+          <label style="${nameStyle}">
+            <input type="checkbox" ${visible?'checked':''} onchange="_toggleUserTab(${i}, '${t.id}', this.checked); _refreshUserRow(${i});" style="margin:0;cursor:pointer;">
+            ${t.label}
+          </label>
+          ${visible ? `<span style="${onStyle}" title="${onTitle}" onclick="_toggleUserTabEdit(${i}, '${t.id}', ${!editable}); _refreshUserRow(${i});">${onLabel}</span>` : ''}
+        </div>`;
+  }).join('');
+  return `
+      <div class="user-row" id="ur_${i}" style="padding:12px;border:1.5px solid var(--red);border-radius:10px;margin-bottom:10px;box-sizing:border-box;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px;">
+          <div style="font-size:11px;color:var(--text-soft);font-weight:600;">角色</div>
+          <button class="btn-danger" onclick="removeUser(${i})" style="flex-shrink:0;font-size:11px;padding:4px 10px;">刪除整組</button>
+        </div>
+        <select onchange="_setUserRole(${i}, this.value)" style="width:100%;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;margin-bottom:10px;background:white;">
+          ${roleOpts}
+        </select>
+        <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">登入名稱（可多個）</div>
+        ${namesHtml}
+        <button class="add-btn" onclick="_addUserName(${i})" style="margin-top:0;margin-bottom:10px;font-size:12px;padding:6px 10px;">+ 新增登入名稱</button>
+        <div style="font-size:11px;color:var(--text-soft);font-weight:600;margin-bottom:4px;">可見頁籤</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">${tabsHtml}</div>
+      </div>`;
+}
+
+// 設定頁：只更新單一使用者列（避免 toggle 一個 chip 就重繪整個設定畫面）
+function _refreshUserRow(i) {
+  const el = document.getElementById('ur_' + i);
+  if (!el) return;
+  const u = cfgUsers[i];
+  if (!u) { el.remove(); return; }
+  // 替換前先把現場 input 的值同步進 cfgUsers，避免名稱被舊值覆寫
+  _captureUserInputsToCfg();
+  const tmp = document.createElement('div');
+  tmp.innerHTML = _renderUserRowHtml(cfgUsers[i], i);
+  el.replaceWith(tmp.firstElementChild);
+}
+
+function renderCtDay(day) {
+  const list = cfgTasks.map((t, idx) => ({ ...t, _idx: idx })).filter(t => t.day === day);
+  const itemsHtml = list.map(t => {
+    const ownersHtml = (t.owners || []).length
+      ? t.owners.map(n => `<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px;">${_escH(n)}</span>`).join(' ')
+      : `<span style="font-size:10px;color:var(--text-soft);font-style:italic;">全體</span>`;
+    return `
+      <div style="display:flex;align-items:flex-start;gap:8px;padding:10px 0;border-bottom:1px solid var(--gray-border);">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:11px;color:var(--text-soft);margin-bottom:2px;">${t.cat} · ${t.freq}</div>
+          <div style="font-size:13px;color:var(--text);line-height:1.5;margin-bottom:6px;">${t.task}</div>
+          <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+            <span style="font-size:10px;color:var(--text-soft);">指派：</span>${ownersHtml}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;align-self:center;">
+          <button class="btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="openTaskForm(${t._idx}, '${day}')">編輯</button>
+          <button class="btn-danger" style="font-size:11px;padding:4px 10px;" onclick="removeTask(${t._idx})">刪除</button>
+        </div>
+      </div>`;
+  }).join('');
+  const empty = list.length ? '' : `<p class="hint" style="text-align:center;padding:12px 0;">此日尚無任務</p>`;
+  document.getElementById('ctContainer').innerHTML = itemsHtml + empty + `
+    <button class="add-btn" style="margin-top:8px;font-size:12px;padding:6px 12px;" onclick="openTaskForm(null, '${day}')">+ 新增至${day}</button>`;
+  const fw = document.getElementById('ctFormWrap');
+  if (fw) fw.style.display = 'none';
+}
+
+function _cfgAllNames() {
+  // 先把「使用者名單」中現場 input 的值同步到 cfgUsers，避免漏掉剛新增/修改但未儲存的名稱
+  try { _captureUserInputsToCfg(); } catch (e) {}
+  const names = new Set();
+  const adminInp = document.getElementById('adminPw');
+  if (adminInp && adminInp.value.trim()) names.add(adminInp.value.trim());
+  cfgUsers.forEach(u => (u.names || []).forEach(n => { if (n && n.trim()) names.add(n.trim()); }));
+  return [...names];
+}
+
+function _renderTaskOwnerChips() {
+  const names = _cfgAllNames();
+  if (!names.length) return `<span style="font-size:11px;color:var(--text-soft);">尚無使用者，請先在「使用者名單」新增</span>`;
+  return names.map(n => {
+    const on = _editingOwners.includes(n);
+    const safe = _escH(n).replace(/'/g, "\\'");
+    return `<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:4px 10px;border:1.5px solid ${on?'#fbbf24':'var(--gray-border)'};border-radius:999px;cursor:pointer;background:${on?'#fef3c7':'transparent'};color:${on?'#92400e':'var(--text-soft)'};margin:0 4px 4px 0;">
+      <input type="checkbox" ${on?'checked':''} onchange="_toggleEditingOwner('${safe}', this.checked)" style="margin:0;cursor:pointer;">
+      ${_escH(n)}
+    </label>`;
+  }).join('');
+}
+
+function _toggleEditingOwner(name, checked) {
+  if (checked) { if (!_editingOwners.includes(name)) _editingOwners.push(name); }
+  else { _editingOwners = _editingOwners.filter(n => n !== name); }
+  const box = document.getElementById('ct_owners_box');
+  if (box) box.innerHTML = _renderTaskOwnerChips();
+}
+
+function _refreshUsersContainer() {
+  const container = document.getElementById('usersContainer');
+  if (!container) { showSettings(); return; }
+  container.innerHTML = cfgUsers.map((u, idx) => _renderUserRowHtml(u, idx)).join('');
+}
+function addUser()     { _captureUserInputsToCfg(); cfgUsers.push({ names: [''], role: '', allowedTabs: [], editableTabs: [] }); _refreshUsersContainer(); }
+function removeUser(i) { _captureUserInputsToCfg(); cfgUsers.splice(i, 1); _refreshUsersContainer(); }
+
+function removeTask(i) {
+  if (!confirm('確定刪除此任務？已儲存的進度紀錄會保留但此任務將不再顯示。')) return;
+  cfgTasks.splice(i, 1);
+  const day = document.getElementById('ctDayPicker')?.value || DAYS[0];
+  renderCtDay(day);
+}
+
+function openTaskForm(idx, day) {
+  _editingTaskIdx = idx;
+  const cur = (idx == null) ? null : cfgTasks[idx];
+  _editingOwners = cur ? [...(cur.owners || [])] : [];
+  const initDay = cur ? cur.day : day;
+  const dayOpts = DAYS.map(d => `<option value="${d}"${d===initDay?' selected':''}>${d}</option>`).join('');
+  document.getElementById('ct_day').innerHTML = dayOpts;
+  document.getElementById('ct_task').value = cur ? cur.task : '';
+  document.getElementById('ct_cat').value  = cur ? cur.cat  : (CAT_ORDER[0] || '');
+  document.getElementById('ct_freq').value = cur ? cur.freq : '每週';
+  document.getElementById('ct_owners_box').innerHTML = _renderTaskOwnerChips();
+  document.getElementById('ct_form_title').textContent = cur ? '編輯任務' : '新增任務';
+  document.getElementById('ct_form_btn').textContent   = cur ? '儲存' : '加入';
+  document.getElementById('ctFormWrap').style.display = '';
+  document.getElementById('ct_task').focus();
+}
+
+function confirmTaskForm() {
+  const day  = document.getElementById('ct_day').value;
+  const task = document.getElementById('ct_task').value.trim();
+  const cat  = document.getElementById('ct_cat').value;
+  const freq = document.getElementById('ct_freq').value;
+  if (!task) { showToast('請填寫任務內容'); return; }
+  const owners = [..._editingOwners];
+  if (_editingTaskIdx == null) {
+    // id 加上隨機字尾避免快速連續新增時撞同毫秒；也避免跟既有 id 衝突
+    const existingIds = new Set(cfgTasks.map(t => String(t.id)));
+    let newId;
+    do {
+      newId = 'c' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    } while (existingIds.has(newId));
+    cfgTasks.push({ id: newId, day, owners, task, cat, freq });
+  } else {
+    cfgTasks[_editingTaskIdx] = { ...cfgTasks[_editingTaskIdx], day, owners, task, cat, freq };
+  }
+  _editingTaskIdx = null;
+  _editingOwners = [];
+  document.getElementById('ctDayPicker').value = day;
+  renderCtDay(day);
+}
+
+async function saveSettings() {
+  if (CR !== 'admin') { showToast('無權限'); return; }
+  const adminPw = document.getElementById('adminPw').value.trim();
+  _captureUserInputsToCfg();
+  const users = cfgUsers
+    .map(u => ({ ...u, names: (u.names || []).map(n => (n || '').trim()).filter(n => n) }))
+    .filter(u => u.names.length);
+  await saveConfigData({ adminPassword: adminPw, users, tasks: cfgTasks, meetingStaff: cfgMeetingStaff });
+  await _bgRefresh();
+  showToast('設定已儲存');
+  setTimeout(() => exitSettings(), 600);
+}
+
+function exitSettings() {
+  // 恢復頁籤列 + 回到主頁
+  document.getElementById('pageTabs').style.display = 'flex';
+  switchTab('main');
+}
+
