@@ -52,8 +52,12 @@ function _renderMeetingStaffBlock() {
     }
     return row(e, e, '本週會員姓名');
   }).join('');
+  const topicType = cfgMeetingStaff['主題類型'] || '主題簡報';
   const speakerRow = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-    <div style="flex-shrink:0;width:60px;font-size:13px;font-weight:700;color:var(--text);">主題簡報</div>
+    <select onchange="_meetStaffOnInput('主題類型',this.value)" style="flex-shrink:0;width:90px;padding:9px 8px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:13px;font-weight:700;color:var(--text);font-family:inherit;outline:none;background:white;cursor:pointer;">
+      <option value="主題簡報" ${topicType==='主題簡報'?'selected':''}>主題簡報</option>
+      <option value="主題日" ${topicType==='主題日'?'selected':''}>主題日</option>
+    </select>
     <input type="text" value="${_escH(cfgMeetingStaff['會員1']||'')}" oninput="_meetStaffOnInput('會員1',this.value)" placeholder="本週會員1姓名" style="${inputStyle}">
     <input type="text" value="${_escH(cfgMeetingStaff['會員2']||'')}" oninput="_meetStaffOnInput('會員2',this.value)" placeholder="本週會員2姓名" style="${inputStyle}">
   </div>`;
