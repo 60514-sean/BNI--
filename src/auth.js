@@ -108,12 +108,19 @@ async function doLogout() {
   CU = null; CR = null;
   _memberData = null;
   try { sessionStorage.removeItem('bni_session'); } catch {}
+  // 登出同時清除 gate token，下次登入要重新輸入分會共用密碼
+  if (typeof _clearGateToken === 'function') _clearGateToken();
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('appPage').style.display = 'none';
   document.getElementById('menuBtn').style.display = 'none';
   closeMenu();
   document.getElementById('nameInput').value = '';
   document.getElementById('loginError').textContent = '';
+  // 顯示分會共用密碼欄、提示文字復原
+  const gateInput = document.getElementById('gateInput');
+  if (gateInput) { gateInput.style.display = ''; gateInput.value = ''; }
+  const promptEl = document.getElementById('loginPrompt');
+  if (promptEl) promptEl.textContent = '請輸入分會共用密碼及您的姓名';
 }
 
 document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });

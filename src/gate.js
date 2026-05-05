@@ -1,6 +1,6 @@
 // ===== 站台密碼閘門（與姓名登入合併在同一頁） =====
-// 第一次進站或 30 天 token 過期：登入頁同時顯示「分會共用密碼 + 姓名」兩欄
-// 30 天內已驗證過：分會密碼欄隱藏，只顯示姓名
+// 每次登入（新分頁、登出後重登）都要重新輸入分會共用密碼
+// gate token 用 sessionStorage：分頁關閉自動消失、登出時手動清除
 //
 // === 密碼來源優先序 ===
 // 1. cfg.sitePasswordHash（管理員在設定頁改的密碼，存在 Google Sheet config）
@@ -9,7 +9,6 @@
 // SHA-256 of "BNI鳳華2026"（cfg 未設置時的預設值，可被管理員覆寫）
 const SITE_PASSWORD_HASH_FALLBACK = '80f23b385d21797e74e6ebfa2bbc18becc8ed9c315b81ba8b56153612423d985';
 const SITE_GATE_KEY = 'bni_site_gate_v1';
-const SITE_GATE_TTL_DAYS = 30;
 
 async function _sha256Hex(str) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
@@ -25,18 +24,19 @@ function _currentSiteHash() {
 
 function _isGateUnlocked() {
   try {
-    const raw = localStorage.getItem(SITE_GATE_KEY);
+    const raw = sessionStorage.getItem(SITE_GATE_KEY);
     if (!raw) return false;
     const obj = JSON.parse(raw);
-    if (!obj || obj.hash !== _currentSiteHash()) return false;
-    if (Date.now() > obj.expires) return false;
-    return true;
+    return obj && obj.hash === _currentSiteHash();
   } catch { return false; }
 }
 
 function _markGateUnlocked(hash) {
-  const expires = Date.now() + SITE_GATE_TTL_DAYS * 24 * 60 * 60 * 1000;
-  localStorage.setItem(SITE_GATE_KEY, JSON.stringify({ hash: hash || _currentSiteHash(), expires }));
+  sessionStorage.setItem(SITE_GATE_KEY, JSON.stringify({ hash: hash || _currentSiteHash() }));
+}
+
+function _clearGateToken() {
+  try { sessionStorage.removeItem(SITE_GATE_KEY); } catch {}
 }
 
 (function _initLoginGate() {
