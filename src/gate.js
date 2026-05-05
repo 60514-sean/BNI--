@@ -1,19 +1,15 @@
 // ===== 站台密碼閘門 =====
 // 在原本的「姓名登入」之前再加一道共用密碼，擋住路人/搜尋引擎/隨機訪客。
 //
-// 安全等級：弱（密碼 hash 寫在前端原始碼，理論上有人抓 hash 暴力破解）
-// 用途：擋掉 99% 不會 view-source 的隨機訪客，相當於「貼一張內部公告紙條」
+// 安全等級：弱（密碼 hash 為公開可讀，理論上可暴力破解）
+// 用途：擋掉 99% 不會 view-source 的隨機訪客
 //
-// === 換密碼步驟 ===
-// 1. 開瀏覽器 console，貼這段（換成新密碼）：
-//      const t=new TextEncoder().encode('新密碼字串');
-//      crypto.subtle.digest('SHA-256',t).then(b=>console.log([...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')));
-//    或用 python：python -c "import hashlib; print(hashlib.sha256('新密碼'.encode()).hexdigest())"
-// 2. 把產出的 hash 字串貼到下方 SITE_PASSWORD_HASH
-// 3. commit + push，全員下次打開網站時要重新輸入新密碼
+// === 密碼來源優先序 ===
+// 1. cfg.sitePasswordHash（管理員在設定頁改的密碼，存在 Google Sheet config）
+// 2. SITE_PASSWORD_HASH_FALLBACK（cfg 沒設時用的預設值，第一次部署用）
 
-// SHA-256 of "BNI鳳華2026"
-const SITE_PASSWORD_HASH = '80f23b385d21797e74e6ebfa2bbc18becc8ed9c315b81ba8b56153612423d985';
+// SHA-256 of "BNI鳳華2026"（cfg 未設置時的預設值，可隨時被管理員覆寫）
+const SITE_PASSWORD_HASH_FALLBACK = '80f23b385d21797e74e6ebfa2bbc18becc8ed9c315b81ba8b56153612423d985';
 const SITE_GATE_KEY = 'bni_site_gate_v1';
 const SITE_GATE_TTL_DAYS = 30;
 
@@ -22,20 +18,27 @@ async function _sha256Hex(str) {
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function _currentSiteHash() {
+  try {
+    const cfg = (typeof getConfig === 'function') ? getConfig() : null;
+    return (cfg && cfg.sitePasswordHash) || SITE_PASSWORD_HASH_FALLBACK;
+  } catch { return SITE_PASSWORD_HASH_FALLBACK; }
+}
+
 function _isGateUnlocked() {
   try {
     const raw = localStorage.getItem(SITE_GATE_KEY);
     if (!raw) return false;
     const obj = JSON.parse(raw);
-    if (!obj || obj.hash !== SITE_PASSWORD_HASH) return false;
+    if (!obj || obj.hash !== _currentSiteHash()) return false;
     if (Date.now() > obj.expires) return false;
     return true;
   } catch { return false; }
 }
 
-function _markGateUnlocked() {
+function _markGateUnlocked(hash) {
   const expires = Date.now() + SITE_GATE_TTL_DAYS * 24 * 60 * 60 * 1000;
-  localStorage.setItem(SITE_GATE_KEY, JSON.stringify({ hash: SITE_PASSWORD_HASH, expires }));
+  localStorage.setItem(SITE_GATE_KEY, JSON.stringify({ hash: hash || _currentSiteHash(), expires }));
 }
 
 async function submitGate() {
@@ -45,13 +48,13 @@ async function submitGate() {
   const pw = (input.value || '').trim();
   if (!pw) return;
   const hash = await _sha256Hex(pw);
-  if (hash !== SITE_PASSWORD_HASH) {
+  if (hash !== _currentSiteHash()) {
     errEl.textContent = '密碼錯誤';
     input.value = '';
     input.focus();
     return;
   }
-  _markGateUnlocked();
+  _markGateUnlocked(hash);
   document.getElementById('gatePage').style.display = 'none';
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('nameInput').focus();

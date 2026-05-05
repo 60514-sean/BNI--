@@ -178,7 +178,7 @@ function showSettings() {
   const dayPickerOpts = DAYS.map(d => `<option value="${d}">${d}</option>`).join('');
 
   // 記錄目前展開狀態
-  const ACC_IDS = ['acc0','acc1','accMsg','acc2'];
+  const ACC_IDS = ['acc0','accSitePw','acc1','accMsg','acc2'];
   const accOpen = ACC_IDS.map(id => { const el = document.getElementById(id); return el ? el.style.display !== 'none' : false; });
   const ctDay   = document.getElementById('ctDayPicker')?.value || DAYS[0];
 
@@ -197,6 +197,20 @@ function showSettings() {
       <div class="acc-body" id="acc0" style="display:none;">
         <div class="form-row"><input type="text" id="adminPw" value="${cfg.adminPassword}" placeholder="管理員名稱"></div>
         <p class="hint">用此名稱登入可查看總覽及修改設定</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="acc-header" onclick="toggleAcc('accSitePw')">
+        <div class="card-title" style="margin:0;">站台共用密碼</div>
+        <span class="acc-arrow" id="accSitePw-arrow">&#9654;</span>
+      </div>
+      <div class="acc-body" id="accSitePw" style="display:none;">
+        <p class="hint" style="margin-bottom:12px;">分會所有人共用此密碼進入網站。改完請通知所有使用者，他們下次打開網站需要重新輸入。</p>
+        <div class="form-row"><input type="password" id="oldSitePw" placeholder="目前密碼" autocomplete="off"></div>
+        <div class="form-row"><input type="password" id="newSitePw" placeholder="新密碼（建議 8 字元以上）" autocomplete="off"></div>
+        <div class="form-row"><input type="password" id="newSitePw2" placeholder="再輸入一次新密碼" autocomplete="off"></div>
+        <button class="add-btn" onclick="changeSitePassword()" style="margin-top:8px;">變更密碼</button>
+        <div id="sitePwMsg" style="margin-top:10px;font-size:13px;font-weight:700;"></div>
       </div>
     </div>
     <div class="card">
@@ -501,10 +515,44 @@ async function saveSettings() {
     const el = document.getElementById(`msg_${i}`);
     if (el && el.value.trim()) messages[u.names[0]] = el.value.trim();
   });
-  await saveConfigData({ adminPassword: adminPw, users, tasks: cfgTasks, meetingStaff: cfgMeetingStaff, messages });
+  // spread 現有 cfg 以保留 sitePasswordHash 等其他欄位（避免被覆寫掉）
+  const baseCfg = getConfig();
+  await saveConfigData({ ...baseCfg, adminPassword: adminPw, users, tasks: cfgTasks, meetingStaff: cfgMeetingStaff, messages });
   await _bgRefresh();
   showToast('設定已儲存');
   setTimeout(() => exitSettings(), 600);
+}
+
+async function changeSitePassword() {
+  if (CR !== 'admin') { showToast('無權限'); return; }
+  const oldPw = (document.getElementById('oldSitePw').value || '').trim();
+  const newPw = (document.getElementById('newSitePw').value || '').trim();
+  const newPw2 = (document.getElementById('newSitePw2').value || '').trim();
+  const msgEl = document.getElementById('sitePwMsg');
+  const setErr = t => { msgEl.style.color = '#c0392b'; msgEl.textContent = t; };
+  const setOk  = t => { msgEl.style.color = '#16a085'; msgEl.textContent = t; };
+  msgEl.textContent = '';
+
+  if (!oldPw || !newPw || !newPw2) { setErr('請填寫全部三個欄位'); return; }
+  if (newPw !== newPw2) { setErr('新密碼兩次輸入不一致'); return; }
+  if (newPw.length < 6) { setErr('新密碼至少 6 字元'); return; }
+  if (newPw === oldPw)  { setErr('新密碼不能與舊密碼相同'); return; }
+
+  const oldHash = await _sha256Hex(oldPw);
+  if (oldHash !== _currentSiteHash()) { setErr('目前密碼錯誤'); return; }
+
+  const newHash = await _sha256Hex(newPw);
+  const baseCfg = getConfig();
+  await saveConfigData({ ...baseCfg, sitePasswordHash: newHash });
+  await _bgRefresh();
+
+  // 更新自己這台裝置的 gate token，避免下次重整被踢出
+  _markGateUnlocked(newHash);
+
+  document.getElementById('oldSitePw').value = '';
+  document.getElementById('newSitePw').value = '';
+  document.getElementById('newSitePw2').value = '';
+  setOk('密碼已更新，請通知所有使用者新密碼');
 }
 
 function exitSettings() {
