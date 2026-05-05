@@ -3,7 +3,7 @@ let _activeTab = 'main';
 
 const TAB_LABELS = {
   todo:'待辦事項', main:'工事清單', member:'會員資料', dm:'會員DM',
-  signin:'出席簽到', guesttrack:'來賓追蹤', placard:'桌牌製作',
+  signin:'出席簽到', guesttrack:'來賓追蹤', placard:'桌牌製作', schedule:'簡報排程',
   finance:'財務控管', meeting:'例會流程', settings:'系統設定'
 };
 
@@ -18,6 +18,7 @@ function switchTab(tab) {
   document.getElementById('signinContent').style.display     = tab === 'signin'     ? '' : 'none';
   document.getElementById('guestTrackContent').style.display = tab === 'guesttrack' ? '' : 'none';
   document.getElementById('placardContent').style.display    = tab === 'placard'    ? '' : 'none';
+  document.getElementById('scheduleContent').style.display   = tab === 'schedule'   ? '' : 'none';
   document.getElementById('financeContent').style.display    = tab === 'finance'    ? '' : 'none';
   document.getElementById('meetingContent').style.display    = tab === 'meeting'    ? '' : 'none';
   _updateMenuActive(tab);
@@ -31,6 +32,7 @@ function switchTab(tab) {
   if (tab === 'signin')     renderSignin();
   if (tab === 'guesttrack') renderGuestTrack();
   if (tab === 'placard')    renderPlacard();
+  if (tab === 'schedule')   renderSchedule();
   if (tab === 'finance')    renderFinance();
   if (tab === 'meeting')    renderMeeting();
 }

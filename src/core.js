@@ -133,6 +133,7 @@ const TAB_LIST = [
   { id: 'signin',     label: '出席簽到', group: '例會準備' },
   { id: 'guesttrack', label: '來賓追蹤', group: '例會準備' },
   { id: 'placard',    label: '桌牌製作', group: '例會準備' },
+  { id: 'schedule',   label: '簡報排程', group: '例會準備' },
   { id: 'finance',    label: '財務控管', group: '財務／例會' },
   { id: 'meeting',    label: '例會流程', group: '財務／例會' }
 ];
@@ -322,7 +323,7 @@ function _applyEditLock(tabId) {
   const map = {
     todo:'todoContent', main:'mainContent', member:'memberContent',
     dm:'dmContent', signin:'signinContent', guesttrack:'guestTrackContent',
-    placard:'placardContent', finance:'financeContent', meeting:'meetingContent'
+    placard:'placardContent', schedule:'scheduleContent', finance:'financeContent', meeting:'meetingContent'
   };
   const targets = [];
   if (map[tabId]) {

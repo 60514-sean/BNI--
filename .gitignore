@@ -1,0 +1,10 @@
+.vercel
+
+# 含個資（會員/來賓姓名、電話、備註）— 切勿 commit 到 public repo
+guests.json
+members.csv
+*.local.json
+*.local.csv
+
+# DM 設計原稿（含會員照片/業務/聯絡資訊）
+dm_bg/

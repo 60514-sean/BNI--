@@ -160,6 +160,7 @@ function showSettings() {
   document.getElementById('signinContent').style.display     = 'none';
   document.getElementById('guestTrackContent').style.display = 'none';
   document.getElementById('placardContent').style.display    = 'none';
+  document.getElementById('scheduleContent').style.display   = 'none';
   document.getElementById('financeContent').style.display    = 'none';
   document.getElementById('meetingContent').style.display    = 'none';
   _activeTab = 'settings';
