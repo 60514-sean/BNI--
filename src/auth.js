@@ -15,8 +15,27 @@ let _editingOwners = [];
 
 
 async function doLogin() {
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+
+  // 站台共用密碼：若分會密碼欄可見（=未解鎖或 30 天 token 過期）才驗證
+  const gateInput = document.getElementById('gateInput');
+  if (gateInput && gateInput.style.display !== 'none') {
+    const pw = (gateInput.value || '').trim();
+    if (!pw) { errEl.textContent = '請輸入分會共用密碼'; gateInput.focus(); return; }
+    const hash = await _sha256Hex(pw);
+    if (hash !== _currentSiteHash()) {
+      errEl.textContent = '分會共用密碼錯誤';
+      gateInput.value = '';
+      gateInput.focus();
+      return;
+    }
+    _markGateUnlocked(hash);
+    gateInput.style.display = 'none';
+  }
+
   const name = document.getElementById('nameInput').value.trim();
-  if (!name) return;
+  if (!name) { errEl.textContent = '請輸入姓名'; document.getElementById('nameInput').focus(); return; }
 
   let cfg = getConfig();
   let userObj = cfg.users.find(u => (u.names || []).includes(name)) || null;

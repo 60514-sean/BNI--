@@ -20,22 +20,12 @@
   <div class="loader-text" id="loaderText">載入中...</div>
 </div>
 
-<!-- SITE GATE (共用密碼) -->
-<div class="login-page" id="gatePage" style="display:none">
-  <div class="login-box">
-    <h1>秘書財務小組</h1>
-    <p>請輸入分會共用密碼</p>
-    <input type="password" id="gateInput" placeholder="共用密碼" autocomplete="off">
-    <button class="btn-login" onclick="submitGate()">進 入</button>
-    <div class="login-error" id="gateError"></div>
-  </div>
-</div>
-
-<!-- LOGIN -->
+<!-- LOGIN（分會密碼 + 姓名 同頁）-->
 <div class="login-page" id="loginPage" style="display:none">
   <div class="login-box">
     <h1>秘書財務小組</h1>
-    <p>請輸入您的名稱登入</p>
+    <p id="loginPrompt">請輸入您的名稱登入</p>
+    <input type="password" id="gateInput" placeholder="分會共用密碼" autocomplete="off" style="display:none">
     <input type="text" id="nameInput" placeholder="輸入姓名" autocomplete="off">
     <button class="btn-login" onclick="doLogin()">登 入</button>
     <div class="login-error" id="loginError"></div>
@@ -74,8 +64,8 @@
 <div class="toast" id="toast"></div>
 
 <script src="src/core.js?v=20260504aa"></script>
-<script src="src/gate.js?v=20260506a"></script>
-<script src="src/auth.js?v=20260505a"></script>
+<script src="src/gate.js?v=20260506b"></script>
+<script src="src/auth.js?v=20260506b"></script>
 <script src="src/main.js?v=20260504j"></script>
 <script src="src/settings.js?v=20260506a"></script>
 <script src="src/tabs-todo.js?v=20260504z"></script>
