@@ -100,8 +100,10 @@ async function doLogout() {
 document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
 // 同一分頁 session 內若曾登入過（PDF 返回、頁面重新載入），自動還原；新分頁則會看到登入畫面
+// 站台共用密碼閘門未通過時不自動還原（避免繞過閘門）
 (async () => {
   try {
+    if (typeof _isGateUnlocked === 'function' && !_isGateUnlocked()) return;
     const s = sessionStorage.getItem('bni_session');
     if (!s) return;
     const sess = JSON.parse(s);
