@@ -83,28 +83,43 @@ function _scaleSlogan() {
 }
 window.addEventListener('resize', () => { if (_activeTab === 'slogan') _scaleSlogan(); });
 
-// 量測列高並反推「自動縮放係數」，讓內容滿版又不溢出
+// 列已 flex:1 均分欄位高度（底部不留白）。此函式只負責根據每列分到的高度，反推合適字級
 function _autoFitSlogan() {
   const sheet = document.getElementById('sloganSheet');
   if (!sheet) return;
   const cols = sheet.querySelector('.slogan-cols');
   if (!cols) return;
-  // 二段迭代：第一次粗算、第二次微修（因文字換行非完全線性）
+  // 先重設 --ss=1 量測「每列內容自然高度」
+  sheet.style.setProperty('--ss', '1');
+  void sheet.offsetHeight;
+
+  const colEls = cols.querySelectorAll('.slogan-col');
+  let maxItems = 0;
+  colEls.forEach(c => { maxItems = Math.max(maxItems, c.querySelectorAll('.slogan-item').length); });
+  if (!maxItems) return;
+
+  const items = sheet.querySelectorAll('.slogan-item');
+  let naturalH = 0;
+  items.forEach(i => { naturalH = Math.max(naturalH, i.scrollHeight); });
+  if (naturalH <= 0) return;
+
+  const allocH = cols.clientHeight / maxItems;
+  // 目標填到 92% 列高（留一點呼吸空間）
+  let scale = (allocH * 0.92) / naturalH;
+  scale = Math.max(0.4, Math.min(3.0, scale));
+  sheet.style.setProperty('--ss', scale.toFixed(3));
+
+  // 文字換行不完全線性：再迭代修正，遇到溢出就縮小
   for (let pass = 0; pass < 3; pass++) {
-    const colEls = cols.querySelectorAll('.slogan-col');
-    let maxScroll = 0;
-    colEls.forEach(c => { maxScroll = Math.max(maxScroll, c.scrollHeight); });
-    const avail = cols.clientHeight;
-    if (maxScroll <= 0 || avail <= 0) return;
-    const cur = parseFloat(getComputedStyle(sheet).getPropertyValue('--ss')) || 1;
-    // 目標：列高總和 = 可用高度 × 0.97（保留 3% 緩衝避免邊界 round-off）
-    let next = cur * (avail * 0.97 / maxScroll);
-    // 合理區間
-    next = Math.max(0.5, Math.min(2.0, next));
-    if (Math.abs(next - cur) < 0.005) break; // 已收斂
-    sheet.style.setProperty('--ss', next.toFixed(3));
-    // 強制 reflow
     void sheet.offsetHeight;
+    let maxRatio = 1;
+    items.forEach(i => {
+      const r = i.scrollHeight / Math.max(1, i.clientHeight);
+      if (r > maxRatio) maxRatio = r;
+    });
+    if (maxRatio <= 1.02) break;
+    const cur = parseFloat(getComputedStyle(sheet).getPropertyValue('--ss')) || 1;
+    sheet.style.setProperty('--ss', (cur / maxRatio * 0.95).toFixed(3));
   }
 }
 
