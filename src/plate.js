@@ -1,4 +1,17 @@
 // ===== 會員車牌（仿 PDF 列印格式）=====
+// 額外（非會員）車牌：以 __plate_extras__ 存於後端，會員增減不影響
+let _plateExtras = (() => {
+  if (Array.isArray(cache['__plate_extras__'])) return cache['__plate_extras__'];
+  return [];
+})();
+_bgRefresh().then(() => {
+  if (Array.isArray(cache['__plate_extras__'])) {
+    _plateExtras = cache['__plate_extras__'];
+    if (_activeTab === 'plate') renderPlate();
+  }
+});
+function _savePlateExtras() { apiSave('__plate_extras__', _plateExtras); }
+
 async function renderPlate() {
   _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
@@ -24,6 +37,7 @@ async function renderPlate() {
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-primary" onclick="exportPlatePdf()">匯出 PDF</button>
           <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text);font-weight:700;" onclick="exportPlateJpg()">匯出 JPG</button>
+          <button class="btn" style="background:white;border:1.5px solid var(--red);color:var(--red);font-weight:900;" onclick="openPlateExtraModal()" title="新增非會員車牌">+</button>
           <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="_memberData=null;renderPlate()">重整</button>
         </div>
       </div>
@@ -38,12 +52,18 @@ async function renderPlate() {
 }
 
 // 把每位會員的多張車牌展開成 [{name, plate}, ...]，沒有車牌的會員跳過
+// 最後再 append 「非會員額外車牌」（_plateExtras）
 function _flattenPlateRows(members) {
   const out = [];
   for (const m of members) {
     if (!m.plates) continue;
     const ps = m.plates.split('|').map(s => s.trim()).filter(Boolean);
     for (const p of ps) out.push({ name: m.name || '', plate: p });
+  }
+  for (const ex of _plateExtras) {
+    if (ex && (ex.name || ex.plate)) {
+      out.push({ name: ex.name || '', plate: ex.plate || '' });
+    }
   }
   return out;
 }
@@ -221,4 +241,69 @@ async function exportPlateJpg() {
     showLoader(false);
     _resumeEditLock();
   }
+}
+
+// ===== 非會員車牌管理 modal =====
+function openPlateExtraModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'plateExtraModal';
+  overlay.innerHTML = `
+    <div class="modal-box" style="max-width:460px;">
+      <div class="modal-title">新增非會員車牌</div>
+      <p style="font-size:13px;color:var(--text-soft);margin-bottom:12px;line-height:1.5;">這裡新增的車牌會顯示在「會員車牌表」最後一位會員之後，<strong>不受會員增刪影響</strong>。</p>
+      <div id="plateExtraList" style="margin-bottom:14px;max-height:280px;overflow-y:auto;border:1px solid var(--gray-border);border-radius:8px;padding:4px 10px;"></div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input class="modal-input" id="plateExtraName" placeholder="姓名" style="margin-bottom:0;flex:1;">
+        <input class="modal-input" id="plateExtraPlate" placeholder="車牌號碼" style="margin-bottom:0;flex:1.2;" onkeydown="if(event.key==='Enter')addPlateExtra()">
+        <button onclick="addPlateExtra()" style="padding:10px 16px;background:var(--red);color:white;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">新增</button>
+      </div>
+      <div class="modal-btns" style="margin-top:18px;">
+        <button class="modal-cancel" style="width:100%;" onclick="closePlateExtraModal()">關閉</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  _renderPlateExtraList();
+  setTimeout(() => document.getElementById('plateExtraName')?.focus(), 50);
+}
+
+function _renderPlateExtraList() {
+  const el = document.getElementById('plateExtraList');
+  if (!el) return;
+  if (_plateExtras.length === 0) {
+    el.innerHTML = `<div style="color:var(--text-soft);font-size:13px;text-align:center;padding:18px;">尚未新增任何非會員車牌</div>`;
+    return;
+  }
+  el.innerHTML = _plateExtras.map((it, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--gray-border);">
+      <span style="font-size:14px;flex:0 0 90px;font-weight:700;">${_escH(it.name || '')}</span>
+      <span style="font-size:14px;flex:1;color:#555;letter-spacing:0.5px;">${_escH(it.plate || '')}</span>
+      <button onclick="removePlateExtra(${i})" style="padding:3px 12px;background:white;border:1.5px solid #e74c3c;color:#e74c3c;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;">刪除</button>
+    </div>`).join('');
+}
+
+function addPlateExtra() {
+  const nameEl  = document.getElementById('plateExtraName');
+  const plateEl = document.getElementById('plateExtraPlate');
+  const name  = nameEl  ? nameEl.value.trim()  : '';
+  const plate = plateEl ? plateEl.value.trim() : '';
+  if (!name && !plate) return;
+  _plateExtras.push({ name, plate });
+  _savePlateExtras();
+  if (nameEl)  nameEl.value  = '';
+  if (plateEl) plateEl.value = '';
+  _renderPlateExtraList();
+  if (_activeTab === 'plate') renderPlate();
+  setTimeout(() => document.getElementById('plateExtraName')?.focus(), 30);
+}
+
+function removePlateExtra(i) {
+  _plateExtras.splice(i, 1);
+  _savePlateExtras();
+  _renderPlateExtraList();
+  if (_activeTab === 'plate') renderPlate();
+}
+
+function closePlateExtraModal() {
+  document.getElementById('plateExtraModal')?.remove();
 }
