@@ -24,14 +24,14 @@
  */
 
 const SHEET_ID = '12cGPw7f8L1HxZv6G5H3yKzPYNKNg8jIdzV3gl2sEN_Y';
-const SHEET_NAME = '';   // 留空 = 第一個工作表；若需指定可填工作表名稱
+const SHEET_GID = 1895828585;   // 第六屆分頁；以 gid 鎖定避免分頁改名失效
+const SHEET_NAME = '';          // SHEET_GID 找不到時的備援
 
-// 欄位對應（Sheet 第幾欄；A=1, B=2, ...）
+// 欄位對應（Sheet 第幾欄；A=1, B=2, ...）— 第六屆分頁格式：A 欄空白、無次數欄
 const COL = {
-  WEEK:       1,  // A 週次
-  DATE:       2,  // B 日期
-  PRESENTERS: 3,  // C 主題簡報者
-  COUNT:      4,  // D 簡報次數
+  WEEK:       2,  // B 排序/標記（屆別、年份、連假暫停等）
+  DATE:       3,  // C 日期
+  PRESENTERS: 4,  // D 主題簡報者
   MENTOR:     5,  // E 簡報輔導
   DEADLINE:   6,  // F 簡報截稿日
   TOPIC:      7,  // G 主題
@@ -74,12 +74,11 @@ function updateSchedule(body) {
   const isPaused = data.type === '暫停';
 
   sheet.getRange(row, COL.PRESENTERS).setValue(presenterCell);
-  sheet.getRange(row, COL.COUNT).setValue(isPaused ? 'N/A' : (data.count || ''));
   sheet.getRange(row, COL.MENTOR).setValue(data.mentor || '');
   sheet.getRange(row, COL.DEADLINE).setValue(data.deadline || '');
   sheet.getRange(row, COL.TOPIC).setValue(isPaused ? '' : (data.topic || ''));
 
-  return jsonOut({ ok: true, row: row, presenterCell: presenterCell, count: data.count || '' });
+  return jsonOut({ ok: true, row: row, presenterCell: presenterCell });
 }
 
 // ===== 清空一列（保留週次與日期）=====
@@ -89,7 +88,7 @@ function clearRow(body) {
   const row = parseInt(body.row, 10);
   if (!row || row < 2) return jsonOut({ ok: false, error: 'invalid row: ' + body.row });
 
-  [COL.PRESENTERS, COL.COUNT, COL.MENTOR, COL.DEADLINE, COL.TOPIC].forEach(function (c) {
+  [COL.PRESENTERS, COL.MENTOR, COL.DEADLINE, COL.TOPIC].forEach(function (c) {
     sheet.getRange(row, c).setValue('');
   });
   return jsonOut({ ok: true, row: row });
@@ -105,6 +104,10 @@ function readSchedule() {
 // ===== 工具 =====
 function openSheet() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
+  if (SHEET_GID) {
+    const found = ss.getSheets().find(function (s) { return s.getSheetId() === SHEET_GID; });
+    if (found) return found;
+  }
   return SHEET_NAME ? ss.getSheetByName(SHEET_NAME) : ss.getSheets()[0];
 }
 

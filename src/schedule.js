@@ -57,21 +57,22 @@ function _schedCell(v) {
 function _parseScheduleRows(rows) {
   const out = [];
   let curTerm = '';
-  let curYear = 2024;
+  let curYear = new Date().getFullYear();
   let lastMonth = 0;
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i] || [];
-    const c0 = _schedCell(r[0]);
-    const c1 = _schedCell(r[1]);
-    const c2 = _schedCell(r[2]);
-    const c3 = _schedCell(r[3]);
+    // 第六屆分頁格式：A 欄空白、B 排序/標記、C 日期、D 簡報者、E 輔導、F 截稿日、G 主題（無次數欄）
+    const c0 = _schedCell(r[1]);
+    const c1 = _schedCell(r[2]);
+    const c2 = _schedCell(r[3]);
+    const c3 = '';                    // 此分頁無「次數」欄，由前端統計推算
     const c4 = _schedCell(r[4]);
     const c5 = _schedCell(r[5]);
     const c6 = _schedCell(r[6]);
 
     const tm = c0.match(/(第[一二三四五六七八九十]+屆)/);
     if (tm) { curTerm = tm[1]; continue; }
-    const ym = c0.match(/(\d{4})年/);
+    const ym = c0.match(/^(\d{4})年?$/);   // 接受純數字 "2026" 或 "2026年"
     if (ym) { curYear = parseInt(ym[1]); lastMonth = 0; continue; }
 
     if (!c1) continue;
@@ -91,7 +92,7 @@ function _parseScheduleRows(rows) {
     let isSkip  = false;
     let presenters = [];
 
-    if (/暫停/.test(c0) || /暫停/.test(c2Compact)) { type = '暫停'; isSkip = true; }
+    if (/暫停|連假/.test(c0) || /暫停/.test(c2Compact)) { type = '暫停'; isSkip = true; }
     else if (/年會/.test(c2Compact)) { type = '年會'; isSkip = true; }
     else if (/啟動會/.test(c2Compact)) { type = '啟動會'; isSkip = true; }
     else if (/共識會/.test(c2Compact)) { type = '共識會'; isSkip = true; }
