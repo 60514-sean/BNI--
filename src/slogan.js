@@ -88,6 +88,7 @@ function _buildSloganSheet(members) {
       <tbody>${arr.map((m, i) => rowHtml(m, startN + i)).join('')}</tbody>
     </table>`;
 
+  const dateText = (typeof _rocDateText === 'function') ? _rocDateText(_todayIso()) : new Date().toLocaleDateString();
   let html = '';
   for (let p = 0; p < pages; p++) {
     const pageRows = padded.slice(p * SLOGAN_PER_PAGE, (p + 1) * SLOGAN_PER_PAGE);
@@ -95,7 +96,12 @@ function _buildSloganSheet(members) {
     const right = pageRows.slice(SLOGAN_ROWS_PER_COL);
     const baseN = p * SLOGAN_PER_PAGE + 1;
     const sheetId = p === 0 ? 'sloganSheet' : `sloganSheet${p}`;
+    const suffix  = pages > 1 ? `（${p + 1}/${pages}）` : '';
     html += `<div class="slogan-sheet" id="${sheetId}">
+      <div class="slogan-header">
+        <div class="slogan-title">BNI 億展白金分會　會員口號表${suffix}</div>
+        <div class="slogan-subtitle">${dateText}</div>
+      </div>
       <div class="slogan-cols">
         <div class="slogan-col">${tableHtml(left, baseN)}</div>
         <div class="slogan-col">${tableHtml(right, baseN + SLOGAN_ROWS_PER_COL)}</div>
