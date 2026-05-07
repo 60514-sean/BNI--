@@ -723,6 +723,7 @@ input.is-locked:focus, textarea.is-locked:focus {
 .ss-table td.c-check { text-align: left; padding-left: 4mm; font-weight: 600; letter-spacing: 1mm; }
 .ss-table td.c-check-top { border-bottom: none; }
 .ss-table td.c-check-bot { border-top: none; }
+.ss-table td.c-plate { background: white; }
 
 /* 來賓桌牌 */
 .placard-wrapper { padding: 0; max-width: 980px; margin: 0 auto; }

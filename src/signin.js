@@ -134,6 +134,7 @@ function _guestSheetHtml(dateText, startIdx, rowCount, pageNum, totalPages) {
       <tr style="height:${rowH}mm;">
         <td class="c-num" rowspan="2">${startIdx + i}</td>
         <td class="c-guest-info">${_escH(infoText)}</td>
+        <td class="c-plate" rowspan="2"></td>
         <td class="c-sig" rowspan="2"></td>
         <td class="c-check c-check-top">□　名　片</td>
       </tr>
@@ -147,9 +148,9 @@ function _guestSheetHtml(dateText, startIdx, rowCount, pageNum, totalPages) {
     <div class="ss-subtitle">${dateText}</div>
     <table class="ss-table">
       <colgroup>
-        <col style="width:8%"><col style="width:48%"><col style="width:20%"><col style="width:24%">
+        <col style="width:7%"><col style="width:40%"><col style="width:14%"><col style="width:15%"><col style="width:24%">
       </colgroup>
-      <thead><tr><th>序號</th><th>姓名 / 產業別 / 邀請人</th><th>簽到</th><th>（由工作人員勾選）</th></tr></thead>
+      <thead><tr><th>序號</th><th>姓名 / 產業別 / 邀請人</th><th>車牌</th><th>簽到</th><th>（由工作人員勾選）</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   </div>`;
