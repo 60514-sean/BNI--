@@ -33,7 +33,6 @@ async function renderPlate() {
     </div>
   </div>`;
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    _autoFitPlate();
     _scalePlate();
   }));
 }

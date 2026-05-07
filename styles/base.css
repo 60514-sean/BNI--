@@ -1661,18 +1661,18 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
 .plate-col { display: flex; flex-direction: column; min-height: 0; }
 .plate-table {
   width: 100%; border-collapse: collapse; table-layout: fixed;
-  font-size: calc(11px * var(--ps));
+  font-size: 12pt;
 }
 .plate-table th, .plate-table td {
   border: 0.3mm solid #333;
-  padding: calc(1mm * var(--ps)) calc(0.8mm * var(--ps));
+  padding: 1.5mm 1.2mm;
   text-align: center; vertical-align: middle;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .plate-table th {
   background: #e8ecf0; font-weight: 900; color: #1a1a2e;
   letter-spacing: 1px;
-  font-size: calc(11px * var(--ps));
+  font-size: 12pt;
 }
 .plate-table td.pl-name { font-weight: 700; }
 .plate-table td.pl-plate { font-weight: 600; letter-spacing: 0.5px; }
