@@ -1605,32 +1605,35 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   width: 210mm; height: 297mm;
   background: #ffffff; box-shadow: var(--shadow-lg);
   font-family: 'Noto Sans TC','Microsoft JhengHei',sans-serif; color: #1a1a2e;
-  box-sizing: border-box; padding: 14mm 12mm 12mm; position: relative;
-  display: flex; flex-direction: column;
+  box-sizing: border-box; padding: 8mm 7mm 6mm; position: relative;
+  display: flex; flex-direction: column; overflow: hidden;
 }
-.slogan-header { text-align: center; margin-bottom: 8mm; border-bottom: 2px solid #c0392b; padding-bottom: 5mm; }
-.slogan-title { font-size: 26px; font-weight: 900; color: #c0392b; letter-spacing: 2px; }
-.slogan-subtitle { font-size: 12px; color: #7a7a7a; margin-top: 4px; letter-spacing: 1px; }
-.slogan-cols { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8mm; flex: 1; }
-.slogan-col { display: flex; flex-direction: column; gap: 2.5mm; }
+.slogan-header { text-align: center; margin-bottom: 3mm; border-bottom: 2px solid #c0392b; padding-bottom: 2mm; flex-shrink: 0; }
+.slogan-title { font-size: 20px; font-weight: 900; color: #c0392b; letter-spacing: 2px; line-height: 1.1; }
+.slogan-subtitle { font-size: 10px; color: #7a7a7a; margin-top: 2px; letter-spacing: 1px; }
+.slogan-cols {
+  display: grid; grid-template-columns: 1fr 1fr; column-gap: 4mm;
+  flex: 1; min-height: 0;
+}
+.slogan-col { display: flex; flex-direction: column; }
 .slogan-item {
-  display: flex; align-items: flex-start; gap: 3mm;
-  padding: 1.6mm 2mm; border-bottom: 1px dashed #e2e2e2;
+  display: flex; align-items: center; gap: 1.8mm;
+  padding: 0.6mm 0.5mm; border-bottom: 1px dotted #dcdcdc;
   page-break-inside: avoid;
 }
 .slogan-num {
-  flex-shrink: 0; width: 7mm; height: 7mm; border-radius: 50%;
-  background: #c0392b; color: white; font-size: 11px; font-weight: 900;
+  flex-shrink: 0; width: 5mm; height: 5mm; border-radius: 50%;
+  background: #c0392b; color: white; font-size: 8.5px; font-weight: 900;
   display: flex; align-items: center; justify-content: center; line-height: 1;
 }
 .slogan-content { flex: 1; min-width: 0; }
-.slogan-name-row { display: flex; align-items: center; gap: 6px; margin-bottom: 1mm; }
-.slogan-name { font-size: 13px; font-weight: 900; color: #1a1a2e; }
+.slogan-name-row { display: flex; align-items: center; gap: 4px; margin-bottom: 0.3mm; }
+.slogan-name { font-size: 10px; font-weight: 900; color: #1a1a2e; line-height: 1.15; }
 .slogan-spec {
-  font-size: 9px; font-weight: 700; color: #c0392b;
-  background: #fdecea; padding: 1px 7px; border-radius: 8px;
-  white-space: nowrap;
+  font-size: 7.5px; font-weight: 700; color: #c0392b;
+  background: #fdecea; padding: 0 5px; border-radius: 5px;
+  white-space: nowrap; line-height: 1.4;
 }
-.slogan-text { font-size: 11px; color: #444; line-height: 1.4; word-break: break-word; }
+.slogan-text { font-size: 8.8px; color: #444; line-height: 1.25; word-break: break-word; }
 .slogan-text.empty { color: #bbb; font-style: italic; }
 
