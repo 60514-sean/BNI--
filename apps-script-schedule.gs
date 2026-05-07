@@ -24,8 +24,10 @@
  */
 
 const SHEET_ID = '12cGPw7f8L1HxZv6G5H3yKzPYNKNg8jIdzV3gl2sEN_Y';
-const SHEET_GID = 1895828585;   // 第六屆分頁；以 gid 鎖定避免分頁改名失效
+const SHEET_GID = 1895828585;   // 寫入用：預設指向「最新」屆別分頁；前端帶 sheetName 時以 sheetName 為準
 const SHEET_NAME = '';          // SHEET_GID 找不到時的備援
+// 讀取規則：只挑名稱含「屆」的分頁（避開 config/會員/其他工作分頁）
+const TERM_TAB_REGEX = /第[一二三四五六七八九十百零0-9]+屆/;
 
 // 欄位對應（Sheet 第幾欄；A=1, B=2, ...）— 第六屆分頁格式：A 欄空白、無次數欄
 const COL = {
@@ -42,6 +44,7 @@ function doGet(e) {
   const p = (e && e.parameter) || {};
   if (p.action === 'ping')        return jsonOut({ ok: true, time: new Date().toISOString() });
   if (p.action === 'getSchedule') return jsonOut({ ok: true, rows: readSchedule() });
+  if (p.action === 'listSheets')  return jsonOut({ ok: true, sheets: listSheets() });
   return jsonOut({ ok: true, message: 'BNI 簡報排程 API（請以 POST 呼叫 updateSchedule，或 GET ?action=ping/getSchedule）' });
 }
 
@@ -61,9 +64,10 @@ function doPost(e) {
 }
 
 // ===== 寫入：更新一列 =====
+// 前端應傳 body.sheetName（從讀取時取得）；未傳則回退到預設 SHEET_GID 分頁。
 function updateSchedule(body) {
-  const sheet = openSheet();
-  if (!sheet) return jsonOut({ ok: false, error: 'sheet not found' });
+  const sheet = resolveSheet(body && body.sheetName);
+  if (!sheet) return jsonOut({ ok: false, error: 'sheet not found: ' + (body && body.sheetName || '<default>') });
 
   const row = parseInt(body.row, 10);
   if (!row || row < 2) return jsonOut({ ok: false, error: 'invalid row: ' + body.row });
@@ -78,27 +82,60 @@ function updateSchedule(body) {
   sheet.getRange(row, COL.DEADLINE).setValue(data.deadline || '');
   sheet.getRange(row, COL.TOPIC).setValue(isPaused ? '' : (data.topic || ''));
 
-  return jsonOut({ ok: true, row: row, presenterCell: presenterCell });
+  return jsonOut({ ok: true, sheet: sheet.getName(), row: row, presenterCell: presenterCell });
 }
 
 // ===== 清空一列（保留週次與日期）=====
 function clearRow(body) {
-  const sheet = openSheet();
-  if (!sheet) return jsonOut({ ok: false, error: 'sheet not found' });
+  const sheet = resolveSheet(body && body.sheetName);
+  if (!sheet) return jsonOut({ ok: false, error: 'sheet not found: ' + (body && body.sheetName || '<default>') });
   const row = parseInt(body.row, 10);
   if (!row || row < 2) return jsonOut({ ok: false, error: 'invalid row: ' + body.row });
 
   [COL.PRESENTERS, COL.MENTOR, COL.DEADLINE, COL.TOPIC].forEach(function (c) {
     sheet.getRange(row, c).setValue('');
   });
-  return jsonOut({ ok: true, row: row });
+  return jsonOut({ ok: true, sheet: sheet.getName(), row: row });
 }
 
-// ===== 讀取整張表（備援，前端目前直接讀公開 CSV，不需要走這裡）=====
+// ===== 讀取：合併「所有屆別分頁」 =====
+// 規則：只挑名稱符合 TERM_TAB_REGEX 的分頁（避開 config / 會員清單等其他工作分頁）。
+// 每個分頁前先丟一列 ["", "<分頁名>", "", "", "", "", "", "", ""] 觸發前端「第X屆」標頭判定。
+// 每筆資料尾端塞 [..., sheetName, realRow]，讓前端寫入時可以指回正確分頁。
 function readSchedule() {
-  const sheet = openSheet();
-  if (!sheet) return [];
-  return sheet.getDataRange().getValues();
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sheets = ss.getSheets().filter(function (s) {
+    return TERM_TAB_REGEX.test(s.getName());
+  });
+  // 排序：屆數小（資歷舊）→ 屆數大（最新），不依 sheet 排列順序
+  sheets.sort(function (a, b) {
+    return termOrder(a.getName()) - termOrder(b.getName());
+  });
+  const out = [];
+  sheets.forEach(function (sheet) {
+    const name = sheet.getName();
+    out.push(['', name, '', '', '', '', '', '', '']); // 屆別標頭列（前端 c0 = r[1] = name 即可被 /第X屆/ 抓到）
+    const values = sheet.getDataRange().getValues();
+    for (let r = 0; r < values.length; r++) {
+      const row = values[r] || [];
+      // 補滿 7 欄
+      const padded = [];
+      for (let c = 0; c < 7; c++) padded.push(c < row.length ? row[c] : '');
+      // 第 8 欄 = sheetName，第 9 欄 = realRow（1-based）
+      padded.push(name);
+      padded.push(r + 1);
+      out.push(padded);
+    }
+  });
+  return out;
+}
+
+// ===== Debug：列出所有分頁名稱與 GID =====
+function listSheets() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  return ss.getSheets().map(function (s) {
+    return { name: s.getName(), gid: s.getSheetId(), isTerm: TERM_TAB_REGEX.test(s.getName()) };
+  });
 }
 
 // ===== 工具 =====
@@ -109,6 +146,38 @@ function openSheet() {
     if (found) return found;
   }
   return SHEET_NAME ? ss.getSheetByName(SHEET_NAME) : ss.getSheets()[0];
+}
+
+function resolveSheet(sheetName) {
+  if (sheetName) {
+    const ss = SpreadsheetApp.openById(SHEET_ID);
+    const found = ss.getSheetByName(sheetName);
+    if (found) return found;
+  }
+  return openSheet();
+}
+
+// 「第六屆」→ 6；「第二十屆」→ 20；不可解析 → 9999（沒有屆數則放最後）
+function termOrder(name) {
+  const m = String(name).match(/第([一二三四五六七八九十百零0-9]+)屆/);
+  if (!m) return 9999;
+  const ZH = { '零':0,'〇':0,'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10,'百':100 };
+  const s = m[1];
+  if (/^\d+$/.test(s)) return parseInt(s, 10);
+  // 簡易中文數字解析（支援到「百」級即可，BNI 屆別不會超過幾十）
+  let total = 0, section = 0;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i], v = ZH[ch];
+    if (v === undefined) continue;
+    if (v >= 10) {
+      section = (section || 1) * v;
+      total += section; section = 0;
+    } else {
+      section = v;
+    }
+  }
+  total += section;
+  return total || 9999;
 }
 
 function parsePresentersInput(input) {

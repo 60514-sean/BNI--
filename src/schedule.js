@@ -69,6 +69,8 @@ function _parseScheduleRows(rows) {
     const c4 = _schedCell(r[4]);
     const c5 = _schedCell(r[5]);
     const c6 = _schedCell(r[6]);
+    const sheetName = (r[7] !== undefined) ? String(r[7] || '') : '';
+    const sheetRow  = (r[8] !== undefined) ? parseInt(r[8], 10) || 0 : 0;
 
     const tm = c0.match(/(第[一二三四五六七八九十]+屆)/);
     if (tm) { curTerm = tm[1]; continue; }
@@ -120,6 +122,7 @@ function _parseScheduleRows(rows) {
       weekIndex: c0,
       type, isEmpty, isSkip, presenters,
       count: c3, mentor: c4, deadline: c5, topic: c6,
+      sheetName, sheetRow,        // 後端帶來的「來源分頁 + 真實 row」，寫入時要回傳
       raw: { c0, c1, c2, c3, c4, c5, c6 }
     });
   }
@@ -796,12 +799,16 @@ async function _schedSaveEdit(rowIdx) {
 
   if (SCHEDULE_API_URL) {
     try {
+      // 優先使用後端帶來的 sheetName + sheetRow（多分頁合併讀取後的真實位置）
+      // 若後端是舊版（無附帶資訊），sheetRow=0 則退回 rowIndex+1
+      const targetRow = item.sheetRow || (item.rowIndex + 1);
       const r = await fetch(SCHEDULE_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           action: 'updateSchedule',
-          row: item.rowIndex + 1,
+          sheetName: item.sheetName || '',
+          row: targetRow,
           data: { presenters: presenters.join('、'), count: finalCount, mentor, deadline, topic, type }
         })
       });
