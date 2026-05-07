@@ -303,6 +303,7 @@ function doPost(e) {
       newRow[ci('姓名')] = body.name || '';
       newRow[ci('產業鏈')] = body.industry || '';
       newRow[ci('專業別')] = body.specialty || '';
+      if (ci('生日') >= 0) newRow[ci('生日')] = body.birthday || '';
       newRow[ci('公司')] = body.company || '';
       newRow[ci('電話')] = body.phone || '';
       newRow[ci('服務')] = body.service || '';
@@ -339,6 +340,7 @@ function doPost(e) {
       if (ci('姓名') >= 0) sh.getRange(row, ci('姓名') + 1).setValue(body.name || '');
       if (ci('產業鏈') >= 0) sh.getRange(row, ci('產業鏈') + 1).setValue(body.industry || '');
       if (ci('專業別') >= 0) sh.getRange(row, ci('專業別') + 1).setValue(body.specialty || '');
+      if (ci('生日') >= 0) sh.getRange(row, ci('生日') + 1).setValue(body.birthday || '');
       if (ci('公司') >= 0) sh.getRange(row, ci('公司') + 1).setValue(body.company || '');
       if (ci('電話') >= 0) sh.getRange(row, ci('電話') + 1).setValue(body.phone || '');
       if (ci('服務') >= 0) sh.getRange(row, ci('服務') + 1).setValue(body.service || '');
@@ -398,4 +400,124 @@ function ok() {
   return ContentService
     .createTextOutput(JSON.stringify({ ok: true }))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ===== Reorder members by Sheet「排序名單」分頁 =====
+// 流程：
+//  1) 在 Apps Script 編輯器手動執行 reorderMembers
+//  2) 函數會自動同步「排序名單」分頁：主表新加的人自動補到名單末端、主表已刪除的人自動從名單移除
+//  3) 函數會按名單順序重排主表，並重新編序號（1, 2, 3...）
+//  4) 想調整排序：直接到「排序名單」分頁拖曳列即可，下次執行時生效
+// 維運上不再需要修改 Apps Script 程式碼
+function reorderMembers() {
+  const SS_ID       = '1vaunMiu-soVacqsbvRxY1dDQ2ZLBghv0t9rTer3KdP0';
+  const SHEET_GID   = 466594149;
+  const ORDER_SHEET = '排序名單';
+
+  const ss = SpreadsheetApp.openById(SS_ID);
+  const sheet = ss.getSheets().find(function(s) { return s.getSheetId() === SHEET_GID; });
+  if (!sheet) { Logger.log('Main sheet not found'); return; }
+
+  // 取得或建立「排序名單」分頁
+  let orderSheet = ss.getSheetByName(ORDER_SHEET);
+  if (!orderSheet) {
+    orderSheet = ss.insertSheet(ORDER_SHEET);
+    orderSheet.getRange('A1').setValue('姓名（依此順序排列，可拖曳列調整）');
+    orderSheet.getRange('A1').setFontWeight('bold').setBackground('#fff2cc');
+    orderSheet.setColumnWidth(1, 280);
+    Logger.log('已建立「排序名單」分頁');
+  }
+
+  // 讀取主表
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  const allValues   = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+  const allFormulas = sheet.getRange(1, 1, lastRow, lastCol).getFormulas();
+
+  // 合併公式與值（保留 DATEDIF 等公式）
+  const merged = allValues.map(function(row, r) {
+    return row.map(function(val, c) {
+      const f = allFormulas[r][c];
+      return f ? f : val;
+    });
+  });
+
+  // 找標題列、姓名欄、序號欄
+  let headerRowIndex = 0, nameColIndex = -1, numColIndex = -1;
+  for (let r = 0; r < merged.length && nameColIndex === -1; r++) {
+    for (let c = 0; c < merged[r].length; c++) {
+      if (merged[r][c] === '姓名') { headerRowIndex = r; nameColIndex = c; break; }
+    }
+  }
+  if (nameColIndex === -1) { Logger.log('姓名欄找不到'); return; }
+  for (let c = 0; c < merged[headerRowIndex].length; c++) {
+    if (merged[headerRowIndex][c] === 0 || merged[headerRowIndex][c] === '0') {
+      numColIndex = c; break;
+    }
+  }
+
+  // 建立姓名 → row 索引、收集所有主表會員姓名
+  const byName = {};
+  const memberNames = [];
+  for (let r = headerRowIndex + 1; r < merged.length; r++) {
+    const name = String(merged[r][nameColIndex]).trim();
+    if (name && name !== 'undefined' && name !== 'null') {
+      byName[name] = merged[r].slice();
+      memberNames.push(name);
+    }
+  }
+
+  // 從「排序名單」分頁讀取目前順序
+  const orderLastRow = orderSheet.getLastRow();
+  let newOrder = [];
+  if (orderLastRow >= 2) {
+    newOrder = orderSheet.getRange(2, 1, orderLastRow - 1, 1).getValues()
+      .map(function(r) { return String(r[0]).trim(); })
+      .filter(function(n) { return n; });
+  }
+
+  // 自動補上：主表有但名單沒有的姓名（接到最後）
+  const inOrder = {};
+  newOrder.forEach(function(n) { inOrder[n] = true; });
+  const appended = [];
+  memberNames.forEach(function(n) {
+    if (!inOrder[n]) { newOrder.push(n); appended.push(n); }
+  });
+  if (appended.length > 0) Logger.log('自動加入名單： ' + appended.join(', '));
+
+  // 自動清理：名單有但主表沒有（已退會）
+  const inMember = {};
+  memberNames.forEach(function(n) { inMember[n] = true; });
+  const removed = [];
+  newOrder = newOrder.filter(function(n) {
+    if (inMember[n]) return true;
+    removed.push(n);
+    return false;
+  });
+  if (removed.length > 0) Logger.log('自動移出名單（主表已不存在）： ' + removed.join(', '));
+
+  // 寫回更新後的「排序名單」
+  if (orderSheet.getLastRow() >= 2) {
+    orderSheet.getRange(2, 1, orderSheet.getLastRow() - 1, 1).clearContent();
+  }
+  if (newOrder.length > 0) {
+    orderSheet.getRange(2, 1, newOrder.length, 1).setValues(newOrder.map(function(n) { return [n]; }));
+  }
+
+  // 按 newOrder 重新排列主表
+  const newRows = [];
+  for (let i = 0; i < newOrder.length; i++) {
+    const targetName = newOrder[i];
+    if (byName[targetName]) {
+      const rowData = byName[targetName].slice();
+      if (numColIndex !== -1) rowData[numColIndex] = i + 1;
+      newRows.push(rowData);
+    }
+  }
+
+  const startRow = headerRowIndex + 2;
+  // setValues 會把以 "=" 開頭的字串視為公式 → 自動還原 DATEDIF
+  sheet.getRange(startRow, 1, newRows.length, lastCol).setValues(newRows);
+
+  Logger.log('Done! Reordered ' + newRows.length + ' members. Order list updated in 「' + ORDER_SHEET + '」');
 }

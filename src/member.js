@@ -36,6 +36,7 @@ async function fetchMembers() {
     const iApply = idx('申請書'), iPay = idx('繳費'), iComplete = idx('完成續約'), iRibbon = idx('綢帶');
     const iPhoto = idx('照片連結');
     const iInd = idx('產業鏈');
+    const iBirthday = idx('生日');
 
     _memberData = rows.slice(1)
       .map((r, i) => ({
@@ -43,6 +44,7 @@ async function fetchMembers() {
         name:        r[iName]?.trim()     || '',
         specialty:   r[iSpec]?.trim()     || '',
         industry:    iInd >= 0 ? (r[iInd]?.trim() || '') : '',
+        birthday:    iBirthday >= 0 ? (r[iBirthday]?.trim() || '') : '',
         company:     r[iComp]?.trim()     || '',
         phone:       r[iPhone]?.trim()    || '',
         service:     r[iServ]?.trim()     || '',
@@ -193,7 +195,10 @@ async function renderMembers() {
         ${canEdit?`<button class="member-edit-btn" style="flex-shrink:0;" data-row="${m.sheetRow}" onclick="openEditMember(this.dataset.row)">編輯</button>`:''}
       </div>
       <div style="border-top:1px solid var(--gray-border);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fafbfc;flex-wrap:wrap;">
-        <span style="font-size:12px;color:var(--text-soft);">${m.renewDate?'到期：'+_escH(m.renewDate):''}</span>
+        <span style="font-size:12px;color:var(--text-soft);display:flex;gap:10px;flex-wrap:wrap;">
+          ${m.birthday?`<span>生日：${_escH(m.birthday)}</span>`:''}
+          ${m.renewDate?`<span>到期：${_escH(m.renewDate)}</span>`:''}
+        </span>
         <div style="display:flex;align-items:center;gap:6px;">
           ${m.renewDays && m.renewStatus!=='TRUE'?`<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:${daysBg};color:${daysColor};">${_escH(m.renewDays)}天</span>`:''}
           ${m.renewStatus==='TRUE'?`<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:#eaf7ee;color:#27ae60;">已續約</span>`:`<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:#fdecea;color:#c0392b;">未續約</span>`}
@@ -259,6 +264,7 @@ function openEditMember(sheetRow) {
       <div class="modal-field"><div class="modal-label">姓名</div><input class="modal-input" id="mf_name" value="${_escH(m.name)}"></div>
       <div class="modal-field"><div class="modal-label">產業鏈（DM分組標題）</div><select class="modal-input" id="mf_ind" style="appearance:auto;background:white;">${_getIndustryOptions(m.industry)}</select></div>
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" value="${_escH(m.specialty)}"></div>
+      <div class="modal-field"><div class="modal-label">生日（民國/月/日，例：80/5/15）</div><input class="modal-input" id="mf_birthday" value="${_escH(m.birthday)}" placeholder="例：80/5/15"></div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" value="${_escH(m.company)}"></div>
       <div class="modal-field"><div class="modal-label">電話</div><input class="modal-input" id="mf_phone" type="tel" value="${_escH(m.phone)}"></div>
       <div class="modal-field"><div class="modal-label">服務項目</div><input class="modal-input" id="mf_serv" value="${_escH(m.service)}"></div>
@@ -310,6 +316,7 @@ function openAddMember() {
       <div class="modal-field"><div class="modal-label">姓名</div><input class="modal-input" id="mf_name" placeholder="輸入姓名"></div>
       <div class="modal-field"><div class="modal-label">產業鏈（DM分組標題）</div><select class="modal-input" id="mf_ind" style="appearance:auto;background:white;">${_getIndustryOptions(_defaultIndustry)}</select></div>
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" placeholder="輸入專業別"></div>
+      <div class="modal-field"><div class="modal-label">生日（民國/月/日，例：80/5/15）</div><input class="modal-input" id="mf_birthday" placeholder="例：80/5/15"></div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" placeholder="輸入公司或品牌名稱"></div>
       <div class="modal-field"><div class="modal-label">電話</div><input class="modal-input" id="mf_phone" type="tel" placeholder="輸入電話"></div>
       <div class="modal-field"><div class="modal-label">服務項目</div><input class="modal-input" id="mf_serv" placeholder="輸入服務項目"></div>
@@ -337,6 +344,7 @@ async function addMember() {
     name,
     industry:  document.getElementById('mf_ind').value.trim(),
     specialty: document.getElementById('mf_spec').value.trim(),
+    birthday:  document.getElementById('mf_birthday').value.trim(),
     company:   document.getElementById('mf_comp').value.trim(),
     phone:     document.getElementById('mf_phone').value.trim(),
     service:   document.getElementById('mf_serv').value.trim(),
@@ -412,6 +420,7 @@ async function saveMemberEdit(sheetRow) {
   m.name         = document.getElementById('mf_name').value.trim();
   m.industry     = document.getElementById('mf_ind').value.trim();
   m.specialty    = document.getElementById('mf_spec').value.trim();
+  m.birthday     = document.getElementById('mf_birthday').value.trim();
   m.company      = document.getElementById('mf_comp').value.trim();
   m.phone        = document.getElementById('mf_phone').value.trim();
   m.service      = document.getElementById('mf_serv').value.trim();
@@ -427,7 +436,7 @@ async function saveMemberEdit(sheetRow) {
   showToast('儲存中...');
   try {
     const tasks = [
-      _apiPost({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, company: m.company, phone: m.phone, service: m.service }),
+      _apiPost({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, birthday: m.birthday, company: m.company, phone: m.phone, service: m.service }),
       _apiPost({ action: 'updateRenewal', sheetRow, renewDate: m.renewDate, renewStatus: m.renewStatus, renewApply: m.renewApply, renewPay: m.renewPay, renewComplete: m.renewComplete, renewRibbon: m.renewRibbon })
     ];
     if (photoFile) {
