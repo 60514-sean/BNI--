@@ -130,6 +130,7 @@ const TAB_LIST = [
   { id: 'main',       label: '工事清單', group: '日常作業' },
   { id: 'member',     label: '會員資料', group: '會員資料' },
   { id: 'dm',         label: '會員DM',   group: '會員資料' },
+  { id: 'slogan',     label: '會員口號', group: '會員資料' },
   { id: 'signin',     label: '出席簽到', group: '例會準備' },
   { id: 'guesttrack', label: '來賓追蹤', group: '例會準備' },
   { id: 'placard',    label: '桌牌製作', group: '例會準備' },
@@ -322,7 +323,7 @@ function _applyEditLock(tabId) {
   // 取對應 content 容器
   const map = {
     todo:'todoContent', main:'mainContent', member:'memberContent',
-    dm:'dmContent', signin:'signinContent', guesttrack:'guestTrackContent',
+    dm:'dmContent', slogan:'sloganContent', signin:'signinContent', guesttrack:'guestTrackContent',
     placard:'placardContent', schedule:'scheduleContent', finance:'financeContent', meeting:'meetingContent'
   };
   const targets = [];
