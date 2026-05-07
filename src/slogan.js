@@ -47,15 +47,14 @@ function _splitSloganTail(text) {
   return { head: text, tail: '' };
 }
 
-// 每欄 25 列、每張 50 列；超過則自動分頁；不足則補空白列
-const SLOGAN_ROWS_PER_COL = 25;
-const SLOGAN_PER_PAGE = SLOGAN_ROWS_PER_COL * 2;
+// 單欄 25 列；超過則自動分頁；不足則補空白列
+const SLOGAN_PER_PAGE = 25;
 
 function _buildSloganSheet(members) {
   const pages = Math.max(1, Math.ceil(members.length / SLOGAN_PER_PAGE));
   const totalSlots = pages * SLOGAN_PER_PAGE;
   const padded = members.slice();
-  while (padded.length < totalSlots) padded.push(null); // 用 null 代表空白列
+  while (padded.length < totalSlots) padded.push(null);
 
   const rowHtml = (m, n) => {
     if (!m) {
@@ -80,7 +79,7 @@ function _buildSloganSheet(members) {
   const tableHtml = (arr, startN) => `
     <table class="slogan-table">
       <colgroup>
-        <col style="width:9%"><col style="width:24%"><col style="width:16%"><col style="width:51%">
+        <col style="width:6%"><col style="width:18%"><col style="width:12%"><col style="width:64%">
       </colgroup>
       <thead>
         <tr><th></th><th>專業類別</th><th>姓名</th><th>slogan</th></tr>
@@ -92,8 +91,6 @@ function _buildSloganSheet(members) {
   let html = '';
   for (let p = 0; p < pages; p++) {
     const pageRows = padded.slice(p * SLOGAN_PER_PAGE, (p + 1) * SLOGAN_PER_PAGE);
-    const left  = pageRows.slice(0, SLOGAN_ROWS_PER_COL);
-    const right = pageRows.slice(SLOGAN_ROWS_PER_COL);
     const baseN = p * SLOGAN_PER_PAGE + 1;
     const sheetId = p === 0 ? 'sloganSheet' : `sloganSheet${p}`;
     const suffix  = pages > 1 ? `（${p + 1}/${pages}）` : '';
@@ -102,10 +99,7 @@ function _buildSloganSheet(members) {
         <div class="slogan-title">BNI 億展白金分會　會員口號表${suffix}</div>
         <div class="slogan-subtitle">${dateText}</div>
       </div>
-      <div class="slogan-cols">
-        <div class="slogan-col">${tableHtml(left, baseN)}</div>
-        <div class="slogan-col">${tableHtml(right, baseN + SLOGAN_ROWS_PER_COL)}</div>
-      </div>
+      <div class="slogan-body">${tableHtml(pageRows, baseN)}</div>
     </div>`;
   }
   return html;
