@@ -68,6 +68,7 @@ async function fetchMembers() {
 
 let _memberSearch = '';
 let _memberFilter = ''; // '' | '120' | '90'
+let _memberBirthMonth = ''; // '' | '1' .. '12'
 let _defaultIndustry = '';
 let _industries = (() => {
   if (cache['__industries__'] && cache['__industries__'].length) return cache['__industries__'];
@@ -134,6 +135,20 @@ function _renderIndustryList() {
     </div>`).join('');
 }
 
+function _renderIndustryListSettings() {
+  const el = document.getElementById('industryListSettings');
+  if (!el) return;
+  if (_industries.length === 0) {
+    el.innerHTML = `<div style="color:var(--text-soft);font-size:13px;text-align:center;padding:12px;">尚無產業鏈，請新增</div>`;
+    return;
+  }
+  el.innerHTML = _industries.map((ind, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-border);">
+      <span style="font-size:14px;">${_escH(ind)}</span>
+      <button onclick="removeIndustry(${i})" style="padding:3px 10px;background:white;border:1.5px solid #e74c3c;color:#e74c3c;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;">刪除</button>
+    </div>`).join('');
+}
+
 function addIndustry() {
   const val = document.getElementById('industryNewInput')?.value.trim();
   if (!val || _industries.includes(val)) return;
@@ -141,12 +156,24 @@ function addIndustry() {
   _saveIndustries();
   document.getElementById('industryNewInput').value = '';
   _renderIndustryList();
+  _renderIndustryListSettings();
+}
+
+function addIndustryFromSettings() {
+  const val = document.getElementById('industryNewInputSettings')?.value.trim();
+  if (!val || _industries.includes(val)) return;
+  _industries.push(val);
+  _saveIndustries();
+  document.getElementById('industryNewInputSettings').value = '';
+  _renderIndustryListSettings();
+  _renderIndustryList();
 }
 
 function removeIndustry(i) {
   _industries.splice(i, 1);
   _saveIndustries();
   _renderIndustryList();
+  _renderIndustryListSettings();
 }
 
 async function renderMembers() {
@@ -156,8 +183,21 @@ async function renderMembers() {
   // 已續約的會員不列入倒數天數篩選
   if (_memberFilter === '120') list = list.filter(m => m.renewStatus !== 'TRUE' && (() => { const d = parseInt(m.renewDays); return d >= 90 && d <= 119; })());
   if (_memberFilter === '90')  list = list.filter(m => m.renewStatus !== 'TRUE' && parseInt(m.renewDays) <= 89);
+  if (_memberBirthMonth) list = list.filter(m => {
+    if (!m.birthday) return false;
+    const parts = m.birthday.split('/');
+    if (parts.length !== 3) return false;
+    return parseInt(parts[1]) === parseInt(_memberBirthMonth);
+  });
   const canEdit = CR === 'admin';
-  const btnStyle = (f, bg, color) => `padding:7px 12px;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;background:${_memberFilter===f?bg:'white'};color:${_memberFilter===f?color:bg};border:1.5px solid ${bg};`;
+  const selectStyle = `padding:7px 10px;border:1.5px solid var(--gray-border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--text-soft);background:white;cursor:pointer;`;
+  const renewOpts = [
+    { v: '',    label: '到期狀態（全部）' },
+    { v: '120', label: '120 天內到期' },
+    { v: '90',  label: '90 天內到期' }
+  ].map(o => `<option value="${o.v}"${o.v===_memberFilter?' selected':''}>${o.label}</option>`).join('');
+  const monthOpts = ['<option value="">生日月份（全部）</option>']
+    .concat([1,2,3,4,5,6,7,8,9,10,11,12].map(m => `<option value="${m}"${String(m)===_memberBirthMonth?' selected':''}>${m} 月生日</option>`)).join('');
   const parts = [];
   parts.push(`<div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
     <input class="member-search" type="text" placeholder="搜尋姓名、專業別、公司..." value="${_escH(_memberSearch)}" oninput="_memberSearch=this.value;_debouncedFilterMembers()" autocomplete="off" style="margin-bottom:0;flex:1;">
@@ -166,10 +206,9 @@ async function renderMembers() {
   parts.push(`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
     <span id="memberCount" style="font-size:13px;color:var(--text-soft);">${list.length} 位會員</span>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-      <button onclick="_memberFilter=_memberFilter==='120'?'':'120';renderMembers()" style="${btnStyle('120','#d4ac0d','white')}">120天</button>
-      <button onclick="_memberFilter=_memberFilter==='90'?'':'90';renderMembers()"  style="${btnStyle('90','#c0392b','white')}">90天</button>
-      ${canEdit ? `<button onclick="openManageIndustries()" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text-soft);">產業鏈設定</button>
-        <button onclick="openAddMember()" style="padding:7px 16px;background:var(--red);color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ 新增會員</button>` : ''}
+      <select onchange="_memberFilter=this.value;renderMembers()" style="${selectStyle}">${renewOpts}</select>
+      <select onchange="_memberBirthMonth=this.value;renderMembers()" style="${selectStyle}">${monthOpts}</select>
+      ${canEdit ? `<button onclick="openAddMember()" style="padding:7px 16px;background:var(--red);color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ 新增會員</button>` : ''}
     </div>
   </div>`);
   parts.push(`<div class="member-grid">`);

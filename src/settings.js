@@ -178,7 +178,7 @@ function showSettings() {
   const dayPickerOpts = DAYS.map(d => `<option value="${d}">${d}</option>`).join('');
 
   // 記錄目前展開狀態
-  const ACC_IDS = ['acc0','accSitePw','acc1','accMsg','acc2'];
+  const ACC_IDS = ['acc0','accSitePw','acc1','accMsg','accInd','acc2'];
   const accOpen = ACC_IDS.map(id => { const el = document.getElementById(id); return el ? el.style.display !== 'none' : false; });
   const ctDay   = document.getElementById('ctDayPicker')?.value || DAYS[0];
 
@@ -243,6 +243,20 @@ function showSettings() {
       </div>
     </div>
     <div class="card">
+      <div class="acc-header" onclick="toggleAcc('accInd')">
+        <div class="card-title" style="margin:0;">產業鏈設定</div>
+        <span class="acc-arrow" id="accInd-arrow">&#9654;</span>
+      </div>
+      <div class="acc-body" id="accInd" style="display:none;">
+        <p class="hint" style="margin-bottom:12px;">用於 DM 分組標題、會員編輯時的產業鏈下拉選單。</p>
+        <div id="industryListSettings" style="margin-bottom:12px;"></div>
+        <div style="display:flex;gap:8px;">
+          <input class="modal-input" id="industryNewInputSettings" placeholder="輸入新產業鏈名稱" style="margin-bottom:0;flex:1;" onkeydown="if(event.key==='Enter')addIndustryFromSettings()">
+          <button onclick="addIndustryFromSettings()" style="padding:10px 16px;background:var(--red);color:white;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">新增</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
       <div class="acc-header" onclick="toggleAcc('acc2')">
         <div class="card-title" style="margin:0;">週進度任務設定</div>
         <span class="acc-arrow" id="acc2-arrow">&#9654;</span>
@@ -293,10 +307,13 @@ function showSettings() {
       document.getElementById(id + '-arrow').classList.add('open');
     }
   });
-  if (accOpen[2]) {
+  const acc2Idx = ACC_IDS.indexOf('acc2');
+  if (accOpen[acc2Idx]) {
     document.getElementById('ctDayPicker').value = ctDay;
     renderCtDay(ctDay);
   }
+  // 渲染產業鏈清單
+  if (typeof _renderIndustryListSettings === 'function') _renderIndustryListSettings();
 }
 
 function toggleAcc(id) {
@@ -306,6 +323,7 @@ function toggleAcc(id) {
   body.style.display  = open ? '' : 'none';
   arrow.classList.toggle('open', open);
   if (open && id === 'acc2') renderCtDay(document.getElementById('ctDayPicker').value || DAYS[0]);
+  if (open && id === 'accInd' && typeof _renderIndustryListSettings === 'function') _renderIndustryListSettings();
 }
 
 // 設定頁：產出單一使用者列的 HTML（供首次渲染與局部更新共用）
