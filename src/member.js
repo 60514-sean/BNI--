@@ -38,6 +38,7 @@ async function fetchMembers() {
     const iInd = idx('產業鏈');
     const iBirthday = idx('生日');
     const iSlogan = idx('口號');
+    const iPlates = idx('車牌');
 
     _memberData = rows.slice(1)
       .map((r, i) => ({
@@ -47,6 +48,7 @@ async function fetchMembers() {
         industry:    iInd >= 0 ? (r[iInd]?.trim() || '') : '',
         birthday:    iBirthday >= 0 ? (r[iBirthday]?.trim() || '') : '',
         slogan:      iSlogan >= 0 ? (r[iSlogan]?.trim() || '') : '',
+        plates:      iPlates >= 0 ? (r[iPlates]?.trim() || '') : '',
         company:     r[iComp]?.trim()     || '',
         phone:       r[iPhone]?.trim()    || '',
         service:     r[iServ]?.trim()     || '',
@@ -279,6 +281,37 @@ function _fmtService(s) {
   return `<span style="white-space:nowrap">${_escH(m[1])}</span><span style="white-space:nowrap">${_escH(m[2])}</span>`;
 }
 
+// ===== 車牌動態列：以 "|" 分隔多個車牌存於 Sheet「車牌」欄 =====
+function _buildPlateRows(platesStr) {
+  const arr = (platesStr || '').split('|').map(s => s.trim()).filter(Boolean);
+  if (arr.length === 0) arr.push('');
+  return arr.map(p => _plateRowHtml(p)).join('');
+}
+function _plateRowHtml(value) {
+  return `<div class="mf-plate-row" style="display:flex;gap:6px;margin-bottom:6px;">
+    <input class="modal-input mf-plate-input" value="${_escH(value)}" placeholder="例：ABC-1234" style="margin-bottom:0;flex:1;">
+    <button type="button" onclick="removePlateRow(this)" style="padding:0 12px;background:white;border:1.5px solid #e74c3c;color:#e74c3c;border-radius:6px;cursor:pointer;font-family:inherit;font-size:16px;font-weight:700;line-height:1;">×</button>
+  </div>`;
+}
+function addPlateRow() {
+  const box = document.getElementById('mf_plates_box');
+  if (!box) return;
+  box.insertAdjacentHTML('beforeend', _plateRowHtml(''));
+  const inputs = box.querySelectorAll('.mf-plate-input');
+  inputs[inputs.length - 1].focus();
+}
+function removePlateRow(btn) {
+  const row = btn.closest('.mf-plate-row');
+  const box = row?.parentElement;
+  if (!row || !box) return;
+  row.remove();
+  if (box.children.length === 0) box.insertAdjacentHTML('beforeend', _plateRowHtml(''));
+}
+function _collectPlates() {
+  const inputs = document.querySelectorAll('#mf_plates_box .mf-plate-input');
+  return [...inputs].map(i => i.value.trim()).filter(Boolean).join('|');
+}
+
 function openEditMember(sheetRow) {
   sheetRow = parseInt(sheetRow);
   const m = _memberData.find(x => x.sheetRow === sheetRow);
@@ -307,6 +340,11 @@ function openEditMember(sheetRow) {
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" value="${_escH(m.specialty)}"></div>
       <div class="modal-field"><div class="modal-label">生日（民國/月/日，例：80/5/15）</div><input class="modal-input" id="mf_birthday" value="${_escH(m.birthday)}" placeholder="例：80/5/15"></div>
       <div class="modal-field"><div class="modal-label">口號</div><input class="modal-input" id="mf_slogan" value="${_escH(m.slogan)}" placeholder="個人口號 / Slogan"></div>
+      <div class="modal-field">
+        <div class="modal-label">車牌（多台車可新增）</div>
+        <div id="mf_plates_box">${_buildPlateRows(m.plates)}</div>
+        <button type="button" onclick="addPlateRow()" style="margin-top:4px;padding:7px 14px;background:white;border:1.5px dashed var(--gray-border);color:var(--text-soft);border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;">+ 新增車牌</button>
+      </div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" value="${_escH(m.company)}"></div>
       <div class="modal-field"><div class="modal-label">電話</div><input class="modal-input" id="mf_phone" type="tel" value="${_escH(m.phone)}"></div>
       <div class="modal-field"><div class="modal-label">服務項目</div><input class="modal-input" id="mf_serv" value="${_escH(m.service)}"></div>
@@ -360,6 +398,11 @@ function openAddMember() {
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" placeholder="輸入專業別"></div>
       <div class="modal-field"><div class="modal-label">生日（民國/月/日，例：80/5/15）</div><input class="modal-input" id="mf_birthday" placeholder="例：80/5/15"></div>
       <div class="modal-field"><div class="modal-label">口號</div><input class="modal-input" id="mf_slogan" placeholder="個人口號 / Slogan"></div>
+      <div class="modal-field">
+        <div class="modal-label">車牌（多台車可新增）</div>
+        <div id="mf_plates_box">${_buildPlateRows('')}</div>
+        <button type="button" onclick="addPlateRow()" style="margin-top:4px;padding:7px 14px;background:white;border:1.5px dashed var(--gray-border);color:var(--text-soft);border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;">+ 新增車牌</button>
+      </div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" placeholder="輸入公司或品牌名稱"></div>
       <div class="modal-field"><div class="modal-label">電話</div><input class="modal-input" id="mf_phone" type="tel" placeholder="輸入電話"></div>
       <div class="modal-field"><div class="modal-label">服務項目</div><input class="modal-input" id="mf_serv" placeholder="輸入服務項目"></div>
@@ -389,6 +432,7 @@ async function addMember() {
     specialty: document.getElementById('mf_spec').value.trim(),
     birthday:  document.getElementById('mf_birthday').value.trim(),
     slogan:    document.getElementById('mf_slogan').value.trim(),
+    plates:    _collectPlates(),
     company:   document.getElementById('mf_comp').value.trim(),
     phone:     document.getElementById('mf_phone').value.trim(),
     service:   document.getElementById('mf_serv').value.trim(),
@@ -466,6 +510,7 @@ async function saveMemberEdit(sheetRow) {
   m.specialty    = document.getElementById('mf_spec').value.trim();
   m.birthday     = document.getElementById('mf_birthday').value.trim();
   m.slogan       = document.getElementById('mf_slogan').value.trim();
+  m.plates       = _collectPlates();
   m.company      = document.getElementById('mf_comp').value.trim();
   m.phone        = document.getElementById('mf_phone').value.trim();
   m.service      = document.getElementById('mf_serv').value.trim();
@@ -481,7 +526,7 @@ async function saveMemberEdit(sheetRow) {
   showToast('儲存中...');
   try {
     const tasks = [
-      _apiPost({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, birthday: m.birthday, slogan: m.slogan, company: m.company, phone: m.phone, service: m.service }),
+      _apiPost({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, birthday: m.birthday, slogan: m.slogan, plates: m.plates, company: m.company, phone: m.phone, service: m.service }),
       _apiPost({ action: 'updateRenewal', sheetRow, renewDate: m.renewDate, renewStatus: m.renewStatus, renewApply: m.renewApply, renewPay: m.renewPay, renewComplete: m.renewComplete, renewRibbon: m.renewRibbon })
     ];
     if (photoFile) {
