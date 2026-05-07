@@ -504,13 +504,13 @@ function _schedTableHtml() {
       mentorItems.push({ full, left: _isLeftMember(m) });
     });
     const mentorTxt = mentorItems.length
-      ? mentorItems.map(u => `<div><span class="sched-mentor${u.left?' is-left':''}">${_escH(u.full)}</span></div>`).join('')
+      ? `<span style="white-space:nowrap;">` + mentorItems.map(u => `<span class="sched-mentor${u.left?' is-left':''}">${_escH(u.full)}</span>`).join('、') + `</span>`
       : '<span style="color:var(--text-soft);">—</span>';
 
-    // 主題（主題日可能 ｜ 分隔）
+    // 主題：多位講者的題目以換行 / ｜ / | 分隔，全部分上下顯示
     let topicTxt;
     if (x.topic && x.topic !== 'N/A') {
-      const parts = (x.type === '主題日') ? x.topic.split(/[｜|]/).map(s => s.trim()).filter(Boolean) : [x.topic];
+      const parts = String(x.topic).split(/[\n｜|]/).map(s => s.trim()).filter(Boolean);
       topicTxt = parts.length > 1
         ? parts.map(p => `<div>${_escH(p)}</div>`).join('')
         : _escH(parts[0] || '');
