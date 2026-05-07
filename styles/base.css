@@ -1602,6 +1602,7 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
 .slogan-preview-outer { margin-bottom: 14px; overflow: hidden; }
 .slogan-preview-inner { width: 794px; transform-origin: top left; }
 .slogan-sheet {
+  --ss: 1; /* 自動縮放係數，由 JS 量測後設定 */
   width: 210mm; height: 297mm;
   background: #ffffff; box-shadow: var(--shadow-lg);
   font-family: 'Noto Sans TC','Microsoft JhengHei',sans-serif; color: #1a1a2e;
@@ -1617,23 +1618,30 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
 }
 .slogan-col { display: flex; flex-direction: column; }
 .slogan-item {
-  display: flex; align-items: center; gap: 1.8mm;
-  padding: 0.6mm 0.5mm; border-bottom: 1px dotted #dcdcdc;
+  display: flex; align-items: center;
+  gap: calc(1.8mm * var(--ss));
+  padding: calc(0.6mm * var(--ss)) calc(0.5mm * var(--ss));
+  border-bottom: 1px dotted #dcdcdc;
   page-break-inside: avoid;
 }
 .slogan-num {
-  flex-shrink: 0; width: 5mm; height: 5mm; border-radius: 50%;
-  background: #c0392b; color: white; font-size: 8.5px; font-weight: 900;
+  flex-shrink: 0;
+  width: calc(5mm * var(--ss)); height: calc(5mm * var(--ss));
+  border-radius: 50%;
+  background: #c0392b; color: white;
+  font-size: calc(8.5px * var(--ss)); font-weight: 900;
   display: flex; align-items: center; justify-content: center; line-height: 1;
 }
 .slogan-content { flex: 1; min-width: 0; }
-.slogan-name-row { display: flex; align-items: center; gap: 4px; margin-bottom: 0.3mm; }
-.slogan-name { font-size: 10px; font-weight: 900; color: #1a1a2e; line-height: 1.15; }
+.slogan-name-row { display: flex; align-items: center; gap: calc(4px * var(--ss)); margin-bottom: calc(0.3mm * var(--ss)); }
+.slogan-name { font-size: calc(10px * var(--ss)); font-weight: 900; color: #1a1a2e; line-height: 1.15; }
 .slogan-spec {
-  font-size: 7.5px; font-weight: 700; color: #c0392b;
-  background: #fdecea; padding: 0 5px; border-radius: 5px;
+  font-size: calc(7.5px * var(--ss)); font-weight: 700; color: #c0392b;
+  background: #fdecea;
+  padding: 0 calc(5px * var(--ss));
+  border-radius: calc(5px * var(--ss));
   white-space: nowrap; line-height: 1.4;
 }
-.slogan-text { font-size: 8.8px; color: #444; line-height: 1.25; word-break: break-word; }
+.slogan-text { font-size: calc(8.8px * var(--ss)); color: #444; line-height: 1.25; word-break: break-word; }
 .slogan-text.empty { color: #bbb; font-style: italic; }
 

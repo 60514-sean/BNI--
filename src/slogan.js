@@ -33,7 +33,11 @@ async function renderSlogan() {
       <div class="slogan-preview-inner" id="sloganInner">${_buildSloganSheet(members)}</div>
     </div>
   </div>`;
-  _scaleSlogan();
+  // 兩個 raf 等版面真正排好再量測，避免初次量到 0
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    _autoFitSlogan();
+    _scaleSlogan();
+  }));
 }
 
 function _buildSloganSheet(members) {
@@ -78,6 +82,31 @@ function _scaleSlogan() {
   outer.style.height = (inner.scrollHeight * scale) + 'px';
 }
 window.addEventListener('resize', () => { if (_activeTab === 'slogan') _scaleSlogan(); });
+
+// 量測列高並反推「自動縮放係數」，讓內容滿版又不溢出
+function _autoFitSlogan() {
+  const sheet = document.getElementById('sloganSheet');
+  if (!sheet) return;
+  const cols = sheet.querySelector('.slogan-cols');
+  if (!cols) return;
+  // 二段迭代：第一次粗算、第二次微修（因文字換行非完全線性）
+  for (let pass = 0; pass < 3; pass++) {
+    const colEls = cols.querySelectorAll('.slogan-col');
+    let maxScroll = 0;
+    colEls.forEach(c => { maxScroll = Math.max(maxScroll, c.scrollHeight); });
+    const avail = cols.clientHeight;
+    if (maxScroll <= 0 || avail <= 0) return;
+    const cur = parseFloat(getComputedStyle(sheet).getPropertyValue('--ss')) || 1;
+    // 目標：列高總和 = 可用高度 × 0.97（保留 3% 緩衝避免邊界 round-off）
+    let next = cur * (avail * 0.97 / maxScroll);
+    // 合理區間
+    next = Math.max(0.5, Math.min(2.0, next));
+    if (Math.abs(next - cur) < 0.005) break; // 已收斂
+    sheet.style.setProperty('--ss', next.toFixed(3));
+    // 強制 reflow
+    void sheet.offsetHeight;
+  }
+}
 
 async function _renderSloganCanvas() {
   const sheet = document.getElementById('sloganSheet');
