@@ -304,6 +304,7 @@ function doPost(e) {
       newRow[ci('產業鏈')] = body.industry || '';
       newRow[ci('專業別')] = body.specialty || '';
       if (ci('生日') >= 0) newRow[ci('生日')] = body.birthday || '';
+      if (ci('口號') >= 0) newRow[ci('口號')] = body.slogan || '';
       newRow[ci('公司')] = body.company || '';
       newRow[ci('電話')] = body.phone || '';
       newRow[ci('服務')] = body.service || '';
@@ -341,6 +342,7 @@ function doPost(e) {
       if (ci('產業鏈') >= 0) sh.getRange(row, ci('產業鏈') + 1).setValue(body.industry || '');
       if (ci('專業別') >= 0) sh.getRange(row, ci('專業別') + 1).setValue(body.specialty || '');
       if (ci('生日') >= 0) sh.getRange(row, ci('生日') + 1).setValue(body.birthday || '');
+      if (ci('口號') >= 0) sh.getRange(row, ci('口號') + 1).setValue(body.slogan || '');
       if (ci('公司') >= 0) sh.getRange(row, ci('公司') + 1).setValue(body.company || '');
       if (ci('電話') >= 0) sh.getRange(row, ci('電話') + 1).setValue(body.phone || '');
       if (ci('服務') >= 0) sh.getRange(row, ci('服務') + 1).setValue(body.service || '');

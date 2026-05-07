@@ -37,6 +37,7 @@ async function fetchMembers() {
     const iPhoto = idx('照片連結');
     const iInd = idx('產業鏈');
     const iBirthday = idx('生日');
+    const iSlogan = idx('口號');
 
     _memberData = rows.slice(1)
       .map((r, i) => ({
@@ -45,6 +46,7 @@ async function fetchMembers() {
         specialty:   r[iSpec]?.trim()     || '',
         industry:    iInd >= 0 ? (r[iInd]?.trim() || '') : '',
         birthday:    iBirthday >= 0 ? (r[iBirthday]?.trim() || '') : '',
+        slogan:      iSlogan >= 0 ? (r[iSlogan]?.trim() || '') : '',
         company:     r[iComp]?.trim()     || '',
         phone:       r[iPhone]?.trim()    || '',
         service:     r[iServ]?.trim()     || '',
@@ -265,6 +267,7 @@ function openEditMember(sheetRow) {
       <div class="modal-field"><div class="modal-label">產業鏈（DM分組標題）</div><select class="modal-input" id="mf_ind" style="appearance:auto;background:white;">${_getIndustryOptions(m.industry)}</select></div>
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" value="${_escH(m.specialty)}"></div>
       <div class="modal-field"><div class="modal-label">生日（民國/月/日，例：80/5/15）</div><input class="modal-input" id="mf_birthday" value="${_escH(m.birthday)}" placeholder="例：80/5/15"></div>
+      <div class="modal-field"><div class="modal-label">口號</div><input class="modal-input" id="mf_slogan" value="${_escH(m.slogan)}" placeholder="個人口號 / Slogan"></div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" value="${_escH(m.company)}"></div>
       <div class="modal-field"><div class="modal-label">電話</div><input class="modal-input" id="mf_phone" type="tel" value="${_escH(m.phone)}"></div>
       <div class="modal-field"><div class="modal-label">服務項目</div><input class="modal-input" id="mf_serv" value="${_escH(m.service)}"></div>
@@ -317,6 +320,7 @@ function openAddMember() {
       <div class="modal-field"><div class="modal-label">產業鏈（DM分組標題）</div><select class="modal-input" id="mf_ind" style="appearance:auto;background:white;">${_getIndustryOptions(_defaultIndustry)}</select></div>
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" placeholder="輸入專業別"></div>
       <div class="modal-field"><div class="modal-label">生日（民國/月/日，例：80/5/15）</div><input class="modal-input" id="mf_birthday" placeholder="例：80/5/15"></div>
+      <div class="modal-field"><div class="modal-label">口號</div><input class="modal-input" id="mf_slogan" placeholder="個人口號 / Slogan"></div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" placeholder="輸入公司或品牌名稱"></div>
       <div class="modal-field"><div class="modal-label">電話</div><input class="modal-input" id="mf_phone" type="tel" placeholder="輸入電話"></div>
       <div class="modal-field"><div class="modal-label">服務項目</div><input class="modal-input" id="mf_serv" placeholder="輸入服務項目"></div>
@@ -345,6 +349,7 @@ async function addMember() {
     industry:  document.getElementById('mf_ind').value.trim(),
     specialty: document.getElementById('mf_spec').value.trim(),
     birthday:  document.getElementById('mf_birthday').value.trim(),
+    slogan:    document.getElementById('mf_slogan').value.trim(),
     company:   document.getElementById('mf_comp').value.trim(),
     phone:     document.getElementById('mf_phone').value.trim(),
     service:   document.getElementById('mf_serv').value.trim(),
@@ -421,6 +426,7 @@ async function saveMemberEdit(sheetRow) {
   m.industry     = document.getElementById('mf_ind').value.trim();
   m.specialty    = document.getElementById('mf_spec').value.trim();
   m.birthday     = document.getElementById('mf_birthday').value.trim();
+  m.slogan       = document.getElementById('mf_slogan').value.trim();
   m.company      = document.getElementById('mf_comp').value.trim();
   m.phone        = document.getElementById('mf_phone').value.trim();
   m.service      = document.getElementById('mf_serv').value.trim();
@@ -436,7 +442,7 @@ async function saveMemberEdit(sheetRow) {
   showToast('儲存中...');
   try {
     const tasks = [
-      _apiPost({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, birthday: m.birthday, company: m.company, phone: m.phone, service: m.service }),
+      _apiPost({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, birthday: m.birthday, slogan: m.slogan, company: m.company, phone: m.phone, service: m.service }),
       _apiPost({ action: 'updateRenewal', sheetRow, renewDate: m.renewDate, renewStatus: m.renewStatus, renewApply: m.renewApply, renewPay: m.renewPay, renewComplete: m.renewComplete, renewRibbon: m.renewRibbon })
     ];
     if (photoFile) {
