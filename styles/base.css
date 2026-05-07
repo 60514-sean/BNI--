@@ -1599,7 +1599,7 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   @page { size:A4 portrait; margin:0; }
 }
 
-/* ===== 會員口號 ===== */
+/* ===== 會員口號（仿試算表 4 欄表格）===== */
 .slogan-wrapper { padding: 0; max-width: 980px; margin: 0 auto; }
 .slogan-preview-outer { margin-bottom: 14px; overflow: hidden; }
 .slogan-preview-inner { width: 794px; transform-origin: top left; }
@@ -1608,46 +1608,36 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   width: 210mm; height: 297mm;
   background: #ffffff; box-shadow: var(--shadow-lg);
   font-family: 'Noto Sans TC','Microsoft JhengHei',sans-serif; color: #1a1a2e;
-  box-sizing: border-box; padding: 8mm 7mm 6mm; position: relative;
+  box-sizing: border-box; padding: 8mm 8mm 8mm; position: relative;
   display: flex; flex-direction: column; overflow: hidden;
 }
-.slogan-header { text-align: center; margin-bottom: 3mm; border-bottom: 2px solid #c0392b; padding-bottom: 2mm; flex-shrink: 0; }
-.slogan-title { font-size: 20px; font-weight: 900; color: #c0392b; letter-spacing: 2px; line-height: 1.1; }
-.slogan-subtitle { font-size: 10px; color: #7a7a7a; margin-top: 2px; letter-spacing: 1px; }
-.slogan-cols {
-  display: grid; grid-template-columns: 1fr 1fr; column-gap: 4mm;
-  flex: 1; min-height: 0;
+.slogan-table {
+  width: 100%; border-collapse: collapse; table-layout: fixed;
+  font-size: calc(11px * var(--ss));
 }
-.slogan-col { display: flex; flex-direction: column; }
-.slogan-item {
-  flex: 1 1 0; min-height: 0;
-  display: flex; align-items: center;
-  gap: calc(1.8mm * var(--ss));
-  padding: calc(0.6mm * var(--ss)) calc(0.5mm * var(--ss));
-  border-bottom: 1px dotted #dcdcdc;
-  page-break-inside: avoid;
+.slogan-table th, .slogan-table td {
+  border: 0.3mm solid #333;
+  padding: calc(0.8mm * var(--ss)) calc(1.5mm * var(--ss));
+  text-align: center; vertical-align: middle;
+  word-break: break-word;
 }
-.slogan-col .slogan-item:last-child { border-bottom: none; }
-.slogan-num {
-  flex-shrink: 0;
-  width: calc(5mm * var(--ss)); height: calc(5mm * var(--ss));
-  border-radius: 50%;
-  background: #c0392b; color: white;
-  font-size: calc(8.5px * var(--ss)); font-weight: 900;
-  display: flex; align-items: center; justify-content: center; line-height: 1;
+.slogan-table th {
+  background: #f8cbad; /* 仿原始試算表的橘色標頭 */
+  font-weight: 900; color: #1a1a2e;
+  font-size: calc(12px * var(--ss));
+  letter-spacing: 1px;
+  padding: calc(1.5mm * var(--ss)) calc(1.5mm * var(--ss));
 }
-.slogan-content { flex: 1; min-width: 0; }
-.slogan-name-row { display: flex; align-items: center; gap: calc(4px * var(--ss)); margin-bottom: calc(0.3mm * var(--ss)); }
-.slogan-name { font-size: calc(10px * var(--ss)); font-weight: 900; color: #1a1a2e; line-height: 1.15; }
-.slogan-spec {
-  font-size: calc(7.5px * var(--ss)); font-weight: 700; color: #c0392b;
-  background: #fdecea;
-  padding: 0 calc(5px * var(--ss));
-  border-radius: calc(5px * var(--ss));
-  white-space: nowrap; line-height: 1.4;
+.slogan-table td.sl-num { font-weight: 700; color: #1a1a2e; }
+.slogan-table td.sl-spec { font-weight: 700; }
+.slogan-table td.sl-name { font-weight: 900; }
+.slogan-table td.sl-text {
+  text-align: left;
+  padding-left: calc(2mm * var(--ss));
+  letter-spacing: 0.3px;
+  line-height: 1.3;
 }
-.slogan-text { font-size: calc(8.8px * var(--ss)); color: #444; line-height: 1.25; word-break: break-word; }
-.slogan-text.empty { color: #bbb; font-style: italic; }
+.slogan-table .slogan-tail { color: #c00000; font-weight: 900; }
 
 /* ===== 會員車牌（仿 PDF 列印格式）===== */
 .plate-wrapper { padding: 0; max-width: 980px; margin: 0 auto; }

@@ -40,32 +40,38 @@ async function renderSlogan() {
   }));
 }
 
+// 取出 slogan 末段慣用語（最後一個空格之後的字），讓它在表格中以紅色突顯
+function _splitSloganTail(text) {
+  if (!text) return { head: '', tail: '' };
+  // 半形空格、全形空格、tab 都算
+  const m = text.match(/^([\s\S]*[\s 　])(\S+)$/);
+  if (m) return { head: m[1], tail: m[2] };
+  return { head: text, tail: '' };
+}
+
 function _buildSloganSheet(members) {
-  // 兩欄式 A4 排版；序號從第 1 欄起依序遞增、超過半數移到第 2 欄
-  const half = Math.ceil(members.length / 2);
-  const left  = members.slice(0, half);
-  const right = members.slice(half);
-  const itemHtml = (m, n) => `
-    <div class="slogan-item">
-      <span class="slogan-num">${n}</span>
-      <div class="slogan-content">
-        <div class="slogan-name-row">
-          <span class="slogan-name">${_escH(m.name || '')}</span>
-          ${m.specialty ? `<span class="slogan-spec">${_escH(m.specialty)}</span>` : ''}
-        </div>
-        <div class="slogan-text${m.slogan ? '' : ' empty'}">${_escH(m.slogan || '—')}</div>
-      </div>
-    </div>`;
-  const today = _todayIso ? _todayIso() : '';
+  const rowsHtml = members.map((m, i) => {
+    const { head, tail } = _splitSloganTail(m.slogan || '');
+    const sloganCell = m.slogan
+      ? `${_escH(head)}<span class="slogan-tail">${_escH(tail)}</span>`
+      : '';
+    return `<tr>
+      <td class="sl-num">${i + 1}</td>
+      <td class="sl-spec">${_escH(m.specialty || '')}</td>
+      <td class="sl-name">${_escH(m.name || '')}</td>
+      <td class="sl-text">${sloganCell}</td>
+    </tr>`;
+  }).join('');
   return `<div class="slogan-sheet" id="sloganSheet">
-    <div class="slogan-header">
-      <div class="slogan-title">BNI 會員口號</div>
-      <div class="slogan-subtitle">共 ${members.length} 位 · ${today}</div>
-    </div>
-    <div class="slogan-cols">
-      <div class="slogan-col">${left.map((m, i) => itemHtml(m, i + 1)).join('')}</div>
-      <div class="slogan-col">${right.map((m, i) => itemHtml(m, half + i + 1)).join('')}</div>
-    </div>
+    <table class="slogan-table">
+      <colgroup>
+        <col style="width:8%"><col style="width:22%"><col style="width:16%"><col style="width:54%">
+      </colgroup>
+      <thead>
+        <tr><th></th><th>專業類別</th><th>姓名</th><th>slogan</th></tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
   </div>`;
 }
 
@@ -83,43 +89,35 @@ function _scaleSlogan() {
 }
 window.addEventListener('resize', () => { if (_activeTab === 'slogan') _scaleSlogan(); });
 
-// 列已 flex:1 均分欄位高度（底部不留白）。此函式只負責根據每列分到的高度，反推合適字級
+// 量測表格高度，反推合適 --ss 使表格剛好填滿可用高度（不溢出）
 function _autoFitSlogan() {
   const sheet = document.getElementById('sloganSheet');
   if (!sheet) return;
-  const cols = sheet.querySelector('.slogan-cols');
-  if (!cols) return;
-  // 先重設 --ss=1 量測「每列內容自然高度」
+  const table = sheet.querySelector('.slogan-table');
+  if (!table) return;
+
   sheet.style.setProperty('--ss', '1');
   void sheet.offsetHeight;
 
-  const colEls = cols.querySelectorAll('.slogan-col');
-  let maxItems = 0;
-  colEls.forEach(c => { maxItems = Math.max(maxItems, c.querySelectorAll('.slogan-item').length); });
-  if (!maxItems) return;
+  const avail = sheet.clientHeight
+    - parseFloat(getComputedStyle(sheet).paddingTop)
+    - parseFloat(getComputedStyle(sheet).paddingBottom);
+  if (avail <= 0) return;
 
-  const items = sheet.querySelectorAll('.slogan-item');
-  let naturalH = 0;
-  items.forEach(i => { naturalH = Math.max(naturalH, i.scrollHeight); });
-  if (naturalH <= 0) return;
-
-  const allocH = cols.clientHeight / maxItems;
-  // 目標填到 92% 列高（留一點呼吸空間）
-  let scale = (allocH * 0.92) / naturalH;
+  // 量測自然高
+  let natural = table.scrollHeight;
+  if (natural <= 0) return;
+  let scale = (avail * 0.97) / natural;
   scale = Math.max(0.4, Math.min(3.0, scale));
   sheet.style.setProperty('--ss', scale.toFixed(3));
 
-  // 文字換行不完全線性：再迭代修正，遇到溢出就縮小
+  // 文字換行造成的非線性：迭代修正
   for (let pass = 0; pass < 3; pass++) {
     void sheet.offsetHeight;
-    let maxRatio = 1;
-    items.forEach(i => {
-      const r = i.scrollHeight / Math.max(1, i.clientHeight);
-      if (r > maxRatio) maxRatio = r;
-    });
-    if (maxRatio <= 1.02) break;
     const cur = parseFloat(getComputedStyle(sheet).getPropertyValue('--ss')) || 1;
-    sheet.style.setProperty('--ss', (cur / maxRatio * 0.95).toFixed(3));
+    const h = table.scrollHeight;
+    if (h <= avail * 0.99) break;
+    sheet.style.setProperty('--ss', (cur * (avail / h) * 0.96).toFixed(3));
   }
 }
 
