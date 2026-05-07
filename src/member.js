@@ -140,15 +140,41 @@ function _renderIndustryList() {
 function _renderIndustryListSettings() {
   const el = document.getElementById('industryListSettings');
   if (!el) return;
+  // 進入設定頁時先從 cache 同步最新（跨裝置同步用）
+  if (cache['__industries__'] && Array.isArray(cache['__industries__'])) {
+    _industries = cache['__industries__'];
+  }
   if (_industries.length === 0) {
     el.innerHTML = `<div style="color:var(--text-soft);font-size:13px;text-align:center;padding:12px;">尚無產業鏈，請新增</div>`;
-    return;
+  } else {
+    el.innerHTML = _industries.map((ind, i) => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-border);">
+        <span style="font-size:14px;">${_escH(ind)}</span>
+        <button onclick="removeIndustry(${i})" style="padding:3px 10px;background:white;border:1.5px solid #e74c3c;color:#e74c3c;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;">刪除</button>
+      </div>`).join('');
   }
-  el.innerHTML = _industries.map((ind, i) => `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-border);">
-      <span style="font-size:14px;">${_escH(ind)}</span>
-      <button onclick="removeIndustry(${i})" style="padding:3px 10px;background:white;border:1.5px solid #e74c3c;color:#e74c3c;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;">刪除</button>
-    </div>`).join('');
+  // 主動呼叫一次 _bgRefresh，拿雲端最新資料後再重渲染（跨裝置即時同步）
+  _bgRefresh().then(() => {
+    if (cache['__industries__'] && Array.isArray(cache['__industries__'])) {
+      const fresh = cache['__industries__'];
+      // 若雲端與目前不同，更新並重渲染
+      if (JSON.stringify(fresh) !== JSON.stringify(_industries)) {
+        _industries = fresh;
+        const el2 = document.getElementById('industryListSettings');
+        if (el2) {
+          if (_industries.length === 0) {
+            el2.innerHTML = `<div style="color:var(--text-soft);font-size:13px;text-align:center;padding:12px;">尚無產業鏈，請新增</div>`;
+          } else {
+            el2.innerHTML = _industries.map((ind, i) => `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-border);">
+                <span style="font-size:14px;">${_escH(ind)}</span>
+                <button onclick="removeIndustry(${i})" style="padding:3px 10px;background:white;border:1.5px solid #e74c3c;color:#e74c3c;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;">刪除</button>
+              </div>`).join('');
+          }
+        }
+      }
+    }
+  });
 }
 
 function addIndustry() {
