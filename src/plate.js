@@ -1,16 +1,12 @@
 // ===== 會員車牌（仿 PDF 列印格式）=====
-// 額外（非會員）車牌：以 __plate_extras__ 存於後端，會員增減不影響
-let _plateExtras = (() => {
-  if (Array.isArray(cache['__plate_extras__'])) return cache['__plate_extras__'];
-  return [];
-})();
-_bgRefresh().then(() => {
-  if (Array.isArray(cache['__plate_extras__'])) {
-    _plateExtras = cache['__plate_extras__'];
-    if (_activeTab === 'plate') renderPlate();
-  }
-});
-function _savePlateExtras() { apiSave('__plate_extras__', _plateExtras); }
+// 額外（非會員）車牌：以 __plate_extras__ 存於後端 PropertiesService，跨裝置同步
+// 永遠從 cache 讀取，避免本地副本與雲端分歧
+function _getPlateExtras() {
+  return Array.isArray(cache['__plate_extras__']) ? cache['__plate_extras__'].slice() : [];
+}
+function _setPlateExtras(arr) {
+  apiSave('__plate_extras__', arr);
+}
 
 async function renderPlate() {
   _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
@@ -18,6 +14,11 @@ async function renderPlate() {
 
   const el = document.getElementById('plateContent');
   el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
+
+  // 進入車牌頁前先強制從雲端同步一次最新資料
+  const beforeKey = JSON.stringify(_getPlateExtras());
+  await _bgRefresh().catch(() => {});
+  // 若雲端有更新，確保本機 cache 已更新（_bgRefresh 會自動更新 cache）
 
   if (!_memberData) await fetchMembers();
   if (!_memberData) {
@@ -52,7 +53,7 @@ async function renderPlate() {
 }
 
 // 把每位會員的多張車牌展開成 [{name, plate}, ...]，沒有車牌的會員跳過
-// 最後再 append 「非會員額外車牌」（_plateExtras）
+// 最後再 append 「非會員額外車牌」
 function _flattenPlateRows(members) {
   const out = [];
   for (const m of members) {
@@ -60,7 +61,7 @@ function _flattenPlateRows(members) {
     const ps = m.plates.split('|').map(s => s.trim()).filter(Boolean);
     for (const p of ps) out.push({ name: m.name || '', plate: p });
   }
-  for (const ex of _plateExtras) {
+  for (const ex of _getPlateExtras()) {
     if (ex && (ex.name || ex.plate)) {
       out.push({ name: ex.name || '', plate: ex.plate || '' });
     }
@@ -265,16 +266,19 @@ function openPlateExtraModal() {
   document.body.appendChild(overlay);
   _renderPlateExtraList();
   setTimeout(() => document.getElementById('plateExtraName')?.focus(), 50);
+  // 開啟時也觸發一次背景刷新，拿最新雲端資料後重渲染清單
+  _bgRefresh().then(() => { _renderPlateExtraList(); });
 }
 
 function _renderPlateExtraList() {
   const el = document.getElementById('plateExtraList');
   if (!el) return;
-  if (_plateExtras.length === 0) {
+  const list = _getPlateExtras();
+  if (list.length === 0) {
     el.innerHTML = `<div style="color:var(--text-soft);font-size:13px;text-align:center;padding:18px;">尚未新增任何非會員車牌</div>`;
     return;
   }
-  el.innerHTML = _plateExtras.map((it, i) => `
+  el.innerHTML = list.map((it, i) => `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--gray-border);">
       <span style="font-size:14px;flex:0 0 90px;font-weight:700;">${_escH(it.name || '')}</span>
       <span style="font-size:14px;flex:1;color:#555;letter-spacing:0.5px;">${_escH(it.plate || '')}</span>
@@ -288,8 +292,9 @@ function addPlateExtra() {
   const name  = nameEl  ? nameEl.value.trim()  : '';
   const plate = plateEl ? plateEl.value.trim() : '';
   if (!name && !plate) return;
-  _plateExtras.push({ name, plate });
-  _savePlateExtras();
+  const arr = _getPlateExtras();
+  arr.push({ name, plate });
+  _setPlateExtras(arr);
   if (nameEl)  nameEl.value  = '';
   if (plateEl) plateEl.value = '';
   _renderPlateExtraList();
@@ -298,8 +303,9 @@ function addPlateExtra() {
 }
 
 function removePlateExtra(i) {
-  _plateExtras.splice(i, 1);
-  _savePlateExtras();
+  const arr = _getPlateExtras();
+  arr.splice(i, 1);
+  _setPlateExtras(arr);
   _renderPlateExtraList();
   if (_activeTab === 'plate') renderPlate();
 }
