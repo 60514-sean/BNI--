@@ -126,20 +126,20 @@ const DEFAULT_USERS = ['康康', '麥莉', '報到組員', '簡報顧問'];
 const DEFAULT_ADMIN = '康康';
 const GUEST_ROLES = ['EDM手', '來賓組', '主席', '副主席', '報到組'];
 const TAB_LIST = [
-  { id: 'todo',       label: '待辦事項', group: '日常作業' },
-  { id: 'main',       label: '工事清單', group: '日常作業' },
-  { id: 'member',     label: '會員資料', group: '會員資料' },
-  { id: 'dm',         label: '會員DM',   group: '會員資料' },
-  { id: 'slogan',     label: '會員口號', group: '會員資料' },
-  { id: 'plate',      label: '會員車牌', group: '會員資料' },
-  { id: 'signin',     label: '出席簽到', group: '例會準備' },
-  { id: 'guesttrack', label: '來賓追蹤', group: '例會準備' },
-  { id: 'placard',    label: '桌牌製作', group: '例會準備' },
-  { id: 'schedule',   label: '簡報排程', group: '例會準備' },
-  { id: 'finance',    label: '財務控管', group: '財務／例會' },
-  { id: 'meeting',    label: '例會流程', group: '財務／例會' }
+  { id: 'todo',       label: '待辦事項', group: '日常' },
+  { id: 'main',       label: '工事清單', group: '日常' },
+  { id: 'meeting',    label: '例會流程', group: '例會' },
+  { id: 'signin',     label: '出席簽到', group: '例會' },
+  { id: 'guesttrack', label: '來賓追蹤', group: '例會' },
+  { id: 'placard',    label: '桌牌製作', group: '例會' },
+  { id: 'schedule',   label: '簡報排程', group: '例會' },
+  { id: 'member',     label: '會員資料', group: '會員' },
+  { id: 'dm',         label: '會員DM',   group: '會員' },
+  { id: 'slogan',     label: '會員口號', group: '會員' },
+  { id: 'plate',      label: '會員車牌', group: '會員' },
+  { id: 'finance',    label: '財務控管', group: '財務' }
 ];
-const MENU_GROUP_ORDER = ['日常作業','例會準備','會員資料','財務／例會'];
+const MENU_GROUP_ORDER = ['日常','例會','會員','財務'];
 
 function _normalizeUser(u) {
   if (typeof u === 'string') return { names: [u], roles: [], role: '', allowedTabs: [], editableTabs: [] };
