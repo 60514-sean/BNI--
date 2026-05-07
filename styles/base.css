@@ -700,7 +700,7 @@ input.is-locked:focus, textarea.is-locked:focus {
 .signin-preview-outer { margin-bottom: 14px; overflow: hidden; }
 .signin-preview-inner { width: 794px; transform-origin: top left; }
 .signin-sheet {
-  width: 210mm; height: 297mm; padding: 15mm 12mm;
+  width: 210mm; height: 297mm; padding: 15mm 7mm;
   box-sizing: border-box;
   font-family: 'Noto Sans TC','Microsoft JhengHei',sans-serif; color: #1a1a2e;
   background: white; box-shadow: var(--shadow-lg);
@@ -711,7 +711,8 @@ input.is-locked:focus, textarea.is-locked:focus {
 .ss-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12pt; }
 .ss-table th, .ss-table td {
   border: 0.3mm solid #333; padding: 1.2mm 1mm;
-  text-align: center; vertical-align: middle; word-break: break-all;
+  text-align: center; vertical-align: middle;
+  white-space: nowrap; overflow: hidden;
 }
 .ss-table th { background: #e8ecf0; font-weight: 900; color: #1a1a2e; height: 9mm; }
 .ss-table td { height: 9mm; }

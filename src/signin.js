@@ -148,7 +148,7 @@ function _guestSheetHtml(dateText, startIdx, rowCount, pageNum, totalPages) {
     <div class="ss-subtitle">${dateText}</div>
     <table class="ss-table">
       <colgroup>
-        <col style="width:7%"><col style="width:40%"><col style="width:15%"><col style="width:14%"><col style="width:24%">
+        <col style="width:6%"><col style="width:42%"><col style="width:14%"><col style="width:14%"><col style="width:24%">
       </colgroup>
       <thead><tr><th>序號</th><th>姓名 / 產業別 / 邀請人</th><th>簽到</th><th>車牌</th><th>（由工作人員勾選）</th></tr></thead>
       <tbody>${rows}</tbody>
