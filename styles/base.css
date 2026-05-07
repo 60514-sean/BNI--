@@ -1663,24 +1663,24 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   width: 100%; border-collapse: collapse; table-layout: fixed;
   font-size: 12pt;
 }
+.plate-table tr { height: 9mm; }
 .plate-table th, .plate-table td {
   border: 0.3mm solid #333;
-  padding: 1.5mm 1.2mm;
+  padding: 0 1.2mm;
   text-align: center; vertical-align: middle;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  height: 9mm;
+  height: 9mm; box-sizing: border-box;
 }
 .plate-table th {
   background: #e8ecf0; font-weight: 900; color: #1a1a2e;
   letter-spacing: 1px;
   font-size: 12pt;
-  height: 9mm;
 }
-.plate-table td.pl-name { font-weight: 700; }
-.plate-table td.pl-plate {
-  font-weight: 600; letter-spacing: 0.5px;
+.plate-table th.pl-plate-h, .plate-table td.pl-plate {
   text-align: left; padding-left: 3mm;
 }
+.plate-table td.pl-name { font-weight: 700; }
+.plate-table td.pl-plate { font-weight: 600; letter-spacing: 0.5px; }
 .plate-table td.pl-sig { background: #ffffff; }
 .plate-table td.pl-note { background: #ffffff; }
 .plate-sheet + .plate-sheet { margin-top: 14px; }

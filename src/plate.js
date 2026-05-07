@@ -73,7 +73,7 @@ function _buildPlateSheet(rows) {
         <col style="width:24%"><col style="width:32%"><col style="width:22%"><col style="width:22%">
       </colgroup>
       <thead>
-        <tr><th>會員</th><th>車牌號碼</th><th>簽　到</th><th>備　註</th></tr>
+        <tr><th>會員</th><th class="pl-plate-h">車牌號碼</th><th>簽　到</th><th>備　註</th></tr>
       </thead>
       <tbody>${tableRowsHtml(arr)}</tbody>
     </table>`;
