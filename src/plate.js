@@ -35,11 +35,11 @@ async function renderPlate() {
           <div style="font-size:16px;font-weight:900;color:var(--text);">會員車牌</div>
           <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">${count} 筆車牌 · A4 直印 · 預覽如下</div>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-primary" onclick="exportPlatePdf()">匯出 PDF</button>
-          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text);font-weight:700;" onclick="exportPlateJpg()">匯出 JPG</button>
-          <button class="btn" style="background:white;border:1.5px solid var(--red);color:var(--red);font-weight:900;" onclick="openPlateExtraModal()" title="新增非會員車牌">+</button>
-          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="_memberData=null;renderPlate()">重整</button>
+        <div style="display:flex;gap:6px;flex-wrap:nowrap;white-space:nowrap;">
+          <button class="btn btn-primary" style="white-space:nowrap;" onclick="exportPlatePdf()">匯出 PDF</button>
+          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text);font-weight:700;white-space:nowrap;" onclick="exportPlateJpg()">匯出 JPG</button>
+          <button class="btn" style="background:white;border:1.5px solid var(--red);color:var(--red);font-weight:900;flex-shrink:0;" onclick="openPlateExtraModal()" title="新增非會員車牌">+</button>
+          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);white-space:nowrap;" onclick="_memberData=null;renderPlate()">重整</button>
         </div>
       </div>
     </div>
