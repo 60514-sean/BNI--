@@ -1649,3 +1649,43 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
 .slogan-text { font-size: calc(8.8px * var(--ss)); color: #444; line-height: 1.25; word-break: break-word; }
 .slogan-text.empty { color: #bbb; font-style: italic; }
 
+/* ===== 會員車牌（仿 PDF 列印格式）===== */
+.plate-wrapper { padding: 0; max-width: 980px; margin: 0 auto; }
+.plate-preview-outer { margin-bottom: 14px; overflow: hidden; }
+.plate-preview-inner { width: 794px; transform-origin: top left; }
+.plate-sheet {
+  --ps: 1;
+  width: 210mm; height: 297mm;
+  background: #ffffff; box-shadow: var(--shadow-lg);
+  font-family: 'Noto Sans TC','Microsoft JhengHei',sans-serif; color: #1a1a2e;
+  box-sizing: border-box; padding: 12mm 8mm 10mm; position: relative;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.plate-header { text-align: center; margin-bottom: 4mm; flex-shrink: 0; }
+.plate-title { font-size: 22px; font-weight: 900; color: #1a1a2e; letter-spacing: 3px; line-height: 1.2; }
+.plate-subtitle { font-size: 12px; color: #555; margin-top: 4px; letter-spacing: 1px; }
+.plate-cols {
+  display: grid; grid-template-columns: 1fr 1fr; column-gap: 5mm;
+  flex: 1; min-height: 0;
+}
+.plate-col { display: flex; flex-direction: column; min-height: 0; }
+.plate-table {
+  width: 100%; border-collapse: collapse; table-layout: fixed;
+  font-size: calc(11px * var(--ps));
+}
+.plate-table th, .plate-table td {
+  border: 0.3mm solid #333;
+  padding: calc(1mm * var(--ps)) calc(0.8mm * var(--ps));
+  text-align: center; vertical-align: middle;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.plate-table th {
+  background: #e8ecf0; font-weight: 900; color: #1a1a2e;
+  letter-spacing: 1px;
+  font-size: calc(11px * var(--ps));
+}
+.plate-table td.pl-name { font-weight: 700; }
+.plate-table td.pl-plate { font-weight: 600; letter-spacing: 0.5px; }
+.plate-table td.pl-sig { background: #ffffff; }
+.plate-table td.pl-note { background: #ffffff; }
+

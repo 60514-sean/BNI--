@@ -158,6 +158,7 @@ function showSettings() {
   document.getElementById('memberContent').style.display     = 'none';
   document.getElementById('dmContent').style.display         = 'none';
   document.getElementById('sloganContent').style.display     = 'none';
+  document.getElementById('plateContent').style.display      = 'none';
   document.getElementById('signinContent').style.display     = 'none';
   document.getElementById('guestTrackContent').style.display = 'none';
   document.getElementById('placardContent').style.display    = 'none';
