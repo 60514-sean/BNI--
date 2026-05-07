@@ -33,9 +33,7 @@ async function renderSlogan() {
       <div class="slogan-preview-inner" id="sloganInner">${_buildSloganSheet(members)}</div>
     </div>
   </div>`;
-  // 兩個 raf 等版面真正排好再量測，避免初次量到 0
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    _autoFitSlogan();
     _scaleSlogan();
   }));
 }
@@ -49,30 +47,62 @@ function _splitSloganTail(text) {
   return { head: text, tail: '' };
 }
 
+// 每欄 25 列、每張 50 列；超過則自動分頁；不足則補空白列
+const SLOGAN_ROWS_PER_COL = 25;
+const SLOGAN_PER_PAGE = SLOGAN_ROWS_PER_COL * 2;
+
 function _buildSloganSheet(members) {
-  const rowsHtml = members.map((m, i) => {
+  const pages = Math.max(1, Math.ceil(members.length / SLOGAN_PER_PAGE));
+  const totalSlots = pages * SLOGAN_PER_PAGE;
+  const padded = members.slice();
+  while (padded.length < totalSlots) padded.push(null); // 用 null 代表空白列
+
+  const rowHtml = (m, n) => {
+    if (!m) {
+      return `<tr>
+        <td class="sl-num">${n}</td>
+        <td class="sl-spec"></td>
+        <td class="sl-name"></td>
+        <td class="sl-text"></td>
+      </tr>`;
+    }
     const { head, tail } = _splitSloganTail(m.slogan || '');
     const sloganCell = m.slogan
       ? `${_escH(head)}<span class="slogan-tail">${_escH(tail)}</span>`
       : '';
     return `<tr>
-      <td class="sl-num">${i + 1}</td>
+      <td class="sl-num">${n}</td>
       <td class="sl-spec">${_escH(m.specialty || '')}</td>
       <td class="sl-name">${_escH(m.name || '')}</td>
       <td class="sl-text">${sloganCell}</td>
     </tr>`;
-  }).join('');
-  return `<div class="slogan-sheet" id="sloganSheet">
+  };
+  const tableHtml = (arr, startN) => `
     <table class="slogan-table">
       <colgroup>
-        <col style="width:8%"><col style="width:22%"><col style="width:16%"><col style="width:54%">
+        <col style="width:9%"><col style="width:24%"><col style="width:16%"><col style="width:51%">
       </colgroup>
       <thead>
         <tr><th></th><th>專業類別</th><th>姓名</th><th>slogan</th></tr>
       </thead>
-      <tbody>${rowsHtml}</tbody>
-    </table>
-  </div>`;
+      <tbody>${arr.map((m, i) => rowHtml(m, startN + i)).join('')}</tbody>
+    </table>`;
+
+  let html = '';
+  for (let p = 0; p < pages; p++) {
+    const pageRows = padded.slice(p * SLOGAN_PER_PAGE, (p + 1) * SLOGAN_PER_PAGE);
+    const left  = pageRows.slice(0, SLOGAN_ROWS_PER_COL);
+    const right = pageRows.slice(SLOGAN_ROWS_PER_COL);
+    const baseN = p * SLOGAN_PER_PAGE + 1;
+    const sheetId = p === 0 ? 'sloganSheet' : `sloganSheet${p}`;
+    html += `<div class="slogan-sheet" id="${sheetId}">
+      <div class="slogan-cols">
+        <div class="slogan-col">${tableHtml(left, baseN)}</div>
+        <div class="slogan-col">${tableHtml(right, baseN + SLOGAN_ROWS_PER_COL)}</div>
+      </div>
+    </div>`;
+  }
+  return html;
 }
 
 function _scaleSlogan() {
@@ -121,21 +151,18 @@ function _autoFitSlogan() {
   }
 }
 
-async function _renderSloganCanvas() {
-  const sheet = document.getElementById('sloganSheet');
-  if (!sheet) return null;
+async function _renderOneSloganCanvas(sheetEl) {
   const wrap = document.createElement('div');
   wrap.style.cssText = 'position:absolute;left:-9999px;top:0;background:white;';
-  const clone = sheet.cloneNode(true);
+  const clone = sheetEl.cloneNode(true);
   clone.style.transform = 'none';
   clone.style.boxShadow = 'none';
   wrap.appendChild(clone);
   document.body.appendChild(wrap);
   try {
-    const canvas = await html2canvas(clone, {
+    return await html2canvas(clone, {
       scale: 2, useCORS: true, allowTaint: false, logging: false, backgroundColor: '#ffffff'
     });
-    return canvas;
   } finally {
     document.body.removeChild(wrap);
   }
@@ -152,12 +179,16 @@ async function exportSloganPdf() {
   } catch { showLoader(false); showToast('載入失敗，請確認網路'); _resumeEditLock(); return; }
 
   try {
-    const canvas = await _renderSloganCanvas();
-    if (!canvas) { showToast('找不到內容'); return; }
+    const sheets = document.querySelectorAll('#sloganContent .slogan-sheet');
+    if (!sheets.length) { showToast('找不到內容'); return; }
     const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
     if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); return; }
     const doc = new jsPDFCtor({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
-    doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+    for (let i = 0; i < sheets.length; i++) {
+      const canvas = await _renderOneSloganCanvas(sheets[i]);
+      if (i > 0) doc.addPage();
+      doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+    }
     _downloadPdfBlob(doc.output('blob'), `BNI-會員口號-${_todayIso()}.pdf`);
     showToast('PDF 已下載');
   } catch {
@@ -176,15 +207,21 @@ async function exportSloganJpg() {
   } catch { showLoader(false); showToast('JPG 套件載入失敗，請確認網路'); _resumeEditLock(); return; }
 
   try {
-    const canvas = await _renderSloganCanvas();
-    if (!canvas) { showToast('找不到內容'); return; }
-    const a = document.createElement('a');
-    a.href = canvas.toDataURL('image/jpeg', 0.92);
-    a.download = `BNI-會員口號-${_todayIso()}.jpg`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    showToast('JPG 已下載');
+    const sheets = document.querySelectorAll('#sloganContent .slogan-sheet');
+    if (!sheets.length) { showToast('找不到內容'); return; }
+    for (let i = 0; i < sheets.length; i++) {
+      const canvas = await _renderOneSloganCanvas(sheets[i]);
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/jpeg', 0.92);
+      a.download = sheets.length > 1
+        ? `BNI-會員口號-${_todayIso()}-${i + 1}.jpg`
+        : `BNI-會員口號-${_todayIso()}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      if (sheets.length > 1) await new Promise(r => setTimeout(r, 250));
+    }
+    showToast(sheets.length > 1 ? `${sheets.length} 張 JPG 已下載` : 'JPG 已下載');
   } catch {
     showToast('JPG 產生失敗，請重試');
   } finally {
