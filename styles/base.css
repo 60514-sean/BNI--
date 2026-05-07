@@ -1631,7 +1631,7 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   height: 10mm; box-sizing: border-box;
 }
 .slogan-table th {
-  background: #f8cbad; /* 仿原始試算表的橘色標頭 */
+  background: #e8ecf0; /* 與會員車牌標頭一致 */
   font-weight: 900; color: #1a1a2e;
   font-size: 11pt;
   letter-spacing: 1px;
