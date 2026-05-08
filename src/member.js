@@ -2,6 +2,16 @@
 const MEMBER_CSV = 'https://docs.google.com/spreadsheets/d/1vaunMiu-soVacqsbvRxY1dDQ2ZLBghv0t9rTer3KdP0/export?format=csv&gid=466594149';
 let _memberData = null;
 
+const MEMBER_ORDER = [
+  '黃愷訢','蔡志銘','蔡秀敏','林庭秀','蔡忠翰','郭懷憶','陳韋辰','謝秋霞',
+  '鄭湘蓁','高靜觀','張宥瑩','康竣傑','方爰心','黃沛晴','陳麗安','余佳華',
+  '潘禾家','金萱蓉','蔡佳霖','林惠雯','李蕙如','黃韋廸','温智翔','曹文豪',
+  '江子揚','劉庭君','葉淑娟','蔡仲博','張育菁','郭霈蓉','吳少宇','劉珮汝',
+  '李語婕','魏純雅','郭郁祥','陳柏豪','薛祐謙','王秋舒','林淑媛','李俐臻',
+  '許孝群','黃蘭婷','王怡琳','李姵禎','馮士維','龍映庭','謝宗憲'
+];
+const _MEMBER_ORDER_MAP = MEMBER_ORDER.reduce((m, n, i) => (m[n] = i, m), {});
+
 function _parseCSV(text) {
   const rows = [];
   let row = [], field = '', inQ = false;
@@ -62,6 +72,16 @@ async function fetchMembers() {
         renewRibbon: r[iRibbon]?.trim()   || '',
       }))
       .filter(m => m.name);
+
+    const BIG = MEMBER_ORDER.length;
+    _memberData.sort((a, b) => {
+      const ai = _MEMBER_ORDER_MAP[a.name];
+      const bi = _MEMBER_ORDER_MAP[b.name];
+      const av = ai === undefined ? BIG : ai;
+      const bv = bi === undefined ? BIG : bi;
+      if (av !== bv) return av - bv;
+      return a.sheetRow - b.sheetRow;
+    });
   } catch(e) {
     document.getElementById('memberContent').innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試</div>`;
     _memberData = null;

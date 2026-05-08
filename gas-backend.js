@@ -525,3 +525,61 @@ function reorderMembers() {
 
   Logger.log('Done! Reordered ' + newRows.length + ' members. Order list updated in 「' + ORDER_SHEET + '」');
 }
+
+// 一次性：將會員主表 A 欄（序號）依目前列順序從上到下重編 1, 2, 3...
+// 用法：在 Apps Script 編輯器選 renumberMembers → 執行
+function renumberMembers() {
+  const SS_ID     = '1vaunMiu-soVacqsbvRxY1dDQ2ZLBghv0t9rTer3KdP0';
+  const SHEET_GID = 466594149;
+  const ss = SpreadsheetApp.openById(SS_ID);
+  const sheet = ss.getSheets().find(function(s) { return s.getSheetId() === SHEET_GID; });
+  if (!sheet) { Logger.log('Main sheet not found'); return; }
+
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const nameCol = headers.findIndex(function(h) { return String(h).indexOf('姓名') >= 0; }) + 1;
+  if (nameCol < 1) { Logger.log('找不到姓名欄'); return; }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) { Logger.log('沒有資料列'); return; }
+
+  const names = sheet.getRange(2, nameCol, lastRow - 1, 1).getValues();
+  let n = 0;
+  const newSeq = names.map(function(r) {
+    const name = String(r[0]).trim();
+    if (name) { n++; return [n]; }
+    return [''];
+  });
+  sheet.getRange(2, 1, newSeq.length, 1).setValues(newSeq);
+  Logger.log('Renumbered ' + n + ' members in column A.');
+}
+
+// 一次性：寫入指定順序到「排序名單」分頁，並執行 reorderMembers()
+// 用法：在 Apps Script 編輯器選 applyKKOrder_2026_05 → 執行
+function applyKKOrder_2026_05() {
+  const SS_ID       = '1vaunMiu-soVacqsbvRxY1dDQ2ZLBghv0t9rTer3KdP0';
+  const ORDER_SHEET = '排序名單';
+  const ORDER = [
+    '黃愷訢','蔡志銘','蔡秀敏','林庭秀','蔡忠翰','郭懷憶','陳韋辰','謝秋霞',
+    '鄭湘蓁','高靜觀','張宥瑩','康竣傑','方爰心','黃沛晴','陳麗安','余佳華',
+    '潘禾家','金萱蓉','蔡佳霖','林惠雯','李蕙如','黃韋廸','温智翔','曹文豪',
+    '江子揚','劉庭君','葉淑娟','蔡仲博','張育菁','郭霈蓉','吳少宇','劉珮汝',
+    '李語婕','魏純雅','郭郁祥','陳柏豪','薛祐謙','王秋舒','林淑媛','李俐臻',
+    '許孝群','黃蘭婷','王怡琳','李姵禎','馮士維','龍映庭','謝宗憲'
+  ];
+
+  const ss = SpreadsheetApp.openById(SS_ID);
+  let orderSheet = ss.getSheetByName(ORDER_SHEET);
+  if (!orderSheet) {
+    orderSheet = ss.insertSheet(ORDER_SHEET);
+    orderSheet.getRange('A1').setValue('姓名（依此順序排列，可拖曳列調整）');
+    orderSheet.getRange('A1').setFontWeight('bold').setBackground('#fff2cc');
+    orderSheet.setColumnWidth(1, 280);
+  }
+
+  if (orderSheet.getLastRow() >= 2) {
+    orderSheet.getRange(2, 1, orderSheet.getLastRow() - 1, 1).clearContent();
+  }
+  orderSheet.getRange(2, 1, ORDER.length, 1).setValues(ORDER.map(function(n) { return [n]; }));
+
+  reorderMembers();
+}
