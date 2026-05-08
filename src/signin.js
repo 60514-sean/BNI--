@@ -70,7 +70,7 @@ function _signinSwitch(v) { _signinSubTab = v; renderSignin(); }
 function _signinSetDate(v) { _signinDate = v || _todayIso(); renderSignin(); }
 
 function _buildMemberSheets(dateText) {
-  const members = [..._memberData];
+  const members = [..._memberData].sort((a, b) => (a.sheetRow || 0) - (b.sheetRow || 0));
   const chunks = [];
   for (let i = 0; i < members.length; i += SIGNIN_ROWS_PER_PAGE) {
     chunks.push(members.slice(i, i + SIGNIN_ROWS_PER_PAGE));
