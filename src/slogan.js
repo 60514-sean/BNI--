@@ -13,7 +13,7 @@ async function renderSlogan() {
     return;
   }
 
-  const members = [..._memberData];
+  const members = [..._memberData].sort((a, b) => (a.sheetRow || 0) - (b.sheetRow || 0));
   const count = members.length;
   el.innerHTML = `<div class="slogan-wrapper">
     <div class="card" style="margin-bottom:14px;padding:16px 20px;">

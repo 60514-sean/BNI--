@@ -1,4 +1,4 @@
-// ===== 會員車牌（仿 PDF 列印格式）=====
+// ===== 車牌登記（仿 PDF 列印格式）=====
 // 額外（非會員）車牌：以 __plate_extras__ 存於後端 PropertiesService，跨裝置同步
 // 永遠從 cache 讀取，避免本地副本與雲端分歧
 function _getPlateExtras() {
@@ -8,6 +8,8 @@ function _setPlateExtras(arr) {
   apiSave('__plate_extras__', arr);
 }
 
+let _plateSubTab = 'member'; // 'member' | 'guest'
+
 async function renderPlate() {
   _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
@@ -16,41 +18,64 @@ async function renderPlate() {
   el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
 
   // 進入車牌頁前先強制從雲端同步一次最新資料
-  const beforeKey = JSON.stringify(_getPlateExtras());
   await _bgRefresh().catch(() => {});
-  // 若雲端有更新，確保本機 cache 已更新（_bgRefresh 會自動更新 cache）
 
   if (!_memberData) await fetchMembers();
   if (!_memberData) {
     el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試 <button class="btn" style="margin-left:12px;background:var(--red);color:white;" onclick="_memberData=null;renderPlate()">重試</button></div>`;
     return;
   }
+  if (_plateSubTab === 'guest' && _guestData === null) await fetchGuests();
 
-  const rows = _flattenPlateRows(_memberData);
+  const tab = _plateSubTab;
+  let rows;
+  if (tab === 'member') {
+    rows = _flattenPlateRows(_memberData);
+  } else {
+    const weekGuests = _getWeekGuestsForSignin();
+    rows = weekGuests.map(g => ({ name: g.name || '', plate: '' }));
+  }
   const count = rows.length;
+  const desc = tab === 'member'
+    ? `${count} 筆車牌 · A4 直印 · 預覽如下`
+    : `本周 ${count} 位來賓 · A4 直印 · 預覽如下`;
+  const subBtn = (v, label) => `<button class="signin-subtab ${tab===v?'active':''}" onclick="_plateSwitch('${v}')">${label}</button>`;
+  const extraBtn = tab === 'member'
+    ? `<button class="btn" style="background:white;border:1.5px solid var(--red);color:var(--red);font-weight:900;flex-shrink:0;" onclick="openPlateExtraModal()" title="新增非會員車牌">+</button>`
+    : '';
+  const refreshHandler = tab === 'member'
+    ? `_memberData=null;renderPlate()`
+    : `_guestData=null;renderPlate()`;
+
   el.innerHTML = `<div class="plate-wrapper">
     <div class="card" style="margin-bottom:14px;padding:16px 20px;">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
         <div>
           <div style="font-size:16px;font-weight:900;color:var(--text);">車牌登記</div>
-          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">${count} 筆車牌 · A4 直印 · 預覽如下</div>
+          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">${desc}</div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:nowrap;white-space:nowrap;">
           <button class="btn btn-primary" style="white-space:nowrap;" onclick="exportPlatePdf()">匯出 PDF</button>
           <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text);font-weight:700;white-space:nowrap;" onclick="exportPlateJpg()">匯出 JPG</button>
-          <button class="btn" style="background:white;border:1.5px solid var(--red);color:var(--red);font-weight:900;flex-shrink:0;" onclick="openPlateExtraModal()" title="新增非會員車牌">+</button>
-          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);white-space:nowrap;" onclick="_memberData=null;renderPlate()">重整</button>
+          ${extraBtn}
+          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);white-space:nowrap;" onclick="${refreshHandler}">重整</button>
         </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        ${subBtn('member','會員')}
+        ${subBtn('guest','來賓')}
       </div>
     </div>
     <div class="plate-preview-outer" id="plateOuter">
-      <div class="plate-preview-inner" id="plateInner">${_buildPlateSheet(rows)}</div>
+      <div class="plate-preview-inner" id="plateInner">${_buildPlateSheet(rows, tab)}</div>
     </div>
   </div>`;
   requestAnimationFrame(() => requestAnimationFrame(() => {
     _scalePlate();
   }));
 }
+
+function _plateSwitch(v) { _plateSubTab = v; renderPlate(); }
 
 // 把每位會員的多張車牌展開成 [{name, plate}, ...]，沒有車牌的會員跳過
 // 最後再 append 「非會員額外車牌」
@@ -73,7 +98,11 @@ function _flattenPlateRows(members) {
 const PLATE_ROWS_PER_COL = 25;
 const PLATE_PER_PAGE = PLATE_ROWS_PER_COL * 2;
 
-function _buildPlateSheet(rows) {
+function _buildPlateSheet(rows, type) {
+  const isGuest = type === 'guest';
+  const nameHeader = isGuest ? '來賓' : '會員';
+  const titlePrefix = isGuest ? '來賓車牌表' : '會員車牌表';
+
   const pages = Math.max(1, Math.ceil(rows.length / PLATE_PER_PAGE));
   const totalSlots = pages * PLATE_PER_PAGE;
   const padded = rows.slice();
@@ -94,7 +123,7 @@ function _buildPlateSheet(rows) {
         <col style="width:24%"><col style="width:32%"><col style="width:22%"><col style="width:22%">
       </colgroup>
       <thead>
-        <tr><th>會員</th><th class="pl-plate-h">車牌號碼</th><th>簽　到</th><th>備　註</th></tr>
+        <tr><th>${nameHeader}</th><th class="pl-plate-h">車牌號碼</th><th>簽　到</th><th>備　註</th></tr>
       </thead>
       <tbody>${tableRowsHtml(arr)}</tbody>
     </table>`;
@@ -108,7 +137,7 @@ function _buildPlateSheet(rows) {
     const sheetId = p === 0 ? 'plateSheet' : `plateSheet${p}`;
     html += `<div class="plate-sheet" id="${sheetId}">
       <div class="plate-header">
-        <div class="plate-title">BNI 億展白金分會　會員車牌表${suffix}</div>
+        <div class="plate-title">BNI 億展白金分會　${titlePrefix}${suffix}</div>
         <div class="plate-subtitle">${dateText}</div>
       </div>
       <div class="plate-cols">
@@ -202,7 +231,8 @@ async function exportPlatePdf() {
       if (i > 0) doc.addPage();
       doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
     }
-    _downloadPdfBlob(doc.output('blob'), `BNI-會員車牌-${_todayIso()}.pdf`);
+    const fnPrefix = _plateSubTab === 'guest' ? 'BNI-來賓車牌' : 'BNI-會員車牌';
+    _downloadPdfBlob(doc.output('blob'), `${fnPrefix}-${_todayIso()}.pdf`);
     showToast('PDF 已下載');
   } catch {
     showToast('PDF 產生失敗，請重試');
@@ -226,9 +256,10 @@ async function exportPlateJpg() {
       const canvas = await _renderOneSheetCanvas(sheets[i]);
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/jpeg', 0.92);
+      const fnPrefix = _plateSubTab === 'guest' ? 'BNI-來賓車牌' : 'BNI-會員車牌';
       a.download = sheets.length > 1
-        ? `BNI-會員車牌-${_todayIso()}-${i + 1}.jpg`
-        : `BNI-會員車牌-${_todayIso()}.jpg`;
+        ? `${fnPrefix}-${_todayIso()}-${i + 1}.jpg`
+        : `${fnPrefix}-${_todayIso()}.jpg`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
