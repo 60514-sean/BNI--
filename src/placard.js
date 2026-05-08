@@ -2,6 +2,8 @@
 let _placardSubTab = 'guest';        // 'guest' | 'member'
 let _placardMemberSelected = null;   // null = 全選；Set<sheetRow> = 自訂
 let _placardMemberPanelOpen = false;
+let _placardGuestSelected = null;    // null = 全選；Set<year-sheetRow> = 自訂
+let _placardGuestPanelOpen = false;
 
 function _placardSwitch(v) { _placardSubTab = v; renderPlacard(); }
 
@@ -38,6 +40,56 @@ function _placardToggleSelectorPanel() {
   if (arrow) arrow.textContent = _placardMemberPanelOpen ? '▲' : '▼';
 }
 
+function _guestKey(g) { return `${g.year}-${g.sheetRow}`; }
+
+function _getSelectedGuests() {
+  const week = _getWeekGuestsForSignin();
+  if (_placardGuestSelected === null) return week;
+  return week.filter(g => _placardGuestSelected.has(_guestKey(g)));
+}
+
+function _placardSelectAllGuests() {
+  _placardGuestSelected = null;
+  document.querySelectorAll('.gplacard-selector-item input').forEach(cb => cb.checked = true);
+  _placardRefreshGuestView();
+}
+function _placardSelectNoneGuests() {
+  _placardGuestSelected = new Set();
+  document.querySelectorAll('.gplacard-selector-item input').forEach(cb => cb.checked = false);
+  _placardRefreshGuestView();
+}
+function _placardToggleGuest(key) {
+  if (_placardGuestSelected === null) {
+    _placardGuestSelected = new Set(_getWeekGuestsForSignin().map(_guestKey));
+  }
+  if (_placardGuestSelected.has(key)) _placardGuestSelected.delete(key);
+  else _placardGuestSelected.add(key);
+  _placardRefreshGuestView();
+}
+function _placardToggleGuestSelectorPanel() {
+  _placardGuestPanelOpen = !_placardGuestPanelOpen;
+  const p = document.getElementById('gplacardPanel');
+  const arrow = document.getElementById('gplacardSelArrow');
+  if (p) p.style.display = _placardGuestPanelOpen ? '' : 'none';
+  if (arrow) arrow.textContent = _placardGuestPanelOpen ? '▲' : '▼';
+}
+
+function _placardRefreshGuestView() {
+  const week  = _getWeekGuestsForSignin();
+  const sel   = _getSelectedGuests();
+  const total = week.length;
+  const count = sel.length;
+  const body  = document.getElementById('placardBody');
+  if (body) body.innerHTML = _placardBodyHtml('guest', sel, []);
+  const desc  = document.getElementById('placardDesc');
+  if (desc) desc.textContent = `已選 ${count} / ${total} 位 · ${count} 張 A4（每張 1 位，上下對摺為立牌）`;
+  const btn   = document.getElementById('placardPdfBtn');
+  if (btn) btn.disabled = count === 0;
+  const selTx = document.getElementById('gplacardSelBtnText');
+  if (selTx) selTx.textContent = `選擇來賓（已選 ${count} / ${total} 位）`;
+  _scalePlacard();
+}
+
 // 部分更新：不重建下拉選單面板，保留 scroll 位置
 function _placardRefreshMemberView() {
   if (!_memberData) return;
@@ -71,12 +123,14 @@ async function renderPlacard() {
 
   const weekGuests   = tab === 'guest'  ? _getWeekGuestsForSignin() : [];
   const allMembers   = tab === 'member' ? [..._memberData]           : [];
+  const selGuests    = tab === 'guest'  ? _getSelectedGuests()       : [];
   const sel          = tab === 'member' ? _getSelectedMembers()      : [];
-  const count        = tab === 'guest'  ? weekGuests.length          : sel.length;
+  const count        = tab === 'guest'  ? selGuests.length           : sel.length;
+  const totalGuests  = weekGuests.length;
   const totalMembers = allMembers.length;
   const title = tab === 'guest' ? '來賓桌牌' : '會員桌牌';
   const desc  = tab === 'guest'
-    ? `本周 ${count} 位 · ${count} 張 A4（每張 1 位，上下對摺為立牌）`
+    ? `已選 ${count} / ${totalGuests} 位 · ${count} 張 A4（每張 1 位，上下對摺為立牌）`
     : `已選 ${count} / ${totalMembers} 位 · ${Math.ceil(count/2)} 張 A4（每張 2 位，上下對摺為立牌）`;
 
   el.innerHTML = `<div class="placard-wrapper">
@@ -96,10 +150,35 @@ async function renderPlacard() {
         ${subBtn('guest','來賓')}
       </div>
       ${tab === 'member' ? _memberSelectorHtml(allMembers) : ''}
+      ${tab === 'guest'  ? _guestSelectorHtml(weekGuests)  : ''}
     </div>
-    <div id="placardBody">${_placardBodyHtml(tab, weekGuests, sel)}</div>
+    <div id="placardBody">${_placardBodyHtml(tab, tab==='guest'?selGuests:weekGuests, sel)}</div>
   </div>`;
   _scalePlacard();
+}
+
+function _guestSelectorHtml(guests) {
+  const sel = _getSelectedGuests();
+  const isSelected = (g) => _placardGuestSelected === null || _placardGuestSelected.has(_guestKey(g));
+  if (!guests.length) return '';
+  const items = guests.map(g => `
+    <label class="mplacard-selector-item gplacard-selector-item">
+      <input type="checkbox" ${isSelected(g) ? 'checked' : ''} onchange="_placardToggleGuest('${_guestKey(g)}')">
+      <span>${_escH(g.name || '')}</span>
+    </label>`).join('');
+  return `<div class="mplacard-selector">
+    <button class="mplacard-selector-btn" onclick="_placardToggleGuestSelectorPanel()">
+      <span id="gplacardSelBtnText">選擇來賓（已選 ${sel.length} / ${guests.length} 位）</span>
+      <span id="gplacardSelArrow" style="color:var(--text-soft);font-size:12px;">${_placardGuestPanelOpen ? '▲' : '▼'}</span>
+    </button>
+    <div class="mplacard-selector-panel" id="gplacardPanel" style="display:${_placardGuestPanelOpen ? '' : 'none'};">
+      <div class="mplacard-selector-actions">
+        <button onclick="_placardSelectAllGuests()">全選</button>
+        <button onclick="_placardSelectNoneGuests()">全不選</button>
+      </div>
+      <div class="mplacard-selector-list">${items}</div>
+    </div>
+  </div>`;
 }
 
 function _memberSelectorHtml(members) {
@@ -127,8 +206,15 @@ function _memberSelectorHtml(members) {
 
 function _placardBodyHtml(tab, weekGuests, members) {
   if (tab === 'guest') {
-    if (!weekGuests.length) {
+    const totalWeek = _getWeekGuestsForSignin().length;
+    if (!totalWeek) {
       return `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">本周沒有來賓資料<br><span style="font-size:12px;">請先在「來賓追蹤」新增本周邀約的來賓</span></div>`;
+    }
+    if (!weekGuests.length) {
+      return `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">
+        尚未選取任何來賓<br>
+        <span style="font-size:12px;">請點擊上方「選擇來賓」下拉選單勾選要製作的來賓</span>
+      </div>`;
     }
     return `<div class="placard-preview-outer" id="placardOuter">
         <div class="placard-preview-inner" id="placardInner">${weekGuests.map(_placardSheetHtml).join('')}</div>
