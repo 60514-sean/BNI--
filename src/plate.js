@@ -32,7 +32,7 @@ async function renderPlate() {
     <div class="card" style="margin-bottom:14px;padding:16px 20px;">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
         <div>
-          <div style="font-size:16px;font-weight:900;color:var(--text);">會員車牌</div>
+          <div style="font-size:16px;font-weight:900;color:var(--text);">車牌登記</div>
           <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">${count} 筆車牌 · A4 直印 · 預覽如下</div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:nowrap;white-space:nowrap;">
