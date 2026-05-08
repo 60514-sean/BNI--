@@ -96,6 +96,33 @@ function _saveTodos(list) { saveMyTodos(list); }
 // 啟動時清掉舊版單機 localStorage（避免跨使用者污染）
 try { localStorage.removeItem('bni_todos'); } catch {}
 
+// 從文字中萃取日期，回傳 timestamp。支援：YYYY/MM/DD、YYYY-MM-DD、(YYYY年)M月D日、M/D、M-D
+function _parseTodoDate(text) {
+  if (!text) return null;
+  const now = new Date();
+  const yearNow = now.getFullYear();
+  let m;
+  m = text.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3]).getTime();
+  m = text.match(/(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日/);
+  if (m) return new Date(+(m[1]||yearNow), +m[2]-1, +m[3]).getTime();
+  m = text.match(/(?:^|[^\d\/\-])(\d{1,2})[\/\-](\d{1,2})(?:$|[^\d\/\-])/);
+  if (m) return new Date(yearNow, +m[1]-1, +m[2]).getTime();
+  return null;
+}
+
+// 排序：無日期優先（保留原順序）→ 有日期者依日期由近到遠
+function _sortTodos(list) {
+  return list.map((t, i) => ({ t, i, d: _parseTodoDate(t.text) }))
+    .sort((a, b) => {
+      if (a.d == null && b.d == null) return a.i - b.i;
+      if (a.d == null) return -1;
+      if (b.d == null) return 1;
+      return a.d - b.d || a.i - b.i;
+    })
+    .map(x => x.t);
+}
+
 function _getMyMessage() {
   if (!CU) return '';
   if (CR === 'admin') return ''; // 管理員不顯示留言
@@ -103,7 +130,7 @@ function _getMyMessage() {
 }
 
 function renderTodo() {
-  const todos = _getTodos();
+  const todos = _sortTodos(_getTodos());
   const done  = todos.filter(t => t.done);
   const todo  = todos.filter(t => !t.done);
   const total = todos.length;
