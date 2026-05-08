@@ -353,6 +353,16 @@ input.is-locked:focus, textarea.is-locked:focus {
   flex: 1; min-width: 0;
   font-size: 14px; line-height: 1.5; color: var(--text);
   word-break: break-word;
+  cursor: text; padding: 2px 6px; margin: -2px -6px; border-radius: 6px;
+  transition: background 0.15s;
+}
+.todo-text:hover { background: rgba(0,0,0,0.04); }
+.todo-edit-input {
+  flex: 1; min-width: 0;
+  font: inherit; color: var(--text);
+  padding: 2px 6px; margin: -2px -6px;
+  border: 1.5px solid var(--red); border-radius: 6px;
+  background: white; outline: none;
 }
 
 .todo-del {

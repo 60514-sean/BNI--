@@ -90,6 +90,7 @@ function _pickTab(tab) {
 }
 
 // ===== TODO =====
+let _editingTodoId = null;
 function _getTodos() { return getMyTodos(); }
 function _saveTodos(list) { saveMyTodos(list); }
 // 啟動時清掉舊版單機 localStorage（避免跨使用者污染）
@@ -109,7 +110,14 @@ function renderTodo() {
   const pct   = total ? Math.round(done.length / total * 100) : 0;
   const myMsg = _getMyMessage();
 
-  const itemHtml = (t) => `
+  const itemHtml = (t) => {
+    const editing = _editingTodoId === t.id;
+    const textPart = editing
+      ? `<input class="todo-edit-input" id="todoEdit_${t.id}" type="text" value="${_escH(t.text)}"
+          onkeydown="_onEditKey(event,'${t.id}')"
+          onblur="_commitEditTodo('${t.id}',this.value)">`
+      : `<span class="todo-text" onclick="_startEditTodo('${t.id}')" title="點擊編輯">${_escH(t.text)}</span>`;
+    return `
     <div class="todo-row${t.done?' is-done':''}">
       <label class="todo-cb-wrap">
         <input type="checkbox" ${t.done?'checked':''} onchange="toggleTodo('${t.id}')">
@@ -117,9 +125,10 @@ function renderTodo() {
           ${t.done?`<svg width="12" height="10" viewBox="0 0 11 9" fill="none"><path d="M1 4L4.5 7.5L10 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`:''}
         </span>
       </label>
-      <span class="todo-text">${_escH(t.text)}</span>
+      ${textPart}
       <button class="todo-del" onclick="deleteTodo('${t.id}')" aria-label="刪除">&times;</button>
     </div>`;
+  };
 
   const summaryHtml = total ? `
     <div class="todo-summary">
@@ -191,6 +200,39 @@ function renderTodo() {
       ${doneSection}
       ${emptyHtml}
     </div>`;
+
+  if (_editingTodoId) {
+    const ip = document.getElementById(`todoEdit_${_editingTodoId}`);
+    if (ip) { ip.focus(); ip.setSelectionRange(ip.value.length, ip.value.length); }
+  }
+}
+
+function _startEditTodo(id) {
+  if (_editingTodoId === id) return;
+  _editingTodoId = id;
+  renderTodo();
+}
+
+function _commitEditTodo(id, val) {
+  if (_editingTodoId !== id) return; // 已被其他事件處理過
+  const text = (val || '').trim();
+  _editingTodoId = null;
+  if (!text) { renderTodo(); return; } // 空字串視為取消
+  const todos = _getTodos();
+  const t = todos.find(x => x.id === id);
+  if (t && t.text !== text) { t.text = text; _saveTodos(todos); }
+  renderTodo();
+}
+
+function _cancelEditTodo() {
+  if (!_editingTodoId) return;
+  _editingTodoId = null;
+  renderTodo();
+}
+
+function _onEditKey(ev, id) {
+  if (ev.key === 'Enter') { ev.preventDefault(); ev.target.blur(); }
+  else if (ev.key === 'Escape') { ev.preventDefault(); _cancelEditTodo(); }
 }
 
 function addTodo() {
