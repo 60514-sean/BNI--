@@ -353,6 +353,39 @@ body { padding: 0 0 80px; min-height: 100vh; }
 .loader { text-align: center; padding: 60px 20px; color: #888; font-size: 14px; }
 .error-box { text-align: center; padding: 60px 20px; color: #c0392b; font-size: 14px; line-height: 1.6; }
 .empty-box { text-align: center; padding: 40px 20px; color: #888; font-size: 14px; }
+
+/* 預覽模式：所有互動按鈕變灰且停用 */
+.preview-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  text-align: center;
+  padding: 6px 10px;
+  z-index: 999;
+  border-bottom: 1px solid #f5d0a0;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+body.preview-mode .public-header { top: 26px; }
+body.preview-mode .mc-meet-btn,
+body.preview-mode .mc-web-btn,
+body.preview-mode .contact-btn {
+  background: #e8ecf0 !important;
+  color: #999 !important;
+  border-color: #ccc !important;
+  pointer-events: none;
+  cursor: default;
+}
+body.preview-mode .mc-phone a {
+  color: #999 !important;
+  pointer-events: none;
+}
+body.preview-mode .jump-select {
+  pointer-events: none;
+  opacity: .6;
+}
 </style>
 </head>
 <body>
@@ -379,6 +412,7 @@ body { padding: 0 0 80px; min-height: 100vh; }
 const VALID_TOKEN = '9k4r7p2m8x5v3t6y';
 const PUBLIC_API_URL = 'https://script.google.com/macros/s/AKfycbzwn_oKfa0vs21GlWdqtjz0oFJYyNwhVGJQPz_GHRaDGmk6jxHIqs7U0yqrVxyzkwK-/exec';
 const CAT_COLORS = ['#c0392b','#7b6914','#2e6e8e','#7b3f6a','#2e7d52','#b5631a','#5a4a8a','#4a7a5a','#8e3a3a','#3a6a7a'];
+const IS_PREVIEW = new URLSearchParams(window.location.search).get('preview') === '1';
 
 function getToken() {
   const params = new URLSearchParams(window.location.search);
@@ -404,6 +438,7 @@ let _visitSent = false;   // 同一個 page lifetime 只送一筆 visit
 function nowIso() { return new Date().toISOString(); }
 
 function postBehaviorEvent(payload) {
+  if (IS_PREVIEW) return; // 預覽模式不送任何追蹤事件
   const info = getGuestInfo();
   if (!info) return;
   const body = JSON.stringify({
@@ -425,6 +460,7 @@ function postBehaviorEvent(payload) {
 }
 
 function sendVisitEnd() {
+  if (IS_PREVIEW) return; // 預覽模式不送 visit
   if (_visitSent || !_sessionStart) return;
   const info = getGuestInfo();
   if (!info) return;
@@ -738,45 +774,56 @@ function showLoginPage() {
     btn.onclick = async () => {
       const name = nameEl.value.trim();
       const phone = phoneEl.value.trim();
-      if (!name) { errEl.textContent = '請輸入姓名'; return; }
-      if (!phone || phone.replace(/\D/g,'').length < 8) { errEl.textContent = '請輸入正確的手機號碼'; return; }
+      // 預覽模式：放寬驗證，允許空白
+      if (!IS_PREVIEW) {
+        if (!name) { errEl.textContent = '請輸入姓名'; return; }
+        if (!phone || phone.replace(/\D/g,'').length < 8) { errEl.textContent = '請輸入正確的手機號碼'; return; }
+      }
 
-      btn.disabled = true; btn.textContent = '查詢中...';
+      btn.disabled = true; btn.textContent = IS_PREVIEW ? '進入中...' : '查詢中...';
       let matched = false, matchedName = '';
-      try {
-        const res = await fetch(PUBLIC_API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'lookupGuest', token: VALID_TOKEN, phone, name })
-        });
-        const json = await res.json();
-        if (json && json.ok) { matched = !!json.matched; matchedName = json.name || ''; }
-      } catch (e) { /* 沒網路也讓他進，後續按想認識時會自動建檔 */ }
-
-      saveGuestInfo(name, phone);
+      if (!IS_PREVIEW) {
+        try {
+          const res = await fetch(PUBLIC_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'lookupGuest', token: VALID_TOKEN, phone, name })
+          });
+          const json = await res.json();
+          if (json && json.ok) { matched = !!json.matched; matchedName = json.name || ''; }
+        } catch (e) { /* 沒網路也讓他進，後續按想認識時會自動建檔 */ }
+        saveGuestInfo(name, phone);
+      }
 
       // 切換到歡迎詞
       document.getElementById('lp_form').style.display = 'none';
       const wel = document.getElementById('lp_welcome');
       wel.className = 'welcome-stage';
       wel.style.display = '';
-      const greeting = matched
-        ? `歡迎回來，${escH(matchedName || name)}！`
-        : `歡迎您，${escH(name)}！`;
-      const sub = matched
-        ? '很開心再次見到您，請挑選感興趣的會員了解更多'
-        : '正在為您準備分會會員介紹...';
+      let greeting, sub;
+      if (IS_PREVIEW) {
+        greeting = '預覽模式';
+        sub = '畫面為來賓視角，互動按鈕已停用';
+      } else {
+        greeting = matched
+          ? `歡迎回來，${escH(matchedName || name)}！`
+          : `歡迎您，${escH(name)}！`;
+        sub = matched
+          ? '很開心再次見到您，請挑選感興趣的會員了解更多'
+          : '正在為您準備分會會員介紹...';
+      }
       wel.innerHTML = `<div class="icon">&#9733;</div><div class="big">${greeting}</div><div class="small">${sub}</div>`;
 
       setTimeout(() => {
         overlay.classList.add('fade-out');
         setTimeout(() => { overlay.remove(); resolve({ name, phone, matched, matchedName }); }, 400);
-      }, 1800);
+      }, IS_PREVIEW ? 900 : 1800);
     };
   });
 }
 
 async function ensureGuestLogin() {
+  if (IS_PREVIEW) return await showLoginPage(); // 預覽模式每次都顯示登入頁
   const info = getGuestInfo();
   if (info) return info;
   return await showLoginPage();
@@ -787,6 +834,15 @@ async function ensureGuestLogin() {
   if (token !== VALID_TOKEN) {
     document.getElementById('content').innerHTML = `<div class="error-box">無效的連結<br><br>請聯絡分會取得正確的 QR Code</div>`;
     return;
+  }
+
+  // 預覽模式：加上 body class 與頂部提示條
+  if (IS_PREVIEW) {
+    document.body.classList.add('preview-mode');
+    const banner = document.createElement('div');
+    banner.className = 'preview-banner';
+    banner.textContent = '預覽模式 · 互動按鈕已停用，不會紀錄任何資料';
+    document.body.appendChild(banner);
   }
 
   // 強制登入：先取得來賓資料才能進入 DM
