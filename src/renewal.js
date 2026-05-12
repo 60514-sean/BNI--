@@ -2,7 +2,7 @@
 // 全用既有 _memberData / member.js 的編輯函式，不新增資料欄位
 // 4 個區塊：頂部統計卡 + 本週儀式推薦 + 三大狀態 tab + 流程進度視覺化
 
-let _renewalSubTab = 'pending'; // 'pending' 待辦儀式 | 'countdown' 倒數中 | 'done' 已完成
+let _renewalSubTab = 'progress'; // 'progress' 續約進行中 | 'pending' 待辦儀式 | 'done' 已完成
 let _renewalSearch = '';
 let _renewalAutoResetDone = new Set(); // 本次 session 已自動重置的 sheetRow，避免重複呼叫 API
 
@@ -11,10 +11,11 @@ function _renewalStatus(m) {
   if (m.renewRibbon === 'TRUE') return 'done';       // 已辦儀式（已完成）
   if (m.renewComplete === 'TRUE') return 'pending';  // 已完成續約、未辦儀式
   if (m.renewApply === 'TRUE' || m.renewPay === 'TRUE') return 'progress'; // 已手動啟動流程
-  // 自動轉換：倒數 ≤ 90 天且未啟動任何流程 → 視為「續約進行中」（系統提示開始續約）
+  // 自動轉換：倒數 ≤ 120 天 → 進入續約進行中
   const days = parseInt(m.renewDays);
-  if (!isNaN(days) && days <= 90) return 'progress';
-  return 'countdown'; // 倒數中
+  if (isNaN(days)) return 'progress'; // 無天數資料，顯示讓管理員處理
+  if (days <= 120) return 'progress';
+  return 'distant'; // > 120 天，不顯示
 }
 
 // 自動重置：renewRibbon=TRUE 且 renewDays ≤ 120 表示上一輪資料過時，靜默清空進入新一輪
@@ -28,11 +29,10 @@ function _renewalAutoResetIfNeeded(m) {
   m.renewPay = 'FALSE';
   m.renewComplete = 'FALSE';
   m.renewRibbon = 'FALSE';
-  m.renewStatus = 'FALSE';
   m.ceremonyDate = '';
   _renewalAutoResetDone.add(m.sheetRow);
   // 同步雲端（fire-and-forget，失敗下次 render 會再試）
-  _apiPost({ action: 'updateRenewal', sheetRow: m.sheetRow, renewDate: m.renewDate, renewStatus: 'FALSE', renewApply: 'FALSE', renewPay: 'FALSE', renewComplete: 'FALSE', renewRibbon: 'FALSE', ceremonyDate: '' }).catch(() => {});
+  _apiPost({ action: 'updateRenewal', sheetRow: m.sheetRow, renewDate: m.renewDate, renewApply: 'FALSE', renewPay: 'FALSE', renewComplete: 'FALSE', renewRibbon: 'FALSE', ceremonyDate: '' }).catch(() => {});
   return true;
 }
 
@@ -57,15 +57,10 @@ async function renderRenewal() {
   }
 
   // 2. 狀態分群
-  const groups = { countdown: [], progress: [], pending: [], done: [] };
+  const groups = { progress: [], pending: [], done: [], distant: [] };
   _memberData.forEach(m => {
     const s = _renewalStatus(m);
     groups[s].push(m);
-  });
-  // 「倒數中」只保留 renewDays ≤ 120 的會員；距離續約太遠的不顯示
-  groups.countdown = groups.countdown.filter(m => {
-    const d = parseInt(m.renewDays);
-    return isNaN(d) || d <= 120;
   });
 
   // 2. 本週儀式推薦：pending 群中，按到期日由近到遠
@@ -82,8 +77,7 @@ async function renderRenewal() {
   </div>`);
 
   // —— 區塊 1：頂部統計卡 —— //
-  parts.push(`<div class="renewal-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;">
-    ${_renewalStatCard('倒數中',   groups.countdown.length, '#c0392b', '#fdecea')}
+  parts.push(`<div class="renewal-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;">
     ${_renewalStatCard('續約進行中', groups.progress.length,  '#d4ac0d', '#fef9e7')}
     ${_renewalStatCard('待辦儀式',  groups.pending.length,   '#f39c12', '#fef5e7')}
     ${_renewalStatCard('已完成',    groups.done.length,      '#27ae60', '#eaf7ee')}
@@ -117,9 +111,9 @@ async function renderRenewal() {
     </button>`;
   };
   parts.push(`<div style="display:flex;gap:6px;margin-bottom:12px;">
-    ${subTabBtn('pending',  '待辦儀式 ★', groups.pending.length,                          '#f39c12')}
-    ${subTabBtn('countdown','倒數中',     groups.countdown.length + groups.progress.length, '#c0392b')}
-    ${subTabBtn('done',     '已完成',     groups.done.length,                              '#27ae60')}
+    ${subTabBtn('progress', '續約進行中', groups.progress.length, '#d4ac0d')}
+    ${subTabBtn('pending',  '待辦儀式 ★', groups.pending.length,  '#f39c12')}
+    ${subTabBtn('done',     '已完成',     groups.done.length,     '#27ae60')}
   </div>`);
 
   parts.push(`<input class="member-search" type="text" placeholder="搜尋姓名、公司..." value="${_escH(_renewalSearch)}" oninput="_renewalSearch=this.value;_filterRenewalCards()" autocomplete="off" style="margin-bottom:12px;">`);
@@ -128,9 +122,8 @@ async function renderRenewal() {
   let list;
   if (_renewalSubTab === 'pending') {
     list = ritualQueue; // 按到期日排序
-  } else if (_renewalSubTab === 'countdown') {
-    // 合併 countdown + progress，按到期日排序（先到期的先處理）
-    list = [...groups.countdown, ...groups.progress].sort((a, b) => _renewalDateTs(a.renewDate) - _renewalDateTs(b.renewDate));
+  } else if (_renewalSubTab === 'progress') {
+    list = [...groups.progress].sort((a, b) => _renewalDateTs(a.renewDate) - _renewalDateTs(b.renewDate));
   } else {
     list = [...groups.done].sort((a, b) => _renewalDateTs(b.renewDate) - _renewalDateTs(a.renewDate)); // 已完成新→舊
   }
@@ -223,7 +216,10 @@ function openEditRenewal(sheetRow) {
   const m = _memberData.find(x => x.sheetRow === sheetRow);
   if (!m) return;
   const days = _renewalDaysLocal(m.renewDate);
-  const locked = days !== null && days > 90;
+  const anyStepDone = m.renewApply === 'TRUE' || m.renewPay === 'TRUE' || m.renewComplete === 'TRUE' || m.renewRibbon === 'TRUE';
+  // 鎖定條件：尚未啟動任何流程 + 距到期日 > 90 天（避免太早勾選）。
+  // 一旦流程已啟動，必須允許繼續編輯到完成（例如完成續約後到期日 +1 年，days 跳到 ~365 也不應鎖定）
+  const locked = !anyStepDone && days !== null && days > 90;
   const lockNote = locked
     ? `<div style="font-size:12px;color:#c0392b;background:#fdecea;padding:9px 12px;border-radius:6px;margin-bottom:10px;line-height:1.5;border:1px solid #f5c6cb;">距離到期日還有 <strong>${days}</strong> 天，倒數 <strong>90 天</strong> 內才開放勾選續約流程。</div>`
     : '';
@@ -309,11 +305,20 @@ function _todayStr() {
   return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
 }
 
+// 將日期字串 +1 年（保持月日不變）；無效輸入則回傳「今天 +1 年」
+function _addOneYearStr(dateStr) {
+  const m = String(dateStr || '').match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (m) return `${+m[1] + 1}/${+m[2]}/${+m[3]}`;
+  const d = new Date();
+  return `${d.getFullYear() + 1}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+
 async function saveRenewalEdit(sheetRow) {
   const m = _memberData.find(x => x.sheetRow === sheetRow);
   if (!m) return;
   const oldDate = m.renewDate;
   const wasRibbonDone = m.renewRibbon === 'TRUE';
+  const wasCompleteDone = m.renewComplete === 'TRUE';
   const newDate = document.getElementById('rf_renewDate').value.trim();
 
   m.renewDate = newDate;
@@ -324,7 +329,6 @@ async function saveRenewalEdit(sheetRow) {
     m.renewPay = 'FALSE';
     m.renewComplete = 'FALSE';
     m.renewRibbon = 'FALSE';
-    m.renewStatus = 'FALSE';
     m.ceremonyDate = ''; // 清空儀式日期紀錄
     showToast('已開始新一輪續約週期');
   } else {
@@ -332,7 +336,12 @@ async function saveRenewalEdit(sheetRow) {
     m.renewPay     = document.getElementById('rf_renewPay').checked      ? 'TRUE' : 'FALSE';
     m.renewComplete= document.getElementById('rf_renewComplete').checked ? 'TRUE' : 'FALSE';
     m.renewRibbon  = document.getElementById('rf_renewRibbon').checked   ? 'TRUE' : 'FALSE';
-    m.renewStatus  = (m.renewApply==='TRUE' || m.renewPay==='TRUE' || m.renewComplete==='TRUE' || m.renewRibbon==='TRUE') ? 'TRUE' : 'FALSE';
+
+    // 完成續約 FALSE→TRUE：自動把到期日 +1 年（僅在管理員沒有手動改到期日時才覆寫）
+    if (!wasCompleteDone && m.renewComplete === 'TRUE' && newDate === oldDate) {
+      m.renewDate = _addOneYearStr(oldDate);
+      showToast(`到期日自動更新為 ${m.renewDate}`);
+    }
 
     // 儀式日期自動紀錄：綢帶/頒獎 FALSE→TRUE 自動寫入今天；TRUE→FALSE 清空
     if (!wasRibbonDone && m.renewRibbon === 'TRUE') {
@@ -350,7 +359,7 @@ async function saveRenewalEdit(sheetRow) {
   renderRenewal();
   showToast('儲存中...');
   try {
-    await _apiPost({ action: 'updateRenewal', sheetRow, renewDate: m.renewDate, renewStatus: m.renewStatus, renewApply: m.renewApply, renewPay: m.renewPay, renewComplete: m.renewComplete, renewRibbon: m.renewRibbon, ceremonyDate: m.ceremonyDate || '' });
+    await _apiPost({ action: 'updateRenewal', sheetRow, renewDate: m.renewDate, renewApply: m.renewApply, renewPay: m.renewPay, renewComplete: m.renewComplete, renewRibbon: m.renewRibbon, ceremonyDate: m.ceremonyDate || '' });
     showToast('已儲存');
   } catch { showToast('儲存失敗，請重試'); }
 }

@@ -42,7 +42,7 @@ async function fetchMembers() {
     const headers = rows[0];
     const idx = name => headers.findIndex(h => h.includes(name));
     const iName = idx('姓名'), iSpec = idx('專業別'), iComp = idx('公司'), iPhone = idx('電話'), iServ = idx('服務');
-    const iDays = idx('到期續約天數'), iStatus = idx('續約狀態'), iDate = idx('到期日');
+    const iDays = idx('到期續約天數'), iDate = idx('到期日');
     const iApply = idx('申請書'), iPay = idx('繳費'), iComplete = idx('完成續約'), iRibbon = idx('綢帶');
     const iCeremony = idx('感言');
     const iPhoto = idx('照片連結');
@@ -65,7 +65,6 @@ async function fetchMembers() {
         service:     r[iServ]?.trim()     || '',
         photo:       r[iPhoto]?.trim()    || '',
         renewDays:   r[iDays]?.trim()     || '',
-        renewStatus: r[iStatus]?.trim()   || '',
         renewDate:   r[iDate]?.trim()     || '',
         renewApply:  r[iApply]?.trim()    || '',
         renewPay:    r[iPay]?.trim()      || '',
@@ -281,8 +280,7 @@ async function renderMembers() {
           ${m.renewDate?`<span>到期：${_escH(m.renewDate)}</span>`:''}
         </span>
         <div style="display:flex;align-items:center;gap:6px;">
-          ${m.renewDays && m.renewStatus!=='TRUE'?`<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:${daysBg};color:${daysColor};">${_escH(m.renewDays)}天</span>`:''}
-          ${m.renewStatus==='TRUE'?`<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:#eaf7ee;color:#27ae60;">已續約</span>`:`<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:#fdecea;color:#c0392b;">未續約</span>`}
+          ${m.renewDays?`<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:20px;background:${daysBg};color:${daysColor};">${_escH(m.renewDays)}天</span>`:''}
         </div>
       </div>
     </div>`);
@@ -464,7 +462,7 @@ async function addMember() {
     phone:     document.getElementById('mf_phone').value.trim(),
     service:   document.getElementById('mf_serv').value.trim(),
     renewDate: document.getElementById('mf_renewDate').value.trim(),
-    renewStatus: 'FALSE', renewApply: 'FALSE', renewPay: 'FALSE', renewComplete: 'FALSE', renewRibbon: 'FALSE',
+    renewApply: 'FALSE', renewPay: 'FALSE', renewComplete: 'FALSE', renewRibbon: 'FALSE',
   };
   closeEditMember();
   showToast('新增中...');

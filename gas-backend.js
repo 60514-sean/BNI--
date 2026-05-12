@@ -310,7 +310,6 @@ function doPost(e) {
       newRow[ci('電話')] = body.phone || '';
       newRow[ci('服務')] = body.service || '';
       if (ci('到期日') >= 0) newRow[ci('到期日')] = body.renewDate || '';
-      if (ci('續約狀態') >= 0) newRow[ci('續約狀態')] = body.renewStatus || 'FALSE';
       if (ci('申請書') >= 0) newRow[ci('申請書')] = body.renewApply || 'FALSE';
       if (ci('繳費') >= 0) newRow[ci('繳費')] = body.renewPay || 'FALSE';
       if (ci('完成續約') >= 0) newRow[ci('完成續約')] = body.renewComplete || 'FALSE';
@@ -357,7 +356,6 @@ function doPost(e) {
       const ci = function(name) { return headers.findIndex(function(h) { return String(h).indexOf(name) >= 0; }); };
       const row = body.sheetRow;
       if (ci('到期日') >= 0) sh.getRange(row, ci('到期日') + 1).setValue(body.renewDate || '');
-      if (ci('續約狀態') >= 0) sh.getRange(row, ci('續約狀態') + 1).setValue(body.renewStatus || '');
       if (ci('申請書') >= 0) sh.getRange(row, ci('申請書') + 1).setValue(body.renewApply || '');
       if (ci('繳費') >= 0) sh.getRange(row, ci('繳費') + 1).setValue(body.renewPay || '');
       if (ci('完成續約') >= 0) sh.getRange(row, ci('完成續約') + 1).setValue(body.renewComplete || '');
