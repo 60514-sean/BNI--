@@ -19,6 +19,11 @@ function getPhotoFolder() {
   return folders.hasNext() ? folders.next() : DriveApp.createFolder('BNI_Member_Photos');
 }
 
+function getDMBgFolder() {
+  const folders = DriveApp.getFoldersByName('BNI_DM_Backgrounds');
+  return folders.hasNext() ? folders.next() : DriveApp.createFolder('BNI_DM_Backgrounds');
+}
+
 function getPhotoCol(sh) {
   const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
   let idx = headers.findIndex(function(h) { return String(h) === '照片連結'; });
@@ -294,6 +299,24 @@ function doGet(e) {
     }
   }
 
+  if (action === 'listDMBgs') {
+    try {
+      const props = PropertiesService.getScriptProperties();
+      const result = {};
+      for (let i = 1; i <= 8; i++) {
+        const url = props.getProperty('dm_bg_p' + i);
+        if (url) result[i] = url;
+      }
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: true, data: result }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, error: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   if (action === 'listGuests') {
     try {
       return ContentService
@@ -335,6 +358,48 @@ function doPost(e) {
     if (action === 'deleteGuest') {
       return ContentService
         .createTextOutput(JSON.stringify(deleteGuest(body)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'uploadDMBg') {
+      const panel = parseInt(body.panel, 10);
+      if (!panel || panel < 1 || panel > 8) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ ok: false, error: 'invalid panel' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      const folder = getDMBgFolder();
+      const fileName = 'dm_p' + panel + '.png';
+      // 清除舊版本
+      const existing = folder.getFilesByName(fileName);
+      while (existing.hasNext()) existing.next().setTrashed(true);
+      const b64 = body.base64.indexOf(',') >= 0 ? body.base64.split(',')[1] : body.base64;
+      const decoded = Utilities.base64Decode(b64);
+      const blob = Utilities.newBlob(decoded, 'image/png', fileName);
+      const file = folder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      const url = 'https://lh3.googleusercontent.com/d/' + file.getId();
+      // 存到 PropertiesService 給前端讀取
+      PropertiesService.getScriptProperties().setProperty('dm_bg_p' + panel, url);
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: true, url: url }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'deleteDMBg') {
+      const panel = parseInt(body.panel, 10);
+      if (!panel || panel < 1 || panel > 8) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ ok: false, error: 'invalid panel' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      const folder = getDMBgFolder();
+      const fileName = 'dm_p' + panel + '.png';
+      const existing = folder.getFilesByName(fileName);
+      while (existing.hasNext()) existing.next().setTrashed(true);
+      PropertiesService.getScriptProperties().deleteProperty('dm_bg_p' + panel);
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: true }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 

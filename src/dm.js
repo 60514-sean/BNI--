@@ -33,6 +33,12 @@ const PX2MM = 297 / 636;   // px→mm 換算（面板高 297mm / 畫布高 636px
 
 // 公開 DM 網址（QR code 內容）
 const DM_PUBLIC_URL = 'https://bni-weekly.vercel.app/dm-public.html?t=9k4r7p2m8x5v3t6y';
+
+// 取得 DM 底圖 URL（優先自訂，否則預設本地檔）
+function _dmBgSrc(panel) {
+  if (typeof getDMBgUrl === 'function') return getDMBgUrl(panel);
+  return 'dm_p' + panel + '.png';
+}
 const DM_QR_COLOR = '#c0392b';
 
 // 建立 QR code 設定物件（給 qr-code-styling 用）
@@ -249,6 +255,8 @@ async function renderDM() {
   el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
   if (!_memberData) await fetchMembers();
   if (!_memberData) { el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試</div>`; return; }
+  // 確保 DM 底圖 URL 已載入（首次進入 DM 時觸發）
+  if (typeof _dmBgUrls !== 'undefined' && _dmBgUrls === null && typeof fetchDMBgs === 'function') await fetchDMBgs();
 
   const { panels, colorMap } = _dmDistribute();
   // px/mm 換算比例
@@ -304,13 +312,13 @@ async function renderDM() {
     <div class="dm-panel-label">正面 A3（Page 1–4，左→右）</div>
     <div class="dm-scale-outer" id="dmOuter1">
       <div class="dm-bg-wrap" id="dmSide1">
-        <img style="position:absolute;left:0;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p1.png" alt="">
-        <img style="position:absolute;left:25%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p2.png" alt="">
-        <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p3.png" alt="">
-        <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p4.png" alt="">
+        <img style="position:absolute;left:0;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(1)}" alt="" crossorigin="anonymous">
+        <img style="position:absolute;left:25%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(2)}" alt="" crossorigin="anonymous">
+        <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(3)}" alt="" crossorigin="anonymous">
+        <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(4)}" alt="" crossorigin="anonymous">
         ${dividers}
-        <div id="dmQRPreview" style="position:absolute;left:822px;top:514px;width:56px;height:56px;display:flex;align-items:center;justify-content:center;z-index:8;">
-          <div id="dmQRBox" style="width:56px;height:56px;"></div>
+        <div id="dmQRPreview" style="position:absolute;left:828px;top:520px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;z-index:8;">
+          <div id="dmQRBox" style="width:44px;height:44px;"></div>
         </div>
         ${ov(0,0,true)}${ov(1,1,true)}
       </div>
@@ -321,10 +329,10 @@ async function renderDM() {
     <div class="dm-panel-label" style="margin-top:16px;">背面 A3（Page 5–8，左→右）</div>
     <div class="dm-scale-outer" id="dmOuter2">
       <div class="dm-bg-wrap" id="dmSide2">
-        <img style="position:absolute;left:0;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p5.png" alt="">
-        <img style="position:absolute;left:25%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p6.png" alt="">
-        <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p7.png" alt="">
-        <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p8.png" alt="">
+        <img style="position:absolute;left:0;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(5)}" alt="" crossorigin="anonymous">
+        <img style="position:absolute;left:25%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(6)}" alt="" crossorigin="anonymous">
+        <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(7)}" alt="" crossorigin="anonymous">
+        <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(8)}" alt="" crossorigin="anonymous">
         ${dividers}
         ${ov(2,0,false)}${ov(3,1,false)}${ov(4,2,false)}${ov(5,3,false)}
       </div>
@@ -333,7 +341,7 @@ async function renderDM() {
   _scaleDM();
   // 在 P4 渲染 QR code
   const qrBox = document.getElementById('dmQRBox');
-  if (qrBox) _renderQRInto(qrBox, 56);
+  if (qrBox) _renderQRInto(qrBox, 44);
 }
 
 function openDMPreview() {
@@ -477,16 +485,20 @@ async function printDM() {
     const h = +(297 - tmm - bmm).toFixed(2);
     return `<div style="position:absolute;left:${x}mm;top:${tmm}mm;width:${w}mm;height:${h}mm;overflow:hidden;">${pPanel(pi, h, 1.0)}</div>`;
   };
-  const bg = (n, xmm) => `<img style="position:absolute;left:${xmm}mm;top:0;width:105mm;height:297mm;object-fit:fill;display:block;" src="${base}dm_p${n}.png" crossorigin="anonymous">`;
+  const bg = (n, xmm) => {
+    const customUrl = (typeof getDMBgUrl === 'function') ? getDMBgUrl(n) : null;
+    const url = (customUrl && customUrl.indexOf('dm_p') !== 0) ? customUrl : (base + 'dm_p' + n + '.png');
+    return `<img style="position:absolute;left:${xmm}mm;top:0;width:105mm;height:297mm;object-fit:fill;display:block;" src="${url}" crossorigin="anonymous">`;
+  };
 
   // 為 P4 產生 QR code（PDF 版本，較高解析度）
-  // P4 底圖紅框位置：left=382mm, top=238mm, 寬 29mm × 高 30mm
+  // 新版 P4 底圖紅框位置：left=382mm, top=240mm, 寬 29mm × 高 27mm
   const qrDataUrl = await _generateQRDataURL(400);
-  const qrSizeMm = 26;  // 26mm，幾乎填滿紅框，仍可看見邊線
+  const qrSizeMm = 19;  // 19mm，留出明顯邊距讓紅框線可見
   const qrBoxX = 382;
-  const qrBoxY = 238;
+  const qrBoxY = 240;
   const qrBoxW = 29;
-  const qrBoxH = 30;
+  const qrBoxH = 27;
   const qrX = +(qrBoxX + (qrBoxW - qrSizeMm) / 2).toFixed(2);
   const qrY = +(qrBoxY + (qrBoxH - qrSizeMm) / 2).toFixed(2);
   const qrOverlay = qrDataUrl
