@@ -254,7 +254,7 @@ function getPublicMembers() {
     return headers.findIndex(function(h) { return String(h).indexOf(name) >= 0; });
   };
   const iName = idx('姓名'), iSpec = idx('專業別'), iComp = idx('公司'), iServ = idx('服務'), iPhone = idx('電話');
-  const iPhoto = idx('照片連結'), iInd = idx('產業鏈'), iSlogan = idx('口號');
+  const iPhoto = idx('照片連結'), iInd = idx('產業鏈'), iSlogan = idx('口號'), iWeb = idx('官網');
   const data = sh.getRange(2, 1, lastRow - 1, sh.getLastColumn()).getValues();
   return data
     .map(function(r) {
@@ -266,7 +266,8 @@ function getPublicMembers() {
         company:   iComp >= 0 ? String(r[iComp] || '').trim() : '',
         phone:     iPhone >= 0 ? String(r[iPhone] || '').trim() : '',
         service:   iServ >= 0 ? String(r[iServ] || '').trim() : '',
-        photo:     iPhoto >= 0 ? String(r[iPhoto] || '').trim() : ''
+        photo:     iPhoto >= 0 ? String(r[iPhoto] || '').trim() : '',
+        website:   iWeb >= 0 ? String(r[iWeb] || '').trim() : ''
       };
     })
     .filter(function(m) { return m.name; });
@@ -446,6 +447,7 @@ function doPost(e) {
       if (ci('車牌') >= 0) newRow[ci('車牌')] = body.plates || '';
       newRow[ci('公司')] = body.company || '';
       newRow[ci('電話')] = body.phone || '';
+      if (ci('官網') >= 0) newRow[ci('官網')] = body.website || '';
       newRow[ci('服務')] = body.service || '';
       if (ci('到期日') >= 0) newRow[ci('到期日')] = body.renewDate || '';
       if (ci('申請書') >= 0) newRow[ci('申請書')] = body.renewApply || 'FALSE';
@@ -484,6 +486,7 @@ function doPost(e) {
       if (ci('車牌') >= 0) sh.getRange(row, ci('車牌') + 1).setValue(body.plates || '');
       if (ci('公司') >= 0) sh.getRange(row, ci('公司') + 1).setValue(body.company || '');
       if (ci('電話') >= 0) sh.getRange(row, ci('電話') + 1).setValue(body.phone || '');
+      if (ci('官網') >= 0) sh.getRange(row, ci('官網') + 1).setValue(body.website || '');
       if (ci('服務') >= 0) sh.getRange(row, ci('服務') + 1).setValue(body.service || '');
       return ok();
     }

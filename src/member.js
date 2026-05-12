@@ -50,6 +50,7 @@ async function fetchMembers() {
     const iBirthday = idx('生日');
     const iSlogan = idx('口號');
     const iPlates = idx('車牌');
+    const iWebsite = idx('官網');
 
     _memberData = rows.slice(1)
       .map((r, i) => ({
@@ -60,6 +61,7 @@ async function fetchMembers() {
         birthday:    iBirthday >= 0 ? (r[iBirthday]?.trim() || '') : '',
         slogan:      iSlogan >= 0 ? (r[iSlogan]?.trim() || '') : '',
         plates:      iPlates >= 0 ? (r[iPlates]?.trim() || '') : '',
+        website:     iWebsite >= 0 ? (r[iWebsite]?.trim() || '') : '',
         company:     r[iComp]?.trim()     || '',
         phone:       r[iPhone]?.trim()    || '',
         service:     r[iServ]?.trim()     || '',
@@ -383,6 +385,7 @@ function openEditMember(sheetRow) {
       </div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" value="${_escH(m.company)}"></div>
       <div class="modal-field"><div class="modal-label">電話</div><input class="modal-input" id="mf_phone" type="tel" value="${_escH(m.phone)}"></div>
+      <div class="modal-field"><div class="modal-label">官網（DM 公開頁顯示連結）</div><input class="modal-input" id="mf_website" type="url" value="${_escH(m.website)}" placeholder="https://example.com"></div>
       <div class="modal-field"><div class="modal-label">服務項目</div><input class="modal-input" id="mf_serv" value="${_escH(m.service)}"></div>
       <div class="modal-btns">
         <button class="modal-save" onclick="saveMemberEdit(${sheetRow})">儲存</button>
@@ -430,6 +433,7 @@ function openAddMember() {
       </div>
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" placeholder="輸入公司或品牌名稱"></div>
       <div class="modal-field"><div class="modal-label">電話</div><input class="modal-input" id="mf_phone" type="tel" placeholder="輸入電話"></div>
+      <div class="modal-field"><div class="modal-label">官網（DM 公開頁顯示連結）</div><input class="modal-input" id="mf_website" type="url" placeholder="https://example.com"></div>
       <div class="modal-field"><div class="modal-label">服務項目</div><input class="modal-input" id="mf_serv" placeholder="輸入服務項目"></div>
       <div style="border-top:1px solid var(--gray-border);margin:14px 0 10px;padding-top:12px;">
         <div class="modal-label" style="margin-bottom:10px;">續約資訊</div>
@@ -460,6 +464,7 @@ async function addMember() {
     plates:    _collectPlates(),
     company:   document.getElementById('mf_comp').value.trim(),
     phone:     document.getElementById('mf_phone').value.trim(),
+    website:   document.getElementById('mf_website').value.trim(),
     service:   document.getElementById('mf_serv').value.trim(),
     renewDate: document.getElementById('mf_renewDate').value.trim(),
     renewApply: 'FALSE', renewPay: 'FALSE', renewComplete: 'FALSE', renewRibbon: 'FALSE',
@@ -538,13 +543,14 @@ async function saveMemberEdit(sheetRow) {
   m.plates       = _collectPlates();
   m.company      = document.getElementById('mf_comp').value.trim();
   m.phone        = document.getElementById('mf_phone').value.trim();
+  m.website      = document.getElementById('mf_website').value.trim();
   m.service      = document.getElementById('mf_serv').value.trim();
 
   closeEditMember();
   renderMembers();
   showToast('儲存中...');
   try {
-    const task = _apiPost({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, birthday: m.birthday, slogan: m.slogan, plates: m.plates, company: m.company, phone: m.phone, service: m.service });
+    const task = _apiPost({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, birthday: m.birthday, slogan: m.slogan, plates: m.plates, company: m.company, phone: m.phone, website: m.website, service: m.service });
     if (photoFile) {
       showToast('上傳照片中...');
       await uploadMemberPhoto(sheetRow, photoFile);

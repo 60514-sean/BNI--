@@ -139,6 +139,22 @@ body { padding: 0 0 80px; min-height: 100vh; }
 .mc-phone a { color: #c0392b; text-decoration: none; }
 .mc-slogan { font-size: 11.5px; color: #666; font-style: italic; line-height: 1.5; border-top: 1px dashed #e8ecf0; padding-top: 5px; margin-top: 5px; }
 .mc-plates { font-size: 10.5px; color: #888; margin-top: 4px; font-family: 'DM Mono', monospace; }
+.mc-web-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 5px 12px;
+  border: 1.5px solid #c0392b;
+  color: #c0392b;
+  background: white;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  letter-spacing: 0.3px;
+}
+.mc-web-btn:active { background: #fdecea; }
 
 .contact-bar {
   position: fixed;
@@ -261,6 +277,7 @@ function renderMembers(members) {
               ${m.service ? `<div class="mc-service">${escH(m.service)}</div>` : ''}
               ${m.phone ? `<div class="mc-phone"><a href="tel:${escH(m.phone.replace(/[^0-9+]/g,''))}">${escH(m.phone)}</a></div>` : ''}
               ${m.slogan ? `<div class="mc-slogan">「${escH(m.slogan)}」</div>` : ''}
+              ${m.website ? `<a class="mc-web-btn" href="${escH(m.website)}" target="_blank" rel="noopener">看官網 &rarr;</a>` : ''}
             </div>
           </div>
         `).join('')}
