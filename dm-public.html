@@ -16,16 +16,60 @@ body { padding: 0 0 80px; min-height: 100vh; }
 .public-header {
   background: linear-gradient(135deg, #c0392b 0%, #a8311e 100%);
   color: white;
-  padding: 20px 18px calc(20px + env(safe-area-inset-top, 0px));
-  padding-top: calc(20px + env(safe-area-inset-top, 0px));
+  padding: 16px 18px 14px;
+  padding-top: calc(16px + env(safe-area-inset-top, 0px));
   text-align: center;
   position: sticky;
   top: 0;
   z-index: 100;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
-.public-header h1 { font-size: 19px; font-weight: 900; letter-spacing: 1px; margin-bottom: 4px; }
-.public-header .sub { font-size: 12px; opacity: .85; font-weight: 500; }
+.public-header h1 { font-size: 18px; font-weight: 900; letter-spacing: 1px; margin-bottom: 3px; }
+.public-header .sub { font-size: 11px; opacity: .85; font-weight: 500; margin-bottom: 10px; }
+.jump-select {
+  width: 100%;
+  max-width: 320px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.95);
+  color: #1a1a1a;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%23c0392b' d='M0 0l5 6 5-6z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 32px;
+}
+.jump-select:focus { outline: 2px solid white; outline-offset: 1px; }
+
+.back-to-top {
+  position: fixed;
+  right: 16px;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #c0392b;
+  color: white;
+  border: none;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  opacity: 0;
+  transition: opacity .2s;
+}
+.back-to-top.show { display: flex; opacity: 1; }
+.back-to-top:active { background: #a8311e; }
 
 .container { max-width: 720px; margin: 0 auto; padding: 16px 14px 0; }
 
@@ -131,11 +175,16 @@ body { padding: 0 0 80px; min-height: 100vh; }
 <div class="public-header">
   <h1>BNI億展白金分會</h1>
   <div class="sub">會員介紹 DM</div>
+  <select class="jump-select" id="jumpSelect" onchange="jumpToGroup(this.value)" style="display:none;">
+    <option value="">跳到產業鏈...</option>
+  </select>
 </div>
 
 <div class="container" id="content">
   <div class="loader">載入中...</div>
 </div>
+
+<button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到頂端">&#8679;</button>
 
 <div class="contact-bar">
   <a href="https://www.facebook.com/share/1JDsPW9qMN/?mibextid=wwXIfr" class="contact-btn" target="_blank" rel="noopener">聯絡分會（Facebook 粉專）</a>
@@ -185,10 +234,18 @@ function renderMembers(members) {
   const colorMap = {};
   groupKeys.forEach((k, i) => { colorMap[k] = CAT_COLORS[i % CAT_COLORS.length]; });
 
+  // 填入下拉選單
+  const sel = document.getElementById('jumpSelect');
+  if (sel) {
+    sel.innerHTML = '<option value="">跳到產業鏈...</option>' +
+      groupKeys.map((k, i) => `<option value="group-${i}">${escH(k)}</option>`).join('');
+    sel.style.display = groupKeys.length > 0 ? '' : 'none';
+  }
+
   const parts = [];
-  groupKeys.forEach(g => {
+  groupKeys.forEach((g, gi) => {
     const color = colorMap[g];
-    parts.push(`<div class="industry-group">
+    parts.push(`<div class="industry-group" id="group-${gi}">
       <div class="industry-title" style="background:${color};">${escH(g)}</div>
       <div class="member-list">
         ${groups[g].map(m => `
@@ -212,6 +269,28 @@ function renderMembers(members) {
   });
   document.getElementById('content').innerHTML = parts.join('') || `<div class="empty-box">目前沒有會員資料</div>`;
 }
+
+function jumpToGroup(id) {
+  if (!id) return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  const headerH = document.querySelector('.public-header').offsetHeight;
+  const top = el.getBoundingClientRect().top + window.scrollY - headerH - 8;
+  window.scrollTo({ top, behavior: 'smooth' });
+  document.getElementById('jumpSelect').value = '';
+}
+
+// 捲動超過 300px 顯示「回到頂端」按鈕
+let _btnRaf = false;
+window.addEventListener('scroll', () => {
+  if (_btnRaf) return;
+  _btnRaf = true;
+  requestAnimationFrame(() => {
+    const btn = document.getElementById('backToTop');
+    if (btn) btn.classList.toggle('show', window.scrollY > 300);
+    _btnRaf = false;
+  });
+}, { passive: true });
 
 (async function init() {
   const token = getToken();
