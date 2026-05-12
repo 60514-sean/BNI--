@@ -68,7 +68,103 @@ function _parseInterested(s) {
 
 function _isUnmatchedGuest(g) {
   if (g.inviter && g.inviter.trim()) return false;
-  return _parseInterested(g.interestedIn).length > 0;
+  if (_parseInterested(g.interestedIn).length > 0) return true;
+  if (_hasBehaviorData(g)) return true;
+  // 沒有邀約人 + 追蹤紀錄裡有「QR 自助登記」也算（純瀏覽未產生其他事件的 stub）
+  const tracks = _parseTracks(g.tracks);
+  return tracks.some(t => /QR\s*自助登記/.test(t.note || ''));
+}
+
+// 行為紀錄解析與熱度計算
+function _parseBehavior(s) {
+  const empty = { visits: [], phoneClicks: [], webClicks: [], industryJumps: [] };
+  if (!s) return empty;
+  try {
+    const obj = typeof s === 'string' ? JSON.parse(s) : s;
+    return {
+      visits: Array.isArray(obj?.visits) ? obj.visits : [],
+      phoneClicks: Array.isArray(obj?.phoneClicks) ? obj.phoneClicks : [],
+      webClicks: Array.isArray(obj?.webClicks) ? obj.webClicks : [],
+      industryJumps: Array.isArray(obj?.industryJumps) ? obj.industryJumps : []
+    };
+  } catch { return empty; }
+}
+
+// 熱度公式：想認識 ×10 + 撥電話 ×5 + 看官網 ×2 + 產業跳轉 ×1
+function _calcHeatScore(g) {
+  const interested = _parseInterested(g.interestedIn);
+  const beh = _parseBehavior(g.behavior);
+  return interested.length * 10 + beh.phoneClicks.length * 5 + beh.webClicks.length * 2 + beh.industryJumps.length;
+}
+
+function _heatBadge(score) {
+  if (score <= 0) return '';
+  let bg = '#f4f6f8', fg = '#666';
+  if (score >= 30) { bg = '#fee2e2'; fg = '#991b1b'; }
+  else if (score >= 10) { bg = '#fef3c7'; fg = '#92400e'; }
+  return `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${bg};color:${fg};font-size:11px;font-weight:700;white-space:nowrap;">熱度 ${score}</span>`;
+}
+
+function _hasBehaviorData(g) {
+  const beh = _parseBehavior(g.behavior);
+  return beh.visits.length > 0 || beh.phoneClicks.length > 0 || beh.webClicks.length > 0 || beh.industryJumps.length > 0;
+}
+
+// 把事件依指定 key 欄位去重，回傳 [{key, count, latestAt}, ...] 依次數降冪
+function _groupByKey(events, keyField) {
+  const map = {};
+  events.forEach(e => {
+    const k = e && e[keyField];
+    if (!k) return;
+    if (!map[k]) map[k] = { key: k, count: 0, latestAt: '' };
+    map[k].count++;
+    if (e.at && (!map[k].latestAt || e.at > map[k].latestAt)) {
+      map[k].latestAt = e.at;
+    }
+  });
+  return Object.values(map).sort((a, b) => b.count - a.count);
+}
+// 維持舊呼叫相容
+function _groupByMember(events) {
+  return _groupByKey(events, 'member').map(x => ({ member: x.key, count: x.count, latestAt: x.latestAt }));
+}
+
+function _fmtIsoToShort(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${mm}/${dd} ${hh}:${mi}`;
+}
+
+function _fmtIsoToTime(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function _calcVisitStats(visits) {
+  let totalMs = 0, lastMs = 0;
+  const sorted = visits.slice().sort((a, b) => (b.in || '').localeCompare(a.in || ''));
+  sorted.forEach((v, i) => {
+    if (!v.in || !v.out) return;
+    const d = new Date(v.out) - new Date(v.in);
+    if (d > 0) {
+      totalMs += d;
+      if (i === 0) lastMs = d;
+    }
+  });
+  return { count: visits.length, totalMin: _msToMinText(totalMs), lastMin: _msToMinText(lastMs) };
+}
+
+function _msToMinText(ms) {
+  if (!ms || ms <= 0) return '0';
+  const min = ms / 60000;
+  if (min < 1) return '不到 1';
+  return String(Math.round(min));
 }
 
 function _renderInterestedSection(g) {
@@ -320,6 +416,8 @@ function _guestCardHtml(g) {
   const tracks = _parseTracks(g.tracks);
   const interested = _parseInterested(g.interestedIn);
   const unmatched = _isUnmatchedGuest(g);
+  const heat = _calcHeatScore(g);
+  const hasBeh = _hasBehaviorData(g);
   const tracksHtml = tracks.length
     ? tracks.map((t, i) => `
       <div style="display:flex;gap:8px;padding:6px 0;border-top:1px dashed var(--gray-border);font-size:12px;">
@@ -331,11 +429,16 @@ function _guestCardHtml(g) {
       </div>`).join('')
     : '';
   const interestedHtml = interested.length
-    ? `<div style="margin-top:8px;background:#fff5f3;border:1px solid #f5d4cc;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.5;">
-        <b style="color:#c0392b;">★ 想認識會員：</b>
-        <span style="color:var(--text);">${interested.map(x => _escH(x.member)).join('、')}</span>
+    ? `<div style="margin-top:8px;background:#fff5f3;border:1px solid #f5d4cc;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.5;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:0;">
+          <b style="color:#c0392b;">★ 想認識會員：</b>
+          <span style="color:var(--text);">${interested.map(x => _escH(x.member)).join('、')}</span>
+        </div>
+        ${hasBeh ? `<button class="btn" style="padding:5px 12px;font-size:12px;background:white;border:1.5px solid #c0392b;color:#c0392b;font-weight:700;border-radius:6px;flex-shrink:0;" onclick="openGuestBehaviorModal('${g.year}-${g.sheetRow}')">查看行為紀錄</button>` : ''}
       </div>`
-    : '';
+    : (hasBeh ? `<div style="margin-top:8px;display:flex;justify-content:flex-end;">
+        <button class="btn" style="padding:5px 12px;font-size:12px;background:white;border:1.5px solid #c0392b;color:#c0392b;font-weight:700;border-radius:6px;" onclick="openGuestBehaviorModal('${g.year}-${g.sheetRow}')">查看行為紀錄</button>
+      </div>` : '');
   const gKey = `${g.year}-${g.sheetRow}`;
   return `<div class="card" style="padding:14px 16px;margin-bottom:10px;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;">
@@ -346,6 +449,7 @@ function _guestCardHtml(g) {
           ${_guestStatusBadge(g.status)}
           ${_joinProbBadge(g.joinProb)}
           ${unmatched ? `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:#fde68a;color:#92400e;font-size:11px;font-weight:700;white-space:nowrap;">未匹配名單</span>` : ''}
+          ${_heatBadge(heat)}
         </div>
         <div style="font-size:12px;color:var(--text-soft);margin-top:4px;line-height:1.5;">
           ${g.industry ? `<span>${_escH(g.industry)}</span>` : ''}
@@ -517,6 +621,117 @@ function closeGuestModal() {
   const m = document.getElementById('guestModal');
   if (m) m.remove();
   _guestModalTracks = [];
+}
+
+// ===== 來賓行為紀錄彈窗 =====
+function openGuestBehaviorModal(gKey) {
+  const [year, row] = gKey.split('-').map(Number);
+  const g = _guestData?.find(x => x.year === year && x.sheetRow === row);
+  if (!g) { showToast('找不到該來賓'); return; }
+
+  const beh = _parseBehavior(g.behavior);
+  const interested = _parseInterested(g.interestedIn);
+  const heat = _calcHeatScore(g);
+  const visitStats = _calcVisitStats(beh.visits);
+  const phoneGroups = _groupByMember(beh.phoneClicks);
+  const webGroups = _groupByMember(beh.webClicks);
+  const industryGroups = _groupByKey(beh.industryJumps, 'industry');
+
+  const visitsSorted = beh.visits.slice().sort((a, b) => (b.in || '').localeCompare(a.in || ''));
+
+  const summaryParts = [];
+  summaryParts.push(`<span>造訪 <b>${visitStats.count}</b> 次</span>`);
+  summaryParts.push(`<span>累積停留 <b>${visitStats.totalMin}</b> 分</span>`);
+  if (visitStats.count > 1) summaryParts.push(`<span>最近停留 <b>${visitStats.lastMin}</b> 分</span>`);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'guestBehaviorModal';
+  overlay.innerHTML = `<div class="modal-box" onclick="event.stopPropagation()" style="max-width:520px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;">
+      <div class="modal-title" style="margin:0;">${_escH(g.name)} 的行為紀錄</div>
+      ${_heatBadge(heat)}
+    </div>
+
+    <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--text);padding:10px 12px;background:#fafbfc;border-radius:8px;margin-bottom:16px;">
+      ${summaryParts.join('<span style="color:var(--gray-border);">·</span>')}
+    </div>
+
+    ${interested.length ? `
+      <div style="margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:700;color:#c0392b;margin-bottom:6px;">★ 想認識的會員（${interested.length}）</div>
+        <div style="background:#fff5f3;border:1px solid #f5d4cc;border-radius:8px;overflow:hidden;">
+          ${interested.map(x => `
+            <div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px dashed #f5d4cc;font-size:13px;">
+              <span style="font-weight:700;">${_escH(x.member)}</span>
+              ${x.date ? `<span style="color:var(--text-soft);font-size:11px;">${_escH(x.date)}</span>` : ''}
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
+
+    ${phoneGroups.length ? `
+      <div style="margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px;">撥打過電話（共 ${beh.phoneClicks.length} 次）</div>
+        <div style="background:#fafbfc;border:1px solid var(--gray-border);border-radius:8px;overflow:hidden;">
+          ${phoneGroups.map(p => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px dashed var(--gray-border);font-size:13px;">
+              <span><b>${_escH(p.member)}</b><span style="color:var(--text-soft);margin-left:6px;">×${p.count}</span></span>
+              <span style="font-size:11px;color:var(--text-soft);">${_escH(_fmtIsoToShort(p.latestAt))}</span>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
+
+    ${webGroups.length ? `
+      <div style="margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px;">看過官網（共 ${beh.webClicks.length} 次）</div>
+        <div style="background:#fafbfc;border:1px solid var(--gray-border);border-radius:8px;overflow:hidden;">
+          ${webGroups.map(w => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px dashed var(--gray-border);font-size:13px;">
+              <span><b>${_escH(w.member)}</b><span style="color:var(--text-soft);margin-left:6px;">×${w.count}</span></span>
+              <span style="font-size:11px;color:var(--text-soft);">${_escH(_fmtIsoToShort(w.latestAt))}</span>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
+
+    ${industryGroups.length ? `
+      <div style="margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px;">產業鏈跳轉（共 ${beh.industryJumps.length} 次）</div>
+        <div style="background:#fafbfc;border:1px solid var(--gray-border);border-radius:8px;overflow:hidden;">
+          ${industryGroups.map(x => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px dashed var(--gray-border);font-size:13px;">
+              <span><b>${_escH(x.key)}</b><span style="color:var(--text-soft);margin-left:6px;">×${x.count}</span></span>
+              <span style="font-size:11px;color:var(--text-soft);">${_escH(_fmtIsoToShort(x.latestAt))}</span>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
+
+    ${visitsSorted.length ? `
+      <div style="margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px;">造訪時間軸</div>
+        <div style="background:#fafbfc;border:1px solid var(--gray-border);border-radius:8px;overflow:hidden;">
+          ${visitsSorted.map(v => {
+            const txt = (v.in && v.out) ? _msToMinText(new Date(v.out) - new Date(v.in)) + ' 分' : '進行中';
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px dashed var(--gray-border);font-size:13px;">
+              <span>${_escH(_fmtIsoToShort(v.in))} ~ ${_escH(_fmtIsoToTime(v.out))}</span>
+              <span style="font-size:11px;color:var(--text-soft);">${_escH(txt)}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : ''}
+
+    ${(!phoneGroups.length && !webGroups.length && !visitsSorted.length && !industryGroups.length) ? `
+      <div style="text-align:center;padding:24px;color:var(--text-soft);font-size:13px;">尚無行為資料</div>` : ''}
+
+    <div class="modal-btns" style="margin-top:14px;">
+      <button class="modal-cancel" style="width:100%;" onclick="closeGuestBehaviorModal()">關閉</button>
+    </div>
+  </div>`;
+  overlay.onclick = closeGuestBehaviorModal;
+  document.body.appendChild(overlay);
+}
+
+function closeGuestBehaviorModal() {
+  document.getElementById('guestBehaviorModal')?.remove();
 }
 
 function _renderTracksList() {

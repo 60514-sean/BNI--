@@ -7,7 +7,7 @@ const PRESENTATION_ID = '15ImCbhAZ6WtBwEAmpMDzXXz1JUOk7l8ta9YGHSb0oIs';
 
 // ===== Guest System =====
 const GUEST_SS_ID   = '1CSFoZvkiz0kSX-ZUSZ5DOQKZ1laf4w2zrDN4N9NZhF8';
-const GUEST_HEADERS = ['首次參訪', '邀約人', '締結人', '姓名', '稱謂', '產業別', '公司名', '電話', '參訪後締結', '狀態', '追蹤紀錄', '想認識的會員'];
+const GUEST_HEADERS = ['首次參訪', '邀約人', '締結人', '姓名', '稱謂', '產業別', '公司名', '電話', '參訪後締結', '狀態', '追蹤紀錄', '想認識的會員', '行為紀錄'];
 
 function getSheet() {
   return SpreadsheetApp.openById(SS_ID).getSheets()
@@ -166,7 +166,8 @@ function listGuests() {
         postVisitNote: String(row[8] || ''),
         status:        String(row[9] || '待追蹤'),
         tracks:        String(row[10] || ''),
-        interestedIn:  String(row[11] || '')
+        interestedIn:  String(row[11] || ''),
+        behavior:      String(row[12] || '')
       });
     });
   });
@@ -176,7 +177,7 @@ function listGuests() {
 function addGuest(body) {
   const year = yearFromDate(body.firstVisit);
   const sh = getGuestSheetForYear(year);
-  ensureInterestColumn(sh);
+  ensureColumns(sh);
   const row = [
     body.firstVisit    || '',
     body.inviter       || '',
@@ -189,19 +190,24 @@ function addGuest(body) {
     body.postVisitNote || '',
     body.status        || '待追蹤',
     body.tracks        || '',
-    body.interestedIn  || ''
+    body.interestedIn  || '',
+    body.behavior      || ''
   ];
   sh.appendRow(row);
   return { ok: true, year: year, sheetRow: sh.getLastRow() };
 }
 
-function ensureInterestColumn(sh) {
+// 確保所有 GUEST_HEADERS 欄位都存在（補齊舊分頁缺少的欄位）
+function ensureColumns(sh) {
   const lastCol = sh.getLastColumn();
-  if (lastCol < GUEST_HEADERS.length) {
-    sh.getRange(1, GUEST_HEADERS.length).setValue(GUEST_HEADERS[GUEST_HEADERS.length - 1]);
-    sh.getRange(1, GUEST_HEADERS.length).setFontWeight('bold').setBackground('#e8ecf0');
+  if (lastCol >= GUEST_HEADERS.length) return;
+  for (let i = lastCol + 1; i <= GUEST_HEADERS.length; i++) {
+    sh.getRange(1, i).setValue(GUEST_HEADERS[i - 1]);
+    sh.getRange(1, i).setFontWeight('bold').setBackground('#e8ecf0');
   }
 }
+// 保留舊名稱以維持相容
+function ensureInterestColumn(sh) { ensureColumns(sh); }
 
 function normalizePhone(p) {
   // 取出所有數字，並去掉前導 0
@@ -230,17 +236,18 @@ function updateGuest(body) {
     body.tracks        || ''
   ]];
 
-  // 只更新前 11 欄，第 12 欄「想認識的會員」由 registerGuestInterest 自行維護
+  // 只更新前 11 欄；第 12「想認識的會員」、第 13「行為紀錄」由其他 action 自行維護
   if (oldYear === newYear) {
     oldSh.getRange(r, 1, 1, 11).setValues(rowData);
     return { ok: true, year: newYear, sheetRow: r };
   }
   const newSh = getGuestSheetForYear(newYear);
-  ensureInterestColumn(newSh);
-  // 跨年度搬移時保留原本的想認識紀錄
+  ensureColumns(newSh);
+  // 跨年度搬移時保留想認識紀錄與行為紀錄
   const lastCol = oldSh.getLastColumn();
   const existingInterest = lastCol >= 12 ? String(oldSh.getRange(r, 12).getValue() || '') : '';
-  newSh.appendRow(rowData[0].concat([existingInterest]));
+  const existingBehavior = lastCol >= 13 ? String(oldSh.getRange(r, 13).getValue() || '') : '';
+  newSh.appendRow(rowData[0].concat([existingInterest, existingBehavior]));
   oldSh.deleteRow(r);
   return { ok: true, year: newYear, sheetRow: newSh.getLastRow() };
 }
@@ -297,27 +304,29 @@ function registerGuestInterest(body) {
                  + String(today.getDate()).padStart(2, '0');
   const year = today.getFullYear();
   const sh = getGuestSheetForYear(year);
-  ensureInterestColumn(sh);
+  ensureColumns(sh);
   const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
   const interestJson = JSON.stringify([{ member: memberName, date: todayStr }]);
   sh.appendRow([
-    todayStr,   // 首次參訪
-    '',         // 邀約人
-    '',         // 締結人
-    name,       // 姓名
-    '',         // 稱謂
-    '',         // 產業別
-    '',         // 公司名
-    phone,      // 電話
-    '',         // 參訪後締結
-    '待追蹤',   // 狀態
-    tracks,     // 追蹤紀錄
-    interestJson // 想認識的會員
+    todayStr,    // 首次參訪
+    '',          // 邀約人
+    '',          // 締結人
+    name,        // 姓名
+    '',          // 稱謂
+    '',          // 產業別
+    '',          // 公司名
+    phone,       // 電話
+    '',          // 參訪後締結
+    '待追蹤',    // 狀態
+    tracks,      // 追蹤紀錄
+    interestJson,// 想認識的會員
+    ''           // 行為紀錄
   ]);
   return { ok: true, matched: false, year: year, sheetRow: sh.getLastRow() };
 }
 
 // 查詢手機是否在歷屆來賓名單裡，回傳資料庫中的姓名（用於「歡迎回來」訊息）
+// 沒對到時自動建 stub 紀錄，讓後續所有行為事件（撥電話、看官網、想認識）都能寫入該筆
 function lookupGuestByPhone(body) {
   if (body.token !== PUBLIC_DM_TOKEN) return { ok: false, error: 'invalid token' };
   if (!checkPublicDMRateLimit()) return { ok: false, error: 'rate limit' };
@@ -334,15 +343,29 @@ function lookupGuestByPhone(body) {
     if (!/^\d{4}$/.test(sheetName)) continue;
     const lastRow = sh.getLastRow();
     if (lastRow < 2) continue;
-    // 一次抓姓名 + 電話兩欄
     const values = sh.getRange(2, 4, lastRow - 1, 5).getValues(); // 姓名(4)~電話(8)
     for (let i = 0; i < values.length; i++) {
-      const phoneCell = values[i][4]; // 電話在第 8 欄，從 4 開始算第 5 個
+      const phoneCell = values[i][4];
       if (normalizePhone(phoneCell) === phoneNorm) {
         return { ok: true, matched: true, name: String(values[i][0] || '') };
       }
     }
   }
+
+  // 沒對到 → 自動建立 stub（純瀏覽的來賓也能完整記錄行為）
+  const name = String(body.name || '').trim();
+  if (!name) return { ok: true, matched: false }; // 沒名字就不建檔
+  const today = new Date();
+  const todayStr = today.getFullYear() + '-'
+                 + String(today.getMonth() + 1).padStart(2, '0') + '-'
+                 + String(today.getDate()).padStart(2, '0');
+  const year = today.getFullYear();
+  const sh = getGuestSheetForYear(year);
+  ensureColumns(sh);
+  const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
+  sh.appendRow([
+    todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, '', ''
+  ]);
   return { ok: true, matched: false };
 }
 
@@ -352,6 +375,94 @@ function parseInterest(v) {
     const arr = JSON.parse(String(v));
     return Array.isArray(arr) ? arr : [];
   } catch (err) { return []; }
+}
+
+// 紀錄來賓行為（visit/phoneClick/webClick），寫入歷屆來賓的「行為紀錄」欄
+// body: { token, phone, name, type: 'visit'|'phoneClick'|'webClick', member?, startAt?, endAt?, at? }
+function recordGuestBehavior(body) {
+  if (body.token !== PUBLIC_DM_TOKEN) return { ok: false, error: 'invalid token' };
+  if (!checkPublicDMRateLimit()) return { ok: false, error: 'rate limit' };
+
+  const phone = String(body.phone || '').trim();
+  const phoneNorm = normalizePhone(phone);
+  if (!phoneNorm) return { ok: false, error: 'invalid phone' };
+
+  const type = String(body.type || '');
+  if (!['visit', 'phoneClick', 'webClick', 'industryJump'].includes(type)) return { ok: false, error: 'invalid type' };
+
+  const ss = getGuestSS();
+  const sheets = ss.getSheets();
+  let target = null;
+  for (let s = 0; s < sheets.length; s++) {
+    const sh = sheets[s];
+    if (!/^\d{4}$/.test(sh.getName())) continue;
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) continue;
+    ensureColumns(sh);
+    const phones = sh.getRange(2, 8, lastRow - 1, 1).getValues();
+    for (let i = 0; i < phones.length; i++) {
+      if (normalizePhone(phones[i][0]) === phoneNorm) {
+        target = { sheet: sh, row: i + 2 };
+        break;
+      }
+    }
+    if (target) break;
+  }
+
+  // 找不到 → 不建檔（行為事件不應該建檔，建檔交給 registerGuestInterest 處理）
+  if (!target) return { ok: true, matched: false };
+
+  const cell = target.sheet.getRange(target.row, 13);
+  const raw = String(cell.getValue() || '');
+  const data = parseBehavior(raw);
+
+  if (type === 'visit') {
+    const start = String(body.startAt || '');
+    const end = String(body.endAt || '');
+    if (start && end) {
+      data.visits.push({ in: start, out: end });
+      // 限制長度避免無限增長
+      if (data.visits.length > 50) data.visits = data.visits.slice(-50);
+    }
+  } else if (type === 'phoneClick') {
+    const member = String(body.member || '');
+    const at = String(body.at || new Date().toISOString());
+    if (member) {
+      data.phoneClicks.push({ member, at });
+      if (data.phoneClicks.length > 200) data.phoneClicks = data.phoneClicks.slice(-200);
+    }
+  } else if (type === 'webClick') {
+    const member = String(body.member || '');
+    const at = String(body.at || new Date().toISOString());
+    if (member) {
+      data.webClicks.push({ member, at });
+      if (data.webClicks.length > 200) data.webClicks = data.webClicks.slice(-200);
+    }
+  } else if (type === 'industryJump') {
+    const industry = String(body.industry || '');
+    const at = String(body.at || new Date().toISOString());
+    if (industry) {
+      data.industryJumps.push({ industry, at });
+      if (data.industryJumps.length > 200) data.industryJumps = data.industryJumps.slice(-200);
+    }
+  }
+
+  cell.setValue(JSON.stringify(data));
+  return { ok: true, matched: true };
+}
+
+function parseBehavior(v) {
+  const empty = { visits: [], phoneClicks: [], webClicks: [], industryJumps: [] };
+  if (!v) return empty;
+  try {
+    const obj = JSON.parse(String(v));
+    return {
+      visits: Array.isArray(obj.visits) ? obj.visits : [],
+      phoneClicks: Array.isArray(obj.phoneClicks) ? obj.phoneClicks : [],
+      webClicks: Array.isArray(obj.webClicks) ? obj.webClicks : [],
+      industryJumps: Array.isArray(obj.industryJumps) ? obj.industryJumps : []
+    };
+  } catch (e) { return empty; }
 }
 
 function upsertInterest(list, memberName) {
@@ -495,6 +606,12 @@ function doPost(e) {
     if (action === 'lookupGuest') {
       return ContentService
         .createTextOutput(JSON.stringify(lookupGuestByPhone(body)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'recordGuestBehavior') {
+      return ContentService
+        .createTextOutput(JSON.stringify(recordGuestBehavior(body)))
         .setMimeType(ContentService.MimeType.JSON);
     }
 

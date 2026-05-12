@@ -251,32 +251,19 @@ body { padding: 0 0 80px; min-height: 100vh; }
 .login-page-card {
   background: white;
   border-radius: 18px;
-  padding: 28px 24px 22px;
+  padding: 32px 24px 26px;
   width: 100%;
   max-width: 360px;
   box-shadow: 0 20px 50px rgba(0,0,0,0.3);
   text-align: center;
 }
-.login-page-welcome {
-  font-size: 12px;
-  color: #999;
-  letter-spacing: 2px;
-  margin-bottom: 6px;
-  font-weight: 700;
-}
 .login-page-title {
-  font-size: 21px;
+  font-size: 22px;
   font-weight: 900;
   color: #c0392b;
-  margin-bottom: 6px;
+  margin-bottom: 26px;
   letter-spacing: 1.5px;
-  line-height: 1.3;
-}
-.login-page-sub {
-  font-size: 13px;
-  color: #666;
-  margin-bottom: 22px;
-  line-height: 1.55;
+  line-height: 1.4;
 }
 .login-page-label {
   font-size: 12px;
@@ -313,7 +300,6 @@ body { padding: 0 0 80px; min-height: 100vh; }
 .login-page-submit:active { transform: translateY(1px); }
 .login-page-submit:disabled { opacity: .7; cursor: default; }
 .login-page-err { font-size: 12px; color: #c0392b; margin-top: -8px; margin-bottom: 10px; min-height: 14px; text-align: left; }
-.login-page-foot { margin-top: 16px; font-size: 11px; color: #aaa; line-height: 1.5; }
 
 /* 歡迎頁面（登入後過場）*/
 .welcome-stage {
@@ -411,6 +397,68 @@ const GUEST_KEY = 'bni_dm_guest';
 const GUEST_TTL_DAYS = 7;
 const MEET_KEY = 'bni_dm_meet'; // 已點過想認識的會員名稱陣列
 
+// 行為追蹤：進場時間 + 統一發送行為事件
+let _sessionStart = null; // 本次造訪開始時間（ISO string）
+let _visitSent = false;   // 同一個 page lifetime 只送一筆 visit
+
+function nowIso() { return new Date().toISOString(); }
+
+function postBehaviorEvent(payload) {
+  const info = getGuestInfo();
+  if (!info) return;
+  const body = JSON.stringify({
+    action: 'recordGuestBehavior',
+    token: VALID_TOKEN,
+    phone: info.phone,
+    name: info.name,
+    ...payload
+  });
+  // 點擊類事件用 fetch + keepalive 避免使用者立刻關頁時送失敗
+  try {
+    fetch(PUBLIC_API_URL, {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body
+    }).catch(() => {});
+  } catch (e) { /* ignore */ }
+}
+
+function sendVisitEnd() {
+  if (_visitSent || !_sessionStart) return;
+  const info = getGuestInfo();
+  if (!info) return;
+  _visitSent = true; // 旗標：本次 page lifetime 已送，避免 pagehide + visibilitychange 雙觸發
+  const body = JSON.stringify({
+    action: 'recordGuestBehavior',
+    token: VALID_TOKEN,
+    phone: info.phone,
+    name: info.name,
+    type: 'visit',
+    startAt: _sessionStart,
+    endAt: nowIso()
+  });
+  try {
+    if (navigator.sendBeacon) {
+      const blob = new Blob([body], { type: 'text/plain;charset=utf-8' });
+      navigator.sendBeacon(PUBLIC_API_URL, blob);
+    } else {
+      fetch(PUBLIC_API_URL, {
+        method: 'POST', keepalive: true,
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body
+      }).catch(() => {});
+    }
+  } catch (e) { /* ignore */ }
+}
+
+// 頁面隱藏時送出造訪結束（pagehide 比 beforeunload 在行動瀏覽器更可靠）
+window.addEventListener('pagehide', sendVisitEnd, { capture: true });
+// 切換到背景（行動裝置上代表使用者離開頁面）也送一次，避免被瀏覽器殺進程沒紀錄
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') sendVisitEnd();
+});
+
 function getGuestInfo() {
   try {
     const raw = localStorage.getItem(GUEST_KEY);
@@ -446,10 +494,37 @@ function renderMeetBtn(memberName) {
 }
 
 document.addEventListener('click', function (e) {
-  const btn = e.target.closest && e.target.closest('.mc-meet-btn');
-  if (!btn || btn.classList.contains('done') || btn.disabled) return;
-  const memberName = btn.dataset.member;
-  if (memberName) onMeetClick(memberName);
+  if (!e.target.closest) return;
+
+  // 想認識按鈕
+  const meetBtn = e.target.closest('.mc-meet-btn');
+  if (meetBtn && !meetBtn.classList.contains('done') && !meetBtn.disabled) {
+    const memberName = meetBtn.dataset.member;
+    if (memberName) onMeetClick(memberName);
+    return;
+  }
+
+  // 撥電話（tel: 連結）→ 紀錄 phoneClick
+  const telLink = e.target.closest('a[href^="tel:"]');
+  if (telLink) {
+    const card = telLink.closest('.member-card');
+    const memberName = card && card.dataset.member;
+    if (memberName) {
+      postBehaviorEvent({ type: 'phoneClick', member: memberName, at: nowIso() });
+    }
+    return;
+  }
+
+  // 看官網 → 紀錄 webClick
+  const webBtn = e.target.closest('a.mc-web-btn');
+  if (webBtn) {
+    const card = webBtn.closest('.member-card');
+    const memberName = card && card.dataset.member;
+    if (memberName) {
+      postBehaviorEvent({ type: 'webClick', member: memberName, at: nowIso() });
+    }
+    return;
+  }
 });
 
 async function onMeetClick(memberName) {
@@ -575,7 +650,7 @@ function renderMembers(members) {
       <div class="industry-title" style="background:${color};">${escH(g)}</div>
       <div class="member-list">
         ${groups[g].map(m => `
-          <div class="member-card">
+          <div class="member-card" data-member="${escH(m.name)}">
             ${m.photo
               ? `<img class="mc-photo" src="${escH(m.photo)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
                  <div class="mc-photo-empty" style="display:none">?</div>`
@@ -603,12 +678,19 @@ function renderMembers(members) {
 
 function jumpToGroup(id) {
   if (!id) return;
+  const sel = document.getElementById('jumpSelect');
+  // 先取出產業名稱（清空 value 後就拿不到了）
+  const industry = sel && sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent.trim() : '';
   const el = document.getElementById(id);
   if (!el) return;
   const headerH = document.querySelector('.public-header').offsetHeight;
   const top = el.getBoundingClientRect().top + window.scrollY - headerH - 8;
   window.scrollTo({ top, behavior: 'smooth' });
-  document.getElementById('jumpSelect').value = '';
+  sel.value = '';
+  // 紀錄產業鏈跳轉行為
+  if (industry && industry !== '跳到產業鏈...') {
+    postBehaviorEvent({ type: 'industryJump', industry, at: nowIso() });
+  }
 }
 
 // 捲動超過 300px 顯示「回到頂端」按鈕
@@ -629,9 +711,7 @@ function showLoginPage() {
     overlay.className = 'login-page-overlay';
     overlay.innerHTML = `
       <div class="login-page-card">
-        <div class="login-page-welcome">WELCOME</div>
         <div class="login-page-title">歡迎來到<br>BNI 億展白金分會</div>
-        <div class="login-page-sub">請留下您的姓名與手機<br>會員會盡快主動聯繫您</div>
 
         <div id="lp_form">
           <div class="login-page-label">姓名</div>
@@ -640,7 +720,6 @@ function showLoginPage() {
           <input class="login-page-input" id="lp_phone" autocomplete="tel" inputmode="numeric" placeholder="例：0912345678">
           <div class="login-page-err" id="lp_err"></div>
           <button class="login-page-submit" id="lp_submit">進 入 會 員 介 紹</button>
-          <div class="login-page-foot">資料僅供分會內部追蹤使用</div>
         </div>
 
         <div id="lp_welcome" style="display:none"></div>
@@ -668,7 +747,7 @@ function showLoginPage() {
         const res = await fetch(PUBLIC_API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'lookupGuest', token: VALID_TOKEN, phone })
+          body: JSON.stringify({ action: 'lookupGuest', token: VALID_TOKEN, phone, name })
         });
         const json = await res.json();
         if (json && json.ok) { matched = !!json.matched; matchedName = json.name || ''; }
@@ -712,6 +791,9 @@ async function ensureGuestLogin() {
 
   // 強制登入：先取得來賓資料才能進入 DM
   await ensureGuestLogin();
+
+  // 標記本次造訪開始
+  _sessionStart = nowIso();
 
   try {
     const members = await loadMembers(token);
