@@ -1642,7 +1642,13 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   letter-spacing: 1px;
 }
 .slogan-table td.sl-num { font-weight: 700; color: #1a1a2e; }
-.slogan-table td.sl-spec { font-weight: 700; }
+.slogan-table td.sl-spec {
+  font-weight: 700;
+  text-align: left;
+  padding-left: 3mm;
+  white-space: normal;           /* 允許換行，完整顯示 */
+  line-height: 1.25;
+}
 .slogan-table td.sl-name { font-weight: 900; }
 .slogan-table td.sl-text {
   text-align: left; padding-left: 2mm;

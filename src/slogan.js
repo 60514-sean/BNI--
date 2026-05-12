@@ -79,7 +79,7 @@ function _buildSloganSheet(members) {
   const tableHtml = (arr, startN) => `
     <table class="slogan-table">
       <colgroup>
-        <col style="width:6%"><col style="width:18%"><col style="width:12%"><col style="width:64%">
+        <col style="width:6%"><col style="width:24%"><col style="width:12%"><col style="width:58%">
       </colgroup>
       <thead>
         <tr><th></th><th>專業類別</th><th>姓名</th><th>slogan</th></tr>
