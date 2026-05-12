@@ -223,9 +223,76 @@ function deleteGuest(body) {
   return { ok: true };
 }
 
+// ===== 公開 DM 用 token（同時在前端 dm-public.html 設定）=====
+const PUBLIC_DM_TOKEN = '9k4r7p2m8x5v3t6y';
+
+// 速率限制：每分鐘最多 N 次（防止爬蟲大量呼叫）
+const PUBLIC_DM_RATE_LIMIT_PER_MIN = 30;
+
+function checkPublicDMRateLimit() {
+  const minute = Math.floor(new Date().getTime() / 60000);
+  const key = 'rl_pubdm_' + minute;
+  const cache = CacheService.getScriptCache();
+  const count = parseInt(cache.get(key) || '0', 10) + 1;
+  if (count > PUBLIC_DM_RATE_LIMIT_PER_MIN) return false;
+  cache.put(key, String(count), 120); // 2 分鐘後自動過期
+  return true;
+}
+
+// 取得會員公開資料（僅 8 個欄位，不含車牌、生日、續約等敏感資訊）
+function getPublicMembers() {
+  const sh = getSheet();
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const idx = function(name) {
+    return headers.findIndex(function(h) { return String(h).indexOf(name) >= 0; });
+  };
+  const iName = idx('姓名'), iSpec = idx('專業別'), iComp = idx('公司'), iServ = idx('服務'), iPhone = idx('電話');
+  const iPhoto = idx('照片連結'), iInd = idx('產業鏈'), iSlogan = idx('口號');
+  const data = sh.getRange(2, 1, lastRow - 1, sh.getLastColumn()).getValues();
+  return data
+    .map(function(r) {
+      return {
+        name:      iName >= 0 ? String(r[iName] || '').trim() : '',
+        specialty: iSpec >= 0 ? String(r[iSpec] || '').trim() : '',
+        industry:  iInd >= 0 ? String(r[iInd] || '').trim() : '',
+        slogan:    iSlogan >= 0 ? String(r[iSlogan] || '').trim() : '',
+        company:   iComp >= 0 ? String(r[iComp] || '').trim() : '',
+        phone:     iPhone >= 0 ? String(r[iPhone] || '').trim() : '',
+        service:   iServ >= 0 ? String(r[iServ] || '').trim() : '',
+        photo:     iPhoto >= 0 ? String(r[iPhoto] || '').trim() : ''
+      };
+    })
+    .filter(function(m) { return m.name; });
+}
+
 // ===== doGet / doPost =====
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
+
+  if (action === 'getPublicDM') {
+    try {
+      const token = (e.parameter && e.parameter.token) || '';
+      if (token !== PUBLIC_DM_TOKEN) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ ok: false, error: 'invalid token' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      if (!checkPublicDMRateLimit()) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ ok: false, error: 'rate limit', message: '請求過於頻繁，請稍後再試' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: true, data: getPublicMembers() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, error: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
 
   if (action === 'listGuests') {
     try {

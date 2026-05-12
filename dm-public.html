@@ -143,7 +143,7 @@ body { padding: 0 0 80px; min-height: 100vh; }
 
 <script>
 const VALID_TOKEN = '9k4r7p2m8x5v3t6y';
-const MEMBER_CSV = 'https://docs.google.com/spreadsheets/d/1vaunMiu-soVacqsbvRxY1dDQ2ZLBghv0t9rTer3KdP0/export?format=csv&gid=466594149';
+const PUBLIC_API_URL = 'https://script.google.com/macros/s/AKfycbzwn_oKfa0vs21GlWdqtjz0oFJYyNwhVGJQPz_GHRaDGmk6jxHIqs7U0yqrVxyzkwK-/exec';
 const CAT_COLORS = ['#c0392b','#7b6914','#2e6e8e','#7b3f6a','#2e7d52','#b5631a','#5a4a8a','#4a7a5a','#8e3a3a','#3a6a7a'];
 
 function getToken() {
@@ -158,49 +158,19 @@ function escH(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-function parseCSV(text) {
-  const rows = []; let cur = []; let val = ''; let inQ = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQ) {
-      if (c === '"' && text[i+1] === '"') { val += '"'; i++; }
-      else if (c === '"') inQ = false;
-      else val += c;
-    } else {
-      if (c === '"') inQ = true;
-      else if (c === ',') { cur.push(val); val = ''; }
-      else if (c === '\n') { cur.push(val); rows.push(cur); cur = []; val = ''; }
-      else if (c === '\r') { /* skip */ }
-      else val += c;
+async function loadMembers(token) {
+  const url = `${PUBLIC_API_URL}?action=getPublicDM&token=${encodeURIComponent(token)}`;
+  const res = await fetch(url);
+  const json = await res.json();
+  if (!json.ok) {
+    if (json.error === 'rate limit') {
+      const err = new Error('rate limit');
+      err.code = 'rate_limit';
+      throw err;
     }
+    throw new Error(json.error || 'API error');
   }
-  if (val !== '' || cur.length) { cur.push(val); rows.push(cur); }
-  return rows;
-}
-
-async function loadMembers() {
-  const res = await fetch(MEMBER_CSV);
-  const text = await res.text();
-  const rows = parseCSV(text);
-  if (rows.length < 2) return [];
-  const headers = rows[0];
-  const idx = name => headers.findIndex(h => h.includes(name));
-  const iName = idx('姓名'), iSpec = idx('專業別'), iComp = idx('公司'), iServ = idx('服務'), iPhone = idx('電話');
-  const iPhoto = idx('照片連結'), iInd = idx('產業鏈'), iSlogan = idx('口號'), iPlates = idx('車牌');
-
-  return rows.slice(1)
-    .map(r => ({
-      name: (r[iName]||'').trim(),
-      specialty: (r[iSpec]||'').trim(),
-      industry: iInd>=0 ? (r[iInd]||'').trim() : '',
-      slogan: iSlogan>=0 ? (r[iSlogan]||'').trim() : '',
-      plates: iPlates>=0 ? (r[iPlates]||'').trim() : '',
-      company: (r[iComp]||'').trim(),
-      phone: iPhone>=0 ? (r[iPhone]||'').trim() : '',
-      service: (r[iServ]||'').trim(),
-      photo: (r[iPhoto]||'').trim()
-    }))
-    .filter(m => m.name);
+  return json.data || [];
 }
 
 function renderMembers(members) {
@@ -250,10 +220,14 @@ function renderMembers(members) {
     return;
   }
   try {
-    const members = await loadMembers();
+    const members = await loadMembers(token);
     renderMembers(members);
   } catch (e) {
-    document.getElementById('content').innerHTML = `<div class="error-box">載入失敗，請稍後再試</div>`;
+    if (e.code === 'rate_limit') {
+      document.getElementById('content').innerHTML = `<div class="error-box">使用人數較多，請稍候 1 分鐘再試<br><br>（系統為防止濫用設有流量保護）</div>`;
+    } else {
+      document.getElementById('content').innerHTML = `<div class="error-box">載入失敗，請稍後再試</div>`;
+    }
   }
 })();
 </script>
