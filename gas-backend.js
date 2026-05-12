@@ -362,6 +362,8 @@ function doPost(e) {
       if (ci('繳費') >= 0) sh.getRange(row, ci('繳費') + 1).setValue(body.renewPay || '');
       if (ci('完成續約') >= 0) sh.getRange(row, ci('完成續約') + 1).setValue(body.renewComplete || '');
       if (ci('綢帶') >= 0) sh.getRange(row, ci('綢帶') + 1).setValue(body.renewRibbon || '');
+      // 感言欄位用作「儀式日期」紀錄：勾選綢帶時自動寫入儀式日期，取消勾選時清空
+      if (ci('感言') >= 0) sh.getRange(row, ci('感言') + 1).setValue(body.ceremonyDate || '');
       return ok();
     }
 

@@ -44,6 +44,7 @@ async function fetchMembers() {
     const iName = idx('姓名'), iSpec = idx('專業別'), iComp = idx('公司'), iPhone = idx('電話'), iServ = idx('服務');
     const iDays = idx('到期續約天數'), iStatus = idx('續約狀態'), iDate = idx('到期日');
     const iApply = idx('申請書'), iPay = idx('繳費'), iComplete = idx('完成續約'), iRibbon = idx('綢帶');
+    const iCeremony = idx('感言');
     const iPhoto = idx('照片連結');
     const iInd = idx('產業鏈');
     const iBirthday = idx('生日');
@@ -70,6 +71,7 @@ async function fetchMembers() {
         renewPay:    r[iPay]?.trim()      || '',
         renewComplete: r[iComplete]?.trim() || '',
         renewRibbon: r[iRibbon]?.trim()   || '',
+        ceremonyDate: iCeremony >= 0 ? (r[iCeremony]?.trim() || '') : '',
       }))
       .filter(m => m.name);
 
@@ -89,7 +91,6 @@ async function fetchMembers() {
 }
 
 let _memberSearch = '';
-let _memberFilter = ''; // '' | '120' | '90'
 let _memberBirthMonth = ''; // '' | '1' .. '12'
 let _defaultIndustry = '';
 let _industries = (() => {
@@ -228,9 +229,6 @@ async function renderMembers() {
   if (!_memberData) await fetchMembers();
   if (!_memberData) return;
   let list = _memberData;
-  // 已續約的會員不列入倒數天數篩選
-  if (_memberFilter === '120') list = list.filter(m => m.renewStatus !== 'TRUE' && (() => { const d = parseInt(m.renewDays); return d >= 90 && d <= 119; })());
-  if (_memberFilter === '90')  list = list.filter(m => m.renewStatus !== 'TRUE' && parseInt(m.renewDays) <= 89);
   if (_memberBirthMonth) list = list.filter(m => {
     if (!m.birthday) return false;
     const parts = m.birthday.split('/');
@@ -239,11 +237,6 @@ async function renderMembers() {
   });
   const canEdit = CR === 'admin';
   const selectStyle = `padding:7px 10px;border:1.5px solid var(--gray-border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--text-soft);background:white;cursor:pointer;`;
-  const renewOpts = [
-    { v: '',    label: '到期狀態（全部）' },
-    { v: '120', label: '120 天內到期' },
-    { v: '90',  label: '90 天內到期' }
-  ].map(o => `<option value="${o.v}"${o.v===_memberFilter?' selected':''}>${o.label}</option>`).join('');
   const monthOpts = ['<option value="">生日月份（全部）</option>']
     .concat([1,2,3,4,5,6,7,8,9,10,11,12].map(m => `<option value="${m}"${String(m)===_memberBirthMonth?' selected':''}>${m} 月生日</option>`)).join('');
   const parts = [];
@@ -254,7 +247,6 @@ async function renderMembers() {
   parts.push(`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
     <span id="memberCount" style="font-size:13px;color:var(--text-soft);">${list.length} 位會員</span>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-      <select onchange="_memberFilter=this.value;renderMembers()" style="${selectStyle}">${renewOpts}</select>
       <select onchange="_memberBirthMonth=this.value;renderMembers()" style="${selectStyle}">${monthOpts}</select>
       ${canEdit ? `<button onclick="openAddMember()" style="padding:7px 16px;background:var(--red);color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ 新增會員</button>` : ''}
     </div>
@@ -394,17 +386,6 @@ function openEditMember(sheetRow) {
       <div class="modal-field"><div class="modal-label">公司或品牌名稱</div><input class="modal-input" id="mf_comp" value="${_escH(m.company)}"></div>
       <div class="modal-field"><div class="modal-label">電話</div><input class="modal-input" id="mf_phone" type="tel" value="${_escH(m.phone)}"></div>
       <div class="modal-field"><div class="modal-label">服務項目</div><input class="modal-input" id="mf_serv" value="${_escH(m.service)}"></div>
-      <div style="border-top:1px solid var(--gray-border);margin:14px 0 10px;padding-top:12px;">
-        <div class="modal-label" style="margin-bottom:10px;">續約資訊</div>
-        <div class="modal-field"><div class="modal-label">到期日</div><input class="modal-input" id="mf_renewDate" value="${_escH(m.renewDate)}"></div>
-        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:4px;">
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" id="mf_renewStatus"   ${m.renewStatus==='TRUE'?'checked':''}>續約狀態</label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" id="mf_renewApply"    ${m.renewApply==='TRUE'?'checked':''}>申請書</label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" id="mf_renewPay"      ${m.renewPay==='TRUE'?'checked':''}>繳費</label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" id="mf_renewComplete" ${m.renewComplete==='TRUE'?'checked':''}>完成續約</label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;"><input type="checkbox" id="mf_renewRibbon"   ${m.renewRibbon==='TRUE'?'checked':''}>綢帶/頒獎</label>
-        </div>
-      </div>
       <div class="modal-btns">
         <button class="modal-save" onclick="saveMemberEdit(${sheetRow})">儲存</button>
         <button class="modal-cancel" onclick="closeEditMember()">取消</button>
@@ -560,28 +541,19 @@ async function saveMemberEdit(sheetRow) {
   m.company      = document.getElementById('mf_comp').value.trim();
   m.phone        = document.getElementById('mf_phone').value.trim();
   m.service      = document.getElementById('mf_serv').value.trim();
-  m.renewDate    = document.getElementById('mf_renewDate').value.trim();
-  m.renewStatus  = document.getElementById('mf_renewStatus').checked ? 'TRUE' : 'FALSE';
-  m.renewApply   = document.getElementById('mf_renewApply').checked   ? 'TRUE' : 'FALSE';
-  m.renewPay     = document.getElementById('mf_renewPay').checked     ? 'TRUE' : 'FALSE';
-  m.renewComplete= document.getElementById('mf_renewComplete').checked ? 'TRUE' : 'FALSE';
-  m.renewRibbon  = document.getElementById('mf_renewRibbon').checked  ? 'TRUE' : 'FALSE';
 
   closeEditMember();
   renderMembers();
   showToast('儲存中...');
   try {
-    const tasks = [
-      _apiPost({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, birthday: m.birthday, slogan: m.slogan, plates: m.plates, company: m.company, phone: m.phone, service: m.service }),
-      _apiPost({ action: 'updateRenewal', sheetRow, renewDate: m.renewDate, renewStatus: m.renewStatus, renewApply: m.renewApply, renewPay: m.renewPay, renewComplete: m.renewComplete, renewRibbon: m.renewRibbon })
-    ];
+    const task = _apiPost({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, birthday: m.birthday, slogan: m.slogan, plates: m.plates, company: m.company, phone: m.phone, service: m.service });
     if (photoFile) {
       showToast('上傳照片中...');
       await uploadMemberPhoto(sheetRow, photoFile);
       m.photo = URL.createObjectURL(photoFile);
       renderMembers();
     }
-    await Promise.all(tasks);
+    await task;
     showToast('已儲存');
   } catch { showToast('儲存失敗，請重試'); }
 }
