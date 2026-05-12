@@ -115,7 +115,7 @@ async function renderRenewal() {
   const subTabBtn = (id, label, count, color) => {
     const active = _renewalSubTab === id;
     return `<button onclick="_renewalSubTab='${id}';renderRenewal()" style="flex:1;padding:10px 8px;border:none;background:${active ? color : '#f5f5f5'};color:${active ? 'white' : 'var(--text-soft)'};font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;border-radius:8px;transition:all .15s;">
-      ${label} <span style="opacity:.85;font-size:11px;">(${count})</span>
+      ${label}
     </button>`;
   };
   parts.push(`<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
