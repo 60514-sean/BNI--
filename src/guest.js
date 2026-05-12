@@ -754,6 +754,21 @@ async function openGuestModal(arg, opts) {
       <textarea class="modal-input" id="gm_postVisit" rows="3" style="resize:vertical;">${_escH(g?.postVisitNote || '')}</textarea>
     </div>
 
+    <div class="modal-field">
+      <div class="modal-label">預期收穫 / 目的</div>
+      <textarea class="modal-input" id="gm_expectedGain" rows="2" style="resize:vertical;">${_escH(g?.expectedGain || '')}</textarea>
+    </div>
+
+    <div class="modal-field">
+      <div class="modal-label">事業現狀</div>
+      <textarea class="modal-input" id="gm_businessStatus" rows="2" style="resize:vertical;">${_escH(g?.businessStatus || '')}</textarea>
+    </div>
+
+    <div class="modal-field">
+      <div class="modal-label">個性描述（給締結夥伴參考）</div>
+      <textarea class="modal-input" id="gm_personality" rows="2" style="resize:vertical;">${_escH(g?.personality || '')}</textarea>
+    </div>
+
     ${_renderInterestedSection(g)}
 
     <!-- 追蹤紀錄 -->
@@ -1059,7 +1074,10 @@ async function saveGuest(gKey) {
     postVisitNote: document.getElementById('gm_postVisit').value.trim(),
     status:        document.getElementById('gm_status').value,
     joinProb:      document.getElementById('gm_joinProb').value,
-    tracks:        JSON.stringify(_guestModalTracks.filter(t => t.note && t.note.trim()))
+    tracks:        JSON.stringify(_guestModalTracks.filter(t => t.note && t.note.trim())),
+    expectedGain:  document.getElementById('gm_expectedGain')?.value.trim() || '',
+    businessStatus:document.getElementById('gm_businessStatus')?.value.trim() || '',
+    personality:   document.getElementById('gm_personality')?.value.trim() || ''
   };
 
   closeGuestModal();
@@ -1182,10 +1200,19 @@ function closeGuestImportModal() {
 
 function _downloadImportTemplate() {
   if (!window.XLSX) { showToast('套件未載入'); return; }
-  const headers = ['姓名', '電話', '首次參訪', '邀約人', '稱謂', '產業別', '公司名', '參訪後締結', '狀態'];
-  const example = ['王大明', '0912345678', '2026-05-13', '陳會員', '先生', 'IT 資訊', '某某公司', '對導入軟體有興趣', '待追蹤'];
+  // 欄位名稱對齊 BNI 來賓資訊表標準格式，匯入時會自動辨識
+  const headers = [
+    '參訪日期', '邀約人', '來賓姓名', '先生or小姐', '來賓電話',
+    '來賓所屬行業', '來賓品牌、公司名稱', '來賓的入會意願',
+    '來賓預期收穫 / 目的', '來賓事業體現狀', '請形容來賓個性，讓締結夥伴知道如何互動'
+  ];
+  const example = [
+    '2026-05-13', '陳會員', '王大明', '先生', '0912345678',
+    'IT 資訊', '某某公司', '3',
+    '想多認識人脈', '已創業 3 年', '外向、健談'
+  ];
   const ws = XLSX.utils.aoa_to_sheet([headers, example]);
-  ws['!cols'] = headers.map(() => ({ wch: 16 }));
+  ws['!cols'] = headers.map(() => ({ wch: 18 }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '來賓清單');
   XLSX.writeFile(wb, 'BNI-來賓匯入範本.xlsx');
@@ -1210,6 +1237,18 @@ function _handleImportFile(input) {
   reader.readAsArrayBuffer(file);
 }
 
+// 入會意願 1-5 數字 → 入會機率字串
+function _mapImportJoinProb(v) {
+  const s = String(v || '').trim();
+  if (!s) return '未評估';
+  const n = parseInt(s, 10);
+  if (isNaN(n)) return '未評估';
+  if (n <= 2) return '低';
+  if (n === 3) return '中';
+  if (n >= 4) return '高';
+  return '未評估';
+}
+
 function _normalizeImportDate(v) {
   if (!v) return '';
   const s = String(v).trim();
@@ -1231,15 +1270,21 @@ function _renderImportPreview(rows) {
   if (!box) return;
   const today = _todayIso();
   const parsed = rows.map(r => ({
-    name:       String(r['姓名'] || r['name'] || '').trim(),
-    phone:      String(r['電話'] || r['phone'] || '').trim(),
-    firstVisit: _normalizeImportDate(r['首次參訪'] || r['firstVisit'] || '') || today,
-    inviter:    String(r['邀約人'] || r['inviter'] || '').trim(),
-    title:      String(r['稱謂'] || r['title'] || '').trim(),
-    industry:   String(r['產業別'] || r['industry'] || '').trim(),
-    company:    String(r['公司名'] || r['company'] || '').trim(),
+    name:          String(r['來賓姓名'] || r['姓名'] || r['name'] || '').trim(),
+    phone:         String(r['來賓電話'] || r['電話'] || r['phone'] || '').trim(),
+    firstVisit:    _normalizeImportDate(r['參訪日期'] || r['首次參訪'] || r['firstVisit'] || '') || today,
+    inviter:       String(r['邀約人'] || r['inviter'] || '').trim(),
+    title:         String(r['先生or小姐'] || r['稱謂'] || r['title'] || '').trim(),
+    industry:      String(r['來賓所屬行業'] || r['產業別'] || r['industry'] || '').trim(),
+    company:       String(r['來賓品牌、公司名稱'] || r['公司名'] || r['company'] || '').trim(),
     postVisitNote: String(r['參訪後締結'] || r['postVisitNote'] || '').trim(),
-    status:     String(r['狀態'] || r['status'] || '待追蹤').trim() || '待追蹤'
+    status:        String(r['狀態'] || r['status'] || '待追蹤').trim() || '待追蹤',
+    // 系統擴充欄位（從原始 Excel 對應）
+    expectedGain:   String(r['來賓預期收穫 / 目的'] || r['預期收穫'] || r['expectedGain'] || '').trim(),
+    businessStatus: String(r['來賓事業體現狀'] || r['事業現狀'] || r['businessStatus'] || '').trim(),
+    personality:    String(r['請形容來賓個性，讓締結夥伴知道如何互動'] || r['個性'] || r['personality'] || '').trim(),
+    // 入會意願 1-5 → 入會機率：1-2=低、3=中、4-5=高
+    joinProb:      _mapImportJoinProb(r['來賓的入會意願'] || r['入會意願'] || '')
   }));
   const valid = parsed.filter(g => g.name && g.phone);
   const invalid = parsed.filter(g => !g.name || !g.phone);

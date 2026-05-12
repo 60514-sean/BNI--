@@ -7,7 +7,7 @@ const PRESENTATION_ID = '15ImCbhAZ6WtBwEAmpMDzXXz1JUOk7l8ta9YGHSb0oIs';
 
 // ===== Guest System =====
 const GUEST_SS_ID   = '1CSFoZvkiz0kSX-ZUSZ5DOQKZ1laf4w2zrDN4N9NZhF8';
-const GUEST_HEADERS = ['首次參訪', '邀約人', '締結人', '姓名', '稱謂', '產業別', '公司名', '電話', '參訪後締結', '狀態', '追蹤紀錄', '想認識的會員', '行為紀錄'];
+const GUEST_HEADERS = ['首次參訪', '邀約人', '締結人', '姓名', '稱謂', '產業別', '公司名', '電話', '參訪後締結', '狀態', '追蹤紀錄', '想認識的會員', '行為紀錄', '預期收穫', '事業現狀', '個性'];
 
 function getSheet() {
   return SpreadsheetApp.openById(SS_ID).getSheets()
@@ -181,7 +181,10 @@ function listGuests() {
         status:        String(row[9] || '待追蹤'),
         tracks:        String(row[10] || ''),
         interestedIn:  String(row[11] || ''),
-        behavior:      String(row[12] || '')
+        behavior:      String(row[12] || ''),
+        expectedGain:  String(row[13] || ''),
+        businessStatus:String(row[14] || ''),
+        personality:   String(row[15] || '')
       });
     });
   });
@@ -211,7 +214,10 @@ function addGuest(body) {
     body.status        || '待追蹤',
     body.tracks        || '',
     body.interestedIn  || '',
-    body.behavior      || ''
+    body.behavior      || '',
+    body.expectedGain  || '',
+    body.businessStatus|| '',
+    body.personality   || ''
   ];
   sh.appendRow(row);
   invalidateGuestListCache();
@@ -257,19 +263,31 @@ function updateGuest(body) {
     body.tracks        || ''
   ]];
 
-  // 只更新前 11 欄；第 12「想認識的會員」、第 13「行為紀錄」由其他 action 自行維護
+  // 寫入策略：前 11 欄批次寫；第 12「想認識」/第 13「行為紀錄」由其他 action 維護不動；
+  // 第 14「預期收穫」/15「事業現狀」/16「個性」由前端可編輯，傳什麼寫什麼
   if (oldYear === newYear) {
+    ensureColumns(oldSh);
     oldSh.getRange(r, 1, 1, 11).setValues(rowData);
+    if (body.expectedGain   !== undefined) oldSh.getRange(r, 14).setValue(String(body.expectedGain || ''));
+    if (body.businessStatus !== undefined) oldSh.getRange(r, 15).setValue(String(body.businessStatus || ''));
+    if (body.personality    !== undefined) oldSh.getRange(r, 16).setValue(String(body.personality || ''));
     invalidateGuestListCache();
     return { ok: true, year: newYear, sheetRow: r };
   }
   const newSh = getGuestSheetForYear(newYear);
   ensureColumns(newSh);
-  // 跨年度搬移時保留想認識紀錄與行為紀錄
+  // 跨年度搬移時保留所有額外欄位
   const lastCol = oldSh.getLastColumn();
   const existingInterest = lastCol >= 12 ? String(oldSh.getRange(r, 12).getValue() || '') : '';
   const existingBehavior = lastCol >= 13 ? String(oldSh.getRange(r, 13).getValue() || '') : '';
-  newSh.appendRow(rowData[0].concat([existingInterest, existingBehavior]));
+  const existingGain     = lastCol >= 14 ? String(oldSh.getRange(r, 14).getValue() || '') : '';
+  const existingBiz      = lastCol >= 15 ? String(oldSh.getRange(r, 15).getValue() || '') : '';
+  const existingPer      = lastCol >= 16 ? String(oldSh.getRange(r, 16).getValue() || '') : '';
+  // 若 body 有新值就用新值，否則保留原值
+  const finalGain = body.expectedGain   !== undefined ? String(body.expectedGain   || '') : existingGain;
+  const finalBiz  = body.businessStatus !== undefined ? String(body.businessStatus || '') : existingBiz;
+  const finalPer  = body.personality    !== undefined ? String(body.personality    || '') : existingPer;
+  newSh.appendRow(rowData[0].concat([existingInterest, existingBehavior, finalGain, finalBiz, finalPer]));
   oldSh.deleteRow(r);
   invalidateGuestListCache();
   return { ok: true, year: newYear, sheetRow: newSh.getLastRow() };
@@ -332,9 +350,12 @@ function batchAddGuests(body) {
         String(g.phone),
         String(g.postVisitNote || ''),
         String(g.status || '待追蹤'),
-        '',  // 追蹤紀錄初始為空
+        '',  // 追蹤紀錄
         '',  // 想認識的會員
-        ''   // 行為紀錄
+        '',  // 行為紀錄
+        String(g.expectedGain   || ''),
+        String(g.businessStatus || ''),
+        String(g.personality    || '')
       ]);
       added++;
     } catch (err) {
@@ -380,19 +401,7 @@ function registerGuestInterest(body) {
   const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
   const interestJson = JSON.stringify([{ member: memberName, date: todayStr }]);
   sh.appendRow([
-    todayStr,    // 首次參訪
-    '',          // 邀約人
-    '',          // 締結人
-    name,        // 姓名
-    '',          // 稱謂
-    '',          // 產業別
-    '',          // 公司名
-    phone,       // 電話
-    '',          // 參訪後締結
-    '待追蹤',    // 狀態
-    tracks,      // 追蹤紀錄
-    interestJson,// 想認識的會員
-    ''           // 行為紀錄
+    todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, interestJson, '', '', '', ''
   ]);
   invalidateGuestListCache();
   return { ok: true, matched: false, year: year, sheetRow: sh.getLastRow() };
@@ -423,7 +432,7 @@ function lookupGuestByPhone(body) {
   ensureColumns(sh);
   const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
   sh.appendRow([
-    todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, '', ''
+    todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, '', '', '', '', ''
   ]);
   invalidateGuestListCache();
   return { ok: true, matched: false };
