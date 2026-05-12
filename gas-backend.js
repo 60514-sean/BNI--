@@ -275,11 +275,74 @@ function updateGuest(body) {
   return { ok: true, year: newYear, sheetRow: newSh.getLastRow() };
 }
 
+// 刪除來賓：若帶 phone 則刪除該手機所有 row（包含一訪+二訪）；否則用 year + sheetRow 刪單筆
 function deleteGuest(body) {
+  if (body.phone) {
+    const phoneNorm = normalizePhone(body.phone);
+    if (!phoneNorm) return { ok: false, error: 'invalid phone' };
+    const ss = getGuestSS();
+    const sheets = ss.getSheets();
+    let deleted = 0;
+    sheets.forEach(function (sh) {
+      if (!/^\d{4}$/.test(sh.getName())) return;
+      const lastRow = sh.getLastRow();
+      if (lastRow < 2) return;
+      const phones = sh.getRange(2, 8, lastRow - 1, 1).getValues();
+      // 從底往上收集要刪的 row，避免刪除過程 row index 位移
+      const toDelete = [];
+      for (let i = phones.length - 1; i >= 0; i--) {
+        if (normalizePhone(phones[i][0]) === phoneNorm) toDelete.push(i + 2);
+      }
+      toDelete.forEach(function (r) { sh.deleteRow(r); deleted++; });
+    });
+    invalidateGuestListCache();
+    return { ok: true, deleted: deleted };
+  }
   const sh = getGuestSheetForYear(body.year);
   sh.deleteRow(body.sheetRow);
   invalidateGuestListCache();
   return { ok: true };
+}
+
+// 批次匯入來賓：不檢查重複，全部 append（同手機已存在會自動形成「二訪」紀錄）
+function batchAddGuests(body) {
+  if (!Array.isArray(body.guests)) return { ok: false, error: 'invalid guests' };
+  const today = new Date();
+  const todayStr = today.getFullYear() + '-'
+                 + String(today.getMonth() + 1).padStart(2, '0') + '-'
+                 + String(today.getDate()).padStart(2, '0');
+  let added = 0;
+  const errors = [];
+  body.guests.forEach(function (g, idx) {
+    try {
+      if (!g || !g.name) { errors.push({ row: idx + 1, error: '缺少姓名' }); return; }
+      if (!g.phone)      { errors.push({ row: idx + 1, error: '缺少電話' }); return; }
+      const firstVisit = String(g.firstVisit || todayStr);
+      const year = yearFromDate(firstVisit);
+      const sh = getGuestSheetForYear(year);
+      ensureColumns(sh);
+      sh.appendRow([
+        firstVisit,
+        String(g.inviter || ''),
+        String(g.closer || ''),
+        String(g.name),
+        String(g.title || ''),
+        String(g.industry || ''),
+        String(g.company || ''),
+        String(g.phone),
+        String(g.postVisitNote || ''),
+        String(g.status || '待追蹤'),
+        '',  // 追蹤紀錄初始為空
+        '',  // 想認識的會員
+        ''   // 行為紀錄
+      ]);
+      added++;
+    } catch (err) {
+      errors.push({ row: idx + 1, error: String((err && err.message) || err) });
+    }
+  });
+  if (added > 0) invalidateGuestListCache();
+  return { ok: true, added: added, errors: errors };
 }
 
 // ===== 來賓 DM 頁「想認識」按鈕：寫入歷屆來賓的「想認識的會員」欄 =====
@@ -296,29 +359,14 @@ function registerGuestInterest(body) {
   const phoneNorm = normalizePhone(phone);
   if (!phoneNorm) return { ok: false, error: 'invalid phone' };
 
-  const ss = getGuestSS();
-  const sheets = ss.getSheets();
-
-  // 嘗試在所有年度分頁找出符合手機的來賓
-  for (let s = 0; s < sheets.length; s++) {
-    const sh = sheets[s];
-    const sheetName = sh.getName();
-    if (!/^\d{4}$/.test(sheetName)) continue;
-    const lastRow = sh.getLastRow();
-    if (lastRow < 2) continue;
-    ensureInterestColumn(sh);
-    const phoneCol = 8; // 「電話」是第 8 欄
-    const phones = sh.getRange(2, phoneCol, lastRow - 1, 1).getValues();
-    for (let i = 0; i < phones.length; i++) {
-      if (normalizePhone(phones[i][0]) === phoneNorm) {
-        const rowNum = i + 2;
-        const cell = sh.getRange(rowNum, 12);
-        const existing = parseInterest(cell.getValue());
-        const updated = upsertInterest(existing, memberName);
-        cell.setValue(JSON.stringify(updated));
-        return { ok: true, matched: true, year: parseInt(sheetName, 10), sheetRow: rowNum };
-      }
-    }
+  // 用統一 helper 找最新那筆（一訪/二訪皆寫入最新）
+  const target = findGuestRowByPhone(phoneNorm);
+  if (target) {
+    const cell = target.sheet.getRange(target.row, 12);
+    const existing = parseInterest(cell.getValue());
+    const updated = upsertInterest(existing, memberName);
+    cell.setValue(JSON.stringify(updated));
+    return { ok: true, matched: true, year: parseInt(target.sheet.getName(), 10), sheetRow: target.row };
   }
 
   // 沒對到 → 自動建立新來賓（標記未匹配名單）
@@ -360,22 +408,8 @@ function lookupGuestByPhone(body) {
   const phoneNorm = normalizePhone(phone);
   if (!phoneNorm) return { ok: false, error: 'invalid phone' };
 
-  const ss = getGuestSS();
-  const sheets = ss.getSheets();
-  for (let s = 0; s < sheets.length; s++) {
-    const sh = sheets[s];
-    const sheetName = sh.getName();
-    if (!/^\d{4}$/.test(sheetName)) continue;
-    const lastRow = sh.getLastRow();
-    if (lastRow < 2) continue;
-    const values = sh.getRange(2, 4, lastRow - 1, 5).getValues(); // 姓名(4)~電話(8)
-    for (let i = 0; i < values.length; i++) {
-      const phoneCell = values[i][4];
-      if (normalizePhone(phoneCell) === phoneNorm) {
-        return { ok: true, matched: true, name: String(values[i][0] || '') };
-      }
-    }
-  }
+  const target = findGuestRowByPhone(phoneNorm);
+  if (target) return { ok: true, matched: true, name: String(target.name || '') };
 
   // 沒對到 → 自動建立 stub（純瀏覽的來賓也能完整記錄行為）
   const name = String(body.name || '').trim();
@@ -416,26 +450,8 @@ function recordGuestBehavior(body) {
   const type = String(body.type || '');
   if (!['visit', 'phoneClick', 'webClick', 'industryJump'].includes(type)) return { ok: false, error: 'invalid type' };
 
-  const ss = getGuestSS();
-  const sheets = ss.getSheets();
-  let target = null;
-  for (let s = 0; s < sheets.length; s++) {
-    const sh = sheets[s];
-    if (!/^\d{4}$/.test(sh.getName())) continue;
-    const lastRow = sh.getLastRow();
-    if (lastRow < 2) continue;
-    ensureColumns(sh);
-    const phones = sh.getRange(2, 8, lastRow - 1, 1).getValues();
-    for (let i = 0; i < phones.length; i++) {
-      if (normalizePhone(phones[i][0]) === phoneNorm) {
-        target = { sheet: sh, row: i + 2 };
-        break;
-      }
-    }
-    if (target) break;
-  }
-
-  // 找不到 → 不建檔（行為事件不應該建檔，建檔交給 registerGuestInterest 處理）
+  // 用統一 helper 找最新那筆（一訪/二訪皆寫入最新）
+  const target = findGuestRowByPhone(phoneNorm);
   if (!target) return { ok: true, matched: false };
 
   const cell = target.sheet.getRange(target.row, 13);
@@ -518,7 +534,8 @@ function batchBehavior(body) {
   return { ok: true, matched: true, count: events.length };
 }
 
-// 找出對應手機的歷屆來賓列；抽出為共用 helper，搜尋順序：當年 → 其他年份
+// 找出對應手機的歷屆來賓列；同一手機可能有多筆（一訪/二訪），回傳「首次參訪日期最新」那筆
+// 搜尋順序：當年 → 其他年份；同年內掃完全部，比首訪日期挑最新
 function findGuestRowByPhone(phoneNorm) {
   const ss = getGuestSS();
   const currentYear = new Date().getFullYear();
@@ -529,21 +546,30 @@ function findGuestRowByPhone(phoneNorm) {
       const by = parseInt(b.getName(), 10);
       if (ay === currentYear) return -1;
       if (by === currentYear) return 1;
-      return by - ay; // 新到舊
+      return by - ay;
     });
+  const matches = [];
   for (let s = 0; s < sheets.length; s++) {
     const sh = sheets[s];
     const lastRow = sh.getLastRow();
     if (lastRow < 2) continue;
     ensureColumns(sh);
-    const phones = sh.getRange(2, 8, lastRow - 1, 1).getValues();
-    for (let i = 0; i < phones.length; i++) {
-      if (normalizePhone(phones[i][0]) === phoneNorm) {
-        return { sheet: sh, row: i + 2 };
+    // 一次抓首次參訪(col 1) + 電話(col 8)
+    const data = sh.getRange(2, 1, lastRow - 1, 8).getValues();
+    for (let i = 0; i < data.length; i++) {
+      if (normalizePhone(data[i][7]) === phoneNorm) {
+        matches.push({ sheet: sh, row: i + 2, firstVisit: data[i][0], name: data[i][3] });
       }
     }
   }
-  return null;
+  if (matches.length === 0) return null;
+  // 依 firstVisit 由新到舊排序，取最新那筆
+  matches.sort(function (a, b) {
+    const av = a.firstVisit instanceof Date ? a.firstVisit.getTime() : (new Date(a.firstVisit).getTime() || 0);
+    const bv = b.firstVisit instanceof Date ? b.firstVisit.getTime() : (new Date(b.firstVisit).getTime() || 0);
+    return bv - av;
+  });
+  return matches[0];
 }
 
 function parseBehavior(v) {
@@ -738,6 +764,11 @@ function doPost(e) {
     if (action === 'addGuest') {
       return ContentService
         .createTextOutput(JSON.stringify(addGuest(body)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    if (action === 'batchAddGuests') {
+      return ContentService
+        .createTextOutput(JSON.stringify(batchAddGuests(body)))
         .setMimeType(ContentService.MimeType.JSON);
     }
     if (action === 'updateGuest') {

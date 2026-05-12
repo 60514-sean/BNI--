@@ -58,6 +58,71 @@ function _parseTracks(s) {
   } catch { return []; }
 }
 
+// 手機去前導 0 後比對；空白回傳空字串
+function _phoneKey(p) {
+  return String(p || '').replace(/\D/g, '').replace(/^0+/, '');
+}
+
+// 把同手機的來賓合併成一筆「展示用」物件：以最新（首訪日最大者）為主，想認識/行為合併
+function _groupGuestsByPhone(list) {
+  const groups = {};
+  const ungrouped = [];
+  list.forEach(g => {
+    const key = _phoneKey(g.phone);
+    if (!key) { ungrouped.push(g); return; }
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(g);
+  });
+  const merged = [];
+  Object.keys(groups).forEach(k => {
+    const grp = groups[k];
+    grp.sort((a, b) => (a.firstVisit || '').localeCompare(b.firstVisit || ''));
+    if (grp.length === 1) {
+      merged.push({ ...grp[0], _allRows: grp, _hasSecond: false });
+    } else {
+      const first = grp[0];
+      const last = grp[grp.length - 1];
+      merged.push({
+        ...last, // 顯示以最新（二訪）為主
+        _allRows: grp,
+        _hasSecond: true,
+        _firstRow: first,
+        _secondRow: last,
+        // 合併想認識與行為，去重 / 累加
+        interestedIn: _mergeInterestRaw(grp.map(x => x.interestedIn)),
+        behavior:     _mergeBehaviorRaw(grp.map(x => x.behavior)),
+      });
+    }
+  });
+  ungrouped.forEach(g => merged.push({ ...g, _allRows: [g], _hasSecond: false }));
+  return merged;
+}
+
+function _mergeInterestRaw(jsons) {
+  const map = {};
+  jsons.forEach(j => {
+    _parseInterested(j).forEach(x => {
+      if (!x.member) return;
+      if (!map[x.member] || (x.date && x.date > (map[x.member].date || ''))) {
+        map[x.member] = { member: x.member, date: x.date || '' };
+      }
+    });
+  });
+  return JSON.stringify(Object.values(map));
+}
+
+function _mergeBehaviorRaw(jsons) {
+  const out = { visits: [], phoneClicks: [], webClicks: [], industryJumps: [] };
+  jsons.forEach(j => {
+    const b = _parseBehavior(j);
+    out.visits = out.visits.concat(b.visits);
+    out.phoneClicks = out.phoneClicks.concat(b.phoneClicks);
+    out.webClicks = out.webClicks.concat(b.webClicks);
+    out.industryJumps = out.industryJumps.concat(b.industryJumps);
+  });
+  return JSON.stringify(out);
+}
+
 function _parseInterested(s) {
   if (!s) return [];
   try {
@@ -182,9 +247,12 @@ function _renderInterestedSection(g) {
 }
 
 function _guestLatestDate(g) {
-  const tracks = _parseTracks(g.tracks);
-  const dates = [_parseDateStr(g.firstVisit)];
-  tracks.forEach(t => dates.push(_parseDateStr(t.date)));
+  const rows = g._allRows || [g];
+  const dates = [];
+  rows.forEach(row => {
+    dates.push(_parseDateStr(row.firstVisit));
+    _parseTracks(row.tracks).forEach(t => dates.push(_parseDateStr(t.date)));
+  });
   const valid = dates.filter(d => d);
   return valid.length ? new Date(Math.max(...valid.map(d => d.getTime()))) : null;
 }
@@ -273,6 +341,7 @@ async function renderGuestTrack() {
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-primary" onclick="openGuestModal()">+ 新增來賓</button>
+          <button class="btn" style="background:white;border:1.5px solid var(--red);color:var(--red);font-weight:700;" onclick="openGuestImportModal()">匯入 Excel</button>
           <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="_guestData=null;renderGuestTrack()">重整</button>
         </div>
       </div>
@@ -293,24 +362,35 @@ async function renderGuestTrack() {
 function _filterGuestsScope(tab, applyYear = true) {
   // 做 tab / 搜尋 / (可選)年份，不做狀態過濾
   if (!_guestData) return [];
-  let list = [..._guestData];
+  // 先按手機合併（同手機不同 row 變成一筆「合併視圖」，附帶 _allRows）
+  let list = _groupGuestsByPhone(_guestData);
   if (tab === 'all' && _guestSearch) {
     const q = _guestSearch.toLowerCase();
-    list = list.filter(g =>
-      (g.name||'').toLowerCase().includes(q) ||
-      (g.industry||'').toLowerCase().includes(q) ||
-      (g.inviter||'').toLowerCase().includes(q) ||
-      (g.company||'').toLowerCase().includes(q)
-    );
+    list = list.filter(g => {
+      // 搜尋兩訪的內容
+      const rows = g._allRows || [g];
+      return rows.some(r =>
+        (r.name||'').toLowerCase().includes(q) ||
+        (r.industry||'').toLowerCase().includes(q) ||
+        (r.inviter||'').toLowerCase().includes(q) ||
+        (r.company||'').toLowerCase().includes(q)
+      );
+    });
   }
   if (tab === 'all' && applyYear && _guestTermFilter) {
-    list = list.filter(g => _getTermFromDate(g.firstVisit) === _guestTermFilter);
+    list = list.filter(g => {
+      const rows = g._allRows || [g];
+      return rows.some(r => _getTermFromDate(r.firstVisit) === _guestTermFilter);
+    });
   }
   if (tab === 'week') {
     const { mon, sun } = _weekRange();
     list = list.filter(g => {
-      const candidates = [_parseDateStr(g.firstVisit)];
-      _parseTracks(g.tracks).forEach(t => candidates.push(_parseDateStr(t.date)));
+      const candidates = [];
+      (g._allRows || [g]).forEach(r => {
+        candidates.push(_parseDateStr(r.firstVisit));
+        _parseTracks(r.tracks).forEach(t => candidates.push(_parseDateStr(t.date)));
+      });
       return candidates.some(d => d && d >= mon && d <= sun);
     });
   }
@@ -446,6 +526,7 @@ function _joinProbBadge(joinProb) {
 }
 
 function _guestCardHtml(g) {
+  // 二訪時 g 為合併視圖：tracks/postVisitNote 等取最新（spread）；想認識/行為已被合併
   const tracks = _parseTracks(g.tracks);
   const interested = _parseInterested(g.interestedIn);
   const unmatched = _isUnmatchedGuest(g);
@@ -461,18 +542,24 @@ function _guestCardHtml(g) {
         </div>
       </div>`).join('')
     : '';
+  // 編輯/行為按鈕的識別 key：有手機就用手機，沒手機 fallback 用 gKey
+  const editArg = g.phone ? g.phone : `${g.year}-${g.sheetRow}`;
+  const behKey = (g._hasSecond && g.phone) ? `phone:${g.phone}` : `${g.year}-${g.sheetRow}`;
   const interestedHtml = interested.length
     ? `<div style="margin-top:8px;background:#fff5f3;border:1px solid #f5d4cc;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.5;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
         <div style="flex:1;min-width:0;">
           <b style="color:#c0392b;">★ 想認識會員：</b>
           <span style="color:var(--text);">${interested.map(x => _escH(x.member)).join('、')}</span>
         </div>
-        ${hasBeh ? `<button class="btn" style="padding:5px 12px;font-size:12px;background:white;border:1.5px solid #c0392b;color:#c0392b;font-weight:700;border-radius:6px;flex-shrink:0;" onclick="openGuestBehaviorModal('${g.year}-${g.sheetRow}')">查看行為紀錄</button>` : ''}
+        ${hasBeh ? `<button class="btn" style="padding:5px 12px;font-size:12px;background:white;border:1.5px solid #c0392b;color:#c0392b;font-weight:700;border-radius:6px;flex-shrink:0;" onclick="openGuestBehaviorModal('${_escH(behKey)}')">查看行為紀錄</button>` : ''}
       </div>`
     : (hasBeh ? `<div style="margin-top:8px;display:flex;justify-content:flex-end;">
-        <button class="btn" style="padding:5px 12px;font-size:12px;background:white;border:1.5px solid #c0392b;color:#c0392b;font-weight:700;border-radius:6px;" onclick="openGuestBehaviorModal('${g.year}-${g.sheetRow}')">查看行為紀錄</button>
+        <button class="btn" style="padding:5px 12px;font-size:12px;background:white;border:1.5px solid #c0392b;color:#c0392b;font-weight:700;border-radius:6px;" onclick="openGuestBehaviorModal('${_escH(behKey)}')">查看行為紀錄</button>
       </div>` : '');
-  const gKey = `${g.year}-${g.sheetRow}`;
+  // 日期顯示：有二訪則「首訪 X　二訪 Y」，否則「首訪 X」
+  const dateLine = g._hasSecond
+    ? `首訪 <b style="color:var(--text);">${_escH(g._firstRow.firstVisit)}</b>　二訪 <b style="color:var(--text);">${_escH(g._secondRow.firstVisit)}</b>`
+    : (g.firstVisit ? `首訪 <b style="color:var(--text);">${_escH(g.firstVisit)}</b>` : '');
   return `<div class="card" style="padding:14px 16px;margin-bottom:10px;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;">
       <div style="flex:1;min-width:0;">
@@ -481,6 +568,7 @@ function _guestCardHtml(g) {
           ${g.title ? `<span style="color:var(--text-soft);font-size:13px;font-weight:500;">${_escH(g.title)}</span>` : ''}
           ${_guestStatusBadge(g.status)}
           ${_joinProbBadge(g.joinProb)}
+          ${g._hasSecond ? `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:700;white-space:nowrap;">二訪</span>` : ''}
           ${unmatched ? `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:#fde68a;color:#92400e;font-size:11px;font-weight:700;white-space:nowrap;">未匹配名單</span>` : ''}
           ${_heatBadge(heat)}
         </div>
@@ -488,7 +576,7 @@ function _guestCardHtml(g) {
           ${g.industry ? `<span>${_escH(g.industry)}</span>` : ''}
           ${g.company ? ` · <span>${_escH(g.company)}</span>` : ''}
         </div>
-        ${g.firstVisit ? `<div style="font-size:12px;color:var(--text-soft);margin-top:2px;">${g.visitType === '二次' ? '二次參訪' : '首訪'} <b style="color:var(--text);">${_escH(g.firstVisit)}</b></div>` : ''}
+        ${dateLine ? `<div style="font-size:12px;color:var(--text-soft);margin-top:2px;">${dateLine}</div>` : ''}
         <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">
           ${g.inviter ? `邀約：<b style="color:var(--text);">${_escH(g.inviter)}</b>` : ''}
           ${g.closer ? `　締結：<b style="color:var(--text);">${_escH(g.closer)}</b>` : ''}
@@ -498,8 +586,7 @@ function _guestCardHtml(g) {
       <div style="display:flex;gap:6px;flex-shrink:0;">
         ${g._pending
           ? `<span style="padding:6px 12px;font-size:12px;color:var(--text-soft);background:#f4f6f8;border-radius:6px;">同步中...</span>`
-          : `<button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="openGuestModal('${gKey}')">編輯</button>
-             <button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:#c0392b;" onclick="deleteGuestConfirm('${gKey}')">刪除</button>`}
+          : `<button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="openGuestModal('${_escH(editArg)}')">編輯</button>`}
       </div>
     </div>
     ${g.postVisitNote ? `<div style="background:#fafbfc;padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.5;margin-top:6px;">
@@ -529,26 +616,64 @@ function _guestListHtml(guests) {
 
 // ===== 新增/編輯 Modal =====
 let _guestModalTracks = [];
+let _editingRows = null; // 多訪時為長度 2 的陣列；單訪為 1；新增為 null
+let _editingIdx = 0;     // 目前在編輯哪個 row
 
-async function openGuestModal(gKey) {
-  // 背景載入會員名單以供邀約/締結人自動提示
+async function openGuestModal(arg, opts) {
+  opts = opts || {};
   if (!_memberData) fetchMembers();
 
-  let g = null;
-  if (gKey) {
-    const [year, row] = gKey.split('-').map(Number);
-    g = _guestData.find(x => x.year === year && x.sheetRow === row);
+  // 解析 arg → rows
+  let rows = null;
+  if (arg == null || arg === '' || arg === 'null') {
+    rows = null; // 新增
+  } else if (typeof arg === 'string' && /^\d{4}-\d+$/.test(arg)) {
+    // gKey: year-sheetRow
+    const [year, row] = arg.split('-').map(Number);
+    const g = _guestData?.find(x => x.year === year && x.sheetRow === row);
     if (!g) { showToast('找不到該來賓'); return; }
+    rows = [g];
+  } else if (typeof arg === 'string') {
+    // 手機 → 撈全部 row
+    const key = _phoneKey(arg);
+    rows = (_guestData || []).filter(g => _phoneKey(g.phone) === key);
+    if (!rows.length) { showToast('找不到該來賓'); return; }
+    rows.sort((a, b) => (a.firstVisit || '').localeCompare(b.firstVisit || ''));
   }
+
+  _editingRows = rows;
+  _editingIdx = opts.idx != null ? opts.idx : (rows ? rows.length - 1 : 0);
+  const g = rows ? rows[_editingIdx] : null;
   _guestModalTracks = g ? _parseTracks(g.tracks) : [];
   const isEdit = !!g;
+  const isMulti = !!(rows && rows.length > 1);
   const today = _todayIso();
+
+  // 分頁切換按鈕（兩訪時才出現）
+  const tabBarHtml = isMulti ? `
+    <div style="display:flex;gap:6px;margin-bottom:14px;padding:3px;background:#f4f6f8;border-radius:8px;">
+      ${rows.map((r, i) => `
+        <button onclick="_switchGuestEditTab(${i})" style="flex:1;padding:8px 12px;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;${_editingIdx === i ? 'background:white;color:var(--red);box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'background:transparent;color:var(--text-soft);'}">${i === 0 ? '一訪' : '二訪'}${r.firstVisit ? ` ${_escH(r.firstVisit)}` : ''}</button>
+      `).join('')}
+    </div>` : '';
+
+  // 標題列 + 刪除按鈕（編輯模式才有）
+  const titleText = isEdit
+    ? `編輯來賓${g.name ? ' - ' + _escH(g.name) : ''}`
+    : '新增來賓';
+  const deleteBtnHtml = isEdit
+    ? `<button onclick="_deleteGuestFromModal()" style="padding:6px 12px;background:white;border:1.5px solid #e74c3c;color:#e74c3c;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;flex-shrink:0;">${isMulti ? '刪除全部' : '刪除'}</button>`
+    : '';
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'guestModal';
   overlay.innerHTML = `<div class="modal-box" onclick="event.stopPropagation()">
-    <div class="modal-title">${isEdit ? '編輯來賓' : '新增來賓'}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;">
+      <div class="modal-title" style="margin:0;">${titleText}</div>
+      ${deleteBtnHtml}
+    </div>
+    ${tabBarHtml}
 
     <div class="modal-field">
       <div class="modal-label">參訪日</div>
@@ -642,7 +767,7 @@ async function openGuestModal(gKey) {
 
     <div class="modal-btns">
       <button class="modal-cancel" onclick="closeGuestModal()">取消</button>
-      <button class="modal-save" onclick="saveGuest(${isEdit ? `'${gKey}'` : 'null'})">${isEdit ? '儲存' : '新增'}</button>
+      <button class="modal-save" onclick="_onSaveCurrentTab()">${isEdit ? '儲存' : '新增'}</button>
     </div>
   </div>`;
   overlay.onclick = closeGuestModal;
@@ -654,13 +779,84 @@ function closeGuestModal() {
   const m = document.getElementById('guestModal');
   if (m) m.remove();
   _guestModalTracks = [];
+  _editingRows = null;
+  _editingIdx = 0;
+}
+
+function _switchGuestEditTab(newIdx) {
+  if (!_editingRows || newIdx === _editingIdx) return;
+  if (!confirm('切換訪次將會丟棄目前未儲存的變更，確定切換？')) return;
+  const phone = _editingRows[0] && _editingRows[0].phone;
+  const arg = phone || `${_editingRows[_editingIdx].year}-${_editingRows[_editingIdx].sheetRow}`;
+  closeGuestModal();
+  openGuestModal(arg, { idx: newIdx });
+}
+
+function _onSaveCurrentTab() {
+  if (!_editingRows || !_editingRows.length) {
+    saveGuest(null); // 新增
+    return;
+  }
+  const g = _editingRows[_editingIdx];
+  saveGuest(`${g.year}-${g.sheetRow}`);
+}
+
+async function _deleteGuestFromModal() {
+  if (!_editingRows || !_editingRows.length) return;
+  const rows = _editingRows.slice();
+  const phone = rows[0].phone;
+  const name = rows[0].name || '此來賓';
+  const isMulti = rows.length > 1;
+  const msg = isMulti
+    ? `確定刪除「${name}」？\n\n會一併刪除 ${rows.length} 筆參訪紀錄，無法復原。`
+    : `確定刪除「${name}」？\n\n刪除後無法復原。`;
+  if (!confirm(msg)) return;
+  closeGuestModal();
+  // 樂觀更新：先從本地移除
+  if (Array.isArray(_guestData)) {
+    _guestData = _guestData.filter(g => !rows.some(r => r.year === g.year && r.sheetRow === g.sheetRow));
+    renderGuestTrack();
+  }
+  showToast('刪除中...');
+  try {
+    if (phone) {
+      await _apiPost({ action: 'deleteGuest', phone });
+    } else {
+      // 沒手機 → 逐筆刪除
+      for (const r of rows) {
+        await _apiPost({ action: 'deleteGuest', year: r.year, sheetRow: r.sheetRow });
+      }
+    }
+    showToast('已刪除');
+    _guestData = null;
+    renderGuestTrack();
+  } catch (e) {
+    showToast('刪除失敗，請重新整理');
+    _guestData = null;
+    renderGuestTrack();
+  }
 }
 
 // ===== 來賓行為紀錄彈窗 =====
-function openGuestBehaviorModal(gKey) {
-  const [year, row] = gKey.split('-').map(Number);
-  const g = _guestData?.find(x => x.year === year && x.sheetRow === row);
-  if (!g) { showToast('找不到該來賓'); return; }
+// arg: "year-sheetRow" 單筆 / "phone:0912..." 多訪合併
+function openGuestBehaviorModal(arg) {
+  let g = null;
+  if (typeof arg === 'string' && arg.startsWith('phone:')) {
+    const key = _phoneKey(arg.slice(6));
+    const rows = (_guestData || []).filter(x => _phoneKey(x.phone) === key);
+    if (!rows.length) { showToast('找不到該來賓'); return; }
+    rows.sort((a, b) => (a.firstVisit || '').localeCompare(b.firstVisit || ''));
+    const last = rows[rows.length - 1];
+    g = {
+      ...last,
+      interestedIn: _mergeInterestRaw(rows.map(x => x.interestedIn)),
+      behavior:     _mergeBehaviorRaw(rows.map(x => x.behavior))
+    };
+  } else {
+    const [year, row] = String(arg).split('-').map(Number);
+    g = _guestData?.find(x => x.year === year && x.sheetRow === row);
+    if (!g) { showToast('找不到該來賓'); return; }
+  }
 
   const beh = _parseBehavior(g.behavior);
   const interested = _parseInterested(g.interestedIn);
@@ -931,6 +1127,195 @@ async function _deleteGuest(year, row) {
     showToast('同步失敗，請重新整理');
     _guestData = null;
     renderGuestTrack();
+  }
+}
+
+// ===== 匯入 Excel =====
+const SHEETJS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+let _importParsedGuests = []; // 暫存解析後的待匯入清單
+
+async function openGuestImportModal() {
+  showLoader && showLoader(true, '載入匯入模組...');
+  try {
+    await _loadScript(SHEETJS_CDN);
+  } catch (e) {
+    showLoader && showLoader(false);
+    showToast('套件載入失敗，請確認網路');
+    return;
+  }
+  showLoader && showLoader(false);
+  _importParsedGuests = [];
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'guestImportModal';
+  overlay.innerHTML = `<div class="modal-box" onclick="event.stopPropagation()" style="max-width:640px;">
+    <div class="modal-title">匯入來賓（Excel / CSV）</div>
+    <div style="font-size:13px;color:var(--text-soft);line-height:1.6;margin-bottom:12px;">
+      請先下載範本，填寫資料後上傳。<br>
+      <b>姓名</b> 與 <b>電話</b> 為必填；同手機已存在時會自動成為「二訪」紀錄。
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+      <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text);font-weight:700;" onclick="_downloadImportTemplate()">下載範本</button>
+      <label class="btn" style="background:var(--red);color:white;font-weight:700;cursor:pointer;">
+        選擇檔案
+        <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="_handleImportFile(this)">
+      </label>
+    </div>
+
+    <div id="importPreviewBox" style="display:none;"></div>
+
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeGuestImportModal()">關閉</button>
+      <button class="modal-save" id="importSubmitBtn" disabled style="opacity:.5;cursor:not-allowed;" onclick="_doImport()">匯入</button>
+    </div>
+  </div>`;
+  overlay.onclick = closeGuestImportModal;
+  document.body.appendChild(overlay);
+}
+
+function closeGuestImportModal() {
+  document.getElementById('guestImportModal')?.remove();
+  _importParsedGuests = [];
+}
+
+function _downloadImportTemplate() {
+  if (!window.XLSX) { showToast('套件未載入'); return; }
+  const headers = ['姓名', '電話', '首次參訪', '邀約人', '稱謂', '產業別', '公司名', '參訪後締結', '狀態'];
+  const example = ['王大明', '0912345678', '2026-05-13', '陳會員', '先生', 'IT 資訊', '某某公司', '對導入軟體有興趣', '待追蹤'];
+  const ws = XLSX.utils.aoa_to_sheet([headers, example]);
+  ws['!cols'] = headers.map(() => ({ wch: 16 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '來賓清單');
+  XLSX.writeFile(wb, 'BNI-來賓匯入範本.xlsx');
+}
+
+function _handleImportFile(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array', cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      if (!ws) { showToast('檔案沒有工作表'); return; }
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+      _renderImportPreview(rows);
+    } catch (err) {
+      showToast('檔案解析失敗，請確認格式');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function _normalizeImportDate(v) {
+  if (!v) return '';
+  const s = String(v).trim();
+  // 已是 YYYY-MM-DD
+  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(s)) return s.slice(0, 10);
+  // Excel 序號或其他格式 → 嘗試 new Date
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return d.getFullYear() + '-'
+         + String(d.getMonth() + 1).padStart(2, '0') + '-'
+         + String(d.getDate()).padStart(2, '0');
+  }
+  return s;
+}
+
+function _renderImportPreview(rows) {
+  const box = document.getElementById('importPreviewBox');
+  const btn = document.getElementById('importSubmitBtn');
+  if (!box) return;
+  const today = _todayIso();
+  const parsed = rows.map(r => ({
+    name:       String(r['姓名'] || r['name'] || '').trim(),
+    phone:      String(r['電話'] || r['phone'] || '').trim(),
+    firstVisit: _normalizeImportDate(r['首次參訪'] || r['firstVisit'] || '') || today,
+    inviter:    String(r['邀約人'] || r['inviter'] || '').trim(),
+    title:      String(r['稱謂'] || r['title'] || '').trim(),
+    industry:   String(r['產業別'] || r['industry'] || '').trim(),
+    company:    String(r['公司名'] || r['company'] || '').trim(),
+    postVisitNote: String(r['參訪後締結'] || r['postVisitNote'] || '').trim(),
+    status:     String(r['狀態'] || r['status'] || '待追蹤').trim() || '待追蹤'
+  }));
+  const valid = parsed.filter(g => g.name && g.phone);
+  const invalid = parsed.filter(g => !g.name || !g.phone);
+  _importParsedGuests = valid;
+
+  if (parsed.length === 0) {
+    box.innerHTML = `<div style="padding:12px;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px;">檔案中沒有可匯入的資料</div>`;
+    box.style.display = '';
+    btn.disabled = true; btn.style.opacity = '.5'; btn.style.cursor = 'not-allowed';
+    return;
+  }
+
+  const preview = valid.slice(0, 10);
+  const tableHtml = `
+    <div style="overflow-x:auto;border:1px solid var(--gray-border);border-radius:6px;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead style="background:#fafbfc;">
+          <tr>
+            <th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--gray-border);">姓名</th>
+            <th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--gray-border);">電話</th>
+            <th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--gray-border);">首訪</th>
+            <th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--gray-border);">邀約人</th>
+            <th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--gray-border);">公司</th>
+            <th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--gray-border);">狀態</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${preview.map(g => `<tr>
+            <td style="padding:6px 8px;border-bottom:1px dashed var(--gray-border);">${_escH(g.name)}</td>
+            <td style="padding:6px 8px;border-bottom:1px dashed var(--gray-border);">${_escH(g.phone)}</td>
+            <td style="padding:6px 8px;border-bottom:1px dashed var(--gray-border);">${_escH(g.firstVisit)}</td>
+            <td style="padding:6px 8px;border-bottom:1px dashed var(--gray-border);">${_escH(g.inviter)}</td>
+            <td style="padding:6px 8px;border-bottom:1px dashed var(--gray-border);">${_escH(g.company)}</td>
+            <td style="padding:6px 8px;border-bottom:1px dashed var(--gray-border);">${_escH(g.status)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  box.innerHTML = `
+    <div style="margin-bottom:8px;font-size:13px;">
+      共解析 <b>${parsed.length}</b> 筆，<b style="color:#27ae60;">${valid.length}</b> 筆可匯入${invalid.length ? `，<b style="color:#c0392b;">${invalid.length}</b> 筆缺姓名或電話將略過` : ''}
+      ${valid.length > 10 ? `<span style="color:var(--text-soft);">（以下預覽前 10 筆）</span>` : ''}
+    </div>
+    ${tableHtml}`;
+  box.style.display = '';
+
+  if (valid.length > 0) {
+    btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
+  } else {
+    btn.disabled = true; btn.style.opacity = '.5'; btn.style.cursor = 'not-allowed';
+  }
+}
+
+async function _doImport() {
+  if (!_importParsedGuests.length) return;
+  const guests = _importParsedGuests;
+  const btn = document.getElementById('importSubmitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '匯入中...'; }
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'batchAddGuests', guests })
+    });
+    const json = await res.json();
+    if (!json || !json.ok) throw new Error(json?.error || 'import failed');
+    const added = json.added || 0;
+    const errs = (json.errors || []).length;
+    closeGuestImportModal();
+    showToast(`已匯入 ${added} 筆${errs ? `（${errs} 筆失敗）` : ''}`);
+    _guestData = null;
+    renderGuestTrack();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '匯入'; }
+    showToast('匯入失敗，請重試');
   }
 }
 
