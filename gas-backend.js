@@ -451,6 +451,75 @@ function recordGuestBehavior(body) {
   return { ok: true, matched: true };
 }
 
+// 批次處理多個行為事件（前端 buffer 後一次送）：只找一次手機、讀一次 cell、寫一次 cell
+function batchBehavior(body) {
+  if (body.token !== PUBLIC_DM_TOKEN) return { ok: false, error: 'invalid token' };
+  if (!checkPublicDMRateLimit()) return { ok: false, error: 'rate limit' };
+
+  const events = Array.isArray(body.events) ? body.events : [];
+  if (events.length === 0) return { ok: true, count: 0 };
+
+  const phone = String(body.phone || '').trim();
+  const phoneNorm = normalizePhone(phone);
+  if (!phoneNorm) return { ok: false, error: 'invalid phone' };
+
+  const target = findGuestRowByPhone(phoneNorm);
+  if (!target) return { ok: true, matched: false, count: 0 };
+
+  const cell = target.sheet.getRange(target.row, 13);
+  const data = parseBehavior(cell.getValue());
+
+  const nowStr = new Date().toISOString();
+  events.forEach(function (ev) {
+    const t = String(ev && ev.type || '');
+    if (t === 'visit') {
+      if (ev.startAt && ev.endAt) data.visits.push({ in: ev.startAt, out: ev.endAt });
+    } else if (t === 'phoneClick' && ev.member) {
+      data.phoneClicks.push({ member: String(ev.member), at: String(ev.at || nowStr) });
+    } else if (t === 'webClick' && ev.member) {
+      data.webClicks.push({ member: String(ev.member), at: String(ev.at || nowStr) });
+    } else if (t === 'industryJump' && ev.industry) {
+      data.industryJumps.push({ industry: String(ev.industry), at: String(ev.at || nowStr) });
+    }
+  });
+
+  if (data.visits.length > 50) data.visits = data.visits.slice(-50);
+  if (data.phoneClicks.length > 200) data.phoneClicks = data.phoneClicks.slice(-200);
+  if (data.webClicks.length > 200) data.webClicks = data.webClicks.slice(-200);
+  if (data.industryJumps.length > 200) data.industryJumps = data.industryJumps.slice(-200);
+
+  cell.setValue(JSON.stringify(data));
+  return { ok: true, matched: true, count: events.length };
+}
+
+// 找出對應手機的歷屆來賓列；抽出為共用 helper，搜尋順序：當年 → 其他年份
+function findGuestRowByPhone(phoneNorm) {
+  const ss = getGuestSS();
+  const currentYear = new Date().getFullYear();
+  const sheets = ss.getSheets()
+    .filter(function (s) { return /^\d{4}$/.test(s.getName()); })
+    .sort(function (a, b) {
+      const ay = parseInt(a.getName(), 10);
+      const by = parseInt(b.getName(), 10);
+      if (ay === currentYear) return -1;
+      if (by === currentYear) return 1;
+      return by - ay; // 新到舊
+    });
+  for (let s = 0; s < sheets.length; s++) {
+    const sh = sheets[s];
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) continue;
+    ensureColumns(sh);
+    const phones = sh.getRange(2, 8, lastRow - 1, 1).getValues();
+    for (let i = 0; i < phones.length; i++) {
+      if (normalizePhone(phones[i][0]) === phoneNorm) {
+        return { sheet: sh, row: i + 2 };
+      }
+    }
+  }
+  return null;
+}
+
 function parseBehavior(v) {
   const empty = { visits: [], phoneClicks: [], webClicks: [], industryJumps: [] };
   if (!v) return empty;
@@ -496,7 +565,21 @@ function checkPublicDMRateLimit() {
 }
 
 // 取得會員公開資料（僅 8 個欄位，不含車牌、生日、續約等敏感資訊）
+// 加入 60 秒 CacheService 快取，多人同時開 DM 頁時大幅減少 Sheet 讀取
+const PUBLIC_MEMBERS_CACHE_KEY = 'public_members_v2';
+const PUBLIC_MEMBERS_CACHE_TTL = 60;
+
+function invalidatePublicMembersCache() {
+  try { CacheService.getScriptCache().remove(PUBLIC_MEMBERS_CACHE_KEY); } catch (e) {}
+}
+
 function getPublicMembers() {
+  const cache = CacheService.getScriptCache();
+  try {
+    const cached = cache.get(PUBLIC_MEMBERS_CACHE_KEY);
+    if (cached) return JSON.parse(cached);
+  } catch (e) { /* cache miss/error → 重新讀 sheet */ }
+
   const sh = getSheet();
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
@@ -507,7 +590,7 @@ function getPublicMembers() {
   const iName = idx('姓名'), iSpec = idx('專業別'), iComp = idx('公司'), iServ = idx('服務'), iPhone = idx('電話');
   const iPhoto = idx('照片連結'), iInd = idx('產業鏈'), iSlogan = idx('口號'), iWeb = idx('官網');
   const data = sh.getRange(2, 1, lastRow - 1, sh.getLastColumn()).getValues();
-  return data
+  const result = data
     .map(function(r) {
       return {
         name:      iName >= 0 ? String(r[iName] || '').trim() : '',
@@ -522,6 +605,10 @@ function getPublicMembers() {
       };
     })
     .filter(function(m) { return m.name; });
+
+  // 寫入快取
+  try { cache.put(PUBLIC_MEMBERS_CACHE_KEY, JSON.stringify(result), PUBLIC_MEMBERS_CACHE_TTL); } catch (e) {}
+  return result;
 }
 
 // ===== doGet / doPost =====
@@ -615,6 +702,12 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'batchBehavior') {
+      return ContentService
+        .createTextOutput(JSON.stringify(batchBehavior(body)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (action === 'addGuest') {
       return ContentService
         .createTextOutput(JSON.stringify(addGuest(body)))
@@ -696,6 +789,7 @@ function doPost(e) {
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       const url = 'https://lh3.googleusercontent.com/d/' + file.getId();
       sh.getRange(sheetRow, photoCol).setValue(url);
+      invalidatePublicMembersCache();
       return ContentService
         .createTextOutput(JSON.stringify({ ok: true, url: url }))
         .setMimeType(ContentService.MimeType.JSON);
@@ -737,6 +831,7 @@ function doPost(e) {
       }
 
       SlidesApp.openById(PRESENTATION_ID).appendSlide(SlidesApp.PredefinedLayout.BLANK);
+      invalidatePublicMembersCache();
       return ContentService
         .createTextOutput(JSON.stringify({ ok: true, sheetRow: newRowNum }))
         .setMimeType(ContentService.MimeType.JSON);
@@ -757,6 +852,7 @@ function doPost(e) {
       if (ci('電話') >= 0) sh.getRange(row, ci('電話') + 1).setValue(body.phone || '');
       if (ci('官網') >= 0) sh.getRange(row, ci('官網') + 1).setValue(body.website || '');
       if (ci('服務') >= 0) sh.getRange(row, ci('服務') + 1).setValue(body.service || '');
+      invalidatePublicMembersCache();
       return ok();
     }
 
@@ -784,6 +880,7 @@ function doPost(e) {
       }
       sh.deleteRow(body.sheetRow);
       renumberSeq(sh);
+      invalidatePublicMembersCache();
       return ok();
     }
 

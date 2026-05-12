@@ -431,31 +431,53 @@ const GUEST_KEY = 'bni_dm_guest';
 const GUEST_TTL_DAYS = 7;
 const MEET_KEY = 'bni_dm_meet'; // 已點過想認識的會員名稱陣列
 
-// 行為追蹤：進場時間 + 統一發送行為事件
+// 行為追蹤：buffer + 批次發送（減少 API 呼叫次數，降低 rate limit 壓力）
 let _sessionStart = null; // 本次造訪開始時間（ISO string）
 let _visitSent = false;   // 同一個 page lifetime 只送一筆 visit
+let _eventBuffer = [];    // 待送出的事件
+let _flushTimer = null;   // 批次計時器
+const FLUSH_INTERVAL_MS = 2500; // 每 2.5 秒 flush 一次
+const FLUSH_SIZE = 5;           // 累積 5 筆就立刻 flush
 
 function nowIso() { return new Date().toISOString(); }
 
 function postBehaviorEvent(payload) {
   if (IS_PREVIEW) return; // 預覽模式不送任何追蹤事件
+  _eventBuffer.push(payload);
+  if (_eventBuffer.length >= FLUSH_SIZE) {
+    flushBehaviorEvents();
+  } else if (!_flushTimer) {
+    _flushTimer = setTimeout(flushBehaviorEvents, FLUSH_INTERVAL_MS);
+  }
+}
+
+function flushBehaviorEvents(opts) {
+  if (_flushTimer) { clearTimeout(_flushTimer); _flushTimer = null; }
+  if (_eventBuffer.length === 0) return;
   const info = getGuestInfo();
-  if (!info) return;
+  if (!info) { _eventBuffer = []; return; }
+  const events = _eventBuffer;
+  _eventBuffer = [];
   const body = JSON.stringify({
-    action: 'recordGuestBehavior',
+    action: 'batchBehavior',
     token: VALID_TOKEN,
     phone: info.phone,
     name: info.name,
-    ...payload
+    events
   });
-  // 點擊類事件用 fetch + keepalive 避免使用者立刻關頁時送失敗
+  const useBeacon = opts && opts.beacon;
   try {
-    fetch(PUBLIC_API_URL, {
-      method: 'POST',
-      keepalive: true,
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body
-    }).catch(() => {});
+    if (useBeacon && navigator.sendBeacon) {
+      const blob = new Blob([body], { type: 'text/plain;charset=utf-8' });
+      navigator.sendBeacon(PUBLIC_API_URL, blob);
+    } else {
+      fetch(PUBLIC_API_URL, {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body
+      }).catch(() => {});
+    }
   } catch (e) { /* ignore */ }
 }
 
@@ -464,33 +486,15 @@ function sendVisitEnd() {
   if (_visitSent || !_sessionStart) return;
   const info = getGuestInfo();
   if (!info) return;
-  _visitSent = true; // 旗標：本次 page lifetime 已送，避免 pagehide + visibilitychange 雙觸發
-  const body = JSON.stringify({
-    action: 'recordGuestBehavior',
-    token: VALID_TOKEN,
-    phone: info.phone,
-    name: info.name,
-    type: 'visit',
-    startAt: _sessionStart,
-    endAt: nowIso()
-  });
-  try {
-    if (navigator.sendBeacon) {
-      const blob = new Blob([body], { type: 'text/plain;charset=utf-8' });
-      navigator.sendBeacon(PUBLIC_API_URL, blob);
-    } else {
-      fetch(PUBLIC_API_URL, {
-        method: 'POST', keepalive: true,
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body
-      }).catch(() => {});
-    }
-  } catch (e) { /* ignore */ }
+  _visitSent = true; // 旗標：本次 page lifetime 已送
+  // 把 visit 事件併入 buffer 一起 flush
+  _eventBuffer.push({ type: 'visit', startAt: _sessionStart, endAt: nowIso() });
+  flushBehaviorEvents({ beacon: true });
 }
 
 // 頁面隱藏時送出造訪結束（pagehide 比 beforeunload 在行動瀏覽器更可靠）
 window.addEventListener('pagehide', sendVisitEnd, { capture: true });
-// 切換到背景（行動裝置上代表使用者離開頁面）也送一次，避免被瀏覽器殺進程沒紀錄
+// 切換到背景（行動裝置上代表使用者離開頁面）也送一次
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') sendVisitEnd();
 });
