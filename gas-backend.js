@@ -138,7 +138,21 @@ function fmtDate(v) {
   return String(v);
 }
 
+// 加入 30 秒快取；增刪改/註冊事件主動清快取，行為事件（高頻）不清以保持快取效益
+const GUEST_LIST_CACHE_KEY = 'guest_list_v2';
+const GUEST_LIST_CACHE_TTL = 30;
+
+function invalidateGuestListCache() {
+  try { CacheService.getScriptCache().remove(GUEST_LIST_CACHE_KEY); } catch (e) {}
+}
+
 function listGuests() {
+  const cache = CacheService.getScriptCache();
+  try {
+    const cached = cache.get(GUEST_LIST_CACHE_KEY);
+    if (cached) return JSON.parse(cached);
+  } catch (e) { /* miss → 重讀 */ }
+
   const ss = getGuestSS();
   const sheets = ss.getSheets();
   const result = [];
@@ -171,6 +185,12 @@ function listGuests() {
       });
     });
   });
+
+  // 寫入快取（單筆上限 100KB，超過就跳過）
+  try {
+    const json = JSON.stringify(result);
+    if (json.length < 99000) cache.put(GUEST_LIST_CACHE_KEY, json, GUEST_LIST_CACHE_TTL);
+  } catch (e) {}
   return result;
 }
 
@@ -194,6 +214,7 @@ function addGuest(body) {
     body.behavior      || ''
   ];
   sh.appendRow(row);
+  invalidateGuestListCache();
   return { ok: true, year: year, sheetRow: sh.getLastRow() };
 }
 
@@ -239,6 +260,7 @@ function updateGuest(body) {
   // 只更新前 11 欄；第 12「想認識的會員」、第 13「行為紀錄」由其他 action 自行維護
   if (oldYear === newYear) {
     oldSh.getRange(r, 1, 1, 11).setValues(rowData);
+    invalidateGuestListCache();
     return { ok: true, year: newYear, sheetRow: r };
   }
   const newSh = getGuestSheetForYear(newYear);
@@ -249,12 +271,14 @@ function updateGuest(body) {
   const existingBehavior = lastCol >= 13 ? String(oldSh.getRange(r, 13).getValue() || '') : '';
   newSh.appendRow(rowData[0].concat([existingInterest, existingBehavior]));
   oldSh.deleteRow(r);
+  invalidateGuestListCache();
   return { ok: true, year: newYear, sheetRow: newSh.getLastRow() };
 }
 
 function deleteGuest(body) {
   const sh = getGuestSheetForYear(body.year);
   sh.deleteRow(body.sheetRow);
+  invalidateGuestListCache();
   return { ok: true };
 }
 
@@ -322,6 +346,7 @@ function registerGuestInterest(body) {
     interestJson,// 想認識的會員
     ''           // 行為紀錄
   ]);
+  invalidateGuestListCache();
   return { ok: true, matched: false, year: year, sheetRow: sh.getLastRow() };
 }
 
@@ -366,6 +391,7 @@ function lookupGuestByPhone(body) {
   sh.appendRow([
     todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, '', ''
   ]);
+  invalidateGuestListCache();
   return { ok: true, matched: false };
 }
 

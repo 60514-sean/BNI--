@@ -195,12 +195,35 @@ function _isHighPotentialGuest(g) {
   return g.joinProb === '高';
 }
 
+// localStorage 快取（stale-while-revalidate）：UI 秒顯示舊資料，背景再抓最新
+const _GUEST_LS_KEY = 'bni_guest_data_cache_v1';
+const _GUEST_LS_TTL_MS = 10 * 60 * 1000; // 10 分鐘以內的舊資料才用
+
+function _loadGuestsFromLS() {
+  try {
+    const raw = localStorage.getItem(_GUEST_LS_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || !Array.isArray(obj.data)) return null;
+    if (Date.now() - (obj.t || 0) > _GUEST_LS_TTL_MS) return null;
+    return obj.data;
+  } catch (e) { return null; }
+}
+function _saveGuestsToLS(data) {
+  try {
+    // 過濾 _pending 樂觀更新的暫存項目
+    const clean = (data || []).filter(g => !g._pending);
+    localStorage.setItem(_GUEST_LS_KEY, JSON.stringify({ data: clean, t: Date.now() }));
+  } catch (e) { /* localStorage 滿了就跳過 */ }
+}
+
 async function fetchGuests() {
   try {
     const r = await fetch(API_URL + '?action=listGuests&t=' + Date.now());
     const j = await r.json();
     if (!j || j.ok !== true) throw new Error(j?.error || 'fetch failed');
     _guestData = j.data || [];
+    _saveGuestsToLS(_guestData);
   } catch (e) {
     _guestData = null;
   }
@@ -209,8 +232,18 @@ async function fetchGuests() {
 async function renderGuestTrack() {
   const el = document.getElementById('guestTrackContent');
   if (_guestData === null) {
-    el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
-    await fetchGuests();
+    // stale-while-revalidate：先用 localStorage 舊資料秒顯示，背景重抓
+    const cached = _loadGuestsFromLS();
+    if (cached) {
+      _guestData = cached;
+      // 背景刷新：不阻塞 UI
+      fetchGuests().then(() => {
+        if (_activeTab === 'guest') renderGuestTrack();
+      });
+    } else {
+      el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
+      await fetchGuests();
+    }
   }
   if (_guestData === null) {
     el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試 <button class="btn" style="margin-left:12px;background:var(--red);color:white;" onclick="_guestData=null;renderGuestTrack()">重試</button></div>`;
