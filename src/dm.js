@@ -317,7 +317,7 @@ async function renderDM() {
         <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(3)}" alt="" crossorigin="anonymous">
         <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(4)}" alt="" crossorigin="anonymous">
         ${dividers}
-        <div id="dmQRPreview" style="position:absolute;left:829px;top:520px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;z-index:8;">
+        <div id="dmQRPreview" style="position:absolute;left:832px;top:520px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;z-index:8;">
           <div id="dmQRBox" style="width:44px;height:44px;"></div>
         </div>
         ${ov(0,0,true)}${ov(1,1,true)}
@@ -495,9 +495,9 @@ async function printDM() {
   // 新版 P4 底圖紅框位置：left=382mm, top=240mm, 寬 29mm × 高 27mm
   const qrDataUrl = await _generateQRDataURL(400);
   const qrSizeMm = 19;  // 19mm，留出明顯邊距讓紅框線可見
-  const qrBoxX = 382;
+  const qrBoxX = 384;  // 裁切後紅框左移到 65.3%
   const qrBoxY = 240;
-  const qrBoxW = 29;
+  const qrBoxW = 30;
   const qrBoxH = 27;
   const qrX = +(qrBoxX + (qrBoxW - qrSizeMm) / 2).toFixed(2);
   const qrY = +(qrBoxY + (qrBoxH - qrSizeMm) / 2).toFixed(2);
