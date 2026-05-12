@@ -28,15 +28,11 @@ async function renderDMBackgrounds() {
   const urls = _dmBgUrls || {};
 
   const parts = [];
-  parts.push(`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-    <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">DM 底圖管理</h2>
-    <button onclick="renderDMBackgrounds()" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">重整</button>
-  </div>`);
-
-  parts.push(`<div style="font-size:12px;color:var(--text-soft);background:#fef9e7;border:1px solid #fcf3cf;padding:10px 14px;border-radius:8px;margin-bottom:16px;line-height:1.5;">
+  parts.push(`<div style="font-size:12px;color:var(--text-soft);background:#fef9e7;border:1px solid #fcf3cf;padding:10px 14px;border-radius:8px;margin-bottom:14px;line-height:1.5;">
     上傳的檔案會<strong>原封不動存進雲端</strong>，不裁切、不縮放、不轉檔。<br>
     建議比例：<strong>105:297</strong>（單面板印刷比例），不符比例會造成銜接錯位。<br>
     P4 需保留 QR 紅框位置（水平 64%~93%、垂直 81%~90%）。
+    <button onclick="renderDMBackgrounds()" style="float:right;padding:4px 10px;background:white;border:1px solid var(--gray-border);border-radius:5px;cursor:pointer;font-size:11px;font-family:inherit;color:var(--text-soft);">重新載入</button>
   </div>`);
 
   parts.push(`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;">`);

@@ -312,10 +312,10 @@ async function renderDM() {
     <div class="dm-panel-label">正面 A3（Page 1–4，左→右）</div>
     <div class="dm-scale-outer" id="dmOuter1">
       <div class="dm-bg-wrap" id="dmSide1">
-        <img style="position:absolute;left:0;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(1)}" alt="" crossorigin="anonymous">
-        <img style="position:absolute;left:25%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(2)}" alt="" crossorigin="anonymous">
-        <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(3)}" alt="" crossorigin="anonymous">
-        <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(4)}" alt="" crossorigin="anonymous">
+        <img style="position:absolute;left:0;top:0;width:25%;height:100%;object-fit:contain;display:block;" src="${_dmBgSrc(1)}" alt="" crossorigin="anonymous">
+        <img style="position:absolute;left:25%;top:0;width:25%;height:100%;object-fit:contain;display:block;" src="${_dmBgSrc(2)}" alt="" crossorigin="anonymous">
+        <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:contain;display:block;" src="${_dmBgSrc(3)}" alt="" crossorigin="anonymous">
+        <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:contain;display:block;" src="${_dmBgSrc(4)}" alt="" crossorigin="anonymous">
         ${dividers}
         <div id="dmQRPreview" style="position:absolute;left:828px;top:521px;width:48px;height:48px;display:flex;align-items:center;justify-content:center;z-index:8;">
           <div id="dmQRBox" style="width:48px;height:48px;"></div>
@@ -329,10 +329,10 @@ async function renderDM() {
     <div class="dm-panel-label" style="margin-top:16px;">背面 A3（Page 5–8，左→右）</div>
     <div class="dm-scale-outer" id="dmOuter2">
       <div class="dm-bg-wrap" id="dmSide2">
-        <img style="position:absolute;left:0;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(5)}" alt="" crossorigin="anonymous">
-        <img style="position:absolute;left:25%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(6)}" alt="" crossorigin="anonymous">
-        <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(7)}" alt="" crossorigin="anonymous">
-        <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(8)}" alt="" crossorigin="anonymous">
+        <img style="position:absolute;left:0;top:0;width:25%;height:100%;object-fit:contain;display:block;" src="${_dmBgSrc(5)}" alt="" crossorigin="anonymous">
+        <img style="position:absolute;left:25%;top:0;width:25%;height:100%;object-fit:contain;display:block;" src="${_dmBgSrc(6)}" alt="" crossorigin="anonymous">
+        <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:contain;display:block;" src="${_dmBgSrc(7)}" alt="" crossorigin="anonymous">
+        <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:contain;display:block;" src="${_dmBgSrc(8)}" alt="" crossorigin="anonymous">
         ${dividers}
         ${ov(2,0,false)}${ov(3,1,false)}${ov(4,2,false)}${ov(5,3,false)}
       </div>
@@ -488,7 +488,7 @@ async function printDM() {
   const bg = (n, xmm) => {
     const customUrl = (typeof getDMBgUrl === 'function') ? getDMBgUrl(n) : null;
     const url = (customUrl && customUrl.indexOf('dm_p') !== 0) ? customUrl : (base + 'dm_p' + n + '.png');
-    return `<img style="position:absolute;left:${xmm}mm;top:0;width:105mm;height:297mm;object-fit:fill;display:block;" src="${url}" crossorigin="anonymous">`;
+    return `<img style="position:absolute;left:${xmm}mm;top:0;width:105mm;height:297mm;object-fit:contain;display:block;" src="${url}" crossorigin="anonymous">`;
   };
 
   // 為 P4 產生 QR code（PDF 版本，較高解析度）

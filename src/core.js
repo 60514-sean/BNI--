@@ -137,7 +137,6 @@ const TAB_LIST = [
   { id: 'member',     label: '會員資料', group: '會員' },
   { id: 'renewal',    label: '續約管理', group: '會員' },
   { id: 'dm',         label: '會員DM',   group: '會員' },
-  { id: 'dmBg',       label: 'DM底圖',   group: '會員', adminOnly: true },
   { id: 'slogan',     label: '會員口號', group: '會員' },
   { id: 'finance',    label: '財務控管', group: '財務' }
 ];

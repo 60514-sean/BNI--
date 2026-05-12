@@ -180,7 +180,7 @@ function showSettings() {
   const dayPickerOpts = DAYS.map(d => `<option value="${d}">${d}</option>`).join('');
 
   // 記錄目前展開狀態
-  const ACC_IDS = ['acc0','accSitePw','acc1','accMsg','accInd','acc2'];
+  const ACC_IDS = ['acc0','accSitePw','acc1','accMsg','accInd','accDMBg','acc2'];
   const accOpen = ACC_IDS.map(id => { const el = document.getElementById(id); return el ? el.style.display !== 'none' : false; });
   const ctDay   = document.getElementById('ctDayPicker')?.value || DAYS[0];
 
@@ -259,6 +259,15 @@ function showSettings() {
       </div>
     </div>
     <div class="card">
+      <div class="acc-header" onclick="toggleAcc('accDMBg')">
+        <div class="card-title" style="margin:0;">會員 DM 底圖</div>
+        <span class="acc-arrow" id="accDMBg-arrow">&#9654;</span>
+      </div>
+      <div class="acc-body" id="accDMBg" style="display:none;">
+        <div id="dmBgContent"></div>
+      </div>
+    </div>
+    <div class="card">
       <div class="acc-header" onclick="toggleAcc('acc2')">
         <div class="card-title" style="margin:0;">週進度任務設定</div>
         <span class="acc-arrow" id="acc2-arrow">&#9654;</span>
@@ -326,6 +335,7 @@ function toggleAcc(id) {
   arrow.classList.toggle('open', open);
   if (open && id === 'acc2') renderCtDay(document.getElementById('ctDayPicker').value || DAYS[0]);
   if (open && id === 'accInd' && typeof _renderIndustryListSettings === 'function') _renderIndustryListSettings();
+  if (open && id === 'accDMBg' && typeof renderDMBackgrounds === 'function') renderDMBackgrounds();
 }
 
 // 設定頁：產出單一使用者列的 HTML（供首次渲染與局部更新共用）
