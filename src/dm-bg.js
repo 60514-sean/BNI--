@@ -34,8 +34,9 @@ async function renderDMBackgrounds() {
   </div>`);
 
   parts.push(`<div style="font-size:12px;color:var(--text-soft);background:#fef9e7;border:1px solid #fcf3cf;padding:10px 14px;border-radius:8px;margin-bottom:16px;line-height:1.5;">
-    上傳後，DM 渲染會自動使用新底圖。建議尺寸：<strong>1240 × 3508 px</strong>（單面板 105mm × 297mm，300 DPI 印刷品質）。<br>
-    比例需嚴格為 105:297，不正確會造成銜接錯位。P4 需保留 QR 紅框位置（水平 64.1%~92.4%、垂直 80.8%~89.7%）。
+    上傳的檔案會<strong>原封不動存進雲端</strong>，不裁切、不縮放、不轉檔。<br>
+    建議比例：<strong>105:297</strong>（單面板印刷比例），不符比例會造成銜接錯位。<br>
+    P4 需保留 QR 紅框位置（水平 64%~93%、垂直 81%~90%）。
   </div>`);
 
   parts.push(`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;">`);
@@ -69,7 +70,7 @@ async function uploadDMBg(panel, file) {
   showToast(`P${panel} 上傳中...`);
   try {
     const base64 = await _fileToBase64(file);
-    await _apiPost({ action: 'uploadDMBg', panel, base64 });
+    await _apiPost({ action: 'uploadDMBg', panel, base64, mimeType: file.type || 'image/png' });
     // no-cors 無法讀回應，等 2 秒後重抓 listDMBgs 確認
     await new Promise(r => setTimeout(r, 2000));
     _dmBgUrls = null;

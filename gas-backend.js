@@ -369,17 +369,23 @@ function doPost(e) {
           .setMimeType(ContentService.MimeType.JSON);
       }
       const folder = getDMBgFolder();
-      const fileName = 'dm_p' + panel + '.png';
-      // 清除舊版本
-      const existing = folder.getFilesByName(fileName);
-      while (existing.hasNext()) existing.next().setTrashed(true);
+      // 偵測 MIME 與副檔名（保留原始格式不轉檔）
+      const inputMime = body.mimeType || 'image/png';
+      const ext = inputMime.indexOf('jpeg') >= 0 || inputMime.indexOf('jpg') >= 0 ? 'jpg'
+                : inputMime.indexOf('webp') >= 0 ? 'webp'
+                : 'png';
+      const fileName = 'dm_p' + panel + '.' + ext;
+      // 清除任何副檔名的舊版本
+      ['png', 'jpg', 'jpeg', 'webp'].forEach(function(e) {
+        const old = folder.getFilesByName('dm_p' + panel + '.' + e);
+        while (old.hasNext()) old.next().setTrashed(true);
+      });
       const b64 = body.base64.indexOf(',') >= 0 ? body.base64.split(',')[1] : body.base64;
       const decoded = Utilities.base64Decode(b64);
-      const blob = Utilities.newBlob(decoded, 'image/png', fileName);
+      const blob = Utilities.newBlob(decoded, inputMime, fileName);
       const file = folder.createFile(blob);
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       const url = 'https://lh3.googleusercontent.com/d/' + file.getId();
-      // 存到 PropertiesService 給前端讀取
       PropertiesService.getScriptProperties().setProperty('dm_bg_p' + panel, url);
       return ContentService
         .createTextOutput(JSON.stringify({ ok: true, url: url }))
