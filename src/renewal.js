@@ -15,7 +15,9 @@ function _renewalStatus(m) {
   const days = parseInt(m.renewDays);
   if (isNaN(days)) return 'progress'; // 無天數資料，顯示讓管理員處理
   if (days <= 120) return 'progress';
-  return 'distant'; // > 120 天，不顯示
+  // days > 120 且無 checkbox：判定新會員須再確認「感言（儀式日期）」是空的
+  if (!m.ceremonyDate) return 'distant'; // 真新會員：從未辦過儀式
+  return 'progress'; // 有儀式紀錄但無 checkbox = 異常資料，視為進行中讓管理員留意
 }
 
 // 自動重置：renewRibbon=TRUE 且 renewDays ≤ 120 表示上一輪資料過時，靜默清空進入新一輪
@@ -33,6 +35,26 @@ function _renewalAutoResetIfNeeded(m) {
   _renewalAutoResetDone.add(m.sheetRow);
   // 同步雲端（fire-and-forget，失敗下次 render 會再試）
   _apiPost({ action: 'updateRenewal', sheetRow: m.sheetRow, renewDate: m.renewDate, renewApply: 'FALSE', renewPay: 'FALSE', renewComplete: 'FALSE', renewRibbon: 'FALSE', ceremonyDate: '' }).catch(() => {});
+  return true;
+}
+
+// 修復遺留資料：完成續約=TRUE 但到期日仍是舊年份（renewDays < 0），自動把年份 +1
+let _renewalAutoFixDone = new Set();
+function _renewalAutoFixIfNeeded(m) {
+  if (_renewalAutoFixDone.has(m.sheetRow)) return false;
+  if (m.renewComplete !== 'TRUE') return false;
+  if (m.renewRibbon === 'TRUE') return false; // 已完成週期不動
+  const days = parseInt(m.renewDays);
+  if (isNaN(days) || days >= 0) return false; // 只修負數（已過期還沒 +1 年的）
+
+  const newDate = _addOneYearStr(m.renewDate);
+  m.renewDate = newDate;
+  // 本機重算 renewDays
+  const localDays = _renewalDaysLocal(newDate);
+  if (localDays !== null) m.renewDays = String(localDays);
+  _renewalAutoFixDone.add(m.sheetRow);
+  // 同步雲端
+  _apiPost({ action: 'updateRenewal', sheetRow: m.sheetRow, renewDate: newDate, renewApply: m.renewApply, renewPay: m.renewPay, renewComplete: m.renewComplete, renewRibbon: m.renewRibbon, ceremonyDate: m.ceremonyDate || '' }).catch(() => {});
   return true;
 }
 
@@ -55,6 +77,12 @@ async function renderRenewal() {
   if (autoResetCount > 0) {
     showToast(`已自動為 ${autoResetCount} 位會員開始新一輪續約`);
   }
+  // 1b. 自動修復（完成續約但到期日卡在舊年份）→ 年份 +1
+  let autoFixCount = 0;
+  _memberData.forEach(m => { if (_renewalAutoFixIfNeeded(m)) autoFixCount++; });
+  if (autoFixCount > 0) {
+    showToast(`已自動修復 ${autoFixCount} 位會員的到期日`);
+  }
 
   // 2. 狀態分群
   const groups = { progress: [], pending: [], done: [], distant: [] };
@@ -63,9 +91,8 @@ async function renderRenewal() {
     groups[s].push(m);
   });
 
-  // 2. 本週儀式推薦：pending 群中，按到期日由近到遠
+  // 2. 待辦儀式排序：按到期日由近到遠
   const ritualQueue = [...groups.pending].sort((a, b) => _renewalDateTs(a.renewDate) - _renewalDateTs(b.renewDate));
-  const nextRitual = ritualQueue[0];
 
   // 3. 渲染
   const parts = [];
@@ -77,31 +104,12 @@ async function renderRenewal() {
   </div>`);
 
   // —— 區塊 1：頂部統計卡 —— //
-  parts.push(`<div class="renewal-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;">
-    ${_renewalStatCard('續約進行中', groups.progress.length,  '#d4ac0d', '#fef9e7')}
-    ${_renewalStatCard('待辦儀式',  groups.pending.length,   '#f39c12', '#fef5e7')}
+  parts.push(`<div class="renewal-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;">
+    ${_renewalStatCard('續約進行中', groups.progress.length,  '#c0392b', '#fdecea')}
+    ${_renewalStatCard('待辦儀式',  groups.pending.length,   '#d4ac0d', '#fef9e7')}
     ${_renewalStatCard('已完成',    groups.done.length,      '#27ae60', '#eaf7ee')}
+    ${_renewalStatCard('新會員',    groups.distant.length,   '#7f8c8d', '#ecf0f1')}
   </div>`);
-
-  // —— 區塊 2：本週儀式推薦 —— //
-  if (nextRitual) {
-    parts.push(`<div style="background:linear-gradient(135deg, #fff4e6 0%, #ffe0b8 100%);border-radius:12px;padding:16px 18px;margin-bottom:18px;border:1.5px solid #f39c12;">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
-        <span style="font-size:11px;font-weight:900;color:#e67e22;letter-spacing:2px;">★ 本週儀式建議</span>
-        <span style="font-size:11px;color:var(--text-soft);">按到期日由近到遠</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-        ${nextRitual.photo
-          ? `<img src="${_escH(nextRitual.photo)}" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2.5px solid #f39c12;flex-shrink:0;" onerror="this.style.display='none'">`
-          : `<div style="width:56px;height:56px;border-radius:50%;flex-shrink:0;background:#fff;border:2.5px solid #f39c12;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:20px;font-weight:900;">?</div>`}
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:17px;font-weight:900;color:#1a1a1a;margin-bottom:3px;">${_escH(nextRitual.name)}</div>
-          <div style="font-size:12px;color:var(--text-soft);">${_escH(nextRitual.specialty)} ・ 到期 ${_escH(nextRitual.renewDate)}</div>
-        </div>
-        ${ritualQueue.length > 1 ? `<div style="font-size:11px;color:var(--text-soft);background:rgba(255,255,255,0.6);padding:5px 10px;border-radius:12px;">後續還有 ${ritualQueue.length - 1} 位</div>` : ''}
-      </div>
-    </div>`);
-  }
 
   // —— 區塊 3：搜尋 + sub-tab —— //
   const subTabBtn = (id, label, count, color) => {
@@ -110,10 +118,11 @@ async function renderRenewal() {
       ${label} <span style="opacity:.85;font-size:11px;">(${count})</span>
     </button>`;
   };
-  parts.push(`<div style="display:flex;gap:6px;margin-bottom:12px;">
-    ${subTabBtn('progress', '續約進行中', groups.progress.length, '#d4ac0d')}
-    ${subTabBtn('pending',  '待辦儀式 ★', groups.pending.length,  '#f39c12')}
+  parts.push(`<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+    ${subTabBtn('progress', '續約進行中', groups.progress.length, '#c0392b')}
+    ${subTabBtn('pending',  '待辦儀式 ★', groups.pending.length,  '#d4ac0d')}
     ${subTabBtn('done',     '已完成',     groups.done.length,     '#27ae60')}
+    ${subTabBtn('distant',  '新會員',     groups.distant.length,  '#7f8c8d')}
   </div>`);
 
   parts.push(`<input class="member-search" type="text" placeholder="搜尋姓名、公司..." value="${_escH(_renewalSearch)}" oninput="_renewalSearch=this.value;_filterRenewalCards()" autocomplete="off" style="margin-bottom:12px;">`);
@@ -124,8 +133,10 @@ async function renderRenewal() {
     list = ritualQueue; // 按到期日排序
   } else if (_renewalSubTab === 'progress') {
     list = [...groups.progress].sort((a, b) => _renewalDateTs(a.renewDate) - _renewalDateTs(b.renewDate));
+  } else if (_renewalSubTab === 'distant') {
+    list = [...groups.distant].sort((a, b) => _renewalDateTs(a.renewDate) - _renewalDateTs(b.renewDate)); // 新會員依到期日近→遠
   } else {
-    list = [...groups.done].sort((a, b) => _renewalDateTs(b.renewDate) - _renewalDateTs(a.renewDate)); // 已完成新→舊
+    list = [...groups.done].sort((a, b) => _renewalDateTs(a.renewDate) - _renewalDateTs(b.renewDate)); // 已完成依到期日近→遠
   }
 
   parts.push(`<div id="renewalList" class="member-grid">`);
@@ -175,8 +186,9 @@ function _renewalCard(m, canEdit) {
   // 狀態 chip
   let chipBg, chipColor, chipText;
   if (status === 'done')         { chipBg = '#eaf7ee'; chipColor = '#27ae60'; chipText = '已完成儀式'; }
-  else if (status === 'pending') { chipBg = '#fef5e7'; chipColor = '#e67e22'; chipText = '★ 待辦儀式'; }
-  else if (status === 'progress'){ chipBg = '#fef9e7'; chipColor = '#d4ac0d'; chipText = '續約進行中'; }
+  else if (status === 'pending') { chipBg = '#fef9e7'; chipColor = '#d4ac0d'; chipText = '★ 待辦儀式'; }
+  else if (status === 'progress'){ chipBg = '#fdecea'; chipColor = '#c0392b'; chipText = '續約進行中'; }
+  else if (status === 'distant') { chipBg = '#ecf0f1'; chipColor = '#7f8c8d'; chipText = '新會員'; }
   else                           { chipBg = '#fdecea'; chipColor = '#c0392b'; chipText = '未續約'; }
 
   return `<div class="member-card renewal-card" data-search="${_escH(_ds)}" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
