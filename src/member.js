@@ -51,6 +51,7 @@ async function fetchMembers() {
     const iSlogan = idx('口號');
     const iPlates = idx('車牌');
     const iWebsite = idx('官網');
+    const iGender = idx('性別');
 
     _memberData = rows.slice(1)
       .map((r, i) => ({
@@ -62,6 +63,7 @@ async function fetchMembers() {
         slogan:      iSlogan >= 0 ? (r[iSlogan]?.trim() || '') : '',
         plates:      iPlates >= 0 ? (r[iPlates]?.trim() || '') : '',
         website:     iWebsite >= 0 ? (r[iWebsite]?.trim() || '') : '',
+        gender:      iGender >= 0 ? (r[iGender]?.trim() || '') : '',
         company:     r[iComp]?.trim()     || '',
         phone:       r[iPhone]?.trim()    || '',
         service:     r[iServ]?.trim()     || '',
@@ -261,9 +263,12 @@ async function renderMembers() {
     const _ds = [m.name,m.specialty,m.company,m.industry,m.service].filter(Boolean).join(' ').toLowerCase();
     parts.push(`<div class="member-card" data-search="${_escH(_ds)}" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 12px;">
-        ${m.photo
-          ? `<img src="${_escH(m.photo)}" loading="lazy" decoding="async" style="width:60px;height:60px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2.5px solid var(--red);" onerror="this.style.display='none'">`
-          : `<div style="width:60px;height:60px;border-radius:50%;flex-shrink:0;background:#e8ecf0;border:2.5px solid var(--red);box-sizing:border-box;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:22px;font-weight:900;">?</div>`}
+        ${(() => {
+          const url = _memberPhotoUrl(m);
+          return url
+            ? `<img src="${_escH(url)}" loading="lazy" decoding="async" style="width:60px;height:60px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2.5px solid var(--red);background:#fff;" onerror="this.style.display='none'">`
+            : `<div style="width:60px;height:60px;border-radius:50%;flex-shrink:0;background:#e8ecf0;border:2.5px solid var(--red);box-sizing:border-box;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:22px;font-weight:900;">?</div>`;
+        })()}
         <div style="flex:1;min-width:0;">
           ${m.specialty?`<div style="margin-bottom:6px;"><span style="display:inline-block;background:var(--red);color:white;font-size:11px;font-weight:900;padding:3px 12px;border-radius:20px;letter-spacing:0.5px;">${_escH(m.specialty)}</span></div>`:''}
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
@@ -310,6 +315,14 @@ function _filterMemberCards() {
 const _debouncedFilterMembers = _debounce(_filterMemberCards, 100);
 
 function _escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// 取得會員大頭照 URL：若沒上傳照片，依性別回傳預設圖；都沒就回空字串
+function _memberPhotoUrl(m) {
+  if (m && m.photo) return m.photo;
+  if (m && (m.gender === '男' || m.gender === 'M')) return 'default-male.png';
+  if (m && (m.gender === '女' || m.gender === 'F')) return 'default-female.png';
+  return '';
+}
 
 function _fmtService(s) {
   // 斷行只發生在最後一個標點符號之後：最後標點前（含標點）不斷，之後的文字整體移到下一行
@@ -374,6 +387,11 @@ function openEditMember(sheetRow) {
         </div>
       </div>
       <div class="modal-field"><div class="modal-label">姓名</div><input class="modal-input" id="mf_name" value="${_escH(m.name)}"></div>
+      <div class="modal-field"><div class="modal-label">性別（未上傳照片時決定預設大頭照）</div><select class="modal-input" id="mf_gender" style="appearance:auto;background:white;">
+        <option value=""${!m.gender?' selected':''}>未填</option>
+        <option value="男"${m.gender==='男'?' selected':''}>男</option>
+        <option value="女"${m.gender==='女'?' selected':''}>女</option>
+      </select></div>
       <div class="modal-field"><div class="modal-label">產業鏈（DM分組標題）</div><select class="modal-input" id="mf_ind" style="appearance:auto;background:white;">${_getIndustryOptions(m.industry)}</select></div>
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" value="${_escH(m.specialty)}"></div>
       <div class="modal-field"><div class="modal-label">生日（民國/月/日，例：80/5/15）</div><input class="modal-input" id="mf_birthday" value="${_escH(m.birthday)}" placeholder="例：80/5/15"></div>
@@ -422,6 +440,11 @@ function openAddMember() {
         </div>
       </div>
       <div class="modal-field"><div class="modal-label">姓名</div><input class="modal-input" id="mf_name" placeholder="輸入姓名"></div>
+      <div class="modal-field"><div class="modal-label">性別（未上傳照片時決定預設大頭照）</div><select class="modal-input" id="mf_gender" style="appearance:auto;background:white;">
+        <option value="" selected>未填</option>
+        <option value="男">男</option>
+        <option value="女">女</option>
+      </select></div>
       <div class="modal-field"><div class="modal-label">產業鏈（DM分組標題）</div><select class="modal-input" id="mf_ind" style="appearance:auto;background:white;">${_getIndustryOptions(_defaultIndustry)}</select></div>
       <div class="modal-field"><div class="modal-label">專業別</div><input class="modal-input" id="mf_spec" placeholder="輸入專業別"></div>
       <div class="modal-field"><div class="modal-label">生日（民國/月/日，例：80/5/15）</div><input class="modal-input" id="mf_birthday" placeholder="例：80/5/15"></div>
@@ -465,6 +488,7 @@ async function addMember() {
     company:   document.getElementById('mf_comp').value.trim(),
     phone:     document.getElementById('mf_phone').value.trim(),
     website:   document.getElementById('mf_website').value.trim(),
+    gender:    document.getElementById('mf_gender').value.trim(),
     service:   document.getElementById('mf_serv').value.trim(),
     renewDate: document.getElementById('mf_renewDate').value.trim(),
     renewApply: 'FALSE', renewPay: 'FALSE', renewComplete: 'FALSE', renewRibbon: 'FALSE',
@@ -544,13 +568,14 @@ async function saveMemberEdit(sheetRow) {
   m.company      = document.getElementById('mf_comp').value.trim();
   m.phone        = document.getElementById('mf_phone').value.trim();
   m.website      = document.getElementById('mf_website').value.trim();
+  m.gender       = document.getElementById('mf_gender').value.trim();
   m.service      = document.getElementById('mf_serv').value.trim();
 
   closeEditMember();
   renderMembers();
   showToast('儲存中...');
   try {
-    const task = _apiPost({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, birthday: m.birthday, slogan: m.slogan, plates: m.plates, company: m.company, phone: m.phone, website: m.website, service: m.service });
+    const task = _apiPost({ action: 'updateMember', sheetRow, originalName, name: m.name, industry: m.industry, specialty: m.specialty, birthday: m.birthday, slogan: m.slogan, plates: m.plates, company: m.company, phone: m.phone, website: m.website, gender: m.gender, service: m.service });
     if (photoFile) {
       showToast('上傳照片中...');
       await uploadMemberPhoto(sheetRow, photoFile);

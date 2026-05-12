@@ -689,10 +689,15 @@ function renderMembers(members) {
     parts.push(`<div class="industry-group" id="group-${gi}">
       <div class="industry-title" style="background:${color};">${escH(g)}</div>
       <div class="member-list">
-        ${groups[g].map(m => `
+        ${groups[g].map(m => {
+          const photoUrl = m.photo
+            ? m.photo
+            : (m.gender === '男' || m.gender === 'M' ? 'default-male.png'
+              : (m.gender === '女' || m.gender === 'F' ? 'default-female.png' : ''));
+          return `
           <div class="member-card" data-member="${escH(m.name)}">
-            ${m.photo
-              ? `<img class="mc-photo" src="${escH(m.photo)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+            ${photoUrl
+              ? `<img class="mc-photo" src="${escH(photoUrl)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
                  <div class="mc-photo-empty" style="display:none">?</div>`
               : `<div class="mc-photo-empty">?</div>`}
             <div class="mc-info">
@@ -709,7 +714,8 @@ function renderMembers(members) {
               <span class="mc-meet-note" id="note-${escAttr(m.name)}"${isMeetClicked(m.name) ? '' : ' style="display:none"'}>已通知 ${escH(m.name)}，會盡快聯繫您</span>
             </div>
           </div>
-        `).join('')}
+        `;
+        }).join('')}
       </div>
     </div>`);
   });
