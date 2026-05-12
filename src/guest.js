@@ -58,6 +58,33 @@ function _parseTracks(s) {
   } catch { return []; }
 }
 
+function _parseInterested(s) {
+  if (!s) return [];
+  try {
+    const arr = typeof s === 'string' ? JSON.parse(s) : s;
+    return Array.isArray(arr) ? arr.filter(x => x && x.member) : [];
+  } catch { return []; }
+}
+
+function _isUnmatchedGuest(g) {
+  if (g.inviter && g.inviter.trim()) return false;
+  return _parseInterested(g.interestedIn).length > 0;
+}
+
+function _renderInterestedSection(g) {
+  const list = _parseInterested(g?.interestedIn);
+  if (!list.length) return '';
+  const rows = list.map(x => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px dashed #f5d4cc;">
+      <span style="font-size:13px;font-weight:700;color:var(--text);">${_escH(x.member)}</span>
+      ${x.date ? `<span style="font-size:11px;color:var(--text-soft);">${_escH(x.date)}</span>` : ''}
+    </div>`).join('');
+  return `<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--gray-border);">
+    <div style="font-size:13px;font-weight:700;color:#c0392b;margin-bottom:8px;">★ 來賓想認識的會員（${list.length} 位）</div>
+    <div style="background:#fff5f3;border:1px solid #f5d4cc;border-radius:8px;overflow:hidden;">${rows}</div>
+  </div>`;
+}
+
 function _guestLatestDate(g) {
   const tracks = _parseTracks(g.tracks);
   const dates = [_parseDateStr(g.firstVisit)];
@@ -291,6 +318,8 @@ function _joinProbBadge(joinProb) {
 
 function _guestCardHtml(g) {
   const tracks = _parseTracks(g.tracks);
+  const interested = _parseInterested(g.interestedIn);
+  const unmatched = _isUnmatchedGuest(g);
   const tracksHtml = tracks.length
     ? tracks.map((t, i) => `
       <div style="display:flex;gap:8px;padding:6px 0;border-top:1px dashed var(--gray-border);font-size:12px;">
@@ -301,6 +330,12 @@ function _guestCardHtml(g) {
         </div>
       </div>`).join('')
     : '';
+  const interestedHtml = interested.length
+    ? `<div style="margin-top:8px;background:#fff5f3;border:1px solid #f5d4cc;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.5;">
+        <b style="color:#c0392b;">★ 想認識會員：</b>
+        <span style="color:var(--text);">${interested.map(x => _escH(x.member)).join('、')}</span>
+      </div>`
+    : '';
   const gKey = `${g.year}-${g.sheetRow}`;
   return `<div class="card" style="padding:14px 16px;margin-bottom:10px;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;">
@@ -310,6 +345,7 @@ function _guestCardHtml(g) {
           ${g.title ? `<span style="color:var(--text-soft);font-size:13px;font-weight:500;">${_escH(g.title)}</span>` : ''}
           ${_guestStatusBadge(g.status)}
           ${_joinProbBadge(g.joinProb)}
+          ${unmatched ? `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:#fde68a;color:#92400e;font-size:11px;font-weight:700;white-space:nowrap;">未匹配名單</span>` : ''}
         </div>
         <div style="font-size:12px;color:var(--text-soft);margin-top:4px;line-height:1.5;">
           ${g.industry ? `<span>${_escH(g.industry)}</span>` : ''}
@@ -332,6 +368,7 @@ function _guestCardHtml(g) {
     ${g.postVisitNote ? `<div style="background:#fafbfc;padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.5;margin-top:6px;">
       <b style="color:var(--text-soft);">參訪後締結：</b>${_escH(g.postVisitNote)}
     </div>` : ''}
+    ${interestedHtml}
     ${tracksHtml ? `<div style="margin-top:8px;">${tracksHtml}</div>` : ''}
   </div>`;
 }
@@ -454,6 +491,8 @@ async function openGuestModal(gKey) {
       <div class="modal-label">參訪後締結（會後立即評估）</div>
       <textarea class="modal-input" id="gm_postVisit" rows="3" style="resize:vertical;">${_escH(g?.postVisitNote || '')}</textarea>
     </div>
+
+    ${_renderInterestedSection(g)}
 
     <!-- 追蹤紀錄 -->
     <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--gray-border);">

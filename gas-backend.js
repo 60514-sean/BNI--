@@ -7,7 +7,7 @@ const PRESENTATION_ID = '15ImCbhAZ6WtBwEAmpMDzXXz1JUOk7l8ta9YGHSb0oIs';
 
 // ===== Guest System =====
 const GUEST_SS_ID   = '1CSFoZvkiz0kSX-ZUSZ5DOQKZ1laf4w2zrDN4N9NZhF8';
-const GUEST_HEADERS = ['首次參訪', '邀約人', '締結人', '姓名', '稱謂', '產業別', '公司名', '電話', '參訪後締結', '狀態', '追蹤紀錄'];
+const GUEST_HEADERS = ['首次參訪', '邀約人', '締結人', '姓名', '稱謂', '產業別', '公司名', '電話', '參訪後締結', '狀態', '追蹤紀錄', '想認識的會員'];
 
 function getSheet() {
   return SpreadsheetApp.openById(SS_ID).getSheets()
@@ -165,7 +165,8 @@ function listGuests() {
         phone:         String(row[7] || ''),
         postVisitNote: String(row[8] || ''),
         status:        String(row[9] || '待追蹤'),
-        tracks:        String(row[10] || '')
+        tracks:        String(row[10] || ''),
+        interestedIn:  String(row[11] || '')
       });
     });
   });
@@ -175,6 +176,7 @@ function listGuests() {
 function addGuest(body) {
   const year = yearFromDate(body.firstVisit);
   const sh = getGuestSheetForYear(year);
+  ensureInterestColumn(sh);
   const row = [
     body.firstVisit    || '',
     body.inviter       || '',
@@ -186,10 +188,26 @@ function addGuest(body) {
     body.phone         || '',
     body.postVisitNote || '',
     body.status        || '待追蹤',
-    body.tracks        || ''
+    body.tracks        || '',
+    body.interestedIn  || ''
   ];
   sh.appendRow(row);
   return { ok: true, year: year, sheetRow: sh.getLastRow() };
+}
+
+function ensureInterestColumn(sh) {
+  const lastCol = sh.getLastColumn();
+  if (lastCol < GUEST_HEADERS.length) {
+    sh.getRange(1, GUEST_HEADERS.length).setValue(GUEST_HEADERS[GUEST_HEADERS.length - 1]);
+    sh.getRange(1, GUEST_HEADERS.length).setFontWeight('bold').setBackground('#e8ecf0');
+  }
+}
+
+function normalizePhone(p) {
+  // 取出所有數字，並去掉前導 0
+  // 原因：Google Sheets 儲存 "0912345678" 會被自動轉成 number 912345678，前導 0 被吃掉
+  // 統一去前導 0 後兩種格式都能匹配
+  return String(p || '').replace(/\D/g, '').replace(/^0+/, '');
 }
 
 function updateGuest(body) {
@@ -212,12 +230,17 @@ function updateGuest(body) {
     body.tracks        || ''
   ]];
 
+  // 只更新前 11 欄，第 12 欄「想認識的會員」由 registerGuestInterest 自行維護
   if (oldYear === newYear) {
-    oldSh.getRange(r, 1, 1, GUEST_HEADERS.length).setValues(rowData);
+    oldSh.getRange(r, 1, 1, 11).setValues(rowData);
     return { ok: true, year: newYear, sheetRow: r };
   }
   const newSh = getGuestSheetForYear(newYear);
-  newSh.appendRow(rowData[0]);
+  ensureInterestColumn(newSh);
+  // 跨年度搬移時保留原本的想認識紀錄
+  const lastCol = oldSh.getLastColumn();
+  const existingInterest = lastCol >= 12 ? String(oldSh.getRange(r, 12).getValue() || '') : '';
+  newSh.appendRow(rowData[0].concat([existingInterest]));
   oldSh.deleteRow(r);
   return { ok: true, year: newYear, sheetRow: newSh.getLastRow() };
 }
@@ -228,11 +251,128 @@ function deleteGuest(body) {
   return { ok: true };
 }
 
+// ===== 來賓 DM 頁「想認識」按鈕：寫入歷屆來賓的「想認識的會員」欄 =====
+// 比對手機（去除非數字）找對應來賓，找不到則自動建立新紀錄
+function registerGuestInterest(body) {
+  if (body.token !== PUBLIC_DM_TOKEN) return { ok: false, error: 'invalid token' };
+  if (!checkPublicDMRateLimit()) return { ok: false, error: 'rate limit' };
+
+  const name = String(body.name || '').trim();
+  const phone = String(body.phone || '').trim();
+  const memberName = String(body.memberName || '').trim();
+  if (!name || !phone || !memberName) return { ok: false, error: 'missing fields' };
+
+  const phoneNorm = normalizePhone(phone);
+  if (!phoneNorm) return { ok: false, error: 'invalid phone' };
+
+  const ss = getGuestSS();
+  const sheets = ss.getSheets();
+
+  // 嘗試在所有年度分頁找出符合手機的來賓
+  for (let s = 0; s < sheets.length; s++) {
+    const sh = sheets[s];
+    const sheetName = sh.getName();
+    if (!/^\d{4}$/.test(sheetName)) continue;
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) continue;
+    ensureInterestColumn(sh);
+    const phoneCol = 8; // 「電話」是第 8 欄
+    const phones = sh.getRange(2, phoneCol, lastRow - 1, 1).getValues();
+    for (let i = 0; i < phones.length; i++) {
+      if (normalizePhone(phones[i][0]) === phoneNorm) {
+        const rowNum = i + 2;
+        const cell = sh.getRange(rowNum, 12);
+        const existing = parseInterest(cell.getValue());
+        const updated = upsertInterest(existing, memberName);
+        cell.setValue(JSON.stringify(updated));
+        return { ok: true, matched: true, year: parseInt(sheetName, 10), sheetRow: rowNum };
+      }
+    }
+  }
+
+  // 沒對到 → 自動建立新來賓（標記未匹配名單）
+  const today = new Date();
+  const todayStr = today.getFullYear() + '-'
+                 + String(today.getMonth() + 1).padStart(2, '0') + '-'
+                 + String(today.getDate()).padStart(2, '0');
+  const year = today.getFullYear();
+  const sh = getGuestSheetForYear(year);
+  ensureInterestColumn(sh);
+  const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
+  const interestJson = JSON.stringify([{ member: memberName, date: todayStr }]);
+  sh.appendRow([
+    todayStr,   // 首次參訪
+    '',         // 邀約人
+    '',         // 締結人
+    name,       // 姓名
+    '',         // 稱謂
+    '',         // 產業別
+    '',         // 公司名
+    phone,      // 電話
+    '',         // 參訪後締結
+    '待追蹤',   // 狀態
+    tracks,     // 追蹤紀錄
+    interestJson // 想認識的會員
+  ]);
+  return { ok: true, matched: false, year: year, sheetRow: sh.getLastRow() };
+}
+
+// 查詢手機是否在歷屆來賓名單裡，回傳資料庫中的姓名（用於「歡迎回來」訊息）
+function lookupGuestByPhone(body) {
+  if (body.token !== PUBLIC_DM_TOKEN) return { ok: false, error: 'invalid token' };
+  if (!checkPublicDMRateLimit()) return { ok: false, error: 'rate limit' };
+
+  const phone = String(body.phone || '').trim();
+  const phoneNorm = normalizePhone(phone);
+  if (!phoneNorm) return { ok: false, error: 'invalid phone' };
+
+  const ss = getGuestSS();
+  const sheets = ss.getSheets();
+  for (let s = 0; s < sheets.length; s++) {
+    const sh = sheets[s];
+    const sheetName = sh.getName();
+    if (!/^\d{4}$/.test(sheetName)) continue;
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) continue;
+    // 一次抓姓名 + 電話兩欄
+    const values = sh.getRange(2, 4, lastRow - 1, 5).getValues(); // 姓名(4)~電話(8)
+    for (let i = 0; i < values.length; i++) {
+      const phoneCell = values[i][4]; // 電話在第 8 欄，從 4 開始算第 5 個
+      if (normalizePhone(phoneCell) === phoneNorm) {
+        return { ok: true, matched: true, name: String(values[i][0] || '') };
+      }
+    }
+  }
+  return { ok: true, matched: false };
+}
+
+function parseInterest(v) {
+  if (!v) return [];
+  try {
+    const arr = JSON.parse(String(v));
+    return Array.isArray(arr) ? arr : [];
+  } catch (err) { return []; }
+}
+
+function upsertInterest(list, memberName) {
+  const today = new Date();
+  const todayStr = today.getFullYear() + '-'
+                 + String(today.getMonth() + 1).padStart(2, '0') + '-'
+                 + String(today.getDate()).padStart(2, '0');
+  const idx = list.findIndex(function(x) { return x && x.member === memberName; });
+  if (idx >= 0) {
+    list[idx].date = todayStr;
+  } else {
+    list.push({ member: memberName, date: todayStr });
+  }
+  return list;
+}
+
 // ===== 公開 DM 用 token（同時在前端 dm-public.html 設定）=====
 const PUBLIC_DM_TOKEN = '9k4r7p2m8x5v3t6y';
 
 // 速率限制：每分鐘最多 N 次（防止爬蟲大量呼叫）
-const PUBLIC_DM_RATE_LIMIT_PER_MIN = 30;
+const PUBLIC_DM_RATE_LIMIT_PER_MIN = 150;
 
 function checkPublicDMRateLimit() {
   const minute = Math.floor(new Date().getTime() / 60000);
@@ -345,6 +485,18 @@ function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
     const action = body.action;
+
+    if (action === 'registerGuestInterest') {
+      return ContentService
+        .createTextOutput(JSON.stringify(registerGuestInterest(body)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'lookupGuest') {
+      return ContentService
+        .createTextOutput(JSON.stringify(lookupGuestByPhone(body)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
 
     if (action === 'addGuest') {
       return ContentService

@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>BNI億展白金分會 — 會員 DM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -156,6 +159,186 @@ body { padding: 0 0 80px; min-height: 100vh; }
 }
 .mc-web-btn:active { background: #fdecea; }
 
+.mc-btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.mc-btn-row .mc-web-btn { margin-top: 0; }
+.mc-meet-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border: none;
+  background: #c0392b;
+  color: white;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.mc-meet-btn:active { background: #a8311e; }
+.mc-meet-btn.done {
+  background: #e8ecf0;
+  color: #888;
+  cursor: default;
+}
+.mc-meet-note {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #27ae60;
+  line-height: 1.4;
+}
+
+.guest-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 500;
+  padding: 20px;
+  padding-top: calc(20px + env(safe-area-inset-top, 0px));
+}
+.guest-modal-box {
+  background: white;
+  border-radius: 14px;
+  padding: 22px 20px 18px;
+  width: 100%;
+  max-width: 340px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+}
+.guest-modal-title { font-size: 17px; font-weight: 900; color: #c0392b; margin-bottom: 6px; }
+.guest-modal-sub { font-size: 12.5px; color: #666; line-height: 1.5; margin-bottom: 14px; }
+.guest-modal-label { font-size: 12px; color: #444; font-weight: 700; margin-bottom: 5px; }
+.guest-modal-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid #e8ecf0;
+  border-radius: 8px;
+  font-size: 15px;
+  font-family: inherit;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+}
+.guest-modal-input:focus { outline: 2px solid #c0392b; outline-offset: -1px; border-color: #c0392b; }
+.guest-modal-submit {
+  width: 100%;
+  background: #c0392b;
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 1px;
+}
+.guest-modal-submit:active { background: #a8311e; }
+.guest-modal-err { font-size: 12px; color: #c0392b; margin-top: -6px; margin-bottom: 8px; min-height: 14px; }
+
+/* 進場登入頁（覆蓋整個畫面）*/
+.login-page-overlay {
+  position: fixed; inset: 0;
+  background: linear-gradient(135deg, #c0392b 0%, #8e2820 100%);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+  padding-top: calc(24px + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  transition: opacity .4s ease;
+}
+.login-page-overlay.fade-out { opacity: 0; pointer-events: none; }
+.login-page-card {
+  background: white;
+  border-radius: 18px;
+  padding: 28px 24px 22px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+  text-align: center;
+}
+.login-page-welcome {
+  font-size: 12px;
+  color: #999;
+  letter-spacing: 2px;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+.login-page-title {
+  font-size: 21px;
+  font-weight: 900;
+  color: #c0392b;
+  margin-bottom: 6px;
+  letter-spacing: 1.5px;
+  line-height: 1.3;
+}
+.login-page-sub {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 22px;
+  line-height: 1.55;
+}
+.login-page-label {
+  font-size: 12px;
+  color: #444;
+  font-weight: 700;
+  margin-bottom: 5px;
+  text-align: left;
+}
+.login-page-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid #e8ecf0;
+  border-radius: 10px;
+  font-size: 16px;
+  font-family: inherit;
+  margin-bottom: 14px;
+  box-sizing: border-box;
+}
+.login-page-input:focus { outline: 2px solid #c0392b; outline-offset: -1px; border-color: #c0392b; }
+.login-page-submit {
+  width: 100%;
+  background: linear-gradient(135deg, #c0392b 0%, #a8311e 100%);
+  color: white;
+  border: none;
+  padding: 14px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 2px;
+  margin-top: 4px;
+}
+.login-page-submit:active { transform: translateY(1px); }
+.login-page-submit:disabled { opacity: .7; cursor: default; }
+.login-page-err { font-size: 12px; color: #c0392b; margin-top: -8px; margin-bottom: 10px; min-height: 14px; text-align: left; }
+.login-page-foot { margin-top: 16px; font-size: 11px; color: #aaa; line-height: 1.5; }
+
+/* 歡迎頁面（登入後過場）*/
+.welcome-stage {
+  text-align: center;
+  padding: 32px 20px;
+}
+.welcome-stage .icon {
+  font-size: 44px;
+  color: #c0392b;
+  margin-bottom: 12px;
+  line-height: 1;
+}
+.welcome-stage .big {
+  font-size: 22px;
+  font-weight: 900;
+  color: #c0392b;
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+}
+.welcome-stage .small {
+  font-size: 13px;
+  color: #888;
+  line-height: 1.55;
+}
+
 .contact-bar {
   position: fixed;
   bottom: 0;
@@ -223,6 +406,133 @@ function escH(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// 來賓識別與「想認識」狀態管理
+const GUEST_KEY = 'bni_dm_guest';
+const GUEST_TTL_DAYS = 7;
+const MEET_KEY = 'bni_dm_meet'; // 已點過想認識的會員名稱陣列
+
+function getGuestInfo() {
+  try {
+    const raw = localStorage.getItem(GUEST_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || !obj.name || !obj.phone || !obj.savedAt) return null;
+    const ageMs = Date.now() - obj.savedAt;
+    if (ageMs > GUEST_TTL_DAYS * 86400 * 1000) { localStorage.removeItem(GUEST_KEY); return null; }
+    return obj;
+  } catch (e) { return null; }
+}
+function saveGuestInfo(name, phone) {
+  localStorage.setItem(GUEST_KEY, JSON.stringify({ name, phone, savedAt: Date.now() }));
+}
+function getMeetSet() {
+  try { return new Set(JSON.parse(localStorage.getItem(MEET_KEY) || '[]')); }
+  catch (e) { return new Set(); }
+}
+function addMeet(memberName) {
+  const s = getMeetSet(); s.add(memberName);
+  localStorage.setItem(MEET_KEY, JSON.stringify([...s]));
+}
+function isMeetClicked(memberName) { return getMeetSet().has(memberName); }
+function escAttr(s) { return String(s || '').replace(/[^\w一-龥]/g, '_'); }
+
+function renderMeetBtn(memberName) {
+  const done = isMeetClicked(memberName);
+  const safe = escAttr(memberName);
+  if (done) {
+    return `<button class="mc-meet-btn done" disabled id="meet-${safe}">&#10003; 已通知</button>`;
+  }
+  return `<button class="mc-meet-btn" id="meet-${safe}" data-member="${escH(memberName)}">想認識</button>`;
+}
+
+document.addEventListener('click', function (e) {
+  const btn = e.target.closest && e.target.closest('.mc-meet-btn');
+  if (!btn || btn.classList.contains('done') || btn.disabled) return;
+  const memberName = btn.dataset.member;
+  if (memberName) onMeetClick(memberName);
+});
+
+async function onMeetClick(memberName) {
+  let info = getGuestInfo();
+  if (!info) {
+    info = await openGuestModal(memberName);
+    if (!info) return;
+  }
+  await submitInterest(memberName, info);
+}
+
+function openGuestModal(forMemberName) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'guest-modal-overlay';
+    overlay.innerHTML = `
+      <div class="guest-modal-box">
+        <div class="guest-modal-title">想認識 ${escH(forMemberName)}</div>
+        <div class="guest-modal-sub">請留下您的姓名與手機，會員會盡快主動聯繫您。資料僅供分會內部追蹤使用。</div>
+        <div class="guest-modal-label">姓名</div>
+        <input class="guest-modal-input" id="gm_name" autocomplete="name" placeholder="請輸入您的姓名">
+        <div class="guest-modal-label">手機</div>
+        <input class="guest-modal-input" id="gm_phone" autocomplete="tel" inputmode="numeric" placeholder="例：0912345678">
+        <div class="guest-modal-err" id="gm_err"></div>
+        <button class="guest-modal-submit" id="gm_submit">送出</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    setTimeout(() => document.getElementById('gm_name')?.focus(), 50);
+
+    document.getElementById('gm_submit').onclick = () => {
+      const name = document.getElementById('gm_name').value.trim();
+      const phone = document.getElementById('gm_phone').value.trim();
+      const errEl = document.getElementById('gm_err');
+      if (!name) { errEl.textContent = '請輸入姓名'; return; }
+      if (!phone || phone.replace(/\D/g,'').length < 8) { errEl.textContent = '請輸入正確的手機號碼'; return; }
+      saveGuestInfo(name, phone);
+      overlay.remove();
+      resolve({ name, phone });
+    };
+    [['gm_name','gm_phone'],['gm_phone','gm_submit']].forEach(([from,to]) => {
+      document.getElementById(from).onkeydown = (e) => {
+        if (e.key === 'Enter') document.getElementById(to).focus();
+      };
+    });
+  });
+}
+
+async function submitInterest(memberName, info) {
+  const safe = escAttr(memberName);
+  const btn = document.getElementById('meet-' + safe);
+  const note = document.getElementById('note-' + safe);
+  if (btn) { btn.disabled = true; btn.textContent = '送出中...'; }
+  try {
+    const body = {
+      action: 'registerGuestInterest',
+      token: VALID_TOKEN,
+      name: info.name,
+      phone: info.phone,
+      memberName
+    };
+    // 用 text/plain 避開 CORS preflight
+    const res = await fetch(PUBLIC_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'register failed');
+    addMeet(memberName);
+    if (btn) {
+      btn.className = 'mc-meet-btn done';
+      btn.innerHTML = '&#10003; 已通知';
+    }
+    if (note) {
+      note.textContent = '已通知 ' + memberName + '，會盡快聯繫您';
+      note.style.display = '';
+    }
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '想認識'; }
+    alert('送出失敗，請稍後再試');
+  }
+}
+
 async function loadMembers(token) {
   const url = `${PUBLIC_API_URL}?action=getPublicDM&token=${encodeURIComponent(token)}`;
   const res = await fetch(url);
@@ -277,7 +587,11 @@ function renderMembers(members) {
               ${m.service ? `<div class="mc-service">${escH(m.service)}</div>` : ''}
               ${m.phone ? `<div class="mc-phone"><a href="tel:${escH(m.phone.replace(/[^0-9+]/g,''))}">${escH(m.phone)}</a></div>` : ''}
               ${m.slogan ? `<div class="mc-slogan">「${escH(m.slogan)}」</div>` : ''}
-              ${m.website ? `<a class="mc-web-btn" href="${escH(m.website)}" target="_blank" rel="noopener">看官網 &rarr;</a>` : ''}
+              <div class="mc-btn-row">
+                ${m.website ? `<a class="mc-web-btn" href="${escH(m.website)}" target="_blank" rel="noopener">看官網 &rarr;</a>` : ''}
+                ${renderMeetBtn(m.name)}
+              </div>
+              <span class="mc-meet-note" id="note-${escAttr(m.name)}"${isMeetClicked(m.name) ? '' : ' style="display:none"'}>已通知 ${escH(m.name)}，會盡快聯繫您</span>
             </div>
           </div>
         `).join('')}
@@ -309,12 +623,96 @@ window.addEventListener('scroll', () => {
   });
 }, { passive: true });
 
+function showLoginPage() {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'login-page-overlay';
+    overlay.innerHTML = `
+      <div class="login-page-card">
+        <div class="login-page-welcome">WELCOME</div>
+        <div class="login-page-title">歡迎來到<br>BNI 億展白金分會</div>
+        <div class="login-page-sub">請留下您的姓名與手機<br>會員會盡快主動聯繫您</div>
+
+        <div id="lp_form">
+          <div class="login-page-label">姓名</div>
+          <input class="login-page-input" id="lp_name" autocomplete="name" placeholder="請輸入您的姓名">
+          <div class="login-page-label">手機</div>
+          <input class="login-page-input" id="lp_phone" autocomplete="tel" inputmode="numeric" placeholder="例：0912345678">
+          <div class="login-page-err" id="lp_err"></div>
+          <button class="login-page-submit" id="lp_submit">進 入 會 員 介 紹</button>
+          <div class="login-page-foot">資料僅供分會內部追蹤使用</div>
+        </div>
+
+        <div id="lp_welcome" style="display:none"></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    setTimeout(() => document.getElementById('lp_name')?.focus(), 80);
+
+    const nameEl = document.getElementById('lp_name');
+    const phoneEl = document.getElementById('lp_phone');
+    const errEl = document.getElementById('lp_err');
+    const btn = document.getElementById('lp_submit');
+
+    nameEl.onkeydown = (e) => { if (e.key === 'Enter') phoneEl.focus(); };
+    phoneEl.onkeydown = (e) => { if (e.key === 'Enter') btn.click(); };
+
+    btn.onclick = async () => {
+      const name = nameEl.value.trim();
+      const phone = phoneEl.value.trim();
+      if (!name) { errEl.textContent = '請輸入姓名'; return; }
+      if (!phone || phone.replace(/\D/g,'').length < 8) { errEl.textContent = '請輸入正確的手機號碼'; return; }
+
+      btn.disabled = true; btn.textContent = '查詢中...';
+      let matched = false, matchedName = '';
+      try {
+        const res = await fetch(PUBLIC_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'lookupGuest', token: VALID_TOKEN, phone })
+        });
+        const json = await res.json();
+        if (json && json.ok) { matched = !!json.matched; matchedName = json.name || ''; }
+      } catch (e) { /* 沒網路也讓他進，後續按想認識時會自動建檔 */ }
+
+      saveGuestInfo(name, phone);
+
+      // 切換到歡迎詞
+      document.getElementById('lp_form').style.display = 'none';
+      const wel = document.getElementById('lp_welcome');
+      wel.className = 'welcome-stage';
+      wel.style.display = '';
+      const greeting = matched
+        ? `歡迎回來，${escH(matchedName || name)}！`
+        : `歡迎您，${escH(name)}！`;
+      const sub = matched
+        ? '很開心再次見到您，請挑選感興趣的會員了解更多'
+        : '正在為您準備分會會員介紹...';
+      wel.innerHTML = `<div class="icon">&#9733;</div><div class="big">${greeting}</div><div class="small">${sub}</div>`;
+
+      setTimeout(() => {
+        overlay.classList.add('fade-out');
+        setTimeout(() => { overlay.remove(); resolve({ name, phone, matched, matchedName }); }, 400);
+      }, 1800);
+    };
+  });
+}
+
+async function ensureGuestLogin() {
+  const info = getGuestInfo();
+  if (info) return info;
+  return await showLoginPage();
+}
+
 (async function init() {
   const token = getToken();
   if (token !== VALID_TOKEN) {
     document.getElementById('content').innerHTML = `<div class="error-box">無效的連結<br><br>請聯絡分會取得正確的 QR Code</div>`;
     return;
   }
+
+  // 強制登入：先取得來賓資料才能進入 DM
+  await ensureGuestLogin();
+
   try {
     const members = await loadMembers(token);
     renderMembers(members);
