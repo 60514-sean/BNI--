@@ -295,7 +295,7 @@ async function renderDM() {
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-primary" onclick="printDM()">匯出 PDF</button>
-          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="window.open('${DM_PUBLIC_URL}','_blank')">預覽公開頁</button>
+          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="openDMPreview()">預覽公開頁</button>
           <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="renderDM()">換一種排法</button>
         </div>
       </div>
@@ -334,6 +334,33 @@ async function renderDM() {
   // 在 P4 渲染 QR code
   const qrBox = document.getElementById('dmQRBox');
   if (qrBox) _renderQRInto(qrBox, 56);
+}
+
+function openDMPreview() {
+  // 已開啟則不重複開
+  if (document.getElementById('dmPreviewModal')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'dmPreviewModal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:0;';
+  overlay.innerHTML = `
+    <div style="width:100%;max-width:480px;height:100%;display:flex;flex-direction:column;background:#f4f5f7;">
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#1a1a1a;color:white;padding:10px 14px;flex-shrink:0;">
+        <div style="font-size:13px;font-weight:700;letter-spacing:1px;">公開頁預覽（來賓視角）</div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="window.open('${DM_PUBLIC_URL}','_blank')" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;">新分頁開啟</button>
+          <button onclick="closeDMPreview()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:5px 12px;border-radius:6px;font-size:14px;cursor:pointer;font-family:inherit;font-weight:700;">關閉 ✕</button>
+        </div>
+      </div>
+      <iframe src="${DM_PUBLIC_URL}" style="flex:1;width:100%;border:none;background:white;"></iframe>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDMPreview() {
+  document.getElementById('dmPreviewModal')?.remove();
+  document.body.style.overflow = '';
 }
 
 function _loadScript(src) {
