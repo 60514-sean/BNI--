@@ -317,7 +317,7 @@ async function renderDM() {
         <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(3)}" alt="" crossorigin="anonymous">
         <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="${_dmBgSrc(4)}" alt="" crossorigin="anonymous">
         ${dividers}
-        <div id="dmQRPreview" style="position:absolute;left:828px;top:520px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;z-index:8;">
+        <div id="dmQRPreview" style="position:absolute;left:829px;top:520px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;z-index:8;">
           <div id="dmQRBox" style="width:44px;height:44px;"></div>
         </div>
         ${ov(0,0,true)}${ov(1,1,true)}

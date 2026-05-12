@@ -34,8 +34,8 @@ async function renderDMBackgrounds() {
   </div>`);
 
   parts.push(`<div style="font-size:12px;color:var(--text-soft);background:#fef9e7;border:1px solid #fcf3cf;padding:10px 14px;border-radius:8px;margin-bottom:16px;line-height:1.5;">
-    上傳後，DM 渲染會自動使用新底圖。建議尺寸：<strong>單面板 1288 × 3556 px</strong>（對應 105mm × 297mm 印刷）。<br>
-    P4 需保留 QR 紅框位置（水平 63.8%~91.4%、垂直 80.8%~89.7%）。
+    上傳後，DM 渲染會自動使用新底圖。建議尺寸：<strong>1240 × 3508 px</strong>（單面板 105mm × 297mm，300 DPI 印刷品質）。<br>
+    比例需嚴格為 105:297，不正確會造成銜接錯位。P4 需保留 QR 紅框位置（水平 64.1%~92.4%、垂直 80.8%~89.7%）。
   </div>`);
 
   parts.push(`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;">`);
