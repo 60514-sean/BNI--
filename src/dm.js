@@ -533,14 +533,14 @@ async function printDM() {
         new Promise(r => { img.onload = r; img.onerror = r; })
       ));
       const canvas = await html2canvas(pageEl, {
-        scale: 1.5,
+        scale: 2,
         useCORS: true,
         allowTaint: false,
         logging: false,
         backgroundColor: '#ffffff'
       });
       if (i > 0) doc.addPage();
-      doc.addImage(canvas.toDataURL('image/jpeg', 0.78), 'JPEG', 0, 0, 420, 297);
+      doc.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 420, 297);
     }
     _downloadPdfBlob(doc.output('blob'), 'BNI-億展分會-會員名錄.pdf');
     showToast('PDF 已下載');
