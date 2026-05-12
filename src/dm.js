@@ -295,6 +295,7 @@ async function renderDM() {
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-primary" onclick="printDM()">匯出 PDF</button>
+          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="window.open('${DM_PUBLIC_URL}','_blank')">預覽公開頁</button>
           <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="renderDM()">換一種排法</button>
         </div>
       </div>
