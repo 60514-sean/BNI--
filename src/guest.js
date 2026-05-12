@@ -677,14 +677,6 @@ async function openGuestModal(arg, opts) {
 
     <div class="modal-field">
       <div class="modal-label">參訪日</div>
-      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
-        <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;">
-          <input type="radio" name="gm_visitType" value="首次" ${(g?.visitType||'首次')==='首次'?'checked':''}>首次參訪
-        </label>
-        <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;">
-          <input type="radio" name="gm_visitType" value="二次" ${g?.visitType==='二次'?'checked':''}>二次參訪
-        </label>
-      </div>
       <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
     </div>
     <div class="modal-row">
@@ -1063,7 +1055,6 @@ async function saveGuest(gKey) {
 
   const fields = {
     firstVisit:    document.getElementById('gm_firstVisit').value,
-    visitType:     document.querySelector('input[name="gm_visitType"]:checked')?.value || '首次',
     inviter:       document.getElementById('gm_inviter').value.trim(),
     closer:        document.getElementById('gm_closer').value.trim(),
     name:          name,
