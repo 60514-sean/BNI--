@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>BNI億展白金分會 — 會員 DM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #f4f5f7; font-family: 'Noto Sans TC', 'Microsoft JhengHei', sans-serif; color: #1a1a1a; -webkit-font-smoothing: antialiased; }
+body { padding: 0 0 80px; min-height: 100vh; }
+
+.public-header {
+  background: linear-gradient(135deg, #c0392b 0%, #a8311e 100%);
+  color: white;
+  padding: 20px 18px calc(20px + env(safe-area-inset-top, 0px));
+  padding-top: calc(20px + env(safe-area-inset-top, 0px));
+  text-align: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.public-header h1 { font-size: 19px; font-weight: 900; letter-spacing: 1px; margin-bottom: 4px; }
+.public-header .sub { font-size: 12px; opacity: .85; font-weight: 500; }
+
+.container { max-width: 720px; margin: 0 auto; padding: 16px 14px 0; }
+
+.industry-group { margin-bottom: 22px; }
+.industry-title {
+  font-size: 13px;
+  font-weight: 900;
+  color: white;
+  padding: 6px 14px;
+  border-radius: 6px;
+  display: inline-block;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.member-list { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media(min-width: 600px) { .member-list { grid-template-columns: 1fr 1fr; } }
+
+.member-card {
+  background: white;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  border: 1px solid #e8ecf0;
+}
+.mc-photo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2.5px solid #c0392b;
+  background: #eee;
+}
+.mc-photo-empty {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2.5px solid #c0392b;
+  background: #e8ecf0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #bbb;
+  font-size: 22px;
+  font-weight: 900;
+}
+.mc-info { flex: 1; min-width: 0; }
+.mc-name { font-size: 16px; font-weight: 900; color: #1a1a1a; margin-bottom: 3px; }
+.mc-spec-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 900;
+  color: white;
+  padding: 2px 9px;
+  border-radius: 12px;
+  letter-spacing: 0.5px;
+  margin-bottom: 5px;
+}
+.mc-company { font-size: 13px; color: #444; font-weight: 700; margin-bottom: 2px; line-height: 1.3; }
+.mc-service { font-size: 11px; color: #888; line-height: 1.45; margin-bottom: 4px; }
+.mc-slogan { font-size: 11.5px; color: #666; font-style: italic; line-height: 1.5; border-top: 1px dashed #e8ecf0; padding-top: 5px; margin-top: 5px; }
+.mc-plates { font-size: 10.5px; color: #888; margin-top: 4px; font-family: 'DM Mono', monospace; }
+
+.contact-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid #e8ecf0;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+  z-index: 200;
+}
+.contact-btn {
+  display: block;
+  text-align: center;
+  background: #1877f2;
+  color: white;
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  letter-spacing: 1px;
+}
+.contact-btn:active { background: #145dbf; }
+
+.loader { text-align: center; padding: 60px 20px; color: #888; font-size: 14px; }
+.error-box { text-align: center; padding: 60px 20px; color: #c0392b; font-size: 14px; line-height: 1.6; }
+.empty-box { text-align: center; padding: 40px 20px; color: #888; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="public-header">
+  <h1>BNI億展白金分會</h1>
+  <div class="sub">會員介紹 DM</div>
+</div>
+
+<div class="container" id="content">
+  <div class="loader">載入中...</div>
+</div>
+
+<div class="contact-bar">
+  <a href="https://www.facebook.com/share/1JDsPW9qMN/?mibextid=wwXIfr" class="contact-btn" target="_blank" rel="noopener">聯絡分會（Facebook 粉專）</a>
+</div>
+
+<script>
+const VALID_TOKEN = '9k4r7p2m8x5v3t6y';
+const MEMBER_CSV = 'https://docs.google.com/spreadsheets/d/1vaunMiu-soVacqsbvRxY1dDQ2ZLBghv0t9rTer3KdP0/export?format=csv&gid=466594149';
+const CAT_COLORS = ['#c0392b','#7b6914','#2e6e8e','#7b3f6a','#2e7d52','#b5631a','#5a4a8a','#4a7a5a','#8e3a3a','#3a6a7a'];
+
+function getToken() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('t') || '';
+}
+
+function escH(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function parseCSV(text) {
+  const rows = []; let cur = []; let val = ''; let inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"' && text[i+1] === '"') { val += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else val += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ',') { cur.push(val); val = ''; }
+      else if (c === '\n') { cur.push(val); rows.push(cur); cur = []; val = ''; }
+      else if (c === '\r') { /* skip */ }
+      else val += c;
+    }
+  }
+  if (val !== '' || cur.length) { cur.push(val); rows.push(cur); }
+  return rows;
+}
+
+async function loadMembers() {
+  const res = await fetch(MEMBER_CSV);
+  const text = await res.text();
+  const rows = parseCSV(text);
+  if (rows.length < 2) return [];
+  const headers = rows[0];
+  const idx = name => headers.findIndex(h => h.includes(name));
+  const iName = idx('姓名'), iSpec = idx('專業別'), iComp = idx('公司'), iServ = idx('服務');
+  const iPhoto = idx('照片連結'), iInd = idx('產業鏈'), iSlogan = idx('口號'), iPlates = idx('車牌');
+
+  return rows.slice(1)
+    .map(r => ({
+      name: (r[iName]||'').trim(),
+      specialty: (r[iSpec]||'').trim(),
+      industry: iInd>=0 ? (r[iInd]||'').trim() : '',
+      slogan: iSlogan>=0 ? (r[iSlogan]||'').trim() : '',
+      plates: iPlates>=0 ? (r[iPlates]||'').trim() : '',
+      company: (r[iComp]||'').trim(),
+      service: (r[iServ]||'').trim(),
+      photo: (r[iPhoto]||'').trim()
+    }))
+    .filter(m => m.name);
+}
+
+function renderMembers(members) {
+  // 依產業鏈分群
+  const groups = {};
+  members.forEach(m => {
+    const k = m.industry || m.specialty || '其他';
+    if (!groups[k]) groups[k] = [];
+    groups[k].push(m);
+  });
+  const groupKeys = Object.keys(groups);
+  const colorMap = {};
+  groupKeys.forEach((k, i) => { colorMap[k] = CAT_COLORS[i % CAT_COLORS.length]; });
+
+  const parts = [];
+  groupKeys.forEach(g => {
+    const color = colorMap[g];
+    parts.push(`<div class="industry-group">
+      <div class="industry-title" style="background:${color};">${escH(g)}</div>
+      <div class="member-list">
+        ${groups[g].map(m => `
+          <div class="member-card">
+            ${m.photo
+              ? `<img class="mc-photo" src="${escH(m.photo)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                 <div class="mc-photo-empty" style="display:none">?</div>`
+              : `<div class="mc-photo-empty">?</div>`}
+            <div class="mc-info">
+              <div class="mc-name">${escH(m.name)}</div>
+              ${m.specialty ? `<span class="mc-spec-tag" style="background:${color};">${escH(m.specialty)}</span>` : ''}
+              ${m.company ? `<div class="mc-company">${escH(m.company)}</div>` : ''}
+              ${m.service ? `<div class="mc-service">${escH(m.service)}</div>` : ''}
+              ${m.slogan ? `<div class="mc-slogan">「${escH(m.slogan)}」</div>` : ''}
+              ${m.plates ? `<div class="mc-plates">${escH(m.plates)}</div>` : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`);
+  });
+  document.getElementById('content').innerHTML = parts.join('') || `<div class="empty-box">目前沒有會員資料</div>`;
+}
+
+(async function init() {
+  const token = getToken();
+  if (token !== VALID_TOKEN) {
+    document.getElementById('content').innerHTML = `<div class="error-box">無效的連結<br><br>請聯絡分會取得正確的 QR Code</div>`;
+    return;
+  }
+  try {
+    const members = await loadMembers();
+    renderMembers(members);
+  } catch (e) {
+    document.getElementById('content').innerHTML = `<div class="error-box">載入失敗，請稍後再試</div>`;
+  }
+})();
+</script>
+</body>
+</html>

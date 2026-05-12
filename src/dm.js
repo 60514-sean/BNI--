@@ -31,6 +31,73 @@ const DM_PANEL_H  = 636;   // px，畫布高度
 const DM_RED_MM   = 21.8;  // mm，P1-P2 底部禁區
 const PX2MM = 297 / 636;   // px→mm 換算（面板高 297mm / 畫布高 636px）
 
+// 公開 DM 網址（QR code 內容）
+const DM_PUBLIC_URL = 'https://bni-weekly.vercel.app/dm-public.html?t=9k4r7p2m8x5v3t6y';
+const DM_QR_COLOR = '#c0392b';
+
+// 建立 QR code 設定物件（給 qr-code-styling 用）
+function _buildQRConfig(sizePx, asSvg) {
+  return {
+    width: sizePx,
+    height: sizePx,
+    type: asSvg ? 'svg' : 'canvas',
+    data: DM_PUBLIC_URL,
+    margin: 0,
+    qrOptions: { errorCorrectionLevel: 'H' },
+    dotsOptions:          { type: 'dots',           color: DM_QR_COLOR },
+    cornersSquareOptions: { type: 'extra-rounded',  color: DM_QR_COLOR },
+    cornersDotOptions:    { type: 'dot',            color: DM_QR_COLOR },
+    backgroundOptions:    { color: '#ffffff' }
+  };
+}
+
+// 在指定 DOM 容器渲染 QR code（用於螢幕預覽）
+// 因為 qr-code-styling 不支援太小的尺寸，先渲染 200px，再用 CSS scale 縮到目標大小
+function _renderQRInto(container, sizePx) {
+  if (typeof QRCodeStyling === 'undefined') {
+    console.error('[DM] QRCodeStyling 函式庫尚未載入');
+    container.innerHTML = '<div style="font-size:9px;color:#c0392b;text-align:center;padding:6px;">QR 載入失敗</div>';
+    return;
+  }
+  const RENDER_SIZE = 200;
+  const scale = sizePx / RENDER_SIZE;
+  container.style.width = sizePx + 'px';
+  container.style.height = sizePx + 'px';
+  container.style.overflow = 'hidden';
+  container.innerHTML = '';
+  const inner = document.createElement('div');
+  inner.style.cssText = `width:${RENDER_SIZE}px;height:${RENDER_SIZE}px;transform:scale(${scale});transform-origin:top left;`;
+  container.appendChild(inner);
+  try {
+    const qr = new QRCodeStyling(_buildQRConfig(RENDER_SIZE, false));
+    qr.append(inner);
+  } catch (e) {
+    console.error('[DM] QR 渲染錯誤:', e);
+  }
+}
+
+// 產生 QR code 並回傳 data URL（用於 PDF 嵌入）
+async function _generateQRDataURL(sizePx) {
+  if (typeof QRCodeStyling === 'undefined') {
+    console.error('[DM] QRCodeStyling 函式庫尚未載入（PDF）');
+    return '';
+  }
+  try {
+    const qr = new QRCodeStyling(_buildQRConfig(sizePx, false));
+    const blob = await qr.getRawData('png');
+    if (!blob) return '';
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    console.error('[DM] QR PDF 產生錯誤:', e);
+    return '';
+  }
+}
+
 // ===== DM 分配：6 個會員面板（P1,P2,P5,P6,P7,P8）=====
 // 依面板高度比例平均分配人數，群組可跨面板分割，不限制產業鏈位置
 function _dmDistribute() {
@@ -241,9 +308,14 @@ async function renderDM() {
         <img style="position:absolute;left:50%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p3.png" alt="">
         <img style="position:absolute;left:75%;top:0;width:25%;height:100%;object-fit:fill;display:block;" src="dm_p4.png" alt="">
         ${dividers}
+        <div id="dmQRPreview" style="position:absolute;left:822px;top:514px;width:56px;height:56px;display:flex;align-items:center;justify-content:center;z-index:8;">
+          <div id="dmQRBox" style="width:56px;height:56px;"></div>
+        </div>
         ${ov(0,0,true)}${ov(1,1,true)}
       </div>
     </div>
+
+    <div style="font-size:11px;color:var(--text-soft);margin-top:6px;text-align:center;">↑ P4 含 QR Code（位置/大小可調整）</div>
 
     <div class="dm-panel-label" style="margin-top:16px;">背面 A3（Page 5–8，左→右）</div>
     <div class="dm-scale-outer" id="dmOuter2">
@@ -258,6 +330,9 @@ async function renderDM() {
     </div>
   </div>`;
   _scaleDM();
+  // 在 P4 渲染 QR code
+  const qrBox = document.getElementById('dmQRBox');
+  if (qrBox) _renderQRInto(qrBox, 56);
 }
 
 function _loadScript(src) {
@@ -376,8 +451,22 @@ async function printDM() {
   };
   const bg = (n, xmm) => `<img style="position:absolute;left:${xmm}mm;top:0;width:105mm;height:297mm;object-fit:fill;display:block;" src="${base}dm_p${n}.png" crossorigin="anonymous">`;
 
+  // 為 P4 產生 QR code（PDF 版本，較高解析度）
+  // P4 底圖紅框位置：left=382mm, top=238mm, 寬 29mm × 高 30mm
+  const qrDataUrl = await _generateQRDataURL(400);
+  const qrSizeMm = 26;  // 26mm，幾乎填滿紅框，仍可看見邊線
+  const qrBoxX = 382;
+  const qrBoxY = 238;
+  const qrBoxW = 29;
+  const qrBoxH = 30;
+  const qrX = +(qrBoxX + (qrBoxW - qrSizeMm) / 2).toFixed(2);
+  const qrY = +(qrBoxY + (qrBoxH - qrSizeMm) / 2).toFixed(2);
+  const qrOverlay = qrDataUrl
+    ? `<img src="${qrDataUrl}" style="position:absolute;left:${qrX}mm;top:${qrY}mm;width:${qrSizeMm}mm;height:${qrSizeMm}mm;display:block;">`
+    : '';
+
   const pages = [
-    `${bg(1,0)}${bg(2,105)}${bg(3,210)}${bg(4,315)}${ovP12(0,0)}${ovP12(1,1)}`,
+    `${bg(1,0)}${bg(2,105)}${bg(3,210)}${bg(4,315)}${ovP12(0,0)}${ovP12(1,1)}${qrOverlay}`,
     `${bg(5,0)}${bg(6,105)}${bg(7,210)}${bg(8,315)}${ovP58(2,0)}${ovP58(3,1)}${ovP58(4,2)}${ovP58(5,3)}`
   ];
 

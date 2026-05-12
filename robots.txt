@@ -1,0 +1,3 @@
+User-agent: *
+Disallow: /dm-public.html
+Disallow: /dm-public
