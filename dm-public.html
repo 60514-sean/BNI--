@@ -234,7 +234,6 @@ function renderMembers(members) {
               ${m.service ? `<div class="mc-service">${escH(m.service)}</div>` : ''}
               ${m.phone ? `<div class="mc-phone"><a href="tel:${escH(m.phone.replace(/[^0-9+]/g,''))}">${escH(m.phone)}</a></div>` : ''}
               ${m.slogan ? `<div class="mc-slogan">「${escH(m.slogan)}」</div>` : ''}
-              ${m.plates ? `<div class="mc-plates">${escH(m.plates)}</div>` : ''}
             </div>
           </div>
         `).join('')}
