@@ -1873,13 +1873,15 @@ function _buildWeekPrintPage(guests, pageNum, totalPages, dateRange, totalGuests
   const suffix = totalPages > 1 ? `　·　${pageNum} / ${totalPages}` : '';
   const rowsHtml = guests.map((g, i) => _buildWeekPrintRow(g, startIdx + i + 1)).join('');
   return `
-    <div class="week-print-page" data-page="${pageNum}" style="width:794px;height:1123px;background:white;padding:42px 44px;box-sizing:border-box;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;color:#1a1a2e;box-shadow:0 4px 24px rgba(0,0,0,0.45);">
-      <div style="text-align:center;margin-bottom:20px;padding-bottom:14px;border-bottom:3px solid #c0392b;">
-        <div style="font-size:11pt;color:#999;letter-spacing:4px;margin-bottom:6px;font-weight:600;">BNI YIH CHAN PLATINUM CHAPTER</div>
-        <div style="font-size:21pt;font-weight:900;letter-spacing:3px;line-height:1.2;color:#1a1a2e;">本周來賓資訊</div>
-        <div style="font-size:10.5pt;color:#666;margin-top:8px;letter-spacing:2px;">${_escH(dateRange)}　·　共 ${totalGuests} 位${suffix}</div>
+    <div class="week-print-page" data-page="${pageNum}" style="width:794px;height:1123px;background:white;padding:36px 40px;box-sizing:border-box;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;color:#1a1a2e;box-shadow:0 4px 24px rgba(0,0,0,0.45);">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:2.5px solid #c0392b;">
+        <div>
+          <div style="font-size:9pt;color:#999;letter-spacing:3px;margin-bottom:3px;font-weight:600;">BNI YIH CHAN PLATINUM CHAPTER</div>
+          <div style="font-size:18pt;font-weight:900;letter-spacing:2px;line-height:1.1;color:#1a1a2e;">本周來賓資訊</div>
+        </div>
+        <div style="font-size:9.5pt;color:#666;letter-spacing:1.5px;text-align:right;">${_escH(dateRange)}<br><span style="font-size:8.5pt;color:#999;">共 ${totalGuests} 位${suffix}</span></div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:9px;">${rowsHtml}</div>
+      <div style="display:flex;flex-direction:column;gap:5px;">${rowsHtml}</div>
     </div>
   `;
 }
@@ -1888,29 +1890,29 @@ function _buildWeekPrintRow(g, num) {
   const interested = _parseInterested(g.interestedIn);
   const interestedText = interested.length ? interested.map(x => x.member).join('、') : '';
   const dash = (v) => (v && String(v).trim()) ? _escH(v) : '<span style="color:#bbb;">—</span>';
-  // 固定高度 92px，內容過多時 overflow:hidden（不會把 A4 撐爆）
+  // 固定高度 95px，補充資訊以單行文字緊密排列、超出截斷
   return `
-    <div style="height:92px;background:white;border:1px solid #e5e7eb;border-left:4px solid #c0392b;border-radius:5px;padding:8px 14px;box-sizing:border-box;font-size:9pt;line-height:1.45;color:#1a1a2e;overflow:hidden;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px;">
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:#c0392b;color:white;border-radius:50%;font-size:10pt;font-weight:900;flex-shrink:0;">${num}</span>
-        <span style="font-size:13pt;font-weight:900;color:#1a1a2e;">${_escH(g.name)}</span>
-        ${g.title ? `<span style="font-size:9.5pt;color:#888;">${_escH(g.title)}</span>` : ''}
-        <span style="margin-left:auto;font-size:8.5pt;color:#999;letter-spacing:1px;">首訪 ${_escH(g.firstVisit || '—')}</span>
+    <div style="height:95px;background:white;border:1px solid #e5e7eb;border-left:4px solid #c0392b;border-radius:5px;padding:5px 12px;box-sizing:border-box;font-size:9pt;line-height:1.35;color:#1a1a2e;overflow:hidden;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:3px;">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;background:#c0392b;color:white;border-radius:50%;font-size:9.5pt;font-weight:900;flex-shrink:0;">${num}</span>
+        <span style="font-size:12pt;font-weight:900;color:#1a1a2e;line-height:1.2;">${_escH(g.name)}</span>
+        ${g.title ? `<span style="font-size:9pt;color:#888;">${_escH(g.title)}</span>` : ''}
+        <span style="margin-left:auto;font-size:8pt;color:#999;letter-spacing:1px;">首訪 ${_escH(g.firstVisit || '—')}</span>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px 14px;font-size:9pt;color:#333;padding-bottom:5px;border-bottom:1px dashed #ececec;margin-bottom:5px;">
-        <span><span style="color:#999;font-size:8pt;">邀約　</span>${dash(g.inviter)}</span>
-        <span><span style="color:#999;font-size:8pt;">締結　</span>${dash(g.closer)}</span>
-        <span><span style="color:#999;font-size:8pt;">機率　</span>${dash(g.joinProb || '未評估')}</span>
-        <span><span style="color:#999;font-size:8pt;">產業　</span>${dash(g.industry)}</span>
-        <span><span style="color:#999;font-size:8pt;">公司　</span>${dash(g.company)}</span>
-        <span><span style="color:#999;font-size:8pt;">電話　</span>${dash(g.phone)}</span>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px 12px;font-size:8.5pt;color:#333;padding-bottom:3px;border-bottom:1px dashed #ececec;margin-bottom:3px;">
+        <span><span style="color:#999;font-size:7.5pt;">邀約　</span>${dash(g.inviter)}</span>
+        <span><span style="color:#999;font-size:7.5pt;">締結　</span>${dash(g.closer)}</span>
+        <span><span style="color:#999;font-size:7.5pt;">機率　</span>${dash(g.joinProb || '未評估')}</span>
+        <span><span style="color:#999;font-size:7.5pt;">產業　</span>${dash(g.industry)}</span>
+        <span><span style="color:#999;font-size:7.5pt;">公司　</span>${dash(g.company)}</span>
+        <span><span style="color:#999;font-size:7.5pt;">電話　</span>${dash(g.phone)}</span>
       </div>
-      <div style="font-size:8.5pt;line-height:1.45;color:#444;">
-        ${g.personality    ? `<span style="margin-right:14px;"><span style="color:#999;">個性 </span>${_escH(g.personality)}</span>` : ''}
-        ${g.expectedGain   ? `<span style="margin-right:14px;"><span style="color:#999;">預期 </span>${_escH(g.expectedGain)}</span>` : ''}
-        ${g.businessStatus ? `<span style="margin-right:14px;"><span style="color:#999;">事業 </span>${_escH(g.businessStatus)}</span>` : ''}
-        ${interestedText   ? `<span style="margin-right:14px;color:#c0392b;font-weight:600;">想認識 ${_escH(interestedText)}</span>` : ''}
-        ${g.postVisitNote  ? `<span style="margin-right:14px;"><span style="color:#999;">後締結 </span>${_escH(g.postVisitNote)}</span>` : ''}
+      <div style="font-size:8pt;line-height:1.4;color:#444;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+        ${g.personality    ? `<span style="margin-right:10px;"><span style="color:#999;">個性 </span>${_escH(g.personality)}</span>` : ''}
+        ${g.expectedGain   ? `<span style="margin-right:10px;"><span style="color:#999;">預期 </span>${_escH(g.expectedGain)}</span>` : ''}
+        ${g.businessStatus ? `<span style="margin-right:10px;"><span style="color:#999;">事業 </span>${_escH(g.businessStatus)}</span>` : ''}
+        ${interestedText   ? `<span style="margin-right:10px;color:#c0392b;font-weight:600;">想認識 ${_escH(interestedText)}</span>` : ''}
+        ${g.postVisitNote  ? `<span style="margin-right:10px;"><span style="color:#999;">後締結 </span>${_escH(g.postVisitNote)}</span>` : ''}
       </div>
     </div>
   `;
