@@ -303,6 +303,16 @@ function _hasInterestStar(g) {
   return false;
 }
 
+// 入會機率對應進度條顏色：高=綠 / 中=黃 / 低=紅 / 未評估=灰
+function _joinProbColor(joinProb) {
+  switch (joinProb) {
+    case '高': return '#27ae60';
+    case '中': return '#d4ac0d';
+    case '低': return '#c0392b';
+    default:   return '#9ca3af'; // 未評估 / 空
+  }
+}
+
 // 進度條：6 步（首訪 / 追蹤 / 二訪 / 填單 / 繳費 / 結案）
 // 前 3 步自動偵測，後 3 步手動勾選（同時兼容舊資料的 status 推算）
 function _guestProgressDots(g) {
@@ -804,17 +814,17 @@ function _guestCardHtml(g) {
   const hasStar = _hasInterestStar(g);
 
   // 進度條（純顯示，所有 tab 都顯示）
-  // 連線規則：找出「最後一個完成」的步驟 index，凡是這個 index 之前的連線都畫紅線
-  // （即使中間圈圈是灰色，只要進度跨過去了仍視為已連線）
+  // 顏色由入會機率決定：高=綠 / 中=黃 / 低=紅 / 未評估=灰
   const steps = _guestProgressDots(g);
   const lastDoneIdx = steps.reduce((m, s, idx) => s.done ? idx : m, -1);
+  const probColor = _joinProbColor(g.joinProb);
   const dotsHtml = steps.map((s, i) => `
     <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;position:relative;">
-      ${i > 0 ? `<div style="position:absolute;left:-50%;top:7px;width:100%;height:2px;background:${i <= lastDoneIdx ? 'var(--red)' : '#e8ecf0'};z-index:0;"></div>` : ''}
-      <div style="width:16px;height:16px;border-radius:50%;background:${s.done ? 'var(--red)' : 'white'};border:2px solid ${s.done ? 'var(--red)' : '#e8ecf0'};z-index:1;display:flex;align-items:center;justify-content:center;">
+      ${i > 0 ? `<div style="position:absolute;left:-50%;top:7px;width:100%;height:2px;background:${i <= lastDoneIdx ? probColor : '#e8ecf0'};z-index:0;"></div>` : ''}
+      <div style="width:16px;height:16px;border-radius:50%;background:${s.done ? probColor : 'white'};border:2px solid ${s.done ? probColor : '#e8ecf0'};z-index:1;display:flex;align-items:center;justify-content:center;">
         ${s.done ? '<svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
       </div>
-      <div style="font-size:10px;color:${s.done ? 'var(--red)' : '#bbb'};font-weight:${s.done ? 700 : 500};">${s.label}</div>
+      <div style="font-size:10px;color:${s.done ? probColor : '#bbb'};font-weight:${s.done ? 700 : 500};">${s.label}</div>
     </div>
   `).join('');
   const progressHtml = `
@@ -882,7 +892,6 @@ function _guestCardHtml(g) {
   const expandedHtml = `
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-border);font-size:13px;line-height:1.55;">
       ${dateLine ? `<div style="color:var(--text-soft);margin-bottom:8px;">${dateLine}</div>` : ''}
-      ${_joinProbBadge(g.joinProb) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${_joinProbBadge(g.joinProb)}</div>` : ''}
       ${g.expectedGain   ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">預期收穫：</b>${_escH(g.expectedGain)}</div>` : ''}
       ${g.businessStatus ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">事業現狀：</b>${_escH(g.businessStatus)}</div>` : ''}
       ${g.personality    ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">個性：</b>${_escH(g.personality)}</div>` : ''}
