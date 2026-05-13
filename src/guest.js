@@ -882,10 +882,7 @@ function _guestCardHtml(g) {
   const expandedHtml = `
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-border);font-size:13px;line-height:1.55;">
       ${dateLine ? `<div style="color:var(--text-soft);margin-bottom:8px;">${dateLine}</div>` : ''}
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
-        ${_guestStatusBadge(g.status)}
-        ${_joinProbBadge(g.joinProb)}
-      </div>
+      ${_joinProbBadge(g.joinProb) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">${_joinProbBadge(g.joinProb)}</div>` : ''}
       ${g.expectedGain   ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">預期收穫：</b>${_escH(g.expectedGain)}</div>` : ''}
       ${g.businessStatus ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">事業現狀：</b>${_escH(g.businessStatus)}</div>` : ''}
       ${g.personality    ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">個性：</b>${_escH(g.personality)}</div>` : ''}
