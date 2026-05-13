@@ -804,10 +804,13 @@ function _guestCardHtml(g) {
   const hasStar = _hasInterestStar(g);
 
   // 進度條（純顯示，所有 tab 都顯示）
+  // 連線規則：找出「最後一個完成」的步驟 index，凡是這個 index 之前的連線都畫紅線
+  // （即使中間圈圈是灰色，只要進度跨過去了仍視為已連線）
   const steps = _guestProgressDots(g);
+  const lastDoneIdx = steps.reduce((m, s, idx) => s.done ? idx : m, -1);
   const dotsHtml = steps.map((s, i) => `
     <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;position:relative;">
-      ${i > 0 ? `<div style="position:absolute;left:-50%;top:7px;width:100%;height:2px;background:${steps[i-1].done && s.done ? 'var(--red)' : (steps[i-1].done ? 'var(--red)' : '#e8ecf0')};z-index:0;"></div>` : ''}
+      ${i > 0 ? `<div style="position:absolute;left:-50%;top:7px;width:100%;height:2px;background:${i <= lastDoneIdx ? 'var(--red)' : '#e8ecf0'};z-index:0;"></div>` : ''}
       <div style="width:16px;height:16px;border-radius:50%;background:${s.done ? 'var(--red)' : 'white'};border:2px solid ${s.done ? 'var(--red)' : '#e8ecf0'};z-index:1;display:flex;align-items:center;justify-content:center;">
         ${s.done ? '<svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
       </div>
