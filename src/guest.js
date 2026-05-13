@@ -67,6 +67,22 @@ function _phoneKey(p) {
   return String(p || '').replace(/\D/g, '').replace(/^0+/, '');
 }
 
+// 把手機格式化為 0900-000-000（台灣 09 開頭 10 碼）；其他格式原樣保留
+function _formatPhoneTw(p) {
+  const raw = String(p == null ? '' : p).trim();
+  if (!raw) return '';
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 10 && digits.startsWith('09')) {
+    return digits.slice(0,4) + '-' + digits.slice(4,7) + '-' + digits.slice(7);
+  }
+  // 使用者只輸入 9 開頭 9 碼，補 0
+  if (digits.length === 9 && digits.startsWith('9')) {
+    const d = '0' + digits;
+    return d.slice(0,4) + '-' + d.slice(4,7) + '-' + d.slice(7);
+  }
+  return raw;
+}
+
 // 把同手機的來賓合併成一筆「展示用」物件：以最新（首訪日最大者）為主，想認識/行為合併
 function _groupGuestsByPhone(list) {
   const groups = {};
@@ -901,7 +917,7 @@ function _guestCardHtml(g) {
         </div>
         <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">
           ${g.inviter ? `邀約：<b style="color:var(--text);">${_escH(g.inviter)}</b>　` : ''}
-          ${g.phone ? `<a href="tel:${_escH(g.phone)}" style="color:var(--red);text-decoration:none;" onclick="event.stopPropagation()">${_escH(g.phone)}</a>` : ''}
+          ${g.phone ? `<a href="tel:${_escH(g.phone)}" style="color:var(--red);text-decoration:none;" onclick="event.stopPropagation()">${_escH(_formatPhoneTw(g.phone))}</a>` : ''}
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0;align-items:center;">
@@ -1083,7 +1099,7 @@ async function openGuestModal(arg, opts) {
 
     <div class="modal-field">
       <div class="modal-label">電話</div>
-      <input class="modal-input" type="tel" id="gm_phone" value="${_escH(g?.phone || '')}" placeholder="09XX-XXX-XXX">
+      <input class="modal-input" type="tel" id="gm_phone" value="${_escH(_formatPhoneTw(g?.phone || ''))}" placeholder="0900-000-000" onblur="this.value=_formatPhoneTw(this.value)">
     </div>
 
     <div class="modal-field">
@@ -1487,7 +1503,7 @@ function _selectMemberSuggest(inputId, name) {
 async function saveGuest(gKey) {
   const name = document.getElementById('gm_name').value.trim();
   if (!name) { showToast('請輸入姓名'); return; }
-  const phone = document.getElementById('gm_phone').value.trim();
+  const phone = _formatPhoneTw(document.getElementById('gm_phone').value);
 
   // 新增時偵測重複：同姓名（且若兩邊都有電話則需相符）→ 提示改為編輯既有資料
   if (!gKey && Array.isArray(_guestData)) {
@@ -1502,7 +1518,7 @@ async function saveGuest(gKey) {
       const d = dupes[0];
       const ok = confirm(
         `資料庫中已有「${d.name}」` +
-        (d.phone ? `（電話 ${d.phone}）` : '') +
+        (d.phone ? `（電話 ${_formatPhoneTw(d.phone)}）` : '') +
         `\n首訪日：${d.firstVisit || '未填'}\n\n` +
         `按「確定」改為編輯該筆既有資料\n按「取消」仍以新來賓建立`
       );
@@ -1766,7 +1782,7 @@ function _renderImportPreview(rows) {
   const today = _todayIso();
   const parsed = rows.map(r => ({
     name:          String(r['來賓姓名'] || r['姓名'] || r['name'] || '').trim(),
-    phone:         String(r['來賓電話'] || r['電話'] || r['phone'] || '').trim(),
+    phone:         _formatPhoneTw(String(r['來賓電話'] || r['電話'] || r['phone'] || '').trim()),
     firstVisit:    _normalizeImportDate(r['參訪日期'] || r['首次參訪'] || r['firstVisit'] || '') || today,
     inviter:       String(r['邀約人'] || r['inviter'] || '').trim(),
     title:         String(r['先生or小姐'] || r['稱謂'] || r['title'] || '').trim(),
@@ -2044,7 +2060,7 @@ function _buildWeekPrintRow(g, num) {
       <div style="display:grid;grid-template-columns:1.3fr 1.3fr 1.3fr 0.6fr;gap:2px 14px;font-size:8.5pt;color:#333;padding-bottom:5px;border-bottom:1px dashed #ececec;margin-bottom:5px;">
         <span><span style="color:#999;font-size:7.5pt;">產業　</span>${dash(g.industry)}</span>
         <span><span style="color:#999;font-size:7.5pt;">公司　</span>${dash(g.company)}</span>
-        <span><span style="color:#999;font-size:7.5pt;">電話　</span>${dash(g.phone)}</span>
+        <span><span style="color:#999;font-size:7.5pt;">電話　</span>${g.phone ? _escH(_formatPhoneTw(g.phone)) : '<span style="color:#bbb;">—</span>'}</span>
         <span><span style="color:#999;font-size:7.5pt;">機率　</span><span style="color:${probColor};font-weight:700;">${probNum}</span></span>
         <span><span style="color:#999;font-size:7.5pt;">邀約　</span>${dash(g.inviter)}</span>
         <span><span style="color:#999;font-size:7.5pt;">締結　</span>${dash(g.closer)}</span>
