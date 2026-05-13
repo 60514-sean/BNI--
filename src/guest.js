@@ -828,6 +828,7 @@ function _guestCardHtml(g) {
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">
           <span style="font-size:16px;font-weight:900;color:var(--text);">${_escH(g.name)}</span>
+          ${g.title ? `<span style="font-size:12px;color:var(--text-soft);">${_escH(g.title)}</span>` : ''}
           ${unmatched ? `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:#fde68a;color:#92400e;font-size:11px;font-weight:700;white-space:nowrap;">未匹配名單</span>` : ''}
           ${_heatBadge(heat)}
         </div>
@@ -882,7 +883,6 @@ function _guestCardHtml(g) {
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-border);font-size:13px;line-height:1.55;">
       ${dateLine ? `<div style="color:var(--text-soft);margin-bottom:8px;">${dateLine}</div>` : ''}
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
-        ${g.title ? `<span style="font-size:12px;color:var(--text-soft);align-self:center;">${_escH(g.title)}</span>` : ''}
         ${_guestStatusBadge(g.status)}
         ${_joinProbBadge(g.joinProb)}
       </div>
