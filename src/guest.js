@@ -302,7 +302,7 @@ const GUEST_TAB_DEFS = [
   { id: 'tracking', label: '追蹤中',   color: '#92400e', bg: '#fef3c7', filter: (g) => ['待追蹤', '持續追蹤'].includes(g.status) },
   { id: 'hot',      label: '高潛力',   color: '#991b1b', bg: '#fee2e2', filter: _isHotGuest },
   { id: 'process',  label: '入會流程', color: '#9a3412', bg: '#fed7aa', filter: (g) => ['已填單待繳費', '審核中'].includes(g.status) },
-  { id: 'paused',   label: '暫停追蹤', color: '#475569', bg: '#e5e7eb', filter: (g) => g.status === '婉拒/停止追蹤' }
+  { id: 'paused',   label: '暫停追蹤', color: '#475569', bg: '#e5e7eb', filter: (g) => ['婉拒/停止追蹤', '轉別分會'].includes(g.status) }
 ];
 
 // localStorage 快取（stale-while-revalidate）：UI 秒顯示舊資料，背景再抓最新
