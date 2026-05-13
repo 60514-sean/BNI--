@@ -283,6 +283,9 @@ function updateGuest(body) {
     if (body.personality    !== undefined) oldSh.getRange(r, 16).setValue(String(body.personality || ''));
     if (body.joinProb       !== undefined) oldSh.getRange(r, 17).setValue(String(body.joinProb || ''));
     if (body.prevStatus     !== undefined) oldSh.getRange(r, 18).setValue(String(body.prevStatus || ''));
+    if (body.applied        !== undefined) oldSh.getRange(r, 19).setValue(body.applied ? 'TRUE' : 'FALSE');
+    if (body.paid           !== undefined) oldSh.getRange(r, 20).setValue(body.paid ? 'TRUE' : 'FALSE');
+    if (body.closed         !== undefined) oldSh.getRange(r, 21).setValue(body.closed ? 'TRUE' : 'FALSE');
     invalidateGuestListCache();
     return { ok: true, year: newYear, sheetRow: r };
   }
@@ -306,7 +309,10 @@ function updateGuest(body) {
   const finalPer  = body.personality    !== undefined ? String(body.personality    || '') : existingPer;
   const finalProb = body.joinProb       !== undefined ? String(body.joinProb       || '') : existingProb;
   const finalPrev = body.prevStatus     !== undefined ? String(body.prevStatus     || '') : existingPrevSt;
-  newSh.appendRow(rowData[0].concat([existingInterest, existingBehavior, finalGain, finalBiz, finalPer, finalProb, finalPrev, existingApplied, existingPaid, existingClosed]));
+  const finalApp  = body.applied        !== undefined ? (body.applied ? 'TRUE' : 'FALSE') : existingApplied;
+  const finalPaid = body.paid           !== undefined ? (body.paid    ? 'TRUE' : 'FALSE') : existingPaid;
+  const finalCls  = body.closed         !== undefined ? (body.closed  ? 'TRUE' : 'FALSE') : existingClosed;
+  newSh.appendRow(rowData[0].concat([existingInterest, existingBehavior, finalGain, finalBiz, finalPer, finalProb, finalPrev, finalApp, finalPaid, finalCls]));
   oldSh.deleteRow(r);
   invalidateGuestListCache();
   return { ok: true, year: newYear, sheetRow: newSh.getLastRow() };

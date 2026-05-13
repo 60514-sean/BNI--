@@ -817,7 +817,6 @@ function _guestCardHtml(g) {
   const progressHtml = `
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--gray-border);">
       <div style="display:flex;align-items:center;padding:0 6px;">${dotsHtml}</div>
-      <button onclick="event.stopPropagation();openGuestProgressModal(${g.year},${g.sheetRow})" style="display:block;width:100%;border:none;background:transparent;padding:8px 0 0;color:var(--red);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">編輯進度</button>
     </div>`;
 
   // 折疊版（永遠顯示）
@@ -1050,6 +1049,28 @@ async function openGuestModal(arg, opts) {
     </div>
 
     <div class="modal-field" style="margin-top:14px;">
+      <div class="modal-label">追蹤進度</div>
+      <div style="font-size:11px;color:var(--text-soft);margin-bottom:8px;line-height:1.5;">
+        前 3 步（首訪/追蹤/二訪）由系統自動偵測。下方 3 步請手動勾選：<br>
+        填單 / 繳費 依序勾選，取消填單會自動清掉繳費。勾「結案」會自動移到「暫停追蹤」分頁。
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;background:#fafbfc;padding:12px 14px;border-radius:8px;border:1px solid var(--gray-border);">
+        <label class="gm-step" style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
+          <input type="checkbox" id="gm_applied" ${g && _isApplied(g)?'checked':''} onchange="_gmProgressChange()">
+          1. 填申請表
+        </label>
+        <label class="gm-step" id="gm_lbl_paid" style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
+          <input type="checkbox" id="gm_paid" ${g && _isPaid(g)?'checked':''} onchange="_gmProgressChange()">
+          2. 繳費
+        </label>
+        <label class="gm-step" style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;border-top:1px dashed var(--gray-border);padding-top:10px;margin-top:4px;">
+          <input type="checkbox" id="gm_closed" ${g && _isClosed(g)?'checked':''}>
+          3. 結案（流程結束 / 婉拒，移到暫停追蹤）
+        </label>
+      </div>
+    </div>
+
+    <div class="modal-field" style="margin-top:14px;">
       <div class="modal-label">預期收穫 / 目的</div>
       <textarea class="modal-input" id="gm_expectedGain" rows="2" style="resize:vertical;">${_escH(g?.expectedGain || '')}</textarea>
     </div>
@@ -1088,6 +1109,25 @@ async function openGuestModal(arg, opts) {
   overlay.onclick = closeGuestModal;
   document.body.appendChild(overlay);
   _renderTracksList();
+  _gmProgressChange(); // 初始化「繳費」依「填單」的鎖定狀態
+}
+
+// 編輯視窗內：依序鎖定「繳費」於「填單」之後
+function _gmProgressChange() {
+  const ap = document.getElementById('gm_applied');
+  const pa = document.getElementById('gm_paid');
+  const lblPa = document.getElementById('gm_lbl_paid');
+  if (!ap || !pa || !lblPa) return;
+  if (!ap.checked) {
+    pa.checked = false;
+    pa.disabled = true;
+    lblPa.style.opacity = '.4';
+    lblPa.style.cursor = 'not-allowed';
+  } else {
+    pa.disabled = false;
+    lblPa.style.opacity = '1';
+    lblPa.style.cursor = 'pointer';
+  }
 }
 
 function closeGuestModal() {
@@ -1361,6 +1401,11 @@ async function saveGuest(gKey) {
     }
   }
 
+  // 進度 3 個 checkbox（須在 closeGuestModal 之前讀取）
+  const appliedNew = document.getElementById('gm_applied')?.checked || false;
+  const paidNew    = document.getElementById('gm_paid')?.checked    || false;
+  const closedNew  = document.getElementById('gm_closed')?.checked  || false;
+
   const fields = {
     firstVisit:    document.getElementById('gm_firstVisit').value,
     inviter:       document.getElementById('gm_inviter').value.trim(),
@@ -1376,8 +1421,27 @@ async function saveGuest(gKey) {
     tracks:        JSON.stringify(_guestModalTracks.filter(t => t.note && t.note.trim())),
     expectedGain:  document.getElementById('gm_expectedGain')?.value.trim() || '',
     businessStatus:document.getElementById('gm_businessStatus')?.value.trim() || '',
-    personality:   document.getElementById('gm_personality')?.value.trim() || ''
+    personality:   document.getElementById('gm_personality')?.value.trim() || '',
+    applied:       appliedNew,
+    paid:          paidNew,
+    closed:        closedNew
   };
+
+  // 結案邏輯：剛勾起 → 存 prevStatus；剛取消 → 還原 prevStatus（覆蓋 status）
+  if (gKey) {
+    const [year, row] = gKey.split('-').map(Number);
+    const orig = _guestData?.find(x => x.year === year && x.sheetRow === row);
+    if (orig) {
+      const wasClosed = _isClosed(orig);
+      if (closedNew && !wasClosed) {
+        fields.prevStatus = fields.status || '持續追蹤';
+      } else if (!closedNew && wasClosed) {
+        const restore = orig.prevStatus || fields.status || '持續追蹤';
+        fields.status = restore;
+        fields.prevStatus = '';
+      }
+    }
+  }
 
   closeGuestModal();
 
