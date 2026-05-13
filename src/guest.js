@@ -296,6 +296,72 @@ function _isHotGuest(g) {
   return false;
 }
 
+// 興趣 ★ 觸發條件：有想認識會員 OR 熱度 ≥ 10
+function _hasInterestStar(g) {
+  if (_parseInterested(g.interestedIn).length > 0) return true;
+  if (_calcHeatScore(g) >= 10) return true;
+  return false;
+}
+
+// 追蹤中 tab 的進度條：4 步（首訪 / 追蹤 / 二訪 / 填單）
+function _guestProgressDots(g) {
+  const tracksCount = (g._allRows || [g]).reduce((s, r) => s + _parseTracks(r.tracks).length, 0);
+  const steps = [
+    { label: '首訪', done: true },
+    { label: '追蹤', done: tracksCount >= 1 },
+    { label: '二訪', done: !!g._hasSecond },
+    { label: '填單', done: ['已填單待繳費','審核中'].includes(g.status), clickable: true }
+  ];
+  return steps;
+}
+
+// 切換「填申請表」：未填 → 已填單待繳費 / 已填 → 持續追蹤
+async function _toggleApplyForm(year, sheetRow) {
+  if (!_guestData) return;
+  const g = _guestData.find(x => x.year === year && x.sheetRow === sheetRow);
+  if (!g) return;
+  const isInProcess = ['已填單待繳費','審核中'].includes(g.status);
+  const newStatus = isInProcess ? '持續追蹤' : '已填單待繳費';
+  g.status = newStatus;
+  _saveGuestsToLS(_guestData);
+  _renderOnlyList();
+  try {
+    await _apiPost({ action: 'updateGuestStatus', year, sheetRow, status: newStatus });
+    showToast(isInProcess ? '已取消填單' : '已標記填單');
+  } catch (e) {
+    showToast('同步失敗，請重新整理');
+  }
+}
+
+// 切換結案：標記 → 記錄結案前狀態並設為「婉拒/停止追蹤」；重啟 → 還原原本狀態
+async function _toggleClosed(year, sheetRow) {
+  if (!_guestData) return;
+  const g = _guestData.find(x => x.year === year && x.sheetRow === sheetRow);
+  if (!g) return;
+  const isClosed = g.status === '婉拒/停止追蹤';
+  if (isClosed) {
+    const restoreStatus = g.prevStatus || '持續追蹤';
+    g.status = restoreStatus;
+    g.prevStatus = '';
+    _saveGuestsToLS(_guestData);
+    _renderOnlyList();
+    try {
+      await _apiPost({ action: 'updateGuestStatus', year, sheetRow, status: restoreStatus, prevStatus: '' });
+      showToast('已重啟追蹤');
+    } catch (e) { showToast('同步失敗，請重新整理'); }
+  } else {
+    const prev = g.status || '持續追蹤';
+    g.prevStatus = prev;
+    g.status = '婉拒/停止追蹤';
+    _saveGuestsToLS(_guestData);
+    _renderOnlyList();
+    try {
+      await _apiPost({ action: 'updateGuestStatus', year, sheetRow, status: '婉拒/停止追蹤', prevStatus: prev });
+      showToast('已結案');
+    } catch (e) { showToast('同步失敗，請重新整理'); }
+  }
+}
+
 // 5 個 tab 定義（單一資料源，stat 卡與 sub-tab 共用）
 const GUEST_TAB_DEFS = [
   { id: 'week',     label: '本周來賓', color: '#1e40af', bg: '#dbeafe', filter: _isInWeekGuest },
@@ -613,6 +679,32 @@ function _guestCardHtml(g) {
   const editArg = g.phone ? g.phone : `${g.year}-${g.sheetRow}`;
   const behKey = (g._hasSecond && g.phone) ? `phone:${g.phone}` : `${g.year}-${g.sheetRow}`;
   const interested = _parseInterested(g.interestedIn);
+  const hasStar = _hasInterestStar(g);
+
+  // 進度條（只在「追蹤中」tab 顯示）
+  const showProgress = _guestSubTab === 'tracking';
+  const isClosed = g.status === '婉拒/停止追蹤';
+  let progressHtml = '';
+  if (showProgress) {
+    const steps = _guestProgressDots(g);
+    const dotsHtml = steps.map((s, i) => `
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;position:relative;">
+        ${i > 0 ? `<div style="position:absolute;left:-50%;top:7px;width:100%;height:2px;background:${steps[i-1].done && s.done ? 'var(--red)' : (steps[i-1].done ? 'var(--red)' : '#e8ecf0')};z-index:0;"></div>` : ''}
+        <div style="width:16px;height:16px;border-radius:50%;background:${s.done ? 'var(--red)' : 'white'};border:2px solid ${s.done ? 'var(--red)' : '#e8ecf0'};z-index:1;display:flex;align-items:center;justify-content:center;${s.clickable ? 'cursor:pointer;' : ''}" ${s.clickable ? `onclick="event.stopPropagation();_toggleApplyForm(${g.year},${g.sheetRow})"` : ''}>
+          ${s.done ? '<svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
+        </div>
+        <div style="font-size:10px;color:${s.done ? 'var(--red)' : '#bbb'};font-weight:${s.done ? 700 : 500};${s.clickable ? 'cursor:pointer;' : ''}" ${s.clickable ? `onclick="event.stopPropagation();_toggleApplyForm(${g.year},${g.sheetRow})"` : ''}>${s.label}</div>
+      </div>
+    `).join('');
+    const closeBtn = isClosed
+      ? `<button onclick="event.stopPropagation();_toggleClosed(${g.year},${g.sheetRow})" style="padding:5px 10px;background:#fee2e2;border:1.5px solid #c0392b;color:#c0392b;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">✓ 已結案・重啟</button>`
+      : `<button onclick="event.stopPropagation();_toggleClosed(${g.year},${g.sheetRow})" style="padding:5px 10px;background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">結案</button>`;
+    progressHtml = `
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--gray-border);display:flex;align-items:center;gap:8px;">
+        <div style="display:flex;align-items:center;flex:1;min-width:0;padding:0 6px;">${dotsHtml}</div>
+        ${closeBtn}
+      </div>`;
+  }
 
   // 折疊版（永遠顯示）
   const collapsedHtml = `
@@ -634,11 +726,13 @@ function _guestCardHtml(g) {
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0;align-items:center;">
+        ${hasStar ? `<span title="有想認識會員或熱度高" style="color:#c0392b;font-size:20px;line-height:1;user-select:none;">★</span>` : ''}
         ${g._pending
           ? `<span style="padding:6px 12px;font-size:12px;color:var(--text-soft);background:#f4f6f8;border-radius:6px;">同步中...</span>`
           : `<button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="event.stopPropagation();openGuestModal('${_escH(editArg)}')">編輯</button>`}
       </div>
     </div>
+    ${progressHtml}
   `;
 
   if (!expanded) {
