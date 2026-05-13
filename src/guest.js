@@ -1911,9 +1911,29 @@ function _buildWeekPrintRow(g, num) {
   const interested = _parseInterested(g.interestedIn);
   const interestedText = interested.length ? interested.map(x => x.member).join('、') : '';
   const dash = (v) => (v && String(v).trim()) ? _escH(v) : '<span style="color:#bbb;">—</span>';
-  // 固定高度 95px，補充資訊以單行文字緊密排列、超出截斷
+  // 入會機率顏色（紅綠燈）
+  const probColor = g.joinProb === '高' ? '#27ae60'
+                  : g.joinProb === '中' ? '#d4ac0d'
+                  : g.joinProb === '低' ? '#c0392b'
+                  : '#9ca3af';
+  // 補充資訊兩欄分組
+  // 左欄：想認識行業（紅）、個性、事業現狀
+  // 右欄：想認識會員（紅）、預期收穫、後締結、補充
+  const lFields = [
+    g.interestedIndustry ? `<div><span style="color:#999;">想認識行業 </span><span style="color:#c0392b;font-weight:600;">${_escH(g.interestedIndustry)}</span></div>` : '',
+    g.personality        ? `<div><span style="color:#999;">個性 </span>${_escH(g.personality)}</div>` : '',
+    g.businessStatus     ? `<div><span style="color:#999;">事業現狀 </span>${_escH(g.businessStatus)}</div>` : ''
+  ].filter(Boolean).join('');
+  const rFields = [
+    interestedText   ? `<div><span style="color:#999;">想認識會員 </span><span style="color:#c0392b;font-weight:600;">${_escH(interestedText)}</span></div>` : '',
+    g.expectedGain   ? `<div><span style="color:#999;">預期收穫 </span>${_escH(g.expectedGain)}</div>` : '',
+    g.postVisitNote  ? `<div><span style="color:#999;">後締結 </span>${_escH(g.postVisitNote)}</div>` : '',
+    g.extraNote      ? `<div><span style="color:#999;">補充 </span>${_escH(g.extraNote)}</div>` : ''
+  ].filter(Boolean).join('');
+  const hasNotes = lFields || rFields;
+  // 固定高度 95px（10 人剛好填滿 A4 內容區）
   return `
-    <div style="height:95px;background:white;border:1px solid #e5e7eb;border-left:4px solid #c0392b;border-radius:5px;padding:5px 12px;box-sizing:border-box;font-size:9pt;line-height:1.35;color:#1a1a2e;overflow:hidden;">
+    <div style="height:95px;background:white;border:1px solid #e5e7eb;border-left:4px solid #c0392b;border-radius:5px;padding:5px 12px;box-sizing:border-box;font-size:9pt;line-height:1.3;color:#1a1a2e;overflow:hidden;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:3px;">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;background:#c0392b;color:white;border-radius:50%;font-size:9.5pt;font-weight:900;flex-shrink:0;">${num}</span>
         <span style="font-size:12pt;font-weight:900;color:#1a1a2e;line-height:1.2;">${_escH(g.name)}</span>
@@ -1923,20 +1943,16 @@ function _buildWeekPrintRow(g, num) {
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px 12px;font-size:8.5pt;color:#333;padding-bottom:3px;border-bottom:1px dashed #ececec;margin-bottom:3px;">
         <span><span style="color:#999;font-size:7.5pt;">邀約　</span>${dash(g.inviter)}</span>
         <span><span style="color:#999;font-size:7.5pt;">締結　</span>${dash(g.closer)}</span>
-        <span><span style="color:#999;font-size:7.5pt;">機率　</span>${dash(g.joinProb || '未評估')}</span>
+        <span><span style="color:#999;font-size:7.5pt;">機率　</span><span style="color:${probColor};font-weight:700;">${dash(g.joinProb || '未評估')}</span></span>
         <span><span style="color:#999;font-size:7.5pt;">產業　</span>${dash(g.industry)}</span>
         <span><span style="color:#999;font-size:7.5pt;">公司　</span>${dash(g.company)}</span>
         <span><span style="color:#999;font-size:7.5pt;">電話　</span>${dash(g.phone)}</span>
       </div>
-      <div style="font-size:8pt;line-height:1.4;color:#444;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
-        ${g.interestedIndustry ? `<span style="margin-right:10px;"><span style="color:#999;">想認識行業 </span>${_escH(g.interestedIndustry)}</span>` : ''}
-        ${g.personality    ? `<span style="margin-right:10px;"><span style="color:#999;">個性 </span>${_escH(g.personality)}</span>` : ''}
-        ${g.expectedGain   ? `<span style="margin-right:10px;"><span style="color:#999;">預期 </span>${_escH(g.expectedGain)}</span>` : ''}
-        ${g.businessStatus ? `<span style="margin-right:10px;"><span style="color:#999;">事業 </span>${_escH(g.businessStatus)}</span>` : ''}
-        ${interestedText   ? `<span style="margin-right:10px;color:#c0392b;font-weight:600;">想認識 ${_escH(interestedText)}</span>` : ''}
-        ${g.postVisitNote  ? `<span style="margin-right:10px;"><span style="color:#999;">後締結 </span>${_escH(g.postVisitNote)}</span>` : ''}
-        ${g.extraNote      ? `<span style="margin-right:10px;"><span style="color:#999;">補充 </span>${_escH(g.extraNote)}</span>` : ''}
-      </div>
+      ${hasNotes ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr;column-gap:16px;row-gap:1px;font-size:8pt;line-height:1.4;color:#444;overflow:hidden;">
+        <div>${lFields}</div>
+        <div>${rFields}</div>
+      </div>` : ''}
     </div>
   `;
 }
