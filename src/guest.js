@@ -1953,12 +1953,14 @@ function _buildWeekPrintRow(g, num) {
                 : g.joinProb === '中' ? '3'
                 : g.joinProb === '低' ? '1'
                 : '—';
-  // 補充資訊兩欄分組（個性、事業現狀已上移到主資訊區）
-  // 左欄：想認識行業（紅）、預期收穫
+  // 補充資訊兩欄分組
+  // 左欄：想認識行業（紅）、預期收穫、個性、事業現狀
   // 右欄：想認識會員（紅）、後締結、補充
   const lFields = [
     g.interestedIndustry ? `<div><span style="color:#999;">想認識行業 </span><span style="color:#c0392b;font-weight:600;">${_escH(g.interestedIndustry)}</span></div>` : '',
-    g.expectedGain       ? `<div><span style="color:#999;">預期收穫 </span>${_escH(g.expectedGain)}</div>` : ''
+    g.expectedGain       ? `<div><span style="color:#999;">預期收穫 </span>${_escH(g.expectedGain)}</div>` : '',
+    g.personality        ? `<div><span style="color:#999;">個性 </span>${_escH(g.personality)}</div>` : '',
+    g.businessStatus     ? `<div><span style="color:#999;">事業現狀 </span>${_escH(g.businessStatus)}</div>` : ''
   ].filter(Boolean).join('');
   const rFields = [
     interestedText   ? `<div><span style="color:#999;">想認識會員 </span><span style="color:#c0392b;font-weight:600;">${_escH(interestedText)}</span></div>` : '',
@@ -1975,15 +1977,13 @@ function _buildWeekPrintRow(g, num) {
         ${g.title ? `<span style="font-size:9pt;color:#888;">${_escH(g.title)}</span>` : ''}
         <span style="margin-left:auto;font-size:8pt;color:#999;letter-spacing:1px;">首訪 ${_escH(g.firstVisit || '—')}</span>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:2px 14px;font-size:8.5pt;color:#333;padding-bottom:5px;border-bottom:1px dashed #ececec;margin-bottom:5px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px 14px;font-size:8.5pt;color:#333;padding-bottom:5px;border-bottom:1px dashed #ececec;margin-bottom:5px;">
         <span><span style="color:#999;font-size:7.5pt;">產業　</span>${dash(g.industry)}</span>
         <span><span style="color:#999;font-size:7.5pt;">公司　</span>${dash(g.company)}</span>
         <span><span style="color:#999;font-size:7.5pt;">電話　</span>${dash(g.phone)}</span>
-        <span><span style="color:#999;font-size:7.5pt;">機率　</span><span style="color:${probColor};font-weight:700;">${probNum}</span></span>
-        <span><span style="color:#999;font-size:7.5pt;">個性　</span>${dash(g.personality)}</span>
-        <span><span style="color:#999;font-size:7.5pt;">事業現狀　</span>${dash(g.businessStatus)}</span>
         <span><span style="color:#999;font-size:7.5pt;">邀約　</span>${dash(g.inviter)}</span>
         <span><span style="color:#999;font-size:7.5pt;">締結　</span>${dash(g.closer)}</span>
+        <span><span style="color:#999;font-size:7.5pt;">機率　</span><span style="color:${probColor};font-weight:700;">${probNum}</span></span>
       </div>
       ${hasNotes ? `
       <div style="display:grid;grid-template-columns:1fr 1fr;column-gap:18px;row-gap:2px;font-size:8.5pt;line-height:1.45;color:#444;">
