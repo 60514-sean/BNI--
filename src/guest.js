@@ -403,14 +403,6 @@ async function renderGuestTrack() {
     `).join('')}
   </div>`;
 
-  // sub-tab
-  const tabsHtml = `<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
-    ${GUEST_TAB_DEFS.map(t => {
-      const active = _guestSubTab === t.id;
-      return `<button onclick="_guestSubTab='${t.id}';renderGuestTrack()" style="flex:1;min-width:80px;padding:10px 6px;border:none;background:${active ? t.color : '#f5f5f5'};color:${active ? 'white' : 'var(--text-soft)'};font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;border-radius:8px;">${t.label}</button>`;
-    }).join('')}
-  </div>`;
-
   el.innerHTML = `<div class="signin-wrapper">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
       <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">來賓追蹤</h2>
@@ -421,7 +413,6 @@ async function renderGuestTrack() {
       </div>
     </div>
     ${statsHtml}
-    ${tabsHtml}
     <input class="member-search" type="text" placeholder="搜尋姓名、公司、電話..." value="${_escH(_guestSearch)}" oninput="_guestSearch=this.value;_debouncedRenderGuestList()" autocomplete="off" style="margin-bottom:12px;">
     <div id="guestList">${_guestListHtml(list)}</div>
   </div>`;
