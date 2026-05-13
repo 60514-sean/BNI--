@@ -75,14 +75,15 @@ async function doLogin() {
   try {
     sessionStorage.setItem('bni_session', JSON.stringify({ name, role: CR }));
   } catch {}
+
+  // 先把歡迎遮罩立刻蓋上，避免後續切換 appPage 時看到主畫面渲染過程
+  showWelcomeOverlay(name, isAdmin);
+
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'flex';
   document.getElementById('userChip').textContent = name;
   document.getElementById('userChip').style.display = 'none'; // 依需求隱藏使用者名稱標記
   document.getElementById('menuBtn').style.display = 'flex';
-
-  // 顯示歡迎過場（與主畫面渲染並行，3.0s 後自動淡出）
-  showWelcomeOverlay(name, isAdmin);
 
   // 啟動編輯鎖 observer（依 _canEditTab 自動鎖定 OFF 頁面的輸入欄位）
   _startEditLockObserver();

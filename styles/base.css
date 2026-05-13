@@ -672,7 +672,7 @@ input.is-locked:focus, textarea.is-locked:focus {
   position: fixed; inset: 0; z-index: 9999;
   background: white;
   display: flex; align-items: center; justify-content: center;
-  animation: welcomeFadeIn 1.05s ease-out;
+  /* 背景立即不透明，避免動畫期間看到下層內容 */
 }
 .welcome-overlay.fade-out {
   animation: welcomeFadeOut 1.2s ease-in forwards;
@@ -706,7 +706,6 @@ input.is-locked:focus, textarea.is-locked:focus {
   letter-spacing: 4px;
   font-weight: 600;
 }
-@keyframes welcomeFadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes welcomeFadeOut { from { opacity: 1; } to { opacity: 0; } }
 @keyframes welcomeRise {
   from { opacity: 0; transform: translateY(16px); }
