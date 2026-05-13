@@ -1953,20 +1953,20 @@ function _buildWeekPrintRow(g, num) {
                 : g.joinProb === '中' ? '3'
                 : g.joinProb === '低' ? '1'
                 : '—';
-  // 補充資訊兩欄分組
-  // 左欄（上到下）：個性、事業現狀、預期收穫、想認識行業 — 標籤固定寬度讓內文齊左
-  // 右欄：補充
+  // 補充資訊：跟主資訊用一樣的 4 欄 grid，這樣 補充（cols 3-4）能對齊 電話（col 3）
+  // 左欄（個性、事業現狀、預期收穫、想認識行業）span cols 1-2，標籤固定寬度
+  // 右欄（補充）span cols 3-4，標題用「補充　」natural width 對齊電話
   const lblStyle = 'color:#999;display:inline-block;width:5.5em;flex-shrink:0;';
   const lFields = [
-    g.personality        ? `<div style="display:flex;"><span style="${lblStyle}">個性</span><span>${_escH(g.personality)}</span></div>` : '',
-    g.businessStatus     ? `<div style="display:flex;"><span style="${lblStyle}">事業現狀</span><span>${_escH(g.businessStatus)}</span></div>` : '',
-    g.expectedGain       ? `<div style="display:flex;"><span style="${lblStyle}">預期收穫</span><span>${_escH(g.expectedGain)}</span></div>` : '',
-    g.interestedIndustry ? `<div style="display:flex;"><span style="${lblStyle}">想認識行業</span><span style="color:#c0392b;font-weight:600;">${_escH(g.interestedIndustry)}</span></div>` : ''
+    g.personality        ? `<div style="grid-column:1/span 2;display:flex;"><span style="${lblStyle}">個性</span><span>${_escH(g.personality)}</span></div>` : '',
+    g.businessStatus     ? `<div style="grid-column:1/span 2;display:flex;"><span style="${lblStyle}">事業現狀</span><span>${_escH(g.businessStatus)}</span></div>` : '',
+    g.expectedGain       ? `<div style="grid-column:1/span 2;display:flex;"><span style="${lblStyle}">預期收穫</span><span>${_escH(g.expectedGain)}</span></div>` : '',
+    g.interestedIndustry ? `<div style="grid-column:1/span 2;display:flex;"><span style="${lblStyle}">想認識行業</span><span style="color:#c0392b;font-weight:600;">${_escH(g.interestedIndustry)}</span></div>` : ''
   ].filter(Boolean).join('');
-  const rFields = [
-    g.extraNote      ? `<div style="display:flex;"><span style="${lblStyle}">補充</span><span>${_escH(g.extraNote)}</span></div>` : ''
-  ].filter(Boolean).join('');
-  const hasNotes = lFields || rFields;
+  const rField = g.extraNote
+    ? `<div style="grid-column:3/span 2;grid-row:1;"><span style="color:#999;font-size:7.5pt;">補充　</span>${_escH(g.extraNote)}</div>`
+    : '';
+  const hasNotes = lFields || rField;
   // 變動高度：每筆依內容自動撐開（min-height 確保最小高度，內容多可往下長）
   return `
     <div style="min-height:95px;background:white;border:1.5px solid #d4d7dc;border-left:4px solid #c0392b;border-radius:6px;padding:10px 16px;box-sizing:border-box;font-size:9pt;line-height:1.4;color:#1a1a2e;">
@@ -1985,9 +1985,9 @@ function _buildWeekPrintRow(g, num) {
         <span><span style="color:#999;font-size:7.5pt;">締結　</span>${dash(g.closer)}</span>
       </div>
       ${hasNotes ? `
-      <div style="display:grid;grid-template-columns:1fr 1fr;column-gap:18px;row-gap:2px;font-size:8.5pt;line-height:1.45;color:#444;">
-        <div>${lFields}</div>
-        <div>${rFields}</div>
+      <div style="display:grid;grid-template-columns:1.3fr 1.3fr 1.3fr 0.6fr;column-gap:14px;row-gap:2px;font-size:8.5pt;line-height:1.45;color:#444;">
+        ${rField}
+        ${lFields}
       </div>` : ''}
     </div>
   `;
