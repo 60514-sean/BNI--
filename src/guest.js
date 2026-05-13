@@ -317,7 +317,115 @@ function _guestProgressDots(g) {
   ];
 }
 
-// 切換進度步驟（applied / paid / closed）
+// 打開進度編輯彈窗（仿續約管理的編輯流程）
+function openGuestProgressModal(year, sheetRow) {
+  if (!_guestData) return;
+  const g = _guestData.find(x => x.year === year && x.sheetRow === sheetRow);
+  if (!g) { showToast('找不到該來賓'); return; }
+  const applied = _isApplied(g);
+  const paid    = _isPaid(g);
+  const closed  = _isClosed(g);
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'guestProgressModal';
+  overlay.innerHTML = `
+    <div class="modal-box" onclick="event.stopPropagation()" style="max-width:380px;">
+      <div class="modal-title">編輯進度 — ${_escH(g.name)}</div>
+      <div style="font-size:11px;color:var(--text-soft);margin-bottom:8px;">
+        填單 / 繳費 依序勾選，取消前一步會自動清除後一步。<br>
+        勾「結案」會自動移到「暫停追蹤」分頁。
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;background:#fafbfc;padding:12px 14px;border-radius:8px;border:1px solid var(--gray-border);margin-bottom:14px;">
+        <label class="gp-step" style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
+          <input type="checkbox" id="gp_applied" ${applied?'checked':''} onchange="_gpStepChange()">
+          1. 填申請表
+        </label>
+        <label class="gp-step" id="gp_lbl_paid" style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
+          <input type="checkbox" id="gp_paid" ${paid?'checked':''} onchange="_gpStepChange()">
+          2. 繳費
+        </label>
+        <label class="gp-step" style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;border-top:1px dashed var(--gray-border);padding-top:10px;margin-top:4px;">
+          <input type="checkbox" id="gp_closed" ${closed?'checked':''}>
+          3. 結案（流程結束 / 婉拒，移到暫停追蹤）
+        </label>
+      </div>
+      <div class="modal-btns">
+        <button class="modal-cancel" onclick="closeGuestProgressModal()">取消</button>
+        <button class="modal-save" onclick="saveGuestProgress(${year},${sheetRow})">儲存</button>
+      </div>
+    </div>`;
+  overlay.onclick = closeGuestProgressModal;
+  document.body.appendChild(overlay);
+  _gpStepChange(); // 初始化 disabled 狀態
+}
+
+function closeGuestProgressModal() {
+  document.getElementById('guestProgressModal')?.remove();
+}
+
+// 依序鎖定：「繳費」要等「填單」勾起；取消「填單」級聯取消「繳費」
+function _gpStepChange() {
+  const ap = document.getElementById('gp_applied');
+  const pa = document.getElementById('gp_paid');
+  const lblPa = document.getElementById('gp_lbl_paid');
+  if (!ap || !pa || !lblPa) return;
+  if (!ap.checked) {
+    pa.checked = false;
+    pa.disabled = true;
+    lblPa.style.opacity = '.4';
+    lblPa.style.cursor = 'not-allowed';
+  } else {
+    pa.disabled = false;
+    lblPa.style.opacity = '1';
+    lblPa.style.cursor = 'pointer';
+  }
+}
+
+async function saveGuestProgress(year, sheetRow) {
+  const g = _guestData?.find(x => x.year === year && x.sheetRow === sheetRow);
+  if (!g) return;
+  const applied = document.getElementById('gp_applied')?.checked || false;
+  const paid    = document.getElementById('gp_paid')?.checked    || false;
+  const closedNew = document.getElementById('gp_closed')?.checked || false;
+  const closedOld = _isClosed(g);
+
+  // 樂觀更新
+  g.applied = applied;
+  g.paid    = paid;
+  const payload = { action: 'updateGuestStatus', year, sheetRow, applied, paid };
+
+  // 結案有特殊邏輯：開啟→存 prevStatus；取消→還原 prevStatus
+  if (closedNew !== closedOld) {
+    if (closedNew) {
+      const prev = g.status || '持續追蹤';
+      g.prevStatus = prev;
+      g.closed = true;
+      payload.closed = true;
+      payload.prevStatus = prev;
+    } else {
+      const restoreStatus = g.prevStatus || '持續追蹤';
+      g.status = restoreStatus;
+      g.prevStatus = '';
+      g.closed = false;
+      payload.closed = false;
+      payload.status = restoreStatus;
+      payload.prevStatus = '';
+    }
+  } else {
+    g.closed = closedNew;
+  }
+  _saveGuestsToLS(_guestData);
+  closeGuestProgressModal();
+  _renderOnlyList();
+  try {
+    await _apiPost(payload);
+    showToast('已儲存進度');
+  } catch (e) {
+    showToast('同步失敗，請重新整理');
+  }
+}
+
+// 保留 _toggleProgress 為相容備援（目前 UI 不使用）
 async function _toggleProgress(year, sheetRow, step) {
   if (!_guestData) return;
   const g = _guestData.find(x => x.year === year && x.sheetRow === sheetRow);
@@ -695,23 +803,21 @@ function _guestCardHtml(g) {
   const interested = _parseInterested(g.interestedIn);
   const hasStar = _hasInterestStar(g);
 
-  // 進度條（所有 tab 都顯示）
+  // 進度條（純顯示，所有 tab 都顯示）
   const steps = _guestProgressDots(g);
-  const dotsHtml = steps.map((s, i) => {
-    const clickAttr = s.clickable ? `onclick="event.stopPropagation();_toggleProgress(${g.year},${g.sheetRow},'${s.id}')"` : '';
-    return `
-      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;position:relative;">
-        ${i > 0 ? `<div style="position:absolute;left:-50%;top:7px;width:100%;height:2px;background:${steps[i-1].done && s.done ? 'var(--red)' : (steps[i-1].done ? 'var(--red)' : '#e8ecf0')};z-index:0;"></div>` : ''}
-        <div style="width:16px;height:16px;border-radius:50%;background:${s.done ? 'var(--red)' : 'white'};border:2px solid ${s.done ? 'var(--red)' : '#e8ecf0'};z-index:1;display:flex;align-items:center;justify-content:center;${s.clickable ? 'cursor:pointer;' : ''}" ${clickAttr}>
-          ${s.done ? '<svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
-        </div>
-        <div style="font-size:10px;color:${s.done ? 'var(--red)' : '#bbb'};font-weight:${s.done ? 700 : 500};${s.clickable ? 'cursor:pointer;' : ''}" ${clickAttr}>${s.label}</div>
+  const dotsHtml = steps.map((s, i) => `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;position:relative;">
+      ${i > 0 ? `<div style="position:absolute;left:-50%;top:7px;width:100%;height:2px;background:${steps[i-1].done && s.done ? 'var(--red)' : (steps[i-1].done ? 'var(--red)' : '#e8ecf0')};z-index:0;"></div>` : ''}
+      <div style="width:16px;height:16px;border-radius:50%;background:${s.done ? 'var(--red)' : 'white'};border:2px solid ${s.done ? 'var(--red)' : '#e8ecf0'};z-index:1;display:flex;align-items:center;justify-content:center;">
+        ${s.done ? '<svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
       </div>
-    `;
-  }).join('');
+      <div style="font-size:10px;color:${s.done ? 'var(--red)' : '#bbb'};font-weight:${s.done ? 700 : 500};">${s.label}</div>
+    </div>
+  `).join('');
   const progressHtml = `
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--gray-border);">
       <div style="display:flex;align-items:center;padding:0 6px;">${dotsHtml}</div>
+      <button onclick="event.stopPropagation();openGuestProgressModal(${g.year},${g.sheetRow})" style="display:block;width:100%;border:none;background:transparent;padding:8px 0 0;color:var(--red);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">編輯進度</button>
     </div>`;
 
   // 折疊版（永遠顯示）
