@@ -7,7 +7,7 @@ const PRESENTATION_ID = '15ImCbhAZ6WtBwEAmpMDzXXz1JUOk7l8ta9YGHSb0oIs';
 
 // ===== Guest System =====
 const GUEST_SS_ID   = '1CSFoZvkiz0kSX-ZUSZ5DOQKZ1laf4w2zrDN4N9NZhF8';
-const GUEST_HEADERS = ['首次參訪', '邀約人', '締結人', '姓名', '稱謂', '產業別', '公司名', '電話', '參訪後締結', '狀態', '追蹤紀錄', '想認識的會員', '行為紀錄', '預期收穫', '事業現狀', '個性', '入會機率', '結案前狀態'];
+const GUEST_HEADERS = ['首次參訪', '邀約人', '締結人', '姓名', '稱謂', '產業別', '公司名', '電話', '參訪後締結', '狀態', '追蹤紀錄', '想認識的會員', '行為紀錄', '預期收穫', '事業現狀', '個性', '入會機率', '結案前狀態', '已填單', '已繳費', '已結案'];
 
 function getSheet() {
   return SpreadsheetApp.openById(SS_ID).getSheets()
@@ -186,7 +186,10 @@ function listGuests() {
         businessStatus:String(row[14] || ''),
         personality:   String(row[15] || ''),
         joinProb:      String(row[16] || ''),
-        prevStatus:    String(row[17] || '')
+        prevStatus:    String(row[17] || ''),
+        applied:       String(row[18] || '') === 'TRUE',
+        paid:          String(row[19] || '') === 'TRUE',
+        closed:        String(row[20] || '') === 'TRUE'
       });
     });
   });
@@ -221,7 +224,10 @@ function addGuest(body) {
     body.businessStatus|| '',
     body.personality   || '',
     body.joinProb      || '',
-    body.prevStatus    || ''
+    body.prevStatus    || '',
+    body.applied ? 'TRUE' : 'FALSE',
+    body.paid    ? 'TRUE' : 'FALSE',
+    body.closed  ? 'TRUE' : 'FALSE'
   ];
   sh.appendRow(row);
   invalidateGuestListCache();
@@ -291,13 +297,16 @@ function updateGuest(body) {
   const existingPer      = lastCol >= 16 ? String(oldSh.getRange(r, 16).getValue() || '') : '';
   const existingProb     = lastCol >= 17 ? String(oldSh.getRange(r, 17).getValue() || '') : '';
   const existingPrevSt   = lastCol >= 18 ? String(oldSh.getRange(r, 18).getValue() || '') : '';
+  const existingApplied  = lastCol >= 19 ? String(oldSh.getRange(r, 19).getValue() || '') : 'FALSE';
+  const existingPaid     = lastCol >= 20 ? String(oldSh.getRange(r, 20).getValue() || '') : 'FALSE';
+  const existingClosed   = lastCol >= 21 ? String(oldSh.getRange(r, 21).getValue() || '') : 'FALSE';
   // 若 body 有新值就用新值，否則保留原值
   const finalGain = body.expectedGain   !== undefined ? String(body.expectedGain   || '') : existingGain;
   const finalBiz  = body.businessStatus !== undefined ? String(body.businessStatus || '') : existingBiz;
   const finalPer  = body.personality    !== undefined ? String(body.personality    || '') : existingPer;
   const finalProb = body.joinProb       !== undefined ? String(body.joinProb       || '') : existingProb;
   const finalPrev = body.prevStatus     !== undefined ? String(body.prevStatus     || '') : existingPrevSt;
-  newSh.appendRow(rowData[0].concat([existingInterest, existingBehavior, finalGain, finalBiz, finalPer, finalProb, finalPrev]));
+  newSh.appendRow(rowData[0].concat([existingInterest, existingBehavior, finalGain, finalBiz, finalPer, finalProb, finalPrev, existingApplied, existingPaid, existingClosed]));
   oldSh.deleteRow(r);
   invalidateGuestListCache();
   return { ok: true, year: newYear, sheetRow: newSh.getLastRow() };
@@ -332,14 +341,19 @@ function deleteGuest(body) {
   return { ok: true };
 }
 
-// 輕量更新：只動「狀態」與（選填）「結案前狀態」，用於進度條/結案按鈕的快速切換
+// 輕量更新：用於進度條的勾選 / 取消
+// 可選欄位：status (col 10) / prevStatus (col 18) / applied (col 19) / paid (col 20) / closed (col 21)
 function updateGuestStatus(body) {
   const sh = getGuestSheetForYear(body.year);
   ensureColumns(sh);
   const row = parseInt(body.sheetRow, 10);
   if (!row || row < 2) return { ok: false, error: 'invalid sheetRow' };
-  if (body.status !== undefined) sh.getRange(row, 10).setValue(String(body.status || ''));
+  const boolStr = (v) => v ? 'TRUE' : 'FALSE';
+  if (body.status     !== undefined) sh.getRange(row, 10).setValue(String(body.status || ''));
   if (body.prevStatus !== undefined) sh.getRange(row, 18).setValue(String(body.prevStatus || ''));
+  if (body.applied    !== undefined) sh.getRange(row, 19).setValue(boolStr(body.applied));
+  if (body.paid       !== undefined) sh.getRange(row, 20).setValue(boolStr(body.paid));
+  if (body.closed     !== undefined) sh.getRange(row, 21).setValue(boolStr(body.closed));
   invalidateGuestListCache();
   return { ok: true };
 }
@@ -379,7 +393,10 @@ function batchAddGuests(body) {
         String(g.businessStatus || ''),
         String(g.personality    || ''),
         String(g.joinProb       || ''),
-        ''  // 結案前狀態
+        '',     // 結案前狀態
+        'FALSE',// 已填單
+        'FALSE',// 已繳費
+        'FALSE' // 已結案
       ]);
       added++;
     } catch (err) {
@@ -425,7 +442,7 @@ function registerGuestInterest(body) {
   const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
   const interestJson = JSON.stringify([{ member: memberName, date: todayStr }]);
   sh.appendRow([
-    todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, interestJson, '', '', '', '', '', ''
+    todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, interestJson, '', '', '', '', '', '', 'FALSE', 'FALSE', 'FALSE'
   ]);
   invalidateGuestListCache();
   return { ok: true, matched: false, year: year, sheetRow: sh.getLastRow() };
@@ -456,7 +473,7 @@ function lookupGuestByPhone(body) {
   ensureColumns(sh);
   const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
   sh.appendRow([
-    todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, '', '', '', '', '', '', ''
+    todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, '', '', '', '', '', '', '', 'FALSE', 'FALSE', 'FALSE'
   ]);
   invalidateGuestListCache();
   return { ok: true, matched: false };

@@ -303,72 +303,86 @@ function _hasInterestStar(g) {
   return false;
 }
 
-// 追蹤中 tab 的進度條：4 步（首訪 / 追蹤 / 二訪 / 填單）
+// 進度條：6 步（首訪 / 追蹤 / 二訪 / 填單 / 繳費 / 結案）
+// 前 3 步自動偵測，後 3 步手動勾選（同時兼容舊資料的 status 推算）
 function _guestProgressDots(g) {
   const tracksCount = (g._allRows || [g]).reduce((s, r) => s + _parseTracks(r.tracks).length, 0);
-  const steps = [
-    { label: '首訪', done: true },
-    { label: '追蹤', done: tracksCount >= 1 },
-    { label: '二訪', done: !!g._hasSecond },
-    { label: '填單', done: ['已填單待繳費','審核中'].includes(g.status), clickable: true }
+  return [
+    { id: 'visit',   label: '首訪', done: true },
+    { id: 'track',   label: '追蹤', done: tracksCount >= 1 },
+    { id: 'visit2',  label: '二訪', done: !!g._hasSecond },
+    { id: 'applied', label: '填單', done: _isApplied(g), clickable: true },
+    { id: 'paid',    label: '繳費', done: _isPaid(g),    clickable: true },
+    { id: 'closed',  label: '結案', done: _isClosed(g),  clickable: true }
   ];
-  return steps;
 }
 
-// 切換「填申請表」：未填 → 已填單待繳費 / 已填 → 持續追蹤
-async function _toggleApplyForm(year, sheetRow) {
+// 切換進度步驟（applied / paid / closed）
+async function _toggleProgress(year, sheetRow, step) {
   if (!_guestData) return;
   const g = _guestData.find(x => x.year === year && x.sheetRow === sheetRow);
   if (!g) return;
-  const isInProcess = ['已填單待繳費','審核中'].includes(g.status);
-  const newStatus = isInProcess ? '持續追蹤' : '已填單待繳費';
-  g.status = newStatus;
-  _saveGuestsToLS(_guestData);
-  _renderOnlyList();
-  try {
-    await _apiPost({ action: 'updateGuestStatus', year, sheetRow, status: newStatus });
-    showToast(isInProcess ? '已取消填單' : '已標記填單');
-  } catch (e) {
-    showToast('同步失敗，請重新整理');
+
+  if (step === 'applied') {
+    const cur = _isApplied(g);
+    g.applied = !cur;
+    _saveGuestsToLS(_guestData); _renderOnlyList();
+    try {
+      await _apiPost({ action: 'updateGuestStatus', year, sheetRow, applied: !cur });
+      showToast(cur ? '已取消填單' : '已標記填單');
+    } catch (e) { showToast('同步失敗，請重新整理'); }
+    return;
   }
-}
 
-// 切換結案：標記 → 記錄結案前狀態並設為「婉拒/停止追蹤」；重啟 → 還原原本狀態
-async function _toggleClosed(year, sheetRow) {
-  if (!_guestData) return;
-  const g = _guestData.find(x => x.year === year && x.sheetRow === sheetRow);
-  if (!g) return;
-  const isClosed = g.status === '婉拒/停止追蹤';
-  if (isClosed) {
-    const restoreStatus = g.prevStatus || '持續追蹤';
-    g.status = restoreStatus;
-    g.prevStatus = '';
-    _saveGuestsToLS(_guestData);
-    _renderOnlyList();
+  if (step === 'paid') {
+    const cur = _isPaid(g);
+    g.paid = !cur;
+    _saveGuestsToLS(_guestData); _renderOnlyList();
     try {
-      await _apiPost({ action: 'updateGuestStatus', year, sheetRow, status: restoreStatus, prevStatus: '' });
-      showToast('已重啟追蹤');
+      await _apiPost({ action: 'updateGuestStatus', year, sheetRow, paid: !cur });
+      showToast(cur ? '已取消繳費' : '已標記繳費');
     } catch (e) { showToast('同步失敗，請重新整理'); }
-  } else {
-    const prev = g.status || '持續追蹤';
-    g.prevStatus = prev;
-    g.status = '婉拒/停止追蹤';
-    _saveGuestsToLS(_guestData);
-    _renderOnlyList();
-    try {
-      await _apiPost({ action: 'updateGuestStatus', year, sheetRow, status: '婉拒/停止追蹤', prevStatus: prev });
-      showToast('已結案');
-    } catch (e) { showToast('同步失敗，請重新整理'); }
+    return;
+  }
+
+  if (step === 'closed') {
+    const cur = _isClosed(g);
+    if (!cur) {
+      // 結案 → 記下 prevStatus，移到暫停追蹤 tab
+      const prev = g.status || '持續追蹤';
+      g.prevStatus = prev;
+      g.closed = true;
+      _saveGuestsToLS(_guestData); _renderOnlyList();
+      try {
+        await _apiPost({ action: 'updateGuestStatus', year, sheetRow, closed: true, prevStatus: prev });
+        showToast('已結案，可去「暫停追蹤」更新或刪除');
+      } catch (e) { showToast('同步失敗，請重新整理'); }
+    } else {
+      // 重啟 → 還原 prevStatus
+      const restoreStatus = g.prevStatus || '持續追蹤';
+      g.status = restoreStatus;
+      g.prevStatus = '';
+      g.closed = false;
+      _saveGuestsToLS(_guestData); _renderOnlyList();
+      try {
+        await _apiPost({ action: 'updateGuestStatus', year, sheetRow, closed: false, status: restoreStatus, prevStatus: '' });
+        showToast('已重啟追蹤');
+      } catch (e) { showToast('同步失敗，請重新整理'); }
+    }
   }
 }
 
 // 5 個 tab 定義（單一資料源，stat 卡與 sub-tab 共用）
+function _isApplied(g) { return !!g.applied || ['已填單待繳費','審核中','已入會'].includes(g.status); }
+function _isPaid(g)    { return !!g.paid    || ['審核中','已入會'].includes(g.status); }
+function _isClosed(g)  { return !!g.closed  || ['婉拒/停止追蹤','轉別分會','已入會'].includes(g.status); }
+
 const GUEST_TAB_DEFS = [
   { id: 'week',     label: '本周來賓', color: '#1e40af', bg: '#dbeafe', filter: _isInWeekGuest },
-  { id: 'tracking', label: '追蹤中',   color: '#92400e', bg: '#fef3c7', filter: (g) => ['待追蹤', '持續追蹤'].includes(g.status) },
+  { id: 'tracking', label: '追蹤中',   color: '#92400e', bg: '#fef3c7', filter: (g) => !_isApplied(g) && !_isClosed(g) },
   { id: 'hot',      label: '高潛力',   color: '#991b1b', bg: '#fee2e2', filter: _isHotGuest },
-  { id: 'process',  label: '入會流程', color: '#9a3412', bg: '#fed7aa', filter: (g) => ['已填單待繳費', '審核中'].includes(g.status) },
-  { id: 'paused',   label: '暫停追蹤', color: '#475569', bg: '#e5e7eb', filter: (g) => ['婉拒/停止追蹤', '轉別分會'].includes(g.status) }
+  { id: 'process',  label: '入會流程', color: '#9a3412', bg: '#fed7aa', filter: (g) => _isApplied(g) && !_isClosed(g) },
+  { id: 'paused',   label: '暫停追蹤', color: '#475569', bg: '#e5e7eb', filter: _isClosed }
 ];
 
 // localStorage 快取（stale-while-revalidate）：UI 秒顯示舊資料，背景再抓最新
@@ -681,30 +695,24 @@ function _guestCardHtml(g) {
   const interested = _parseInterested(g.interestedIn);
   const hasStar = _hasInterestStar(g);
 
-  // 進度條（只在「追蹤中」tab 顯示）
-  const showProgress = _guestSubTab === 'tracking';
-  const isClosed = g.status === '婉拒/停止追蹤';
-  let progressHtml = '';
-  if (showProgress) {
-    const steps = _guestProgressDots(g);
-    const dotsHtml = steps.map((s, i) => `
+  // 進度條（所有 tab 都顯示）
+  const steps = _guestProgressDots(g);
+  const dotsHtml = steps.map((s, i) => {
+    const clickAttr = s.clickable ? `onclick="event.stopPropagation();_toggleProgress(${g.year},${g.sheetRow},'${s.id}')"` : '';
+    return `
       <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;position:relative;">
         ${i > 0 ? `<div style="position:absolute;left:-50%;top:7px;width:100%;height:2px;background:${steps[i-1].done && s.done ? 'var(--red)' : (steps[i-1].done ? 'var(--red)' : '#e8ecf0')};z-index:0;"></div>` : ''}
-        <div style="width:16px;height:16px;border-radius:50%;background:${s.done ? 'var(--red)' : 'white'};border:2px solid ${s.done ? 'var(--red)' : '#e8ecf0'};z-index:1;display:flex;align-items:center;justify-content:center;${s.clickable ? 'cursor:pointer;' : ''}" ${s.clickable ? `onclick="event.stopPropagation();_toggleApplyForm(${g.year},${g.sheetRow})"` : ''}>
+        <div style="width:16px;height:16px;border-radius:50%;background:${s.done ? 'var(--red)' : 'white'};border:2px solid ${s.done ? 'var(--red)' : '#e8ecf0'};z-index:1;display:flex;align-items:center;justify-content:center;${s.clickable ? 'cursor:pointer;' : ''}" ${clickAttr}>
           ${s.done ? '<svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
         </div>
-        <div style="font-size:10px;color:${s.done ? 'var(--red)' : '#bbb'};font-weight:${s.done ? 700 : 500};${s.clickable ? 'cursor:pointer;' : ''}" ${s.clickable ? `onclick="event.stopPropagation();_toggleApplyForm(${g.year},${g.sheetRow})"` : ''}>${s.label}</div>
+        <div style="font-size:10px;color:${s.done ? 'var(--red)' : '#bbb'};font-weight:${s.done ? 700 : 500};${s.clickable ? 'cursor:pointer;' : ''}" ${clickAttr}>${s.label}</div>
       </div>
-    `).join('');
-    const closeBtn = isClosed
-      ? `<button onclick="event.stopPropagation();_toggleClosed(${g.year},${g.sheetRow})" style="padding:5px 10px;background:#fee2e2;border:1.5px solid #c0392b;color:#c0392b;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">✓ 已結案・重啟</button>`
-      : `<button onclick="event.stopPropagation();_toggleClosed(${g.year},${g.sheetRow})" style="padding:5px 10px;background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">結案</button>`;
-    progressHtml = `
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--gray-border);display:flex;align-items:center;gap:8px;">
-        <div style="display:flex;align-items:center;flex:1;min-width:0;padding:0 6px;">${dotsHtml}</div>
-        ${closeBtn}
-      </div>`;
-  }
+    `;
+  }).join('');
+  const progressHtml = `
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--gray-border);">
+      <div style="display:flex;align-items:center;padding:0 6px;">${dotsHtml}</div>
+    </div>`;
 
   // 折疊版（永遠顯示）
   const collapsedHtml = `
