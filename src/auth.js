@@ -5,6 +5,25 @@ function showLoader(show, text) {
   else { el.classList.remove('show'); }
 }
 
+// ===== WELCOME OVERLAY =====
+function showWelcomeOverlay(name, isAdmin) {
+  const ov = document.getElementById('welcomeOverlay');
+  if (!ov) return;
+  const nameEl = document.getElementById('welcomeName');
+  // 負責人顯示完整姓名；其他使用者只取最後兩個字
+  const displayName = isAdmin ? (name || '') : ((name && name.length > 2) ? name.slice(-2) : (name || ''));
+  if (nameEl) nameEl.textContent = displayName;
+  ov.classList.remove('fade-out');
+  ov.style.display = 'flex';
+  setTimeout(() => {
+    ov.classList.add('fade-out');
+    setTimeout(() => {
+      ov.style.display = 'none';
+      ov.classList.remove('fade-out');
+    }, 1200);
+  }, 1800);
+}
+
 // ===== LOGIN =====
 let CU = null, CR = null;
 let currentDay = TODAY_DAY;
@@ -61,6 +80,9 @@ async function doLogin() {
   document.getElementById('userChip').textContent = name;
   document.getElementById('userChip').style.display = 'none'; // 依需求隱藏使用者名稱標記
   document.getElementById('menuBtn').style.display = 'flex';
+
+  // 顯示歡迎過場（與主畫面渲染並行，3.0s 後自動淡出）
+  showWelcomeOverlay(name, isAdmin);
 
   // 啟動編輯鎖 observer（依 _canEditTab 自動鎖定 OFF 頁面的輸入欄位）
   _startEditLockObserver();
