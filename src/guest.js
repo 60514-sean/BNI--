@@ -1115,6 +1115,10 @@ async function openGuestModal(arg, opts) {
           <div class="modal-label">參訪後締結（會後立即評估）</div>
           <textarea class="modal-input" id="gm_postVisit" rows="3" style="resize:vertical;">${_escH(g?.postVisitNote || '')}</textarea>
         </div>
+        <div class="modal-field">
+          <div class="modal-label">補充說明</div>
+          <textarea class="modal-input" id="gm_extraNote" rows="2" style="resize:vertical;">${_escH(g?.extraNote || '')}</textarea>
+        </div>
       </div>
     </div>
 
@@ -1493,6 +1497,7 @@ async function saveGuest(gKey) {
     expectedGain:  document.getElementById('gm_expectedGain')?.value.trim() || '',
     businessStatus:document.getElementById('gm_businessStatus')?.value.trim() || '',
     personality:   document.getElementById('gm_personality')?.value.trim() || '',
+    extraNote:     document.getElementById('gm_extraNote')?.value.trim() || '',
     applied:       appliedNew,
     paid:          paidNew,
     closed:        closedNew
@@ -1715,6 +1720,7 @@ function _renderImportPreview(rows) {
     expectedGain:   String(r['來賓預期收穫 / 目的'] || r['預期收穫'] || r['expectedGain'] || '').trim(),
     businessStatus: String(r['來賓事業體現狀'] || r['事業現狀'] || r['businessStatus'] || '').trim(),
     personality:    String(r['請形容來賓個性，讓締結夥伴知道如何互動'] || r['個性'] || r['personality'] || '').trim(),
+    extraNote:      String(r['來賓資訊補充說明'] || r['補充說明'] || r['extraNote'] || '').trim(),
     // 入會意願 1-5 → 入會機率：1-2=低、3=中、4-5=高
     joinProb:      _mapImportJoinProb(r['來賓的入會意願'] || r['入會意願'] || '')
   }));
@@ -1913,6 +1919,7 @@ function _buildWeekPrintRow(g, num) {
         ${g.businessStatus ? `<span style="margin-right:10px;"><span style="color:#999;">事業 </span>${_escH(g.businessStatus)}</span>` : ''}
         ${interestedText   ? `<span style="margin-right:10px;color:#c0392b;font-weight:600;">想認識 ${_escH(interestedText)}</span>` : ''}
         ${g.postVisitNote  ? `<span style="margin-right:10px;"><span style="color:#999;">後締結 </span>${_escH(g.postVisitNote)}</span>` : ''}
+        ${g.extraNote      ? `<span style="margin-right:10px;"><span style="color:#999;">補充 </span>${_escH(g.extraNote)}</span>` : ''}
       </div>
     </div>
   `;
