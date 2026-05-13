@@ -1,12 +1,15 @@
 // ===== GUEST TRACK =====
-const GUEST_STATUSES = ['待追蹤','持續追蹤','已填單待繳費','審核中','已入會','轉別分會','婉拒/停止追蹤'];
+const GUEST_STATUSES = ['待追蹤','持續追蹤','已填單待繳費','審核中','已入會','親友團','轉別分會','工作夥伴','行業別衝突','婉拒/停止追蹤'];
 const GUEST_STATUS_COLORS = {
   '待追蹤':         { bg:'#f4f6f8', fg:'#666' },
   '持續追蹤':       { bg:'#fef3c7', fg:'#92400e' },
   '已填單待繳費':   { bg:'#fde68a', fg:'#78350f' },
   '審核中':         { bg:'#e0f2fe', fg:'#075985' },
   '已入會':         { bg:'#dcfce7', fg:'#166534' },
+  '親友團':         { bg:'#fce7f3', fg:'#9d174d' },
   '轉別分會':       { bg:'#ede9fe', fg:'#5b21b6' },
+  '工作夥伴':       { bg:'#e0e7ff', fg:'#3730a3' },
+  '行業別衝突':     { bg:'#fef3c7', fg:'#92400e' },
   '婉拒/停止追蹤':  { bg:'#fee2e2', fg:'#991b1b' }
 };
 const JOIN_PROBABILITIES = ['未評估','高','中','低'];
@@ -21,6 +24,7 @@ let _guestSubTab = 'week';   // 'week' | 'all'
 let _guestSearch = '';
 let _guestStatusFilter = ''; // '' = 全部，否則為特定狀態
 let _guestTermFilter = 0;    // 0 = 全部，否則為特定屆數（1, 2, 3, ...）
+let _guestProbFilter = new Set(); // tracking 分頁的入會機率多選篩選：'低' / '中' / '未評估'
 
 function _parseDateStr(s) {
   if (!s) return null;
@@ -493,7 +497,7 @@ async function _toggleProgress(year, sheetRow, step) {
 // 5 個 tab 定義（單一資料源，stat 卡與 sub-tab 共用）
 function _isApplied(g) { return !!g.applied || ['已填單待繳費','審核中','已入會'].includes(g.status); }
 function _isPaid(g)    { return !!g.paid    || ['審核中','已入會'].includes(g.status); }
-function _isClosed(g)  { return !!g.closed  || ['婉拒/停止追蹤','轉別分會','已入會','行業別衝突'].includes(g.status); }
+function _isClosed(g)  { return !!g.closed  || ['婉拒/停止追蹤','轉別分會','已入會','行業別衝突','親友團','工作夥伴'].includes(g.status); }
 
 // Tab 分配採嚴格互斥：每位來賓只會出現在一個 tab
 // 優先順序：暫停追蹤 > 入會流程 > 高潛力 > 本周來賓 > 追蹤中
@@ -593,6 +597,11 @@ async function renderGuestTrack() {
     });
   }
 
+  // 套機率篩選（僅追蹤中分頁）
+  if (_guestSubTab === 'tracking' && _guestProbFilter.size > 0) {
+    list = list.filter(_matchGuestProbFilter);
+  }
+
   // 排序：最近活動由新到舊
   list.sort((a, b) => {
     const da = _guestLatestDate(a); const db = _guestLatestDate(b);
@@ -619,9 +628,10 @@ async function renderGuestTrack() {
       </div>
     </div>
     ${statsHtml}
-    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:stretch;">
-      <input class="member-search" type="text" placeholder="搜尋姓名、公司、電話..." value="${_escH(_guestSearch)}" oninput="_guestSearch=this.value;_debouncedRenderGuestList()" autocomplete="off" style="margin-bottom:0;flex:1;">
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:stretch;flex-wrap:wrap;">
+      <input class="member-search" type="text" placeholder="搜尋姓名、公司、電話..." value="${_escH(_guestSearch)}" oninput="_guestSearch=this.value;_debouncedRenderGuestList()" autocomplete="off" style="margin-bottom:0;flex:1 1 200px;min-width:160px;">
       ${_guestSubTab === 'week' ? `<button onclick="openWeekPrintPreview()" style="padding:0 16px;background:var(--red);color:white;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">列印本周</button>` : ''}
+      ${_guestSubTab === 'tracking' ? _probFilterChipsHtml() : ''}
     </div>
     <div id="guestList">${_guestListHtml(list)}</div>
   </div>`;
@@ -646,12 +656,44 @@ function _renderOnlyList() {
       );
     });
   }
+  if (_guestSubTab === 'tracking' && _guestProbFilter.size > 0) {
+    list = list.filter(_matchGuestProbFilter);
+  }
   list.sort((a, b) => {
     const da = _guestLatestDate(a); const db = _guestLatestDate(b);
     return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
   });
   const el = document.getElementById('guestList');
   if (el) el.innerHTML = _guestListHtml(list);
+}
+
+function _matchGuestProbFilter(g) {
+  if (_guestProbFilter.size === 0) return true;
+  const raw = g.joinProb;
+  const key = (raw === '低' || raw === '中' || raw === '高') ? raw : '未評估';
+  return _guestProbFilter.has(key);
+}
+
+function _toggleGuestProbFilter(v) {
+  if (_guestProbFilter.has(v)) _guestProbFilter.delete(v);
+  else _guestProbFilter.add(v);
+  const el = document.getElementById('guestProbFilterChips');
+  if (el) el.outerHTML = _probFilterChipsHtml();
+  _renderOnlyList();
+}
+
+function _probFilterChipsHtml() {
+  const chip = (val, label, color) => {
+    const active = _guestProbFilter.has(val);
+    return `<button type="button" onclick="_toggleGuestProbFilter('${val}')" style="padding:0 12px;background:${active?color:'white'};color:${active?'white':color};border:1.5px solid ${color};border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${active?'white':color};"></span>${label}
+    </button>`;
+  };
+  return `<div id="guestProbFilterChips" style="display:flex;gap:6px;flex-shrink:0;">
+    ${chip('低','低','#c0392b')}
+    ${chip('中','中','#d4ac0d')}
+    ${chip('未評估','未評估','#9ca3af')}
+  </div>`;
 }
 
 function _filterGuestsScope(tab, applyYear = true) {
@@ -773,7 +815,7 @@ function _statusSelectHtml() {
   return `<select onchange="_setStatusFilter(this.value)" class="guest-filter-sel">
     <option value="" ${!_guestStatusFilter?'selected':''}>全部狀態・${scope.length} 筆</option>
     <option value="${HIGH_POTENTIAL_KEY}" ${_guestStatusFilter===HIGH_POTENTIAL_KEY?'selected':''}>${HIGH_POTENTIAL_LABEL}・${highCount} 筆</option>
-    ${GUEST_STATUSES.filter(s => s !== '已入會' && s !== '轉別分會').map(s => `<option value="${s}" ${_guestStatusFilter===s?'selected':''}>${_escH(s)}・${counts[s]||0} 筆</option>`).join('')}
+    ${GUEST_STATUSES.filter(s => !['已入會','轉別分會','親友團','工作夥伴','行業別衝突'].includes(s)).map(s => `<option value="${s}" ${_guestStatusFilter===s?'selected':''}>${_escH(s)}・${counts[s]||0} 筆</option>`).join('')}
   </select>`;
 }
 
@@ -1089,9 +1131,11 @@ async function openGuestModal(arg, opts) {
         </label>
         <div id="gm_closeReasonBox" style="display:flex;flex-direction:column;gap:6px;padding-left:24px;font-size:13px;color:var(--text-soft);">
           ${[
-            { v: '婉拒/停止追蹤', label: '婉拒 / 停止追蹤' },
-            { v: '轉別分會',       label: '轉別分會' },
+            { v: '婉拒/停止追蹤', label: '婉拒' },
             { v: '已入會',         label: '已入會' },
+            { v: '親友團',         label: '親友團' },
+            { v: '轉別分會',       label: '轉別分會' },
+            { v: '工作夥伴',       label: '工作夥伴' },
             { v: '行業別衝突',     label: '行業別衝突' }
           ].map(opt => {
             const cur = g && _isClosed(g) ? (g.status || '婉拒/停止追蹤') : '婉拒/停止追蹤';
