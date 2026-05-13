@@ -1002,21 +1002,21 @@ async function openGuestModal(arg, opts) {
       <div class="modal-label">參訪日</div>
       <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
     </div>
-    <div class="modal-row">
-      <div class="modal-field" style="flex:3 1 0;min-width:0;">
+    <div class="modal-row-inline">
+      <div class="modal-field" style="flex:3 1 0;">
         <div class="modal-label">姓名 <span style="color:var(--red);">*</span></div>
-        <input class="modal-input" type="text" id="gm_name" value="${_escH(g?.name || '')}" placeholder="例：王大明">
+        <input class="modal-input" type="text" id="gm_name" value="${_escH(g?.name || '')}" placeholder="王大明">
       </div>
-      <div class="modal-field" style="flex:1 1 0;min-width:0;">
+      <div class="modal-field" style="flex:1 1 0;">
         <div class="modal-label">稱謂</div>
         <select class="modal-input" id="gm_title" style="appearance:auto;background:white;">
-          <option value="" ${!g?.title?'selected':''}>（無）</option>
+          <option value="" ${!g?.title?'selected':''}>無</option>
           <option value="先生" ${g?.title==='先生'?'selected':''}>先生</option>
           <option value="小姐" ${g?.title==='小姐'?'selected':''}>小姐</option>
           <option value="女士" ${g?.title==='女士'?'selected':''}>女士</option>
         </select>
       </div>
-      <div class="modal-field" style="flex:2 1 0;min-width:0;">
+      <div class="modal-field" style="flex:2 1 0;">
         <div class="modal-label">入會機率</div>
         <select class="modal-input" id="gm_joinProb" style="appearance:auto;background:white;">
           ${JOIN_PROBABILITIES.map(p => `<option value="${p}" ${(g?.joinProb||'未評估')===p?'selected':''}>${p}</option>`).join('')}
@@ -1039,8 +1039,8 @@ async function openGuestModal(arg, opts) {
       <input class="modal-input" type="tel" id="gm_phone" value="${_escH(g?.phone || '')}" placeholder="09XX-XXX-XXX">
     </div>
 
-    <div class="modal-row">
-      <div class="modal-field" style="flex:1 1 0;min-width:0;position:relative;">
+    <div class="modal-row-inline">
+      <div class="modal-field" style="flex:1 1 0;position:relative;">
         <div class="modal-label">邀約人</div>
         <input class="modal-input" type="text" id="gm_inviter" value="${_escH(g?.inviter || '')}" autocomplete="off"
           oninput="_showMemberSuggest('gm_inviter', this.value)"
@@ -1048,7 +1048,7 @@ async function openGuestModal(arg, opts) {
           onblur="setTimeout(()=>_hideMemberSuggest('gm_inviter'), 200)">
         <div id="gm_inviter_suggest" class="member-suggest-box"></div>
       </div>
-      <div class="modal-field" style="flex:1 1 0;min-width:0;position:relative;">
+      <div class="modal-field" style="flex:1 1 0;position:relative;">
         <div class="modal-label">締結人</div>
         <input class="modal-input" type="text" id="gm_closer" value="${_escH(g?.closer || '')}" autocomplete="off"
           oninput="_showMemberSuggest('gm_closer', this.value)"

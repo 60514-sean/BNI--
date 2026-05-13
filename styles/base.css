@@ -1023,6 +1023,10 @@ input.is-locked:focus, textarea.is-locked:focus {
   .modal-row { flex-direction:column; gap:0; }
   .modal-row > .modal-field { flex:1 1 auto !important; }
 }
+/* modal-row-inline：手機板也保持並排（給編輯來賓的窄欄位用）*/
+.modal-row-inline { display:flex; gap:8px; }
+.modal-row-inline > .modal-field { margin-bottom: 14px; min-width: 0; }
+.modal-row-inline .modal-input { min-width: 0; }
 .modal-save {
   flex: 1; padding: 13px; background: var(--red); color: white;
   border: none; border-radius: var(--radius-sm); font-size: 15px;
