@@ -300,7 +300,7 @@ function _isHotGuest(g) {
 const GUEST_TAB_DEFS = [
   { id: 'week',     label: '本周來賓', color: '#1e40af', bg: '#dbeafe', filter: _isInWeekGuest },
   { id: 'tracking', label: '追蹤中',   color: '#92400e', bg: '#fef3c7', filter: (g) => ['待追蹤', '持續追蹤'].includes(g.status) },
-  { id: 'hot',      label: '高潛力 ★', color: '#991b1b', bg: '#fee2e2', filter: _isHotGuest },
+  { id: 'hot',      label: '高潛力',   color: '#991b1b', bg: '#fee2e2', filter: _isHotGuest },
   { id: 'process',  label: '入會流程', color: '#9a3412', bg: '#fed7aa', filter: (g) => ['已填單待繳費', '審核中'].includes(g.status) },
   { id: 'paused',   label: '暫停追蹤', color: '#475569', bg: '#e5e7eb', filter: (g) => g.status === '婉拒/停止追蹤' }
 ];
@@ -415,8 +415,8 @@ async function renderGuestTrack() {
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
       <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">來賓追蹤</h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="openGuestModal()">+ 新增來賓</button>
-        <button class="btn" style="background:white;border:1.5px solid var(--red);color:var(--red);font-weight:700;" onclick="openGuestImportModal()">匯入 Excel</button>
+        <button class="btn btn-primary" onclick="openGuestModal()">+</button>
+        <button class="btn" style="background:white;border:1.5px solid var(--red);color:var(--red);font-weight:700;" onclick="openGuestImportModal()">匯入</button>
         <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="_guestData=null;renderGuestTrack()">重整</button>
       </div>
     </div>
@@ -646,7 +646,6 @@ function _guestCardHtml(g) {
         ${g._pending
           ? `<span style="padding:6px 12px;font-size:12px;color:var(--text-soft);background:#f4f6f8;border-radius:6px;">同步中...</span>`
           : `<button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="event.stopPropagation();openGuestModal('${_escH(editArg)}')">編輯</button>`}
-        <span style="color:var(--text-soft);font-size:14px;font-weight:bold;padding:0 4px;user-select:none;">${expanded ? '▾' : '▸'}</span>
       </div>
     </div>
   `;
