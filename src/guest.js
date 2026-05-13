@@ -828,7 +828,6 @@ function _guestCardHtml(g) {
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">
           <span style="font-size:16px;font-weight:900;color:var(--text);">${_escH(g.name)}</span>
-          ${g._hasSecond ? `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:700;white-space:nowrap;">二訪</span>` : ''}
           ${unmatched ? `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:#fde68a;color:#92400e;font-size:11px;font-weight:700;white-space:nowrap;">未匹配名單</span>` : ''}
           ${_heatBadge(heat)}
         </div>
