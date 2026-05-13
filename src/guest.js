@@ -1002,12 +1002,6 @@ async function openGuestModal(arg, opts) {
       <div class="modal-label">參訪日</div>
       <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
     </div>
-    <div class="modal-field">
-      <div class="modal-label">入會機率</div>
-      <select class="modal-input" id="gm_joinProb" style="appearance:auto;background:white;">
-        ${JOIN_PROBABILITIES.map(p => `<option value="${p}" ${(g?.joinProb||'未評估')===p?'selected':''}>${p}</option>`).join('')}
-      </select>
-    </div>
     <div class="modal-row">
       <div class="modal-field" style="flex:3 1 0;min-width:0;">
         <div class="modal-label">姓名 <span style="color:var(--red);">*</span></div>
@@ -1015,11 +1009,17 @@ async function openGuestModal(arg, opts) {
       </div>
       <div class="modal-field" style="flex:1 1 0;min-width:0;">
         <div class="modal-label">稱謂</div>
-        <select class="modal-input" id="gm_title">
+        <select class="modal-input" id="gm_title" style="appearance:auto;background:white;">
           <option value="" ${!g?.title?'selected':''}>（無）</option>
           <option value="先生" ${g?.title==='先生'?'selected':''}>先生</option>
           <option value="小姐" ${g?.title==='小姐'?'selected':''}>小姐</option>
           <option value="女士" ${g?.title==='女士'?'selected':''}>女士</option>
+        </select>
+      </div>
+      <div class="modal-field" style="flex:2 1 0;min-width:0;">
+        <div class="modal-label">入會機率</div>
+        <select class="modal-input" id="gm_joinProb" style="appearance:auto;background:white;">
+          ${JOIN_PROBABILITIES.map(p => `<option value="${p}" ${(g?.joinProb||'未評估')===p?'selected':''}>${p}</option>`).join('')}
         </select>
       </div>
     </div>
@@ -1039,21 +1039,23 @@ async function openGuestModal(arg, opts) {
       <input class="modal-input" type="tel" id="gm_phone" value="${_escH(g?.phone || '')}" placeholder="09XX-XXX-XXX">
     </div>
 
-    <div class="modal-field" style="position:relative;">
-      <div class="modal-label">邀約人</div>
-      <input class="modal-input" type="text" id="gm_inviter" value="${_escH(g?.inviter || '')}" autocomplete="off"
-        oninput="_showMemberSuggest('gm_inviter', this.value)"
-        onfocus="if(this.value.trim())_showMemberSuggest('gm_inviter', this.value)"
-        onblur="setTimeout(()=>_hideMemberSuggest('gm_inviter'), 200)">
-      <div id="gm_inviter_suggest" class="member-suggest-box"></div>
-    </div>
-    <div class="modal-field" style="position:relative;">
-      <div class="modal-label">締結人</div>
-      <input class="modal-input" type="text" id="gm_closer" value="${_escH(g?.closer || '')}" autocomplete="off"
-        oninput="_showMemberSuggest('gm_closer', this.value)"
-        onfocus="if(this.value.trim())_showMemberSuggest('gm_closer', this.value)"
-        onblur="setTimeout(()=>_hideMemberSuggest('gm_closer'), 200)">
-      <div id="gm_closer_suggest" class="member-suggest-box"></div>
+    <div class="modal-row">
+      <div class="modal-field" style="flex:1 1 0;min-width:0;position:relative;">
+        <div class="modal-label">邀約人</div>
+        <input class="modal-input" type="text" id="gm_inviter" value="${_escH(g?.inviter || '')}" autocomplete="off"
+          oninput="_showMemberSuggest('gm_inviter', this.value)"
+          onfocus="if(this.value.trim())_showMemberSuggest('gm_inviter', this.value)"
+          onblur="setTimeout(()=>_hideMemberSuggest('gm_inviter'), 200)">
+        <div id="gm_inviter_suggest" class="member-suggest-box"></div>
+      </div>
+      <div class="modal-field" style="flex:1 1 0;min-width:0;position:relative;">
+        <div class="modal-label">締結人</div>
+        <input class="modal-input" type="text" id="gm_closer" value="${_escH(g?.closer || '')}" autocomplete="off"
+          oninput="_showMemberSuggest('gm_closer', this.value)"
+          onfocus="if(this.value.trim())_showMemberSuggest('gm_closer', this.value)"
+          onblur="setTimeout(()=>_hideMemberSuggest('gm_closer'), 200)">
+        <div id="gm_closer_suggest" class="member-suggest-box"></div>
+      </div>
     </div>
 
     <div class="modal-field" style="margin-top:14px;">
@@ -1091,24 +1093,26 @@ async function openGuestModal(arg, opts) {
       </div>
     </div>
 
-    <div class="modal-field" style="margin-top:14px;">
-      <div class="modal-label">預期收穫 / 目的</div>
-      <textarea class="modal-input" id="gm_expectedGain" rows="2" style="resize:vertical;">${_escH(g?.expectedGain || '')}</textarea>
-    </div>
-
-    <div class="modal-field">
-      <div class="modal-label">事業現狀</div>
-      <textarea class="modal-input" id="gm_businessStatus" rows="2" style="resize:vertical;">${_escH(g?.businessStatus || '')}</textarea>
-    </div>
-
-    <div class="modal-field">
-      <div class="modal-label">個性描述（給締結夥伴參考）</div>
-      <textarea class="modal-input" id="gm_personality" rows="2" style="resize:vertical;">${_escH(g?.personality || '')}</textarea>
-    </div>
-
-    <div class="modal-field">
-      <div class="modal-label">參訪後締結（會後立即評估）</div>
-      <textarea class="modal-input" id="gm_postVisit" rows="3" style="resize:vertical;">${_escH(g?.postVisitNote || '')}</textarea>
+    <div style="margin-top:14px;">
+      <button type="button" onclick="_toggleGmExtra(this)" style="width:100%;padding:10px 12px;background:#fafbfc;border:1.5px dashed var(--gray-border);color:var(--text-soft);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;">+ 補充資訊（預期收穫 / 事業現狀 / 個性 / 參訪後締結）</button>
+      <div id="gm_extraBox" style="display:none;margin-top:10px;">
+        <div class="modal-field">
+          <div class="modal-label">預期收穫 / 目的</div>
+          <textarea class="modal-input" id="gm_expectedGain" rows="2" style="resize:vertical;">${_escH(g?.expectedGain || '')}</textarea>
+        </div>
+        <div class="modal-field">
+          <div class="modal-label">事業現狀</div>
+          <textarea class="modal-input" id="gm_businessStatus" rows="2" style="resize:vertical;">${_escH(g?.businessStatus || '')}</textarea>
+        </div>
+        <div class="modal-field">
+          <div class="modal-label">個性描述（給締結夥伴參考）</div>
+          <textarea class="modal-input" id="gm_personality" rows="2" style="resize:vertical;">${_escH(g?.personality || '')}</textarea>
+        </div>
+        <div class="modal-field">
+          <div class="modal-label">參訪後締結（會後立即評估）</div>
+          <textarea class="modal-input" id="gm_postVisit" rows="3" style="resize:vertical;">${_escH(g?.postVisitNote || '')}</textarea>
+        </div>
+      </div>
     </div>
 
     ${_renderInterestedSection(g)}
@@ -1131,6 +1135,21 @@ async function openGuestModal(arg, opts) {
   document.body.appendChild(overlay);
   _renderTracksList();
   _gmProgressChange(); // 初始化「繳費」依「填單」的鎖定狀態
+  // 補充資訊區塊：有任一欄位有資料就預設展開
+  if (g && (g.expectedGain || g.businessStatus || g.personality || g.postVisitNote)) {
+    const btn = document.querySelector('#guestModal button[onclick="_toggleGmExtra(this)"]');
+    if (btn) _toggleGmExtra(btn);
+  }
+}
+
+function _toggleGmExtra(btn) {
+  const box = document.getElementById('gm_extraBox');
+  if (!box) return;
+  const isHidden = box.style.display === 'none';
+  box.style.display = isHidden ? '' : 'none';
+  btn.textContent = isHidden
+    ? '− 收起補充資訊'
+    : '+ 補充資訊（預期收穫 / 事業現狀 / 個性 / 參訪後締結）';
 }
 
 // 編輯視窗內：依序鎖定「繳費」於「填單」之後 + 結案 radio 隨 checkbox 顯隱
