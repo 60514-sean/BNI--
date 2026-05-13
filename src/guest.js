@@ -904,6 +904,7 @@ function _guestCardHtml(g) {
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-border);font-size:13px;line-height:1.55;">
       ${dateLine ? `<div style="color:var(--text-soft);margin-bottom:4px;">${dateLine}</div>` : ''}
       ${g.email ? `<div style="margin-bottom:8px;"><a href="mailto:${_escH(g.email)}" style="color:var(--red);text-decoration:none;" onclick="event.stopPropagation()">${_escH(g.email)}</a></div>` : ''}
+      ${g.interestedIndustry ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">想認識行業：</b>${_escH(g.interestedIndustry)}</div>` : ''}
       ${g.expectedGain   ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">預期收穫：</b>${_escH(g.expectedGain)}</div>` : ''}
       ${g.businessStatus ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">事業現狀：</b>${_escH(g.businessStatus)}</div>` : ''}
       ${g.personality    ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">個性：</b>${_escH(g.personality)}</div>` : ''}
@@ -1105,6 +1106,10 @@ async function openGuestModal(arg, opts) {
     <div style="margin-top:14px;">
       <button type="button" onclick="_toggleGmExtra(this)" style="width:100%;padding:10px 12px;background:#fafbfc;border:1.5px dashed var(--gray-border);color:var(--text-soft);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;">+ 補充資訊（預期收穫 / 事業現狀 / 個性 / 參訪後締結）</button>
       <div id="gm_extraBox" style="display:none;margin-top:10px;">
+        <div class="modal-field">
+          <div class="modal-label">想認識行業</div>
+          <textarea class="modal-input" id="gm_interestedIndustry" rows="2" style="resize:vertical;" placeholder="例：行銷、會計、保險...">${_escH(g?.interestedIndustry || '')}</textarea>
+        </div>
         <div class="modal-field">
           <div class="modal-label">預期收穫 / 目的</div>
           <textarea class="modal-input" id="gm_expectedGain" rows="2" style="resize:vertical;">${_escH(g?.expectedGain || '')}</textarea>
@@ -1505,6 +1510,7 @@ async function saveGuest(gKey) {
     personality:   document.getElementById('gm_personality')?.value.trim() || '',
     extraNote:     document.getElementById('gm_extraNote')?.value.trim() || '',
     email:         document.getElementById('gm_email')?.value.trim() || '',
+    interestedIndustry: document.getElementById('gm_interestedIndustry')?.value.trim() || '',
     applied:       appliedNew,
     paid:          paidNew,
     closed:        closedNew
@@ -1729,6 +1735,7 @@ function _renderImportPreview(rows) {
     personality:    String(r['請形容來賓個性，讓締結夥伴知道如何互動'] || r['個性'] || r['personality'] || '').trim(),
     extraNote:      String(r['來賓資訊補充說明'] || r['補充說明'] || r['extraNote'] || '').trim(),
     email:          String(r['來賓Email'] || r['Email'] || r['email'] || '').trim(),
+    interestedIndustry: String(r['分會內是否有來賓想認識的行業別?'] || r['分會內是否有來賓想認識的行業別？'] || r['想認識行業'] || r['interestedIndustry'] || '').trim(),
     // 入會意願 1-5 → 入會機率：1-2=低、3=中、4-5=高
     joinProb:      _mapImportJoinProb(r['來賓的入會意願'] || r['入會意願'] || '')
   }));
@@ -1922,6 +1929,7 @@ function _buildWeekPrintRow(g, num) {
         <span><span style="color:#999;font-size:7.5pt;">電話　</span>${dash(g.phone)}</span>
       </div>
       <div style="font-size:8pt;line-height:1.4;color:#444;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+        ${g.interestedIndustry ? `<span style="margin-right:10px;"><span style="color:#999;">想認識行業 </span>${_escH(g.interestedIndustry)}</span>` : ''}
         ${g.personality    ? `<span style="margin-right:10px;"><span style="color:#999;">個性 </span>${_escH(g.personality)}</span>` : ''}
         ${g.expectedGain   ? `<span style="margin-right:10px;"><span style="color:#999;">預期 </span>${_escH(g.expectedGain)}</span>` : ''}
         ${g.businessStatus ? `<span style="margin-right:10px;"><span style="color:#999;">事業 </span>${_escH(g.businessStatus)}</span>` : ''}
