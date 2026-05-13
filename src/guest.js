@@ -1897,7 +1897,8 @@ async function openWeekPrintPreview() {
   if (!_guestData) { showToast('來賓資料尚未載入'); return; }
 
   const grouped = _groupGuestsByPhone(_guestData);
-  const weekGuests = grouped.filter(_isInWeekGuest);
+  const weekTabFilter = (GUEST_TAB_DEFS.find(t => t.id === 'week') || {}).filter || _isInWeekGuest;
+  const weekGuests = grouped.filter(weekTabFilter);
   weekGuests.sort((a, b) => (b.firstVisit || '').localeCompare(a.firstVisit || ''));
 
   if (weekGuests.length === 0) { showToast('本周沒有來賓'); return; }
