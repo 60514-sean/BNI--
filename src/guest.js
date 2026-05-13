@@ -902,7 +902,8 @@ function _guestCardHtml(g) {
 
   const expandedHtml = `
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-border);font-size:13px;line-height:1.55;">
-      ${dateLine ? `<div style="color:var(--text-soft);margin-bottom:8px;">${dateLine}</div>` : ''}
+      ${dateLine ? `<div style="color:var(--text-soft);margin-bottom:4px;">${dateLine}</div>` : ''}
+      ${g.email ? `<div style="margin-bottom:8px;"><a href="mailto:${_escH(g.email)}" style="color:var(--red);text-decoration:none;" onclick="event.stopPropagation()">${_escH(g.email)}</a></div>` : ''}
       ${g.expectedGain   ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">預期收穫：</b>${_escH(g.expectedGain)}</div>` : ''}
       ${g.businessStatus ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">事業現狀：</b>${_escH(g.businessStatus)}</div>` : ''}
       ${g.personality    ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">個性：</b>${_escH(g.personality)}</div>` : ''}
@@ -1040,6 +1041,11 @@ async function openGuestModal(arg, opts) {
     <div class="modal-field">
       <div class="modal-label">電話</div>
       <input class="modal-input" type="tel" id="gm_phone" value="${_escH(g?.phone || '')}" placeholder="09XX-XXX-XXX">
+    </div>
+
+    <div class="modal-field">
+      <div class="modal-label">Email</div>
+      <input class="modal-input" type="email" id="gm_email" value="${_escH(g?.email || '')}" placeholder="name@example.com">
     </div>
 
     <div class="modal-row-inline">
@@ -1498,6 +1504,7 @@ async function saveGuest(gKey) {
     businessStatus:document.getElementById('gm_businessStatus')?.value.trim() || '',
     personality:   document.getElementById('gm_personality')?.value.trim() || '',
     extraNote:     document.getElementById('gm_extraNote')?.value.trim() || '',
+    email:         document.getElementById('gm_email')?.value.trim() || '',
     applied:       appliedNew,
     paid:          paidNew,
     closed:        closedNew
@@ -1721,6 +1728,7 @@ function _renderImportPreview(rows) {
     businessStatus: String(r['來賓事業體現狀'] || r['事業現狀'] || r['businessStatus'] || '').trim(),
     personality:    String(r['請形容來賓個性，讓締結夥伴知道如何互動'] || r['個性'] || r['personality'] || '').trim(),
     extraNote:      String(r['來賓資訊補充說明'] || r['補充說明'] || r['extraNote'] || '').trim(),
+    email:          String(r['來賓Email'] || r['Email'] || r['email'] || '').trim(),
     // 入會意願 1-5 → 入會機率：1-2=低、3=中、4-5=高
     joinProb:      _mapImportJoinProb(r['來賓的入會意願'] || r['入會意願'] || '')
   }));
