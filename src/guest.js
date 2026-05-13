@@ -496,16 +496,16 @@ function _isPaid(g)    { return !!g.paid    || ['審核中','已入會'].include
 function _isClosed(g)  { return !!g.closed  || ['婉拒/停止追蹤','轉別分會','已入會'].includes(g.status); }
 
 // Tab 分配採嚴格互斥：每位來賓只會出現在一個 tab
-// 優先順序：暫停追蹤 > 高潛力 > 入會流程 > 本周來賓 > 追蹤中
+// 優先順序：暫停追蹤 > 入會流程 > 高潛力 > 本周來賓 > 追蹤中
 const GUEST_TAB_DEFS = [
   { id: 'week',     label: '本周來賓', color: '#1e40af', bg: '#dbeafe',
     filter: (g) => _isInWeekGuest(g) && !_isApplied(g) && !_isClosed(g) && !_isHotGuest(g) },
   { id: 'tracking', label: '追蹤中',   color: '#92400e', bg: '#fef3c7',
     filter: (g) => !_isInWeekGuest(g) && !_isApplied(g) && !_isClosed(g) && !_isHotGuest(g) },
   { id: 'hot',      label: '高潛力',   color: '#991b1b', bg: '#fee2e2',
-    filter: (g) => !_isClosed(g) && _isHotGuest(g) },
+    filter: (g) => !_isClosed(g) && !_isApplied(g) && _isHotGuest(g) },
   { id: 'process',  label: '入會流程', color: '#9a3412', bg: '#fed7aa',
-    filter: (g) => _isApplied(g) && !_isClosed(g) && !_isHotGuest(g) },
+    filter: (g) => _isApplied(g) && !_isClosed(g) },
   { id: 'paused',   label: '暫停追蹤', color: '#475569', bg: '#e5e7eb',
     filter: _isClosed }
 ];
