@@ -1895,8 +1895,10 @@ async function openWeekPrintPreview() {
         <span onclick="closeWeekPrintPreview()" style="cursor:pointer;font-size:18px;line-height:1;color:#fff;">&times;</span>
       </div>
     </div>
-    <div id="weekPrintOuter" style="flex:1;overflow:auto;background:#2a2a2a;padding:24px;display:flex;justify-content:center;align-items:flex-start;">
-      <div id="weekPrintInner" style="display:flex;flex-direction:column;gap:18px;width:794px;flex-shrink:0;">${pagesHtml.join('')}</div>
+    <div id="weekPrintOuter" style="flex:1;overflow:auto;background:#2a2a2a;padding:24px;display:flex;justify-content:center;align-items:flex-start;-webkit-text-size-adjust:100%;text-size-adjust:100%;">
+      <div id="weekPrintScaleWrap" style="position:relative;flex-shrink:0;">
+        <div id="weekPrintInner" style="display:flex;flex-direction:column;gap:18px;width:794px;">${pagesHtml.join('')}</div>
+      </div>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -1914,13 +1916,31 @@ function closeWeekPrintPreview() {
 function _scaleWeekPrint() {
   const outer = document.getElementById('weekPrintOuter');
   const inner = document.getElementById('weekPrintInner');
-  if (!outer || !inner) return;
+  const wrap = document.getElementById('weekPrintScaleWrap');
+  if (!outer || !inner || !wrap) return;
+
+  // 先重置量自然高度（取消 transform / absolute，避免量到縮放後的尺寸）
+  inner.style.transform = 'none';
+  inner.style.position = 'static';
+  inner.style.width = '794px';
+  wrap.style.width = '794px';
+  wrap.style.height = 'auto';
+  const naturalH = inner.offsetHeight;
+
   const availW = outer.clientWidth - 48;
   const baseW = 794;
   const scale = Math.min(1, availW / baseW);
-  // 用 zoom 才會讓佈局也跟著縮（transform: scale 不影響佈局，會造成水平滾動）
-  inner.style.zoom = scale;
-  inner.style.width = baseW + 'px';
+
+  if (scale < 1) {
+    // 用 transform 等比縮放（含字級），手機瀏覽器才會老實縮，不會把字保留原大小
+    inner.style.transformOrigin = 'top left';
+    inner.style.transform = `scale(${scale})`;
+    inner.style.position = 'absolute';
+    inner.style.top = '0';
+    inner.style.left = '0';
+    wrap.style.width = (baseW * scale) + 'px';
+    wrap.style.height = (naturalH * scale) + 'px';
+  }
 }
 
 function _buildWeekPrintPage(guests, pageNum, totalPages, dateRange, totalGuests, startIdx) {

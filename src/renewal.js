@@ -103,26 +103,12 @@ async function renderRenewal() {
     <button onclick="_memberData=null;renderRenewal()" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">重整</button>
   </div>`);
 
-  // —— 區塊 1：頂部統計卡 —— //
+  // —— 區塊 1：頂部統計卡（同時作為 sub-tab 切換器）—— //
   parts.push(`<div class="renewal-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;">
-    ${_renewalStatCard('續約進行中', groups.progress.length,  '#c0392b', '#fdecea')}
-    ${_renewalStatCard('待辦儀式',  groups.pending.length,   '#d4ac0d', '#fef9e7')}
-    ${_renewalStatCard('已完成',    groups.done.length,      '#27ae60', '#eaf7ee')}
-    ${_renewalStatCard('新會員',    groups.distant.length,   '#7f8c8d', '#ecf0f1')}
-  </div>`);
-
-  // —— 區塊 3：搜尋 + sub-tab —— //
-  const subTabBtn = (id, label, count, color) => {
-    const active = _renewalSubTab === id;
-    return `<button onclick="_renewalSubTab='${id}';renderRenewal()" style="flex:1;padding:10px 8px;border:none;background:${active ? color : '#f5f5f5'};color:${active ? 'white' : 'var(--text-soft)'};font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;border-radius:8px;transition:all .15s;">
-      ${label}
-    </button>`;
-  };
-  parts.push(`<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
-    ${subTabBtn('progress', '續約進行中', groups.progress.length, '#c0392b')}
-    ${subTabBtn('pending',  '待辦儀式 ★', groups.pending.length,  '#d4ac0d')}
-    ${subTabBtn('done',     '已完成',     groups.done.length,     '#27ae60')}
-    ${subTabBtn('distant',  '新會員',     groups.distant.length,  '#7f8c8d')}
+    ${_renewalStatCard('progress', '續約進行中', groups.progress.length, '#c0392b', '#fdecea')}
+    ${_renewalStatCard('pending',  '待辦儀式',  groups.pending.length,  '#d4ac0d', '#fef9e7')}
+    ${_renewalStatCard('done',     '已完成',    groups.done.length,     '#27ae60', '#eaf7ee')}
+    ${_renewalStatCard('distant',  '新會員',    groups.distant.length,  '#7f8c8d', '#ecf0f1')}
   </div>`);
 
   parts.push(`<input class="member-search" type="text" placeholder="搜尋姓名、公司..." value="${_escH(_renewalSearch)}" oninput="_renewalSearch=this.value;_filterRenewalCards()" autocomplete="off" style="margin-bottom:12px;">`);
@@ -151,11 +137,16 @@ async function renderRenewal() {
   _filterRenewalCards();
 }
 
-function _renewalStatCard(label, count, color, bg) {
-  return `<div style="background:${bg};border-radius:10px;padding:14px 10px;display:flex;flex-direction:column;gap:4px;">
-    <div style="font-size:11px;color:${color};font-weight:700;letter-spacing:1px;">${label}</div>
-    <div style="font-size:24px;color:${color};font-weight:900;line-height:1;">${count}</div>
-    <div style="font-size:10px;color:${color};opacity:.7;">位會員</div>
+function _renewalStatCard(id, label, count, color, bg) {
+  const active = _renewalSubTab === id;
+  const activeStyle = active
+    ? `background:${color};box-shadow:0 4px 12px ${color}55;transform:translateY(-1px);`
+    : `background:${bg};`;
+  const textColor = active ? '#fff' : color;
+  return `<div onclick="_renewalSubTab='${id}';renderRenewal()" style="${activeStyle}border-radius:10px;padding:14px 10px;display:flex;flex-direction:column;gap:4px;cursor:pointer;transition:all .15s;user-select:none;">
+    <div style="font-size:11px;color:${textColor};font-weight:700;letter-spacing:1px;">${label}</div>
+    <div style="font-size:24px;color:${textColor};font-weight:900;line-height:1;">${count}</div>
+    <div style="font-size:10px;color:${textColor};opacity:${active ? '.9' : '.7'};">位會員</div>
   </div>`;
 }
 
