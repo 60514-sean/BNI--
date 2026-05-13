@@ -497,14 +497,15 @@ function _isClosed(g)  { return !!g.closed  || ['婉拒/停止追蹤','轉別分
 
 // Tab 分配採嚴格互斥：每位來賓只會出現在一個 tab
 // 優先順序：暫停追蹤 > 入會流程 > 高潛力 > 本周來賓 > 追蹤中
+// 方案 B：紅色漸進（左到右越深）+ 暫停追蹤用灰
 const GUEST_TAB_DEFS = [
-  { id: 'week',     label: '本周來賓', color: '#1e40af', bg: '#dbeafe',
+  { id: 'week',     label: '本周來賓', color: '#dc2626', bg: '#fef2f2',
     filter: (g) => _isInWeekGuest(g) && !_isApplied(g) && !_isClosed(g) && !_isHotGuest(g) },
-  { id: 'tracking', label: '追蹤中',   color: '#92400e', bg: '#fef3c7',
+  { id: 'tracking', label: '追蹤中',   color: '#b91c1c', bg: '#fee2e2',
     filter: (g) => !_isInWeekGuest(g) && !_isApplied(g) && !_isClosed(g) && !_isHotGuest(g) },
-  { id: 'hot',      label: '高潛力',   color: '#991b1b', bg: '#fee2e2',
+  { id: 'hot',      label: '高潛力',   color: '#991b1b', bg: '#fecaca',
     filter: (g) => !_isClosed(g) && !_isApplied(g) && _isHotGuest(g) },
-  { id: 'process',  label: '入會流程', color: '#9a3412', bg: '#fed7aa',
+  { id: 'process',  label: '入會流程', color: '#7f1d1d', bg: '#fca5a5',
     filter: (g) => _isApplied(g) && !_isClosed(g) },
   { id: 'paused',   label: '暫停追蹤', color: '#475569', bg: '#e5e7eb',
     filter: _isClosed }
