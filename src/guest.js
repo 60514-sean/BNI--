@@ -1003,11 +1003,11 @@ async function openGuestModal(arg, opts) {
       <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
     </div>
     <div class="modal-row-inline">
-      <div class="modal-field" style="flex:3 1 0;">
+      <div class="modal-field" style="flex:2 1 0;">
         <div class="modal-label">姓名 <span style="color:var(--red);">*</span></div>
         <input class="modal-input" type="text" id="gm_name" value="${_escH(g?.name || '')}" placeholder="王大明">
       </div>
-      <div class="modal-field" style="flex:1 1 0;">
+      <div class="modal-field" style="flex:1.5 1 0;">
         <div class="modal-label">稱謂</div>
         <select class="modal-input" id="gm_title" style="appearance:auto;background:white;">
           <option value="" ${!g?.title?'selected':''}>無</option>
