@@ -1058,9 +1058,22 @@ async function openGuestModal(arg, opts) {
           2. 繳費
         </label>
         <label class="gm-step" style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;border-top:1px dashed var(--gray-border);padding-top:10px;margin-top:4px;">
-          <input type="checkbox" id="gm_closed" ${g && _isClosed(g)?'checked':''}>
-          3. 結案（流程結束 / 婉拒，移到暫停追蹤）
+          <input type="checkbox" id="gm_closed" ${g && _isClosed(g)?'checked':''} onchange="_gmProgressChange()">
+          3. 結案（移到暫停追蹤）
         </label>
+        <div id="gm_closeReasonBox" style="display:flex;flex-direction:column;gap:6px;padding-left:24px;font-size:13px;color:var(--text-soft);">
+          ${[
+            { v: '婉拒/停止追蹤', label: '婉拒 / 停止追蹤' },
+            { v: '轉別分會',       label: '轉別分會' },
+            { v: '已入會',         label: '已入會' }
+          ].map(opt => {
+            const cur = g && _isClosed(g) ? (g.status || '婉拒/停止追蹤') : '婉拒/停止追蹤';
+            return `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="radio" name="gm_closeReason" value="${opt.v}" ${cur===opt.v?'checked':''}>
+              ${opt.label}
+            </label>`;
+          }).join('')}
+        </div>
       </div>
     </div>
 
@@ -1106,21 +1119,35 @@ async function openGuestModal(arg, opts) {
   _gmProgressChange(); // 初始化「繳費」依「填單」的鎖定狀態
 }
 
-// 編輯視窗內：依序鎖定「繳費」於「填單」之後
+// 編輯視窗內：依序鎖定「繳費」於「填單」之後 + 結案 radio 隨 checkbox 顯隱
 function _gmProgressChange() {
   const ap = document.getElementById('gm_applied');
   const pa = document.getElementById('gm_paid');
   const lblPa = document.getElementById('gm_lbl_paid');
-  if (!ap || !pa || !lblPa) return;
-  if (!ap.checked) {
-    pa.checked = false;
-    pa.disabled = true;
-    lblPa.style.opacity = '.4';
-    lblPa.style.cursor = 'not-allowed';
-  } else {
-    pa.disabled = false;
-    lblPa.style.opacity = '1';
-    lblPa.style.cursor = 'pointer';
+  if (ap && pa && lblPa) {
+    if (!ap.checked) {
+      pa.checked = false;
+      pa.disabled = true;
+      lblPa.style.opacity = '.4';
+      lblPa.style.cursor = 'not-allowed';
+    } else {
+      pa.disabled = false;
+      lblPa.style.opacity = '1';
+      lblPa.style.cursor = 'pointer';
+    }
+  }
+  // 結案 → radio 顯示 / 隱藏
+  const cl = document.getElementById('gm_closed');
+  const rbox = document.getElementById('gm_closeReasonBox');
+  if (cl && rbox) {
+    if (cl.checked) {
+      rbox.style.display = '';
+      rbox.style.opacity = '1';
+      rbox.querySelectorAll('input').forEach(i => i.disabled = false);
+    } else {
+      rbox.style.opacity = '.4';
+      rbox.querySelectorAll('input').forEach(i => i.disabled = true);
+    }
   }
 }
 
@@ -1406,11 +1433,11 @@ async function saveGuest(gKey) {
     return _guestData?.find(x => x.year === year && x.sheetRow === row);
   })() : null;
   const oldStatus = orig ? orig.status : '';
+  const closeReason = document.querySelector('input[name="gm_closeReason"]:checked')?.value || '婉拒/停止追蹤';
   const derivedStatus = (() => {
     if (closedNew) {
-      // 結案：保留已入會/轉別分會的細分（如果原本就是），否則預設為婉拒
-      if (oldStatus === '已入會' || oldStatus === '轉別分會') return oldStatus;
-      return '婉拒/停止追蹤';
+      // 使用者在 radio 選的具體類型（婉拒/轉別/已入會）
+      return closeReason;
     }
     if (paidNew)    return '審核中';
     if (appliedNew) return '已填單待繳費';
