@@ -1954,18 +1954,17 @@ function _buildWeekPrintRow(g, num) {
                 : g.joinProb === '低' ? '1'
                 : '—';
   // 補充資訊兩欄分組
-  // 左欄：想認識行業（紅）、預期收穫、個性、事業現狀
-  // 右欄：想認識會員（紅）、後締結、補充
+  // 左欄（上到下）：個性、事業現狀、預期收穫、想認識行業 — 標籤固定寬度讓內文齊左
+  // 右欄：補充
+  const lblStyle = 'color:#999;display:inline-block;width:5.5em;flex-shrink:0;';
   const lFields = [
-    g.interestedIndustry ? `<div><span style="color:#999;">想認識行業 </span><span style="color:#c0392b;font-weight:600;">${_escH(g.interestedIndustry)}</span></div>` : '',
-    g.expectedGain       ? `<div><span style="color:#999;">預期收穫 </span>${_escH(g.expectedGain)}</div>` : '',
-    g.personality        ? `<div><span style="color:#999;">個性 </span>${_escH(g.personality)}</div>` : '',
-    g.businessStatus     ? `<div><span style="color:#999;">事業現狀 </span>${_escH(g.businessStatus)}</div>` : ''
+    g.personality        ? `<div style="display:flex;"><span style="${lblStyle}">個性</span><span>${_escH(g.personality)}</span></div>` : '',
+    g.businessStatus     ? `<div style="display:flex;"><span style="${lblStyle}">事業現狀</span><span>${_escH(g.businessStatus)}</span></div>` : '',
+    g.expectedGain       ? `<div style="display:flex;"><span style="${lblStyle}">預期收穫</span><span>${_escH(g.expectedGain)}</span></div>` : '',
+    g.interestedIndustry ? `<div style="display:flex;"><span style="${lblStyle}">想認識行業</span><span style="color:#c0392b;font-weight:600;">${_escH(g.interestedIndustry)}</span></div>` : ''
   ].filter(Boolean).join('');
   const rFields = [
-    interestedText   ? `<div><span style="color:#999;">想認識會員 </span><span style="color:#c0392b;font-weight:600;">${_escH(interestedText)}</span></div>` : '',
-    g.postVisitNote  ? `<div><span style="color:#999;">後締結 </span>${_escH(g.postVisitNote)}</div>` : '',
-    g.extraNote      ? `<div><span style="color:#999;">補充 </span>${_escH(g.extraNote)}</div>` : ''
+    g.extraNote      ? `<div style="display:flex;"><span style="${lblStyle}">補充</span><span>${_escH(g.extraNote)}</span></div>` : ''
   ].filter(Boolean).join('');
   const hasNotes = lFields || rFields;
   // 變動高度：每筆依內容自動撐開（min-height 確保最小高度，內容多可往下長）
