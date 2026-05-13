@@ -1976,13 +1976,13 @@ function _buildWeekPrintRow(g, num) {
         ${g.title ? `<span style="font-size:9pt;color:#888;">${_escH(g.title)}</span>` : ''}
         <span style="margin-left:auto;font-size:8pt;color:#999;letter-spacing:1px;">首訪 ${_escH(g.firstVisit || '—')}</span>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px 14px;font-size:8.5pt;color:#333;padding-bottom:5px;border-bottom:1px dashed #ececec;margin-bottom:5px;">
+      <div style="display:grid;grid-template-columns:1.3fr 1.3fr 1.3fr 0.6fr;gap:2px 14px;font-size:8.5pt;color:#333;padding-bottom:5px;border-bottom:1px dashed #ececec;margin-bottom:5px;">
         <span><span style="color:#999;font-size:7.5pt;">產業　</span>${dash(g.industry)}</span>
         <span><span style="color:#999;font-size:7.5pt;">公司　</span>${dash(g.company)}</span>
         <span><span style="color:#999;font-size:7.5pt;">電話　</span>${dash(g.phone)}</span>
+        <span><span style="color:#999;font-size:7.5pt;">機率　</span><span style="color:${probColor};font-weight:700;">${probNum}</span></span>
         <span><span style="color:#999;font-size:7.5pt;">邀約　</span>${dash(g.inviter)}</span>
         <span><span style="color:#999;font-size:7.5pt;">締結　</span>${dash(g.closer)}</span>
-        <span><span style="color:#999;font-size:7.5pt;">機率　</span><span style="color:${probColor};font-weight:700;">${probNum}</span></span>
       </div>
       ${hasNotes ? `
       <div style="display:grid;grid-template-columns:1fr 1fr;column-gap:18px;row-gap:2px;font-size:8.5pt;line-height:1.45;color:#444;">
