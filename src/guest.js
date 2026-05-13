@@ -1831,18 +1831,18 @@ async function openWeekPrintPreview() {
 
   const overlay = document.createElement('div');
   overlay.id = 'weekPrintModal';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;flex-direction:column;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;display:flex;flex-direction:column;';
   overlay.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;background:#1a1a1a;color:white;padding:10px 14px;flex-shrink:0;">
-      <div style="font-size:13px;font-weight:700;letter-spacing:1px;">本周來賓資訊預覽（A4 直印 · ${totalPages} 頁）</div>
-      <div style="display:flex;gap:8px;">
-        <button onclick="exportWeekPrintPdf()" style="background:var(--red);color:white;border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">匯出 PDF</button>
-        <button onclick="exportWeekPrintJpg()" style="background:rgba(255,255,255,0.18);border:none;color:white;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">匯出 JPG</button>
-        <button onclick="closeWeekPrintPreview()" style="background:rgba(255,255,255,0.18);border:none;color:white;padding:6px 14px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">關閉 ✕</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#0f0f0f;color:white;padding:14px 24px;flex-shrink:0;border-bottom:1px solid #2a2a2a;">
+      <div style="font-size:12px;letter-spacing:2px;opacity:.7;">本周來賓資訊 · ${totalPages} 頁</div>
+      <div style="display:flex;gap:28px;align-items:center;">
+        <span onclick="exportWeekPrintPdf()" style="cursor:pointer;font-size:13px;letter-spacing:2px;color:#fff;">PDF</span>
+        <span onclick="exportWeekPrintJpg()" style="cursor:pointer;font-size:13px;letter-spacing:2px;color:#fff;">JPG</span>
+        <span onclick="closeWeekPrintPreview()" style="cursor:pointer;font-size:18px;line-height:1;color:#fff;">&times;</span>
       </div>
     </div>
-    <div id="weekPrintOuter" style="flex:1;overflow:auto;background:#f4f5f7;padding:20px;">
-      <div id="weekPrintInner" style="margin:0 auto;display:flex;flex-direction:column;gap:14px;">${pagesHtml.join('')}</div>
+    <div id="weekPrintOuter" style="flex:1;overflow:auto;background:#2a2a2a;padding:24px;display:flex;justify-content:center;align-items:flex-start;">
+      <div id="weekPrintInner" style="display:flex;flex-direction:column;gap:18px;width:794px;flex-shrink:0;">${pagesHtml.join('')}</div>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -1861,24 +1861,25 @@ function _scaleWeekPrint() {
   const outer = document.getElementById('weekPrintOuter');
   const inner = document.getElementById('weekPrintInner');
   if (!outer || !inner) return;
-  const availW = outer.clientWidth - 40;
+  const availW = outer.clientWidth - 48;
   const baseW = 794;
   const scale = Math.min(1, availW / baseW);
-  inner.style.transform = `scale(${scale})`;
-  inner.style.transformOrigin = 'top center';
+  // 用 zoom 才會讓佈局也跟著縮（transform: scale 不影響佈局，會造成水平滾動）
+  inner.style.zoom = scale;
   inner.style.width = baseW + 'px';
 }
 
 function _buildWeekPrintPage(guests, pageNum, totalPages, dateRange, totalGuests, startIdx) {
-  const suffix = totalPages > 1 ? `（${pageNum}/${totalPages}）` : '';
+  const suffix = totalPages > 1 ? `　·　${pageNum} / ${totalPages}` : '';
   const rowsHtml = guests.map((g, i) => _buildWeekPrintRow(g, startIdx + i + 1)).join('');
   return `
-    <div class="week-print-page" data-page="${pageNum}" style="width:794px;height:1123px;background:white;padding:36px 40px;box-sizing:border-box;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;color:#1a1a2e;display:flex;flex-direction:column;">
-      <div style="text-align:center;border-bottom:2.5px solid #c0392b;padding-bottom:10px;margin-bottom:14px;flex-shrink:0;">
-        <div style="font-size:20pt;font-weight:900;letter-spacing:3px;line-height:1.2;">BNI 億展白金分會　本周來賓資訊${suffix}</div>
-        <div style="font-size:11pt;color:#666;margin-top:4px;letter-spacing:1px;">${_escH(dateRange)} · 共 ${totalGuests} 位</div>
+    <div class="week-print-page" data-page="${pageNum}" style="width:794px;height:1123px;background:white;padding:42px 44px;box-sizing:border-box;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;color:#1a1a2e;box-shadow:0 4px 24px rgba(0,0,0,0.45);">
+      <div style="text-align:center;margin-bottom:20px;padding-bottom:14px;border-bottom:3px solid #c0392b;">
+        <div style="font-size:11pt;color:#999;letter-spacing:4px;margin-bottom:6px;font-weight:600;">BNI YIH CHAN PLATINUM CHAPTER</div>
+        <div style="font-size:21pt;font-weight:900;letter-spacing:3px;line-height:1.2;color:#1a1a2e;">本周來賓資訊</div>
+        <div style="font-size:10.5pt;color:#666;margin-top:8px;letter-spacing:2px;">${_escH(dateRange)}　·　共 ${totalGuests} 位${suffix}</div>
       </div>
-      <div style="flex:1;display:flex;flex-direction:column;gap:5px;">${rowsHtml}</div>
+      <div style="display:flex;flex-direction:column;gap:9px;">${rowsHtml}</div>
     </div>
   `;
 }
@@ -1886,27 +1887,31 @@ function _buildWeekPrintPage(guests, pageNum, totalPages, dateRange, totalGuests
 function _buildWeekPrintRow(g, num) {
   const interested = _parseInterested(g.interestedIn);
   const interestedText = interested.length ? interested.map(x => x.member).join('、') : '';
+  const dash = (v) => (v && String(v).trim()) ? _escH(v) : '<span style="color:#bbb;">—</span>';
+  // 固定高度 92px，內容過多時 overflow:hidden（不會把 A4 撐爆）
   return `
-    <div style="border:1px solid #ccc;border-radius:4px;padding:6px 10px;font-size:9pt;line-height:1.4;flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-start;overflow:hidden;">
-      <div style="display:flex;align-items:baseline;gap:8px;border-bottom:1px dashed #e0e0e0;padding-bottom:3px;margin-bottom:3px;">
-        <span style="font-weight:900;color:#c0392b;min-width:18px;">${num}.</span>
-        <span style="font-weight:900;font-size:11pt;">${_escH(g.name)}</span>
-        ${g.title ? `<span style="color:#666;">${_escH(g.title)}</span>` : ''}
-        <span style="color:#999;margin-left:auto;font-size:8.5pt;">首訪 ${_escH(g.firstVisit || '—')}</span>
+    <div style="height:92px;background:white;border:1px solid #e5e7eb;border-left:4px solid #c0392b;border-radius:5px;padding:8px 14px;box-sizing:border-box;font-size:9pt;line-height:1.45;color:#1a1a2e;overflow:hidden;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px;">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:#c0392b;color:white;border-radius:50%;font-size:10pt;font-weight:900;flex-shrink:0;">${num}</span>
+        <span style="font-size:13pt;font-weight:900;color:#1a1a2e;">${_escH(g.name)}</span>
+        ${g.title ? `<span style="font-size:9.5pt;color:#888;">${_escH(g.title)}</span>` : ''}
+        <span style="margin-left:auto;font-size:8.5pt;color:#999;letter-spacing:1px;">首訪 ${_escH(g.firstVisit || '—')}</span>
       </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;color:#333;">
-        <span><b style="color:#666;">邀約：</b>${_escH(g.inviter || '—')}</span>
-        ${g.closer ? `<span><b style="color:#666;">締結：</b>${_escH(g.closer)}</span>` : ''}
-        <span><b style="color:#666;">產業：</b>${_escH(g.industry || '—')}</span>
-        <span><b style="color:#666;">公司：</b>${_escH(g.company || '—')}</span>
-        <span><b style="color:#666;">電話：</b>${_escH(g.phone || '—')}</span>
-        <span><b style="color:#666;">機率：</b>${_escH(g.joinProb || '未評估')}</span>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px 14px;font-size:9pt;color:#333;padding-bottom:5px;border-bottom:1px dashed #ececec;margin-bottom:5px;">
+        <span><span style="color:#999;font-size:8pt;">邀約　</span>${dash(g.inviter)}</span>
+        <span><span style="color:#999;font-size:8pt;">締結　</span>${dash(g.closer)}</span>
+        <span><span style="color:#999;font-size:8pt;">機率　</span>${dash(g.joinProb || '未評估')}</span>
+        <span><span style="color:#999;font-size:8pt;">產業　</span>${dash(g.industry)}</span>
+        <span><span style="color:#999;font-size:8pt;">公司　</span>${dash(g.company)}</span>
+        <span><span style="color:#999;font-size:8pt;">電話　</span>${dash(g.phone)}</span>
       </div>
-      ${g.personality ? `<div style="margin-top:2px;"><b style="color:#666;">個性：</b>${_escH(g.personality)}</div>` : ''}
-      ${g.expectedGain ? `<div style="margin-top:2px;"><b style="color:#666;">預期收穫：</b>${_escH(g.expectedGain)}</div>` : ''}
-      ${g.businessStatus ? `<div style="margin-top:2px;"><b style="color:#666;">事業現狀：</b>${_escH(g.businessStatus)}</div>` : ''}
-      ${interestedText ? `<div style="margin-top:2px;"><b style="color:#c0392b;">想認識：</b>${_escH(interestedText)}</div>` : ''}
-      ${g.postVisitNote ? `<div style="margin-top:2px;"><b style="color:#666;">參訪後締結：</b>${_escH(g.postVisitNote)}</div>` : ''}
+      <div style="font-size:8.5pt;line-height:1.45;color:#444;">
+        ${g.personality    ? `<span style="margin-right:14px;"><span style="color:#999;">個性 </span>${_escH(g.personality)}</span>` : ''}
+        ${g.expectedGain   ? `<span style="margin-right:14px;"><span style="color:#999;">預期 </span>${_escH(g.expectedGain)}</span>` : ''}
+        ${g.businessStatus ? `<span style="margin-right:14px;"><span style="color:#999;">事業 </span>${_escH(g.businessStatus)}</span>` : ''}
+        ${interestedText   ? `<span style="margin-right:14px;color:#c0392b;font-weight:600;">想認識 ${_escH(interestedText)}</span>` : ''}
+        ${g.postVisitNote  ? `<span style="margin-right:14px;"><span style="color:#999;">後締結 </span>${_escH(g.postVisitNote)}</span>` : ''}
+      </div>
     </div>
   `;
 }
@@ -1916,6 +1921,7 @@ async function _renderOneWeekPrintCanvas(pageEl) {
   wrap.style.cssText = 'position:absolute;left:-9999px;top:0;background:white;';
   const clone = pageEl.cloneNode(true);
   clone.style.transform = 'none';
+  clone.style.zoom = '1'; // 重設 zoom，避免匯出受預覽縮放影響
   clone.style.boxShadow = 'none';
   wrap.appendChild(clone);
   document.body.appendChild(wrap);
