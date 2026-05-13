@@ -263,6 +263,48 @@ function _isHighPotentialGuest(g) {
   return g.joinProb === '高';
 }
 
+// ===== 新版來賓追蹤 UI helpers =====
+let _expandedGuests = new Set(); // 已展開的卡片 key
+
+function _guestKey(g) {
+  return g.phone ? _phoneKey(g.phone) : `${g.year}-${g.sheetRow}`;
+}
+
+function _toggleGuestExpand(key) {
+  if (_expandedGuests.has(key)) _expandedGuests.delete(key);
+  else _expandedGuests.add(key);
+  // 只重渲染列表區塊，不重整 stats / tabs（避免閃爍）
+  const listEl = document.getElementById('guestList');
+  if (listEl) _renderOnlyList();
+}
+
+function _isInWeekGuest(g) {
+  const r = _weekRange();
+  const mon = r.mon, sun = r.sun;
+  const candidates = [];
+  (g._allRows || [g]).forEach(row => {
+    candidates.push(_parseDateStr(row.firstVisit));
+    _parseTracks(row.tracks).forEach(t => candidates.push(_parseDateStr(t.date)));
+  });
+  return candidates.some(d => d && d >= mon && d <= sun);
+}
+
+function _isHotGuest(g) {
+  if (g.joinProb === '高') return true;
+  if (_calcHeatScore(g) >= 20) return true;
+  if (_parseInterested(g.interestedIn).length > 0) return true;
+  return false;
+}
+
+// 5 個 tab 定義（單一資料源，stat 卡與 sub-tab 共用）
+const GUEST_TAB_DEFS = [
+  { id: 'week',     label: '本周來賓', color: '#1e40af', bg: '#dbeafe', filter: _isInWeekGuest },
+  { id: 'tracking', label: '追蹤中',   color: '#92400e', bg: '#fef3c7', filter: (g) => ['待追蹤', '持續追蹤'].includes(g.status) },
+  { id: 'hot',      label: '高潛力 ★', color: '#991b1b', bg: '#fee2e2', filter: _isHotGuest },
+  { id: 'process',  label: '入會流程', color: '#9a3412', bg: '#fed7aa', filter: (g) => ['已填單待繳費', '審核中'].includes(g.status) },
+  { id: 'paused',   label: '暫停追蹤', color: '#475569', bg: '#e5e7eb', filter: (g) => g.status === '婉拒/停止追蹤' }
+];
+
 // localStorage 快取（stale-while-revalidate）：UI 秒顯示舊資料，背景再抓最新
 const _GUEST_LS_KEY = 'bni_guest_data_cache_v1';
 const _GUEST_LS_TTL_MS = 10 * 60 * 1000; // 10 分鐘以內的舊資料才用
@@ -300,11 +342,9 @@ async function fetchGuests() {
 async function renderGuestTrack() {
   const el = document.getElementById('guestTrackContent');
   if (_guestData === null) {
-    // stale-while-revalidate：先用 localStorage 舊資料秒顯示，背景重抓
     const cached = _loadGuestsFromLS();
     if (cached) {
       _guestData = cached;
-      // 背景刷新：不阻塞 UI
       fetchGuests().then(() => {
         if (_activeTab === 'guest') renderGuestTrack();
       });
@@ -318,45 +358,100 @@ async function renderGuestTrack() {
     return;
   }
 
-  const tab = _guestSubTab;
-  const subBtn = (v, label) => `<button class="signin-subtab ${tab===v?'active':''}" onclick="_guestSubSwitch('${v}')">${label}</button>`;
+  // 預設 tab
+  if (!GUEST_TAB_DEFS.some(t => t.id === _guestSubTab)) _guestSubTab = 'week';
 
-  // 依「本周/歷屆 + 搜尋」先縮小範圍，再基於此算各狀態筆數，最後才套狀態篩選
-  const scopeFiltered = _filterGuestsScope(tab);
-  const statusCounts = _countByStatus(scopeFiltered);
-  const guests = !_guestStatusFilter
-    ? scopeFiltered
-    : (_guestStatusFilter === HIGH_POTENTIAL_KEY
-        ? scopeFiltered.filter(_isHighPotentialGuest)
-        : scopeFiltered.filter(g => (g.status || '待追蹤') === _guestStatusFilter));
+  // 按手機合併（一訪/二訪合併成一張卡）
+  const grouped = _groupGuestsByPhone(_guestData);
 
-  const rangeText = tab === 'week' ? `本周（${_weekRangeText()}）` : '歷屆全部';
+  // 計算各 tab 的筆數
+  const counts = {};
+  GUEST_TAB_DEFS.forEach(t => { counts[t.id] = grouped.filter(t.filter).length; });
+
+  // 取得目前 tab 的清單
+  const currentTab = GUEST_TAB_DEFS.find(t => t.id === _guestSubTab) || GUEST_TAB_DEFS[0];
+  let list = grouped.filter(currentTab.filter);
+
+  // 套搜尋
+  if (_guestSearch) {
+    const q = _guestSearch.toLowerCase();
+    list = list.filter(g => {
+      const rows = g._allRows || [g];
+      return rows.some(r =>
+        (r.name||'').toLowerCase().includes(q) ||
+        (r.industry||'').toLowerCase().includes(q) ||
+        (r.inviter||'').toLowerCase().includes(q) ||
+        (r.company||'').toLowerCase().includes(q) ||
+        (r.phone||'').toLowerCase().includes(q)
+      );
+    });
+  }
+
+  // 排序：最近活動由新到舊
+  list.sort((a, b) => {
+    const da = _guestLatestDate(a); const db = _guestLatestDate(b);
+    return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+  });
+
+  // 統計卡
+  const statsHtml = `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px;">
+    ${GUEST_TAB_DEFS.map(t => `
+      <div onclick="_guestSubTab='${t.id}';renderGuestTrack()" style="background:${t.bg};border-radius:10px;padding:12px 8px;text-align:center;cursor:pointer;${_guestSubTab===t.id?`outline:2px solid ${t.color};`:''}">
+        <div style="font-size:11px;color:${t.color};font-weight:700;letter-spacing:0.5px;">${t.label}</div>
+        <div style="font-size:22px;color:${t.color};font-weight:900;line-height:1.2;">${counts[t.id]}</div>
+      </div>
+    `).join('')}
+  </div>`;
+
+  // sub-tab
+  const tabsHtml = `<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+    ${GUEST_TAB_DEFS.map(t => {
+      const active = _guestSubTab === t.id;
+      return `<button onclick="_guestSubTab='${t.id}';renderGuestTrack()" style="flex:1;min-width:80px;padding:10px 6px;border:none;background:${active ? t.color : '#f5f5f5'};color:${active ? 'white' : 'var(--text-soft)'};font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;border-radius:8px;">${t.label}</button>`;
+    }).join('')}
+  </div>`;
 
   el.innerHTML = `<div class="signin-wrapper">
-    <div class="card" style="margin-bottom:14px;padding:16px 20px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-        <div>
-          <div style="font-size:16px;font-weight:900;color:var(--text);">來賓追蹤</div>
-          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">${rangeText} · 共 ${guests.length} 位${_guestStatusFilter ? ` · 狀態：${_escH(_guestStatusFilter === HIGH_POTENTIAL_KEY ? HIGH_POTENTIAL_LABEL : _guestStatusFilter)}` : ''}</div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-primary" onclick="openGuestModal()">+ 新增來賓</button>
-          <button class="btn" style="background:white;border:1.5px solid var(--red);color:var(--red);font-weight:700;" onclick="openGuestImportModal()">匯入 Excel</button>
-          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="_guestData=null;renderGuestTrack()">重整</button>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:14px;">
-        ${subBtn('week','本周來賓')}
-        ${subBtn('all','歷屆來賓')}
-      </div>
-      ${tab === 'all' ? `<input type="text" placeholder="搜尋姓名／產業／邀請人..." value="${_escH(_guestSearch)}" oninput="_guestSearch=this.value;_debouncedRenderGuestList()" style="width:100%;margin-top:10px;padding:10px 14px;border:1.5px solid var(--gray-border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;outline:none;">` : ''}
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
-        ${tab === 'all' ? _termSelectHtml() : ''}
-        ${_statusSelectHtml()}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">來賓追蹤</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="openGuestModal()">+ 新增來賓</button>
+        <button class="btn" style="background:white;border:1.5px solid var(--red);color:var(--red);font-weight:700;" onclick="openGuestImportModal()">匯入 Excel</button>
+        <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="_guestData=null;renderGuestTrack()">重整</button>
       </div>
     </div>
-    <div id="guestListContainer">${_guestListHtml(guests)}</div>
+    ${statsHtml}
+    ${tabsHtml}
+    <input class="member-search" type="text" placeholder="搜尋姓名、公司、電話..." value="${_escH(_guestSearch)}" oninput="_guestSearch=this.value;_debouncedRenderGuestList()" autocomplete="off" style="margin-bottom:12px;">
+    <div id="guestList">${_guestListHtml(list)}</div>
   </div>`;
+}
+
+// 只重渲染列表區塊（折疊/展開時用，避免重新建立 stats / tabs / 搜尋欄）
+function _renderOnlyList() {
+  if (!_guestData) return;
+  const grouped = _groupGuestsByPhone(_guestData);
+  const currentTab = GUEST_TAB_DEFS.find(t => t.id === _guestSubTab) || GUEST_TAB_DEFS[0];
+  let list = grouped.filter(currentTab.filter);
+  if (_guestSearch) {
+    const q = _guestSearch.toLowerCase();
+    list = list.filter(g => {
+      const rows = g._allRows || [g];
+      return rows.some(r =>
+        (r.name||'').toLowerCase().includes(q) ||
+        (r.industry||'').toLowerCase().includes(q) ||
+        (r.inviter||'').toLowerCase().includes(q) ||
+        (r.company||'').toLowerCase().includes(q) ||
+        (r.phone||'').toLowerCase().includes(q)
+      );
+    });
+  }
+  list.sort((a, b) => {
+    const da = _guestLatestDate(a); const db = _guestLatestDate(b);
+    return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+  });
+  const el = document.getElementById('guestList');
+  if (el) el.innerHTML = _guestListHtml(list);
 }
 
 function _filterGuestsScope(tab, applyYear = true) {
@@ -498,15 +593,8 @@ function _setStatusFilter(v) {
 }
 
 function _renderGuestListOnly() {
-  // 搜尋輸入時：重新渲染除了搜尋框外的所有區塊（select 會被重建，但輸入框保留焦點）
-  renderGuestTrack();
-  // 把焦點放回搜尋框
-  const inp = document.querySelector('#guestTrackContent input[type="text"]');
-  if (inp && document.activeElement !== inp) {
-    inp.focus();
-    const len = inp.value.length;
-    inp.setSelectionRange(len, len);
-  }
+  // 搜尋輸入時：只重渲染列表區塊，stats / tabs / 搜尋框保持原狀（避免焦點丟失）
+  _renderOnlyList();
 }
 const _debouncedRenderGuestList = _debounce(_renderGuestListOnly, 150);
 
@@ -526,48 +614,21 @@ function _joinProbBadge(joinProb) {
 }
 
 function _guestCardHtml(g) {
-  // 二訪時 g 為合併視圖：tracks/postVisitNote 等取最新（spread）；想認識/行為已被合併
-  const tracks = _parseTracks(g.tracks);
-  const interested = _parseInterested(g.interestedIn);
+  const key = _guestKey(g);
+  const expanded = _expandedGuests.has(key);
   const unmatched = _isUnmatchedGuest(g);
   const heat = _calcHeatScore(g);
   const hasBeh = _hasBehaviorData(g);
-  const tracksHtml = tracks.length
-    ? tracks.map((t, i) => `
-      <div style="display:flex;gap:8px;padding:6px 0;border-top:1px dashed var(--gray-border);font-size:12px;">
-        <div style="flex-shrink:0;font-weight:700;color:var(--red);min-width:82px;">第${_zhNum(i+1)}次追蹤</div>
-        <div style="flex:1;min-width:0;">
-          ${t.date ? `<div style="color:var(--text-soft);font-size:11px;margin-bottom:2px;">${_escH(t.date)}</div>` : ''}
-          <div style="word-break:break-word;line-height:1.5;">${_escH(t.note)}</div>
-        </div>
-      </div>`).join('')
-    : '';
-  // 編輯/行為按鈕的識別 key：有手機就用手機，沒手機 fallback 用 gKey
   const editArg = g.phone ? g.phone : `${g.year}-${g.sheetRow}`;
   const behKey = (g._hasSecond && g.phone) ? `phone:${g.phone}` : `${g.year}-${g.sheetRow}`;
-  const interestedHtml = interested.length
-    ? `<div style="margin-top:8px;background:#fff5f3;border:1px solid #f5d4cc;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.5;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:0;">
-          <b style="color:#c0392b;">★ 想認識會員：</b>
-          <span style="color:var(--text);">${interested.map(x => _escH(x.member)).join('、')}</span>
-        </div>
-        ${hasBeh ? `<button class="btn" style="padding:5px 12px;font-size:12px;background:white;border:1.5px solid #c0392b;color:#c0392b;font-weight:700;border-radius:6px;flex-shrink:0;" onclick="openGuestBehaviorModal('${_escH(behKey)}')">查看行為紀錄</button>` : ''}
-      </div>`
-    : (hasBeh ? `<div style="margin-top:8px;display:flex;justify-content:flex-end;">
-        <button class="btn" style="padding:5px 12px;font-size:12px;background:white;border:1.5px solid #c0392b;color:#c0392b;font-weight:700;border-radius:6px;" onclick="openGuestBehaviorModal('${_escH(behKey)}')">查看行為紀錄</button>
-      </div>` : '');
-  // 日期顯示：有二訪則「首訪 X　二訪 Y」，否則「首訪 X」
-  const dateLine = g._hasSecond
-    ? `首訪 <b style="color:var(--text);">${_escH(g._firstRow.firstVisit)}</b>　二訪 <b style="color:var(--text);">${_escH(g._secondRow.firstVisit)}</b>`
-    : (g.firstVisit ? `首訪 <b style="color:var(--text);">${_escH(g.firstVisit)}</b>` : '');
-  return `<div class="card" style="padding:14px 16px;margin-bottom:10px;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;">
+  const interested = _parseInterested(g.interestedIn);
+
+  // 折疊版（永遠顯示）
+  const collapsedHtml = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">
           <span style="font-size:16px;font-weight:900;color:var(--text);">${_escH(g.name)}</span>
-          ${g.title ? `<span style="color:var(--text-soft);font-size:13px;font-weight:500;">${_escH(g.title)}</span>` : ''}
-          ${_guestStatusBadge(g.status)}
-          ${_joinProbBadge(g.joinProb)}
           ${g._hasSecond ? `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:700;white-space:nowrap;">二訪</span>` : ''}
           ${unmatched ? `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:#fde68a;color:#92400e;font-size:11px;font-weight:700;white-space:nowrap;">未匹配名單</span>` : ''}
           ${_heatBadge(heat)}
@@ -576,25 +637,74 @@ function _guestCardHtml(g) {
           ${g.industry ? `<span>${_escH(g.industry)}</span>` : ''}
           ${g.company ? ` · <span>${_escH(g.company)}</span>` : ''}
         </div>
-        ${dateLine ? `<div style="font-size:12px;color:var(--text-soft);margin-top:2px;">${dateLine}</div>` : ''}
         <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">
-          ${g.inviter ? `邀約：<b style="color:var(--text);">${_escH(g.inviter)}</b>` : ''}
-          ${g.closer ? `　締結：<b style="color:var(--text);">${_escH(g.closer)}</b>` : ''}
-          ${g.phone ? `<span class="g-phone"><a href="tel:${_escH(g.phone)}" style="color:var(--red);text-decoration:none;">${_escH(g.phone)}</a></span>` : ''}
+          ${g.inviter ? `邀約：<b style="color:var(--text);">${_escH(g.inviter)}</b>　` : ''}
+          ${g.phone ? `<a href="tel:${_escH(g.phone)}" style="color:var(--red);text-decoration:none;" onclick="event.stopPropagation()">${_escH(g.phone)}</a>` : ''}
         </div>
       </div>
-      <div style="display:flex;gap:6px;flex-shrink:0;">
+      <div style="display:flex;gap:6px;flex-shrink:0;align-items:center;">
         ${g._pending
           ? `<span style="padding:6px 12px;font-size:12px;color:var(--text-soft);background:#f4f6f8;border-radius:6px;">同步中...</span>`
-          : `<button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="openGuestModal('${_escH(editArg)}')">編輯</button>`}
+          : `<button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="event.stopPropagation();openGuestModal('${_escH(editArg)}')">編輯</button>`}
+        <span style="color:var(--text-soft);font-size:14px;font-weight:bold;padding:0 4px;user-select:none;">${expanded ? '▾' : '▸'}</span>
       </div>
     </div>
-    ${g.postVisitNote ? `<div style="background:#fafbfc;padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.5;margin-top:6px;">
-      <b style="color:var(--text-soft);">參訪後締結：</b>${_escH(g.postVisitNote)}
-    </div>` : ''}
-    ${interestedHtml}
-    ${tracksHtml ? `<div style="margin-top:8px;">${tracksHtml}</div>` : ''}
-  </div>`;
+  `;
+
+  if (!expanded) {
+    return `<div class="card" style="padding:14px 16px;margin-bottom:10px;cursor:pointer;" onclick="_toggleGuestExpand('${_escH(key)}')">${collapsedHtml}</div>`;
+  }
+
+  // 展開區
+  const dateLine = g._hasSecond
+    ? `首訪 <b style="color:var(--text);">${_escH(g._firstRow.firstVisit)}</b>　二訪 <b style="color:var(--text);">${_escH(g._secondRow.firstVisit)}</b>`
+    : (g.firstVisit ? `首訪 <b style="color:var(--text);">${_escH(g.firstVisit)}</b>` : '');
+
+  // 兩訪追蹤紀錄合併，按日期由新到舊
+  const allTracks = [];
+  (g._allRows || [g]).forEach(r => {
+    _parseTracks(r.tracks).forEach(t => allTracks.push(t));
+  });
+  allTracks.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  const interestedHtml = interested.length
+    ? `<div style="margin-top:10px;background:#fff5f3;border:1px solid #f5d4cc;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.5;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:0;">
+          <b style="color:#c0392b;">★ 想認識：</b>
+          <span style="color:var(--text);">${interested.map(x => _escH(x.member)).join('、')}</span>
+        </div>
+        ${hasBeh ? `<button class="btn" style="padding:5px 12px;font-size:12px;background:white;border:1.5px solid #c0392b;color:#c0392b;font-weight:700;border-radius:6px;flex-shrink:0;" onclick="event.stopPropagation();openGuestBehaviorModal('${_escH(behKey)}')">查看行為紀錄</button>` : ''}
+      </div>`
+    : (hasBeh ? `<div style="margin-top:10px;display:flex;justify-content:flex-end;">
+        <button class="btn" style="padding:5px 12px;font-size:12px;background:white;border:1.5px solid #c0392b;color:#c0392b;font-weight:700;border-radius:6px;" onclick="event.stopPropagation();openGuestBehaviorModal('${_escH(behKey)}')">查看行為紀錄</button>
+      </div>` : '');
+
+  const expandedHtml = `
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-border);font-size:13px;line-height:1.55;">
+      ${dateLine ? `<div style="color:var(--text-soft);margin-bottom:8px;">${dateLine}</div>` : ''}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        ${g.title ? `<span style="font-size:12px;color:var(--text-soft);align-self:center;">${_escH(g.title)}</span>` : ''}
+        ${_guestStatusBadge(g.status)}
+        ${_joinProbBadge(g.joinProb)}
+      </div>
+      ${g.expectedGain   ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">預期收穫：</b>${_escH(g.expectedGain)}</div>` : ''}
+      ${g.businessStatus ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">事業現狀：</b>${_escH(g.businessStatus)}</div>` : ''}
+      ${g.personality    ? `<div style="margin-bottom:6px;"><b style="color:var(--text-soft);">個性：</b>${_escH(g.personality)}</div>` : ''}
+      ${g.postVisitNote  ? `<div style="background:#fafbfc;padding:8px 10px;border-radius:6px;margin:8px 0;line-height:1.5;"><b style="color:var(--text-soft);">參訪後締結：</b>${_escH(g.postVisitNote)}</div>` : ''}
+      ${interestedHtml}
+      ${allTracks.length ? `
+        <div style="margin-top:12px;">
+          <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:6px;">追蹤紀錄</div>
+          ${allTracks.map(t => `
+            <div style="display:flex;gap:8px;padding:6px 0;border-top:1px dashed var(--gray-border);font-size:12px;">
+              ${t.date ? `<div style="flex-shrink:0;color:var(--text-soft);min-width:72px;">${_escH(t.date)}</div>` : ''}
+              <div style="flex:1;word-break:break-word;line-height:1.5;">${_escH(t.note)}</div>
+            </div>`).join('')}
+        </div>` : ''}
+    </div>
+  `;
+
+  return `<div class="card" style="padding:14px 16px;margin-bottom:10px;cursor:pointer;" onclick="_toggleGuestExpand('${_escH(key)}')">${collapsedHtml}${expandedHtml}</div>`;
 }
 
 function _zhNum(n) {

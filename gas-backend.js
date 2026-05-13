@@ -7,7 +7,7 @@ const PRESENTATION_ID = '15ImCbhAZ6WtBwEAmpMDzXXz1JUOk7l8ta9YGHSb0oIs';
 
 // ===== Guest System =====
 const GUEST_SS_ID   = '1CSFoZvkiz0kSX-ZUSZ5DOQKZ1laf4w2zrDN4N9NZhF8';
-const GUEST_HEADERS = ['首次參訪', '邀約人', '締結人', '姓名', '稱謂', '產業別', '公司名', '電話', '參訪後締結', '狀態', '追蹤紀錄', '想認識的會員', '行為紀錄', '預期收穫', '事業現狀', '個性'];
+const GUEST_HEADERS = ['首次參訪', '邀約人', '締結人', '姓名', '稱謂', '產業別', '公司名', '電話', '參訪後締結', '狀態', '追蹤紀錄', '想認識的會員', '行為紀錄', '預期收穫', '事業現狀', '個性', '入會機率'];
 
 function getSheet() {
   return SpreadsheetApp.openById(SS_ID).getSheets()
@@ -184,7 +184,8 @@ function listGuests() {
         behavior:      String(row[12] || ''),
         expectedGain:  String(row[13] || ''),
         businessStatus:String(row[14] || ''),
-        personality:   String(row[15] || '')
+        personality:   String(row[15] || ''),
+        joinProb:      String(row[16] || '')
       });
     });
   });
@@ -217,7 +218,8 @@ function addGuest(body) {
     body.behavior      || '',
     body.expectedGain  || '',
     body.businessStatus|| '',
-    body.personality   || ''
+    body.personality   || '',
+    body.joinProb      || ''
   ];
   sh.appendRow(row);
   invalidateGuestListCache();
@@ -271,6 +273,7 @@ function updateGuest(body) {
     if (body.expectedGain   !== undefined) oldSh.getRange(r, 14).setValue(String(body.expectedGain || ''));
     if (body.businessStatus !== undefined) oldSh.getRange(r, 15).setValue(String(body.businessStatus || ''));
     if (body.personality    !== undefined) oldSh.getRange(r, 16).setValue(String(body.personality || ''));
+    if (body.joinProb       !== undefined) oldSh.getRange(r, 17).setValue(String(body.joinProb || ''));
     invalidateGuestListCache();
     return { ok: true, year: newYear, sheetRow: r };
   }
@@ -283,11 +286,13 @@ function updateGuest(body) {
   const existingGain     = lastCol >= 14 ? String(oldSh.getRange(r, 14).getValue() || '') : '';
   const existingBiz      = lastCol >= 15 ? String(oldSh.getRange(r, 15).getValue() || '') : '';
   const existingPer      = lastCol >= 16 ? String(oldSh.getRange(r, 16).getValue() || '') : '';
+  const existingProb     = lastCol >= 17 ? String(oldSh.getRange(r, 17).getValue() || '') : '';
   // 若 body 有新值就用新值，否則保留原值
   const finalGain = body.expectedGain   !== undefined ? String(body.expectedGain   || '') : existingGain;
   const finalBiz  = body.businessStatus !== undefined ? String(body.businessStatus || '') : existingBiz;
   const finalPer  = body.personality    !== undefined ? String(body.personality    || '') : existingPer;
-  newSh.appendRow(rowData[0].concat([existingInterest, existingBehavior, finalGain, finalBiz, finalPer]));
+  const finalProb = body.joinProb       !== undefined ? String(body.joinProb       || '') : existingProb;
+  newSh.appendRow(rowData[0].concat([existingInterest, existingBehavior, finalGain, finalBiz, finalPer, finalProb]));
   oldSh.deleteRow(r);
   invalidateGuestListCache();
   return { ok: true, year: newYear, sheetRow: newSh.getLastRow() };
@@ -355,7 +360,8 @@ function batchAddGuests(body) {
         '',  // 行為紀錄
         String(g.expectedGain   || ''),
         String(g.businessStatus || ''),
-        String(g.personality    || '')
+        String(g.personality    || ''),
+        String(g.joinProb       || '')
       ]);
       added++;
     } catch (err) {
@@ -401,7 +407,7 @@ function registerGuestInterest(body) {
   const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
   const interestJson = JSON.stringify([{ member: memberName, date: todayStr }]);
   sh.appendRow([
-    todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, interestJson, '', '', '', ''
+    todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, interestJson, '', '', '', '', ''
   ]);
   invalidateGuestListCache();
   return { ok: true, matched: false, year: year, sheetRow: sh.getLastRow() };
@@ -432,7 +438,7 @@ function lookupGuestByPhone(body) {
   ensureColumns(sh);
   const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
   sh.appendRow([
-    todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, '', '', '', '', ''
+    todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, '', '', '', '', '', ''
   ]);
   invalidateGuestListCache();
   return { ok: true, matched: false };
