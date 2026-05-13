@@ -493,7 +493,7 @@ async function _toggleProgress(year, sheetRow, step) {
 // 5 個 tab 定義（單一資料源，stat 卡與 sub-tab 共用）
 function _isApplied(g) { return !!g.applied || ['已填單待繳費','審核中','已入會'].includes(g.status); }
 function _isPaid(g)    { return !!g.paid    || ['審核中','已入會'].includes(g.status); }
-function _isClosed(g)  { return !!g.closed  || ['婉拒/停止追蹤','轉別分會','已入會'].includes(g.status); }
+function _isClosed(g)  { return !!g.closed  || ['婉拒/停止追蹤','轉別分會','已入會','行業別衝突'].includes(g.status); }
 
 // Tab 分配採嚴格互斥：每位來賓只會出現在一個 tab
 // 優先順序：暫停追蹤 > 入會流程 > 高潛力 > 本周來賓 > 追蹤中
@@ -1091,7 +1091,8 @@ async function openGuestModal(arg, opts) {
           ${[
             { v: '婉拒/停止追蹤', label: '婉拒 / 停止追蹤' },
             { v: '轉別分會',       label: '轉別分會' },
-            { v: '已入會',         label: '已入會' }
+            { v: '已入會',         label: '已入會' },
+            { v: '行業別衝突',     label: '行業別衝突' }
           ].map(opt => {
             const cur = g && _isClosed(g) ? (g.status || '婉拒/停止追蹤') : '婉拒/停止追蹤';
             return `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
@@ -1483,7 +1484,7 @@ async function saveGuest(gKey) {
   const closeReason = document.querySelector('input[name="gm_closeReason"]:checked')?.value || '婉拒/停止追蹤';
   const derivedStatus = (() => {
     if (closedNew) {
-      // 使用者在 radio 選的具體類型（婉拒/轉別/已入會）
+      // 使用者在 radio 選的具體類型（婉拒/轉別/已入會/行業別衝突）
       return closeReason;
     }
     if (paidNew)    return '審核中';
@@ -1842,13 +1843,45 @@ async function openWeekPrintPreview() {
   if (weekGuests.length === 0) { showToast('本周沒有來賓'); return; }
 
   const dateRange = _weekRangeText();
-  const PER_PAGE = 10;
-  const totalPages = Math.ceil(weekGuests.length / PER_PAGE);
-  const pagesHtml = [];
-  for (let p = 0; p < totalPages; p++) {
-    const slice = weekGuests.slice(p * PER_PAGE, (p + 1) * PER_PAGE);
-    pagesHtml.push(_buildWeekPrintPage(slice, p + 1, totalPages, dateRange, weekGuests.length, p * PER_PAGE));
+
+  // 動態分頁：先把每張卡 render 到隱藏容器測量實際高度，再依累積高度切頁
+  const measureWrap = document.createElement('div');
+  measureWrap.style.cssText = 'position:absolute;left:-9999px;top:0;width:714px;visibility:hidden;font-family:\'Noto Sans TC\',\'Microsoft JhengHei\',sans-serif;';
+  // 794 (A4 width) - 40*2 (page padding) = 714
+  document.body.appendChild(measureWrap);
+  const cardHeights = [];
+  for (let i = 0; i < weekGuests.length; i++) {
+    const holder = document.createElement('div');
+    holder.innerHTML = _buildWeekPrintRow(weekGuests[i], i + 1);
+    const card = holder.firstElementChild;
+    measureWrap.appendChild(card);
+    cardHeights.push(card.offsetHeight);
   }
+  document.body.removeChild(measureWrap);
+
+  // 切頁：A4 內容區 ~ 1123 - 36*2 (page padding) - 57 (header) = ~974px
+  const PAGE_CONTENT_HEIGHT = 970;
+  const GAP = 6;
+  const pageGroups = [];
+  let currentPage = [];
+  let currentHeight = 0;
+  for (let i = 0; i < weekGuests.length; i++) {
+    const h = cardHeights[i] + GAP;
+    if (currentHeight + h > PAGE_CONTENT_HEIGHT && currentPage.length > 0) {
+      pageGroups.push(currentPage);
+      currentPage = [];
+      currentHeight = 0;
+    }
+    currentPage.push(i);
+    currentHeight += h;
+  }
+  if (currentPage.length) pageGroups.push(currentPage);
+
+  const totalPages = pageGroups.length;
+  const pagesHtml = pageGroups.map((indices, pageNum) => {
+    const slice = indices.map(i => weekGuests[i]);
+    return _buildWeekPrintPage(slice, pageNum + 1, totalPages, dateRange, weekGuests.length, indices[0]);
+  });
 
   const overlay = document.createElement('div');
   overlay.id = 'weekPrintModal';
@@ -1902,7 +1935,7 @@ function _buildWeekPrintPage(guests, pageNum, totalPages, dateRange, totalGuests
         </div>
         <div style="font-size:9.5pt;color:#666;letter-spacing:1.5px;text-align:right;">${_escH(dateRange)}<br><span style="font-size:8.5pt;color:#999;">共 ${totalGuests} 位${suffix}</span></div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:5px;">${rowsHtml}</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">${rowsHtml}</div>
     </div>
   `;
 }
@@ -1931,9 +1964,9 @@ function _buildWeekPrintRow(g, num) {
     g.extraNote      ? `<div><span style="color:#999;">補充 </span>${_escH(g.extraNote)}</div>` : ''
   ].filter(Boolean).join('');
   const hasNotes = lFields || rFields;
-  // 固定高度 95px（10 人剛好填滿 A4 內容區）
+  // 變動高度：每筆依內容自動撐開（min-height 確保最小高度，內容多可往下長）
   return `
-    <div style="height:95px;background:white;border:1px solid #e5e7eb;border-left:4px solid #c0392b;border-radius:5px;padding:5px 12px;box-sizing:border-box;font-size:9pt;line-height:1.3;color:#1a1a2e;overflow:hidden;">
+    <div style="min-height:95px;background:white;border:1.5px solid #d4d7dc;border-left:4px solid #c0392b;border-radius:6px;padding:10px 16px;box-sizing:border-box;font-size:9pt;line-height:1.4;color:#1a1a2e;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:3px;">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;background:#c0392b;color:white;border-radius:50%;font-size:9.5pt;font-weight:900;flex-shrink:0;">${num}</span>
         <span style="font-size:12pt;font-weight:900;color:#1a1a2e;line-height:1.2;">${_escH(g.name)}</span>
@@ -1949,7 +1982,7 @@ function _buildWeekPrintRow(g, num) {
         <span><span style="color:#999;font-size:7.5pt;">電話　</span>${dash(g.phone)}</span>
       </div>
       ${hasNotes ? `
-      <div style="display:grid;grid-template-columns:1fr 1fr;column-gap:16px;row-gap:1px;font-size:8pt;line-height:1.4;color:#444;overflow:hidden;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;column-gap:18px;row-gap:2px;font-size:8.5pt;line-height:1.45;color:#444;">
         <div>${lFields}</div>
         <div>${rFields}</div>
       </div>` : ''}
