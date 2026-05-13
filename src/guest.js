@@ -619,7 +619,10 @@ async function renderGuestTrack() {
       </div>
     </div>
     ${statsHtml}
-    <input class="member-search" type="text" placeholder="搜尋姓名、公司、電話..." value="${_escH(_guestSearch)}" oninput="_guestSearch=this.value;_debouncedRenderGuestList()" autocomplete="off" style="margin-bottom:12px;">
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:stretch;">
+      <input class="member-search" type="text" placeholder="搜尋姓名、公司、電話..." value="${_escH(_guestSearch)}" oninput="_guestSearch=this.value;_debouncedRenderGuestList()" autocomplete="off" style="margin-bottom:0;flex:1;">
+      ${_guestSubTab === 'week' ? `<button onclick="openWeekPrintPreview()" style="padding:0 16px;background:var(--red);color:white;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">列印本周</button>` : ''}
+    </div>
     <div id="guestList">${_guestListHtml(list)}</div>
   </div>`;
 }
@@ -1793,3 +1796,180 @@ async function _doImport() {
   }
 }
 
+
+// ===== 列印本周來賓資訊（A4 直印，10 人/頁，自動分頁）=====
+async function openWeekPrintPreview() {
+  showLoader && showLoader(true, '載入列印模組...');
+  try {
+    await Promise.all([
+      _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
+      _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
+    ]);
+  } catch (e) {
+    showLoader && showLoader(false);
+    showToast('套件載入失敗，請確認網路');
+    return;
+  }
+  showLoader && showLoader(false);
+
+  if (!_guestData) { showToast('來賓資料尚未載入'); return; }
+
+  const grouped = _groupGuestsByPhone(_guestData);
+  const weekGuests = grouped.filter(_isInWeekGuest);
+  weekGuests.sort((a, b) => (b.firstVisit || '').localeCompare(a.firstVisit || ''));
+
+  if (weekGuests.length === 0) { showToast('本周沒有來賓'); return; }
+
+  const dateRange = _weekRangeText();
+  const PER_PAGE = 10;
+  const totalPages = Math.ceil(weekGuests.length / PER_PAGE);
+  const pagesHtml = [];
+  for (let p = 0; p < totalPages; p++) {
+    const slice = weekGuests.slice(p * PER_PAGE, (p + 1) * PER_PAGE);
+    pagesHtml.push(_buildWeekPrintPage(slice, p + 1, totalPages, dateRange, weekGuests.length, p * PER_PAGE));
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'weekPrintModal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;flex-direction:column;';
+  overlay.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#1a1a1a;color:white;padding:10px 14px;flex-shrink:0;">
+      <div style="font-size:13px;font-weight:700;letter-spacing:1px;">本周來賓資訊預覽（A4 直印 · ${totalPages} 頁）</div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="exportWeekPrintPdf()" style="background:var(--red);color:white;border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">匯出 PDF</button>
+        <button onclick="exportWeekPrintJpg()" style="background:rgba(255,255,255,0.18);border:none;color:white;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">匯出 JPG</button>
+        <button onclick="closeWeekPrintPreview()" style="background:rgba(255,255,255,0.18);border:none;color:white;padding:6px 14px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">關閉 ✕</button>
+      </div>
+    </div>
+    <div id="weekPrintOuter" style="flex:1;overflow:auto;background:#f4f5f7;padding:20px;">
+      <div id="weekPrintInner" style="margin:0 auto;display:flex;flex-direction:column;gap:14px;">${pagesHtml.join('')}</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+  _scaleWeekPrint();
+  window.addEventListener('resize', _scaleWeekPrint);
+}
+
+function closeWeekPrintPreview() {
+  document.getElementById('weekPrintModal')?.remove();
+  document.body.style.overflow = '';
+  window.removeEventListener('resize', _scaleWeekPrint);
+}
+
+function _scaleWeekPrint() {
+  const outer = document.getElementById('weekPrintOuter');
+  const inner = document.getElementById('weekPrintInner');
+  if (!outer || !inner) return;
+  const availW = outer.clientWidth - 40;
+  const baseW = 794;
+  const scale = Math.min(1, availW / baseW);
+  inner.style.transform = `scale(${scale})`;
+  inner.style.transformOrigin = 'top center';
+  inner.style.width = baseW + 'px';
+}
+
+function _buildWeekPrintPage(guests, pageNum, totalPages, dateRange, totalGuests, startIdx) {
+  const suffix = totalPages > 1 ? `（${pageNum}/${totalPages}）` : '';
+  const rowsHtml = guests.map((g, i) => _buildWeekPrintRow(g, startIdx + i + 1)).join('');
+  return `
+    <div class="week-print-page" data-page="${pageNum}" style="width:794px;height:1123px;background:white;padding:36px 40px;box-sizing:border-box;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;color:#1a1a2e;display:flex;flex-direction:column;">
+      <div style="text-align:center;border-bottom:2.5px solid #c0392b;padding-bottom:10px;margin-bottom:14px;flex-shrink:0;">
+        <div style="font-size:20pt;font-weight:900;letter-spacing:3px;line-height:1.2;">BNI 億展白金分會　本周來賓資訊${suffix}</div>
+        <div style="font-size:11pt;color:#666;margin-top:4px;letter-spacing:1px;">${_escH(dateRange)} · 共 ${totalGuests} 位</div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px;">${rowsHtml}</div>
+    </div>
+  `;
+}
+
+function _buildWeekPrintRow(g, num) {
+  const interested = _parseInterested(g.interestedIn);
+  const interestedText = interested.length ? interested.map(x => x.member).join('、') : '';
+  return `
+    <div style="border:1px solid #ccc;border-radius:4px;padding:6px 10px;font-size:9pt;line-height:1.4;flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-start;overflow:hidden;">
+      <div style="display:flex;align-items:baseline;gap:8px;border-bottom:1px dashed #e0e0e0;padding-bottom:3px;margin-bottom:3px;">
+        <span style="font-weight:900;color:#c0392b;min-width:18px;">${num}.</span>
+        <span style="font-weight:900;font-size:11pt;">${_escH(g.name)}</span>
+        ${g.title ? `<span style="color:#666;">${_escH(g.title)}</span>` : ''}
+        <span style="color:#999;margin-left:auto;font-size:8.5pt;">首訪 ${_escH(g.firstVisit || '—')}</span>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;color:#333;">
+        <span><b style="color:#666;">邀約：</b>${_escH(g.inviter || '—')}</span>
+        ${g.closer ? `<span><b style="color:#666;">締結：</b>${_escH(g.closer)}</span>` : ''}
+        <span><b style="color:#666;">產業：</b>${_escH(g.industry || '—')}</span>
+        <span><b style="color:#666;">公司：</b>${_escH(g.company || '—')}</span>
+        <span><b style="color:#666;">電話：</b>${_escH(g.phone || '—')}</span>
+        <span><b style="color:#666;">機率：</b>${_escH(g.joinProb || '未評估')}</span>
+      </div>
+      ${g.personality ? `<div style="margin-top:2px;"><b style="color:#666;">個性：</b>${_escH(g.personality)}</div>` : ''}
+      ${g.expectedGain ? `<div style="margin-top:2px;"><b style="color:#666;">預期收穫：</b>${_escH(g.expectedGain)}</div>` : ''}
+      ${g.businessStatus ? `<div style="margin-top:2px;"><b style="color:#666;">事業現狀：</b>${_escH(g.businessStatus)}</div>` : ''}
+      ${interestedText ? `<div style="margin-top:2px;"><b style="color:#c0392b;">想認識：</b>${_escH(interestedText)}</div>` : ''}
+      ${g.postVisitNote ? `<div style="margin-top:2px;"><b style="color:#666;">參訪後締結：</b>${_escH(g.postVisitNote)}</div>` : ''}
+    </div>
+  `;
+}
+
+async function _renderOneWeekPrintCanvas(pageEl) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:absolute;left:-9999px;top:0;background:white;';
+  const clone = pageEl.cloneNode(true);
+  clone.style.transform = 'none';
+  clone.style.boxShadow = 'none';
+  wrap.appendChild(clone);
+  document.body.appendChild(wrap);
+  try {
+    return await html2canvas(clone, { scale: 2, useCORS: true, allowTaint: false, logging: false, backgroundColor: '#ffffff' });
+  } finally {
+    document.body.removeChild(wrap);
+  }
+}
+
+async function exportWeekPrintPdf() {
+  showLoader && showLoader(true, 'PDF 產生中...');
+  try {
+    const pages = document.querySelectorAll('#weekPrintModal .week-print-page');
+    if (!pages.length) { showToast('找不到內容'); return; }
+    const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); return; }
+    const doc = new jsPDFCtor({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+    for (let i = 0; i < pages.length; i++) {
+      const canvas = await _renderOneWeekPrintCanvas(pages[i]);
+      if (i > 0) doc.addPage();
+      doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+    }
+    const blob = doc.output('blob');
+    _downloadPdfBlob(blob, `BNI-本周來賓-${_todayIso()}.pdf`);
+    showToast('PDF 已下載');
+  } catch (e) {
+    showToast('PDF 產生失敗，請重試');
+  } finally {
+    showLoader && showLoader(false);
+  }
+}
+
+async function exportWeekPrintJpg() {
+  showLoader && showLoader(true, 'JPG 產生中...');
+  try {
+    const pages = document.querySelectorAll('#weekPrintModal .week-print-page');
+    if (!pages.length) { showToast('找不到內容'); return; }
+    for (let i = 0; i < pages.length; i++) {
+      const canvas = await _renderOneWeekPrintCanvas(pages[i]);
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/jpeg', 0.92);
+      a.download = pages.length > 1
+        ? `BNI-本周來賓-${_todayIso()}-${i + 1}.jpg`
+        : `BNI-本周來賓-${_todayIso()}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      if (pages.length > 1) await new Promise(r => setTimeout(r, 250));
+    }
+    showToast(pages.length > 1 ? `${pages.length} 張 JPG 已下載` : 'JPG 已下載');
+  } catch (e) {
+    showToast('JPG 產生失敗，請重試');
+  } finally {
+    showLoader && showLoader(false);
+  }
+}
