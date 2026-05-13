@@ -742,11 +742,6 @@ async function openGuestModal(arg, opts) {
     </div>
 
     <div class="modal-field" style="margin-top:14px;">
-      <div class="modal-label">參訪後締結（會後立即評估）</div>
-      <textarea class="modal-input" id="gm_postVisit" rows="3" style="resize:vertical;">${_escH(g?.postVisitNote || '')}</textarea>
-    </div>
-
-    <div class="modal-field">
       <div class="modal-label">預期收穫 / 目的</div>
       <textarea class="modal-input" id="gm_expectedGain" rows="2" style="resize:vertical;">${_escH(g?.expectedGain || '')}</textarea>
     </div>
@@ -759,6 +754,11 @@ async function openGuestModal(arg, opts) {
     <div class="modal-field">
       <div class="modal-label">個性描述（給締結夥伴參考）</div>
       <textarea class="modal-input" id="gm_personality" rows="2" style="resize:vertical;">${_escH(g?.personality || '')}</textarea>
+    </div>
+
+    <div class="modal-field">
+      <div class="modal-label">參訪後締結（會後立即評估）</div>
+      <textarea class="modal-input" id="gm_postVisit" rows="3" style="resize:vertical;">${_escH(g?.postVisitNote || '')}</textarea>
     </div>
 
     ${_renderInterestedSection(g)}
