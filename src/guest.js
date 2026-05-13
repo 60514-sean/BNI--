@@ -986,19 +986,11 @@ async function openGuestModal(arg, opts) {
       <div class="modal-label">參訪日</div>
       <input class="modal-input" type="date" id="gm_firstVisit" value="${g?.firstVisit || today}">
     </div>
-    <div class="modal-row">
-      <div class="modal-field" style="flex:1 1 0;min-width:0;">
-        <div class="modal-label">狀態</div>
-        <select class="modal-input" id="gm_status">
-          ${GUEST_STATUSES.map(s => `<option value="${s}" ${g?.status===s?'selected':''}>${s}</option>`).join('')}
-        </select>
-      </div>
-      <div class="modal-field" style="flex:1 1 0;min-width:0;">
-        <div class="modal-label">入會機率</div>
-        <select class="modal-input" id="gm_joinProb">
-          ${JOIN_PROBABILITIES.map(p => `<option value="${p}" ${(g?.joinProb||'未評估')===p?'selected':''}>${p}</option>`).join('')}
-        </select>
-      </div>
+    <div class="modal-field">
+      <div class="modal-label">入會機率</div>
+      <select class="modal-input" id="gm_joinProb" style="appearance:auto;background:white;">
+        ${JOIN_PROBABILITIES.map(p => `<option value="${p}" ${(g?.joinProb||'未評估')===p?'selected':''}>${p}</option>`).join('')}
+      </select>
     </div>
     <div class="modal-row">
       <div class="modal-field" style="flex:3 1 0;min-width:0;">
@@ -1406,6 +1398,24 @@ async function saveGuest(gKey) {
   const paidNew    = document.getElementById('gm_paid')?.checked    || false;
   const closedNew  = document.getElementById('gm_closed')?.checked  || false;
 
+  // 從 checkbox 自動推算 status（取代原本的下拉）
+  const orig = gKey ? (() => {
+    const [year, row] = gKey.split('-').map(Number);
+    return _guestData?.find(x => x.year === year && x.sheetRow === row);
+  })() : null;
+  const oldStatus = orig ? orig.status : '';
+  const derivedStatus = (() => {
+    if (closedNew) {
+      // 結案：保留已入會/轉別分會的細分（如果原本就是），否則預設為婉拒
+      if (oldStatus === '已入會' || oldStatus === '轉別分會') return oldStatus;
+      return '婉拒/停止追蹤';
+    }
+    if (paidNew)    return '審核中';
+    if (appliedNew) return '已填單待繳費';
+    if (oldStatus === '待追蹤') return '待追蹤';
+    return '持續追蹤';
+  })();
+
   const fields = {
     firstVisit:    document.getElementById('gm_firstVisit').value,
     inviter:       document.getElementById('gm_inviter').value.trim(),
@@ -1416,7 +1426,7 @@ async function saveGuest(gKey) {
     company:       document.getElementById('gm_company').value.trim(),
     phone:         phone,
     postVisitNote: document.getElementById('gm_postVisit').value.trim(),
-    status:        document.getElementById('gm_status').value,
+    status:        derivedStatus,
     joinProb:      document.getElementById('gm_joinProb').value,
     tracks:        JSON.stringify(_guestModalTracks.filter(t => t.note && t.note.trim())),
     expectedGain:  document.getElementById('gm_expectedGain')?.value.trim() || '',
@@ -1427,19 +1437,17 @@ async function saveGuest(gKey) {
     closed:        closedNew
   };
 
-  // 結案邏輯：剛勾起 → 存 prevStatus；剛取消 → 還原 prevStatus（覆蓋 status）
-  if (gKey) {
-    const [year, row] = gKey.split('-').map(Number);
-    const orig = _guestData?.find(x => x.year === year && x.sheetRow === row);
-    if (orig) {
-      const wasClosed = _isClosed(orig);
-      if (closedNew && !wasClosed) {
-        fields.prevStatus = fields.status || '持續追蹤';
-      } else if (!closedNew && wasClosed) {
-        const restore = orig.prevStatus || fields.status || '持續追蹤';
-        fields.status = restore;
-        fields.prevStatus = '';
-      }
+  // 結案的 prevStatus 管理：剛勾起 → 算出「不結案時的 status」並存；剛取消 → 還原
+  if (orig) {
+    const wasClosed = _isClosed(orig);
+    if (closedNew && !wasClosed) {
+      const statusWithoutClose = paidNew ? '審核中'
+                              : appliedNew ? '已填單待繳費'
+                              : (oldStatus === '待追蹤' ? '待追蹤' : '持續追蹤');
+      fields.prevStatus = statusWithoutClose;
+    } else if (!closedNew && wasClosed) {
+      fields.status = orig.prevStatus || fields.status;
+      fields.prevStatus = '';
     }
   }
 
