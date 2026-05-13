@@ -1135,11 +1135,7 @@ async function openGuestModal(arg, opts) {
   document.body.appendChild(overlay);
   _renderTracksList();
   _gmProgressChange(); // 初始化「繳費」依「填單」的鎖定狀態
-  // 補充資訊區塊：有任一欄位有資料就預設展開
-  if (g && (g.expectedGain || g.businessStatus || g.personality || g.postVisitNote)) {
-    const btn = document.querySelector('#guestModal button[onclick="_toggleGmExtra(this)"]');
-    if (btn) _toggleGmExtra(btn);
-  }
+  // 補充資訊區塊：永遠預設收起（即使有資料）
 }
 
 function _toggleGmExtra(btn) {
