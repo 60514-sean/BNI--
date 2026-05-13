@@ -495,15 +495,19 @@ function _isApplied(g) { return !!g.applied || ['已填單待繳費','審核中'
 function _isPaid(g)    { return !!g.paid    || ['審核中','已入會'].includes(g.status); }
 function _isClosed(g)  { return !!g.closed  || ['婉拒/停止追蹤','轉別分會','已入會'].includes(g.status); }
 
-// 高潛力且未結案才算「進駐」高潛力 tab；結案的優先進暫停追蹤
-function _isInHotTab(g) { return !_isClosed(g) && _isHotGuest(g); }
-
+// Tab 分配採嚴格互斥：每位來賓只會出現在一個 tab
+// 優先順序：暫停追蹤 > 高潛力 > 入會流程 > 本周來賓 > 追蹤中
 const GUEST_TAB_DEFS = [
-  { id: 'week',     label: '本周來賓', color: '#1e40af', bg: '#dbeafe', filter: (g) => _isInWeekGuest(g) && !_isInHotTab(g) },
-  { id: 'tracking', label: '追蹤中',   color: '#92400e', bg: '#fef3c7', filter: (g) => !_isApplied(g) && !_isClosed(g) && !_isInHotTab(g) },
-  { id: 'hot',      label: '高潛力',   color: '#991b1b', bg: '#fee2e2', filter: _isInHotTab },
-  { id: 'process',  label: '入會流程', color: '#9a3412', bg: '#fed7aa', filter: (g) => _isApplied(g) && !_isClosed(g) && !_isInHotTab(g) },
-  { id: 'paused',   label: '暫停追蹤', color: '#475569', bg: '#e5e7eb', filter: _isClosed }
+  { id: 'week',     label: '本周來賓', color: '#1e40af', bg: '#dbeafe',
+    filter: (g) => _isInWeekGuest(g) && !_isApplied(g) && !_isClosed(g) && !_isHotGuest(g) },
+  { id: 'tracking', label: '追蹤中',   color: '#92400e', bg: '#fef3c7',
+    filter: (g) => !_isInWeekGuest(g) && !_isApplied(g) && !_isClosed(g) && !_isHotGuest(g) },
+  { id: 'hot',      label: '高潛力',   color: '#991b1b', bg: '#fee2e2',
+    filter: (g) => !_isClosed(g) && _isHotGuest(g) },
+  { id: 'process',  label: '入會流程', color: '#9a3412', bg: '#fed7aa',
+    filter: (g) => _isApplied(g) && !_isClosed(g) && !_isHotGuest(g) },
+  { id: 'paused',   label: '暫停追蹤', color: '#475569', bg: '#e5e7eb',
+    filter: _isClosed }
 ];
 
 // localStorage 快取（stale-while-revalidate）：UI 秒顯示舊資料，背景再抓最新
