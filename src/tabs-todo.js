@@ -44,7 +44,7 @@ function switchTab(tab) {
 }
 
 function _updateMenuActive(tab) {
-  document.querySelectorAll('.menu-item').forEach(b => {
+  document.querySelectorAll('.menu-item, .menu-tile').forEach(b => {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
 }
@@ -59,7 +59,9 @@ function _renderMenuDropdown(allowedIds, isAdmin) {
   });
   const groupHtml = MENU_GROUP_ORDER.filter(g => groups[g]).map(g =>
     `<div class="menu-group-title">${g}</div>` +
-    groups[g].map(t => `<button class="menu-item" data-tab="${t.id}" onclick="_pickTab('${t.id}')">${t.label}</button>`).join('')
+    `<div class="menu-grid">` +
+    groups[g].map(t => `<button class="menu-tile" data-tab="${t.id}" onclick="_pickTab('${t.id}')">${t.label}</button>`).join('') +
+    `</div>`
   ).join('');
   const settingsItem = isAdmin
     ? `<button class="menu-item menu-settings" data-tab="settings" onclick="_pickTab('settings')">系統設定</button>`

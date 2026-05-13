@@ -617,8 +617,27 @@ input.is-locked:focus, textarea.is-locked:focus {
 
 .menu-group-title {
   font-size: 11px; font-weight: 700; color: var(--red);
-  letter-spacing: 0.8px; padding: 10px 18px 4px;
+  letter-spacing: 0.8px; padding: 10px 14px 4px;
   text-transform: uppercase;
+}
+.menu-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 6px; padding: 2px 10px 6px;
+}
+.menu-tile {
+  background: #f5f6f8;
+  border: 1.5px solid transparent;
+  border-radius: 10px; cursor: pointer;
+  font-family: inherit; font-size: 14px; font-weight: 700;
+  color: var(--text); padding: 14px 6px;
+  text-align: center; transition: all 0.12s;
+  user-select: none;
+}
+.menu-tile:hover { background: var(--red-light); color: var(--red); }
+.menu-tile.active {
+  background: var(--red); color: white;
+  border-color: var(--red);
+  box-shadow: 0 2px 8px rgba(192,57,43,0.3);
 }
 .menu-item {
   display: block; width: 100%; text-align: left;
