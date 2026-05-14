@@ -467,21 +467,9 @@ function registerGuestInterest(body) {
       return { ok: true, matched: true, year: parseInt(target.sheet.getName(), 10), sheetRow: target.row };
     }
 
-    // 沒對到 → 自動建立新來賓（標記未匹配名單）
-    const today = new Date();
-    const todayStr = today.getFullYear() + '-'
-                   + String(today.getMonth() + 1).padStart(2, '0') + '-'
-                   + String(today.getDate()).padStart(2, '0');
-    const year = today.getFullYear();
-    const sh = getGuestSheetForYear(year);
-    ensureColumns(sh);
-    const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
-    const interestJson = JSON.stringify([{ member: memberName, date: todayStr }]);
-    sh.appendRow([
-      todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, interestJson, '', '', '', '', '', '', 'FALSE', 'FALSE', 'FALSE', '', '', ''
-    ]);
-    invalidateGuestListCache();
-    return { ok: true, matched: false, year: year, sheetRow: sh.getLastRow() };
+    // 找不到 → 「未曾登入」或「秘書已刪除」，拒絕寫入
+    // 前端收到 matched:false 會清 localStorage 走登入頁
+    return { ok: true, matched: false };
   } finally {
     lock.releaseLock();
   }
@@ -562,25 +550,10 @@ function recordGuestBehavior(body) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) return { ok: false, error: 'lock timeout' };
   try {
-    // 找最新那筆；找不到時用 body.name 自動建 stub，避免事件靜默丟失
-    let target = findGuestRowByPhone(phoneNorm);
-    if (!target) {
-      const name = String(body.name || '').trim();
-      if (!name) return { ok: true, matched: false };
-      const today = new Date();
-      const todayStr = today.getFullYear() + '-'
-                     + String(today.getMonth() + 1).padStart(2, '0') + '-'
-                     + String(today.getDate()).padStart(2, '0');
-      const year = today.getFullYear();
-      const sh = getGuestSheetForYear(year);
-      ensureColumns(sh);
-      const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
-      sh.appendRow([
-        todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, '', '', '', '', '', '', '', 'FALSE', 'FALSE', 'FALSE', '', '', ''
-      ]);
-      invalidateGuestListCache();
-      target = { sheet: sh, row: sh.getLastRow() };
-    }
+    // 找最新那筆；找不到代表「未曾登入」或「秘書已刪除」→ 拒絕寫入，
+    // 前端收到 matched:false 會清 localStorage 強迫重新走登入頁
+    const target = findGuestRowByPhone(phoneNorm);
+    if (!target) return { ok: true, matched: false };
 
     const cell = target.sheet.getRange(target.row, 13);
     const raw = String(cell.getValue() || '');
@@ -640,25 +613,10 @@ function batchBehavior(body) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) return { ok: false, error: 'lock timeout' };
   try {
-    let target = findGuestRowByPhone(phoneNorm);
-    // 找不到 → 用 body.name 自動建 stub，避免行為紀錄丟失
-    if (!target) {
-      const name = String(body.name || '').trim();
-      if (!name) return { ok: true, matched: false, count: 0 };
-      const today = new Date();
-      const todayStr = today.getFullYear() + '-'
-                     + String(today.getMonth() + 1).padStart(2, '0') + '-'
-                     + String(today.getDate()).padStart(2, '0');
-      const year = today.getFullYear();
-      const sh = getGuestSheetForYear(year);
-      ensureColumns(sh);
-      const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
-      sh.appendRow([
-        todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, '', '', '', '', '', '', '', 'FALSE', 'FALSE', 'FALSE', '', '', ''
-      ]);
-      invalidateGuestListCache();
-      target = { sheet: sh, row: sh.getLastRow() };
-    }
+    const target = findGuestRowByPhone(phoneNorm);
+    // 找不到 → 「未曾登入」或「秘書已刪除」，拒絕寫入
+    // 前端收到 matched:false 會清 localStorage 重新走登入頁
+    if (!target) return { ok: true, matched: false, count: 0 };
 
     const cell = target.sheet.getRange(target.row, 13);
     const data = parseBehavior(cell.getValue());

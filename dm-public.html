@@ -490,6 +490,8 @@ function flushBehaviorEvents(opts) {
       return res.json();
     }).then(function (json) {
       if (!json || !json.ok) throw new Error((json && json.error) || 'api error');
+      // 後端說找不到對應來賓（秘書已刪除或未曾登入）→ 清快取讓下次走登入頁
+      if (json.matched === false) _handleGuestCleared();
     }).catch(function () {
       // 送出失敗 → 重試 1 次；再失敗就 stash 到 localStorage 等下次進入時補送
       _retryOrStash(events);
@@ -555,6 +557,16 @@ function _loadMembersCache() {
 function _saveMembersCache(data) {
   try {
     localStorage.setItem(MEMBERS_CACHE_KEY, JSON.stringify({ data, t: Date.now() }));
+  } catch (e) {}
+}
+
+// 後端回 matched:false 代表「找不到對應來賓」（可能秘書已刪除或從未真正登入）
+// 清掉 localStorage 強迫下次重新走登入頁
+function _handleGuestCleared() {
+  try {
+    localStorage.removeItem(GUEST_KEY);
+    localStorage.removeItem(MEET_KEY);
+    localStorage.removeItem(RETRY_STASH_KEY);
   } catch (e) {}
 }
 
@@ -723,6 +735,13 @@ async function submitInterest(memberName, info, uniq) {
     });
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || 'register failed');
+    // 後端找不到對應來賓 → 秘書已刪除這位來賓的紀錄；清快取後重新整理回登入頁
+    if (json.matched === false) {
+      _handleGuestCleared();
+      alert('登入資訊已失效，請重新填寫姓名與手機');
+      location.reload();
+      return;
+    }
     addMeet(memberName);
     if (btn) {
       btn.className = 'mc-meet-btn done';
