@@ -45,6 +45,14 @@ function columnToLetter(col) {
   return letter;
 }
 
+// 找標題列中對應名稱的索引：完全相等優先，找不到才退到 indexOf
+// 避免「電話備註」「公司類型」這類後加欄位排在「電話」「公司」前面被誤抓
+function findHeaderIdx(headers, name) {
+  let i = headers.findIndex(function(h) { return String(h).trim() === name; });
+  if (i >= 0) return i;
+  return headers.findIndex(function(h) { return String(h).indexOf(name) >= 0; });
+}
+
 function exportOneSlide(sheetRow) {
   const sh = getSheet();
   const photoCol = getPhotoCol(sh);
@@ -445,31 +453,38 @@ function registerGuestInterest(body) {
   const phoneNorm = normalizePhone(phone);
   if (!phoneNorm) return { ok: false, error: 'invalid phone' };
 
-  // 用統一 helper 找最新那筆（一訪/二訪皆寫入最新）
-  const target = findGuestRowByPhone(phoneNorm);
-  if (target) {
-    const cell = target.sheet.getRange(target.row, 12);
-    const existing = parseInterest(cell.getValue());
-    const updated = upsertInterest(existing, memberName);
-    cell.setValue(JSON.stringify(updated));
-    return { ok: true, matched: true, year: parseInt(target.sheet.getName(), 10), sheetRow: target.row };
-  }
+  // 加鎖：避免與 batchBehavior / 另一筆 registerGuestInterest 同時讀寫同一 cell 而互相覆蓋
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return { ok: false, error: 'lock timeout' };
+  try {
+    // 用統一 helper 找最新那筆（一訪/二訪皆寫入最新）
+    const target = findGuestRowByPhone(phoneNorm);
+    if (target) {
+      const cell = target.sheet.getRange(target.row, 12);
+      const existing = parseInterest(cell.getValue());
+      const updated = upsertInterest(existing, memberName);
+      cell.setValue(JSON.stringify(updated));
+      return { ok: true, matched: true, year: parseInt(target.sheet.getName(), 10), sheetRow: target.row };
+    }
 
-  // 沒對到 → 自動建立新來賓（標記未匹配名單）
-  const today = new Date();
-  const todayStr = today.getFullYear() + '-'
-                 + String(today.getMonth() + 1).padStart(2, '0') + '-'
-                 + String(today.getDate()).padStart(2, '0');
-  const year = today.getFullYear();
-  const sh = getGuestSheetForYear(year);
-  ensureColumns(sh);
-  const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
-  const interestJson = JSON.stringify([{ member: memberName, date: todayStr }]);
-  sh.appendRow([
-    todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, interestJson, '', '', '', '', '', '', 'FALSE', 'FALSE', 'FALSE', '', '', ''
-  ]);
-  invalidateGuestListCache();
-  return { ok: true, matched: false, year: year, sheetRow: sh.getLastRow() };
+    // 沒對到 → 自動建立新來賓（標記未匹配名單）
+    const today = new Date();
+    const todayStr = today.getFullYear() + '-'
+                   + String(today.getMonth() + 1).padStart(2, '0') + '-'
+                   + String(today.getDate()).padStart(2, '0');
+    const year = today.getFullYear();
+    const sh = getGuestSheetForYear(year);
+    ensureColumns(sh);
+    const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
+    const interestJson = JSON.stringify([{ member: memberName, date: todayStr }]);
+    sh.appendRow([
+      todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, interestJson, '', '', '', '', '', '', 'FALSE', 'FALSE', 'FALSE', '', '', ''
+    ]);
+    invalidateGuestListCache();
+    return { ok: true, matched: false, year: year, sheetRow: sh.getLastRow() };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // 查詢手機是否在歷屆來賓名單裡，回傳資料庫中的姓名（用於「歡迎回來」訊息）
@@ -483,23 +498,42 @@ function lookupGuestByPhone(body) {
   if (!phoneNorm) return { ok: false, error: 'invalid phone' };
 
   const target = findGuestRowByPhone(phoneNorm);
-  if (target) return { ok: true, matched: true, name: String(target.name || '') };
+  if (target) {
+    // 區分真實來賓與 stub（追蹤紀錄含「QR 自助登記，未匹配名單」標記）：
+    // stub 不算 matched，避免歡迎詞跳出「歡迎回來，<stub姓名>！」這種尷尬訊息
+    const tracks = String(target.sheet.getRange(target.row, 11).getValue() || '');
+    const isStub = /QR\s*自助登記，未匹配名單/.test(tracks);
+    if (!isStub) return { ok: true, matched: true, name: String(target.name || '') };
+    return { ok: true, matched: false };
+  }
 
   // 沒對到 → 自動建立 stub（純瀏覽的來賓也能完整記錄行為）
   const name = String(body.name || '').trim();
   if (!name) return { ok: true, matched: false }; // 沒名字就不建檔
-  const today = new Date();
-  const todayStr = today.getFullYear() + '-'
-                 + String(today.getMonth() + 1).padStart(2, '0') + '-'
-                 + String(today.getDate()).padStart(2, '0');
-  const year = today.getFullYear();
-  const sh = getGuestSheetForYear(year);
-  ensureColumns(sh);
-  const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
-  sh.appendRow([
-    todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, '', '', '', '', '', '', '', 'FALSE', 'FALSE', 'FALSE', '', '', ''
-  ]);
-  invalidateGuestListCache();
+
+  // 加鎖避免並發建立重複 stub
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return { ok: true, matched: false };
+  try {
+    // 鎖內再 check 一次
+    const target2 = findGuestRowByPhone(phoneNorm);
+    if (target2) return { ok: true, matched: false };
+
+    const today = new Date();
+    const todayStr = today.getFullYear() + '-'
+                   + String(today.getMonth() + 1).padStart(2, '0') + '-'
+                   + String(today.getDate()).padStart(2, '0');
+    const year = today.getFullYear();
+    const sh = getGuestSheetForYear(year);
+    ensureColumns(sh);
+    const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
+    sh.appendRow([
+      todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, '', '', '', '', '', '', '', 'FALSE', 'FALSE', 'FALSE', '', '', ''
+    ]);
+    invalidateGuestListCache();
+  } finally {
+    lock.releaseLock();
+  }
   return { ok: true, matched: false };
 }
 
@@ -524,47 +558,70 @@ function recordGuestBehavior(body) {
   const type = String(body.type || '');
   if (!['visit', 'phoneClick', 'webClick', 'industryJump'].includes(type)) return { ok: false, error: 'invalid type' };
 
-  // 用統一 helper 找最新那筆（一訪/二訪皆寫入最新）
-  const target = findGuestRowByPhone(phoneNorm);
-  if (!target) return { ok: true, matched: false };
+  // 加鎖避免並發讀寫覆蓋
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return { ok: false, error: 'lock timeout' };
+  try {
+    // 找最新那筆；找不到時用 body.name 自動建 stub，避免事件靜默丟失
+    let target = findGuestRowByPhone(phoneNorm);
+    if (!target) {
+      const name = String(body.name || '').trim();
+      if (!name) return { ok: true, matched: false };
+      const today = new Date();
+      const todayStr = today.getFullYear() + '-'
+                     + String(today.getMonth() + 1).padStart(2, '0') + '-'
+                     + String(today.getDate()).padStart(2, '0');
+      const year = today.getFullYear();
+      const sh = getGuestSheetForYear(year);
+      ensureColumns(sh);
+      const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
+      sh.appendRow([
+        todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, '', '', '', '', '', '', '', 'FALSE', 'FALSE', 'FALSE', '', '', ''
+      ]);
+      invalidateGuestListCache();
+      target = { sheet: sh, row: sh.getLastRow() };
+    }
 
-  const cell = target.sheet.getRange(target.row, 13);
-  const raw = String(cell.getValue() || '');
-  const data = parseBehavior(raw);
+    const cell = target.sheet.getRange(target.row, 13);
+    const raw = String(cell.getValue() || '');
+    const data = parseBehavior(raw);
 
-  if (type === 'visit') {
-    const start = String(body.startAt || '');
-    const end = String(body.endAt || '');
-    if (start && end) {
-      data.visits.push({ in: start, out: end });
-      // 限制長度避免無限增長
-      if (data.visits.length > 50) data.visits = data.visits.slice(-50);
+    if (type === 'visit') {
+      const start = String(body.startAt || '');
+      const end = String(body.endAt || '');
+      if (start && end) {
+        data.visits.push({ in: start, out: end });
+        // 限制長度避免無限增長
+        if (data.visits.length > 50) data.visits = data.visits.slice(-50);
+      }
+    } else if (type === 'phoneClick') {
+      const member = String(body.member || '');
+      const at = String(body.at || new Date().toISOString());
+      if (member) {
+        data.phoneClicks.push({ member, at });
+        if (data.phoneClicks.length > 200) data.phoneClicks = data.phoneClicks.slice(-200);
+      }
+    } else if (type === 'webClick') {
+      const member = String(body.member || '');
+      const at = String(body.at || new Date().toISOString());
+      if (member) {
+        data.webClicks.push({ member, at });
+        if (data.webClicks.length > 200) data.webClicks = data.webClicks.slice(-200);
+      }
+    } else if (type === 'industryJump') {
+      const industry = String(body.industry || '');
+      const at = String(body.at || new Date().toISOString());
+      if (industry) {
+        data.industryJumps.push({ industry, at });
+        if (data.industryJumps.length > 200) data.industryJumps = data.industryJumps.slice(-200);
+      }
     }
-  } else if (type === 'phoneClick') {
-    const member = String(body.member || '');
-    const at = String(body.at || new Date().toISOString());
-    if (member) {
-      data.phoneClicks.push({ member, at });
-      if (data.phoneClicks.length > 200) data.phoneClicks = data.phoneClicks.slice(-200);
-    }
-  } else if (type === 'webClick') {
-    const member = String(body.member || '');
-    const at = String(body.at || new Date().toISOString());
-    if (member) {
-      data.webClicks.push({ member, at });
-      if (data.webClicks.length > 200) data.webClicks = data.webClicks.slice(-200);
-    }
-  } else if (type === 'industryJump') {
-    const industry = String(body.industry || '');
-    const at = String(body.at || new Date().toISOString());
-    if (industry) {
-      data.industryJumps.push({ industry, at });
-      if (data.industryJumps.length > 200) data.industryJumps = data.industryJumps.slice(-200);
-    }
+
+    cell.setValue(JSON.stringify(data));
+    return { ok: true, matched: true };
+  } finally {
+    lock.releaseLock();
   }
-
-  cell.setValue(JSON.stringify(data));
-  return { ok: true, matched: true };
 }
 
 // 批次處理多個行為事件（前端 buffer 後一次送）：只找一次手機、讀一次 cell、寫一次 cell
@@ -579,33 +636,57 @@ function batchBehavior(body) {
   const phoneNorm = normalizePhone(phone);
   if (!phoneNorm) return { ok: false, error: 'invalid phone' };
 
-  const target = findGuestRowByPhone(phoneNorm);
-  if (!target) return { ok: true, matched: false, count: 0 };
-
-  const cell = target.sheet.getRange(target.row, 13);
-  const data = parseBehavior(cell.getValue());
-
-  const nowStr = new Date().toISOString();
-  events.forEach(function (ev) {
-    const t = String(ev && ev.type || '');
-    if (t === 'visit') {
-      if (ev.startAt && ev.endAt) data.visits.push({ in: ev.startAt, out: ev.endAt });
-    } else if (t === 'phoneClick' && ev.member) {
-      data.phoneClicks.push({ member: String(ev.member), at: String(ev.at || nowStr) });
-    } else if (t === 'webClick' && ev.member) {
-      data.webClicks.push({ member: String(ev.member), at: String(ev.at || nowStr) });
-    } else if (t === 'industryJump' && ev.industry) {
-      data.industryJumps.push({ industry: String(ev.industry), at: String(ev.at || nowStr) });
+  // 加鎖避免並發讀寫覆蓋
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return { ok: false, error: 'lock timeout' };
+  try {
+    let target = findGuestRowByPhone(phoneNorm);
+    // 找不到 → 用 body.name 自動建 stub，避免行為紀錄丟失
+    if (!target) {
+      const name = String(body.name || '').trim();
+      if (!name) return { ok: true, matched: false, count: 0 };
+      const today = new Date();
+      const todayStr = today.getFullYear() + '-'
+                     + String(today.getMonth() + 1).padStart(2, '0') + '-'
+                     + String(today.getDate()).padStart(2, '0');
+      const year = today.getFullYear();
+      const sh = getGuestSheetForYear(year);
+      ensureColumns(sh);
+      const tracks = JSON.stringify([{ date: todayStr, note: 'QR 自助登記，未匹配名單' }]);
+      sh.appendRow([
+        todayStr, '', '', name, '', '', '', phone, '', '待追蹤', tracks, '', '', '', '', '', '', '', 'FALSE', 'FALSE', 'FALSE', '', '', ''
+      ]);
+      invalidateGuestListCache();
+      target = { sheet: sh, row: sh.getLastRow() };
     }
-  });
 
-  if (data.visits.length > 50) data.visits = data.visits.slice(-50);
-  if (data.phoneClicks.length > 200) data.phoneClicks = data.phoneClicks.slice(-200);
-  if (data.webClicks.length > 200) data.webClicks = data.webClicks.slice(-200);
-  if (data.industryJumps.length > 200) data.industryJumps = data.industryJumps.slice(-200);
+    const cell = target.sheet.getRange(target.row, 13);
+    const data = parseBehavior(cell.getValue());
 
-  cell.setValue(JSON.stringify(data));
-  return { ok: true, matched: true, count: events.length };
+    const nowStr = new Date().toISOString();
+    events.forEach(function (ev) {
+      const t = String(ev && ev.type || '');
+      if (t === 'visit') {
+        if (ev.startAt && ev.endAt) data.visits.push({ in: ev.startAt, out: ev.endAt });
+      } else if (t === 'phoneClick' && ev.member) {
+        data.phoneClicks.push({ member: String(ev.member), at: String(ev.at || nowStr) });
+      } else if (t === 'webClick' && ev.member) {
+        data.webClicks.push({ member: String(ev.member), at: String(ev.at || nowStr) });
+      } else if (t === 'industryJump' && ev.industry) {
+        data.industryJumps.push({ industry: String(ev.industry), at: String(ev.at || nowStr) });
+      }
+    });
+
+    if (data.visits.length > 50) data.visits = data.visits.slice(-50);
+    if (data.phoneClicks.length > 200) data.phoneClicks = data.phoneClicks.slice(-200);
+    if (data.webClicks.length > 200) data.webClicks = data.webClicks.slice(-200);
+    if (data.industryJumps.length > 200) data.industryJumps = data.industryJumps.slice(-200);
+
+    cell.setValue(JSON.stringify(data));
+    return { ok: true, matched: true, count: events.length };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // 找出對應手機的歷屆來賓列；同一手機可能有多筆（一訪/二訪），回傳「首次參訪日期最新」那筆
@@ -710,9 +791,7 @@ function getPublicMembers() {
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
   const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-  const idx = function(name) {
-    return headers.findIndex(function(h) { return String(h).indexOf(name) >= 0; });
-  };
+  const idx = function(name) { return findHeaderIdx(headers, name); };
   const iName = idx('姓名'), iSpec = idx('專業別'), iComp = idx('公司'), iServ = idx('服務'), iPhone = idx('電話');
   const iPhoto = idx('照片連結'), iInd = idx('產業鏈'), iSlogan = idx('口號'), iWeb = idx('官網'), iGender = idx('性別');
   const data = sh.getRange(2, 1, lastRow - 1, sh.getLastColumn()).getValues();
@@ -935,7 +1014,7 @@ function doPost(e) {
     if (action === 'addMember') {
       const sh = getSheet();
       const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-      const ci = function(name) { return headers.findIndex(function(h) { return String(h).indexOf(name) >= 0; }); };
+      const ci = function(name) { return findHeaderIdx(headers, name); };
       const seqNum = sh.getLastRow();
       const newRow = new Array(headers.length).fill('');
       newRow[0] = seqNum;
@@ -978,7 +1057,7 @@ function doPost(e) {
     if (action === 'updateMember') {
       const sh = getSheet();
       const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-      const ci = function(name) { return headers.findIndex(function(h) { return String(h).indexOf(name) >= 0; }); };
+      const ci = function(name) { return findHeaderIdx(headers, name); };
       const row = body.sheetRow;
       if (ci('姓名') >= 0) sh.getRange(row, ci('姓名') + 1).setValue(body.name || '');
       if (ci('產業鏈') >= 0) sh.getRange(row, ci('產業鏈') + 1).setValue(body.industry || '');
@@ -998,7 +1077,7 @@ function doPost(e) {
     if (action === 'updateRenewal') {
       const sh = getSheet();
       const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-      const ci = function(name) { return headers.findIndex(function(h) { return String(h).indexOf(name) >= 0; }); };
+      const ci = function(name) { return findHeaderIdx(headers, name); };
       const row = body.sheetRow;
       if (ci('到期日') >= 0) sh.getRange(row, ci('到期日') + 1).setValue(body.renewDate || '');
       if (ci('申請書') >= 0) sh.getRange(row, ci('申請書') + 1).setValue(body.renewApply || '');
@@ -1182,7 +1261,7 @@ function renumberMembers() {
   if (!sheet) { Logger.log('Main sheet not found'); return; }
 
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const nameCol = headers.findIndex(function(h) { return String(h).indexOf('姓名') >= 0; }) + 1;
+  const nameCol = findHeaderIdx(headers, '姓名') + 1;
   if (nameCol < 1) { Logger.log('找不到姓名欄'); return; }
 
   const lastRow = sheet.getLastRow();

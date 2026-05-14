@@ -430,6 +430,7 @@ function escH(s) {
 const GUEST_KEY = 'bni_dm_guest';
 const GUEST_TTL_DAYS = 7;
 const MEET_KEY = 'bni_dm_meet'; // 已點過想認識的會員名稱陣列
+const RETRY_STASH_KEY = 'bni_dm_retry_events'; // 網路失敗時暫存事件，下次進入時補送
 
 // 行為追蹤：buffer + 批次發送（減少 API 呼叫次數，降低 rate limit 壓力）
 let _sessionStart = null; // 本次造訪開始時間（ISO string）
@@ -466,19 +467,79 @@ function flushBehaviorEvents(opts) {
     events
   });
   const useBeacon = opts && opts.beacon;
-  try {
-    if (useBeacon && navigator.sendBeacon) {
+  if (useBeacon && navigator.sendBeacon) {
+    let sent = false;
+    try {
       const blob = new Blob([body], { type: 'text/plain;charset=utf-8' });
-      navigator.sendBeacon(PUBLIC_API_URL, blob);
-    } else {
-      fetch(PUBLIC_API_URL, {
-        method: 'POST',
-        keepalive: true,
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body
-      }).catch(() => {});
-    }
-  } catch (e) { /* ignore */ }
+      sent = navigator.sendBeacon(PUBLIC_API_URL, blob);
+    } catch (e) { sent = false; }
+    // beacon 失敗（pagehide 期間沒機會重試）→ 寫 localStorage 等下次進入時補送
+    if (!sent) _stashEventsForRetry(events);
+    return;
+  }
+  try {
+    fetch(PUBLIC_API_URL, {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body
+    }).then(function (res) {
+      if (!res.ok) throw new Error('http ' + res.status);
+      return res.json();
+    }).then(function (json) {
+      if (!json || !json.ok) throw new Error((json && json.error) || 'api error');
+    }).catch(function () {
+      // 送出失敗 → 重試 1 次；再失敗就 stash 到 localStorage 等下次進入時補送
+      _retryOrStash(events);
+    });
+  } catch (e) {
+    _retryOrStash(events);
+  }
+}
+
+function _retryOrStash(events) {
+  // 在每筆事件上記重試次數；超過 1 次直接 stash
+  const retried = events.map(function (ev) {
+    const r = (ev && ev._retry) | 0;
+    return Object.assign({}, ev, { _retry: r + 1 });
+  });
+  const tooMany = retried.some(function (ev) { return ev._retry > 1; });
+  if (tooMany) {
+    _stashEventsForRetry(events);
+    return;
+  }
+  _eventBuffer = retried.concat(_eventBuffer);
+  if (!_flushTimer) {
+    _flushTimer = setTimeout(flushBehaviorEvents, FLUSH_INTERVAL_MS * 2);
+  }
+}
+
+function _stashEventsForRetry(events) {
+  try {
+    const raw = localStorage.getItem(RETRY_STASH_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    // 移除內部 _retry 旗標
+    const clean = events.map(function (ev) {
+      if (!ev || !ev._retry) return ev;
+      const c = Object.assign({}, ev); delete c._retry; return c;
+    });
+    const merged = (Array.isArray(arr) ? arr : []).concat(clean);
+    // 上限 200 筆避免無限增長
+    const trimmed = merged.length > 200 ? merged.slice(-200) : merged;
+    localStorage.setItem(RETRY_STASH_KEY, JSON.stringify(trimmed));
+  } catch (e) {}
+}
+
+function _retryStashedEvents() {
+  try {
+    const raw = localStorage.getItem(RETRY_STASH_KEY);
+    if (!raw) return;
+    const arr = JSON.parse(raw);
+    localStorage.removeItem(RETRY_STASH_KEY);
+    if (!Array.isArray(arr) || arr.length === 0) return;
+    _eventBuffer = arr.concat(_eventBuffer);
+    flushBehaviorEvents();
+  } catch (e) {}
 }
 
 function sendVisitEnd() {
@@ -524,13 +585,12 @@ function addMeet(memberName) {
 function isMeetClicked(memberName) { return getMeetSet().has(memberName); }
 function escAttr(s) { return String(s || '').replace(/[^\w一-龥]/g, '_'); }
 
-function renderMeetBtn(memberName) {
+function renderMeetBtn(memberName, uniq) {
   const done = isMeetClicked(memberName);
-  const safe = escAttr(memberName);
   if (done) {
-    return `<button class="mc-meet-btn done" disabled id="meet-${safe}">&#10003; 已通知</button>`;
+    return `<button class="mc-meet-btn done" disabled id="meet-${uniq}">&#10003; 已通知</button>`;
   }
-  return `<button class="mc-meet-btn" id="meet-${safe}" data-member="${escH(memberName)}">想認識</button>`;
+  return `<button class="mc-meet-btn" id="meet-${uniq}" data-uniq="${uniq}" data-member="${escH(memberName)}">想認識</button>`;
 }
 
 document.addEventListener('click', function (e) {
@@ -540,7 +600,8 @@ document.addEventListener('click', function (e) {
   const meetBtn = e.target.closest('.mc-meet-btn');
   if (meetBtn && !meetBtn.classList.contains('done') && !meetBtn.disabled) {
     const memberName = meetBtn.dataset.member;
-    if (memberName) onMeetClick(memberName);
+    const uniq = meetBtn.dataset.uniq;
+    if (memberName) onMeetClick(memberName, uniq);
     return;
   }
 
@@ -567,13 +628,15 @@ document.addEventListener('click', function (e) {
   }
 });
 
-async function onMeetClick(memberName) {
+async function onMeetClick(memberName, uniq) {
   let info = getGuestInfo();
   if (!info) {
+    // 已有 modal 開著就忽略連點，避免疊出多個輸入框
+    if (document.querySelector('.guest-modal-overlay')) return;
     info = await openGuestModal(memberName);
     if (!info) return;
   }
-  await submitInterest(memberName, info);
+  await submitInterest(memberName, info, uniq);
 }
 
 function openGuestModal(forMemberName) {
@@ -612,10 +675,9 @@ function openGuestModal(forMemberName) {
   });
 }
 
-async function submitInterest(memberName, info) {
-  const safe = escAttr(memberName);
-  const btn = document.getElementById('meet-' + safe);
-  const note = document.getElementById('note-' + safe);
+async function submitInterest(memberName, info, uniq) {
+  const btn = uniq ? document.getElementById('meet-' + uniq) : null;
+  const note = uniq ? document.getElementById('note-' + uniq) : null;
   if (btn) { btn.disabled = true; btn.textContent = '送出中...'; }
   try {
     const body = {
@@ -683,6 +745,8 @@ function renderMembers(members) {
     sel.style.display = groupKeys.length > 0 ? '' : 'none';
   }
 
+  // 用全域索引組唯一 id，避免同名會員的按鈕 id 撞在一起
+  let _memberIdx = 0;
   const parts = [];
   groupKeys.forEach((g, gi) => {
     const color = colorMap[g];
@@ -690,12 +754,13 @@ function renderMembers(members) {
       <div class="industry-title" style="background:${color};">${escH(g)}</div>
       <div class="member-list">
         ${groups[g].map(m => {
+          const uniq = escAttr(m.name) + '-' + (_memberIdx++);
           const photoUrl = m.photo
             ? m.photo
             : (m.gender === '男' || m.gender === 'M' ? 'default-male.png'
               : (m.gender === '女' || m.gender === 'F' ? 'default-female.png' : ''));
           return `
-          <div class="member-card" data-member="${escH(m.name)}">
+          <div class="member-card" data-member="${escH(m.name)}" data-uniq="${uniq}">
             ${photoUrl
               ? `<img class="mc-photo" src="${escH(photoUrl)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
                  <div class="mc-photo-empty" style="display:none">?</div>`
@@ -709,9 +774,9 @@ function renderMembers(members) {
               ${m.slogan ? `<div class="mc-slogan">「${escH(m.slogan)}」</div>` : ''}
               <div class="mc-btn-row">
                 ${m.website ? `<a class="mc-web-btn" href="${escH(m.website)}" target="_blank" rel="noopener">看官網 &rarr;</a>` : ''}
-                ${renderMeetBtn(m.name)}
+                ${renderMeetBtn(m.name, uniq)}
               </div>
-              <span class="mc-meet-note" id="note-${escAttr(m.name)}"${isMeetClicked(m.name) ? '' : ' style="display:none"'}>已通知 ${escH(m.name)}，會盡快聯繫您</span>
+              <span class="mc-meet-note" id="note-${uniq}"${isMeetClicked(m.name) ? '' : ' style="display:none"'}>已通知 ${escH(m.name)}，會盡快聯繫您</span>
             </div>
           </div>
         `;
@@ -857,6 +922,9 @@ async function ensureGuestLogin() {
 
   // 強制登入：先取得來賓資料才能進入 DM
   await ensureGuestLogin();
+
+  // 補送上次無網路時暫存在 localStorage 的事件
+  _retryStashedEvents();
 
   // 標記本次造訪開始
   _sessionStart = nowIso();
