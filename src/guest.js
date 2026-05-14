@@ -24,7 +24,7 @@ let _guestSubTab = 'week';   // 'week' | 'all'
 let _guestSearch = '';
 let _guestStatusFilter = ''; // '' = 全部，否則為特定狀態
 let _guestTermFilter = 0;    // 0 = 全部，否則為特定屆數（1, 2, 3, ...）
-let _guestProbFilter = new Set(); // tracking 分頁的入會機率多選篩選：'低' / '中' / '未評估'
+let _guestProbFilter = new Set(); // tracking 分頁多選篩選：'低' / '中' / '未評估' / 'QR自助'（OR）
 
 function _parseDateStr(s) {
   if (!s) return null;
@@ -309,11 +309,11 @@ function _isInWeekGuest(g) {
   return candidates.some(d => d && d >= mon && d <= sun);
 }
 
+// 「高潛力」分頁僅顯示秘書手動標「入會機率=高」的來賓。
+// 互動行為（按想認識 / 看官網 / 撥電話）不再自動升級分類；
+// 改為在原分類裡用熱度排序，把活躍的人排到最上面。
 function _isHotGuest(g) {
-  if (g.joinProb === '高') return true;
-  if (_calcHeatScore(g) >= 20) return true;
-  if (_parseInterested(g.interestedIn).length > 0) return true;
-  return false;
+  return g.joinProb === '高';
 }
 
 // 興趣 ★ 觸發條件：有想認識會員 OR 熱度 ≥ 10
@@ -518,13 +518,17 @@ function _isClosed(g)  { return !!g.closed  || ['婉拒/停止追蹤','轉別分
 // Tab 分配採嚴格互斥：每位來賓只會出現在一個 tab
 // 優先順序：暫停追蹤 > 入會流程 > 高潛力 > 本周來賓 > 追蹤中
 // 方案 B：紅色漸進（左到右越深）+ 暫停追蹤用灰
+// QR 自助登記且尚未進入入會流程/結案的 stub：強制歸到「追蹤中」，
+// 避免散落在本周來賓 / 高潛力分頁找不齊（追蹤中 chip 才能一網打盡）
+const _isActiveStub = (g) => _isUnmatchedGuest(g) && !_isApplied(g) && !_isClosed(g);
+
 const GUEST_TAB_DEFS = [
   { id: 'week',     label: '本周來賓', color: '#dc2626', bg: '#fef2f2',
-    filter: (g) => _isInWeekGuest(g) && !_isApplied(g) && !_isClosed(g) && !_isHotGuest(g) },
+    filter: (g) => _isInWeekGuest(g) && !_isApplied(g) && !_isClosed(g) && !_isHotGuest(g) && !_isActiveStub(g) },
   { id: 'tracking', label: '追蹤中',   color: '#b91c1c', bg: '#fee2e2',
-    filter: (g) => !_isInWeekGuest(g) && !_isApplied(g) && !_isClosed(g) && !_isHotGuest(g) },
+    filter: (g) => !_isApplied(g) && !_isClosed(g) && (_isActiveStub(g) || (!_isInWeekGuest(g) && !_isHotGuest(g))) },
   { id: 'hot',      label: '高潛力',   color: '#991b1b', bg: '#fecaca',
-    filter: (g) => !_isClosed(g) && !_isApplied(g) && _isHotGuest(g) },
+    filter: (g) => !_isClosed(g) && !_isApplied(g) && _isHotGuest(g) && !_isActiveStub(g) },
   { id: 'process',  label: '入會流程', color: '#7f1d1d', bg: '#fca5a5',
     filter: (g) => _isApplied(g) && !_isClosed(g) },
   { id: 'paused',   label: '暫停追蹤', color: '#475569', bg: '#e5e7eb',
@@ -618,8 +622,10 @@ async function renderGuestTrack() {
     list = list.filter(_matchGuestProbFilter);
   }
 
-  // 排序：最近活動由新到舊
+  // 排序：熱度高的排前面（活躍互動的人優先看到），同熱度再依最近活動日期
   list.sort((a, b) => {
+    const ha = _calcHeatScore(a); const hb = _calcHeatScore(b);
+    if (ha !== hb) return hb - ha;
     const da = _guestLatestDate(a); const db = _guestLatestDate(b);
     return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
   });
@@ -675,7 +681,10 @@ function _renderOnlyList() {
   if (_guestSubTab === 'tracking' && _guestProbFilter.size > 0) {
     list = list.filter(_matchGuestProbFilter);
   }
+  // 熱度排序：互動多的排前面
   list.sort((a, b) => {
+    const ha = _calcHeatScore(a); const hb = _calcHeatScore(b);
+    if (ha !== hb) return hb - ha;
     const da = _guestLatestDate(a); const db = _guestLatestDate(b);
     return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
   });
@@ -685,9 +694,14 @@ function _renderOnlyList() {
 
 function _matchGuestProbFilter(g) {
   if (_guestProbFilter.size === 0) return true;
+  // 'QR自助' chip 命中 → OR 通過（與機率 chip 並列）
+  if (_guestProbFilter.has('QR自助') && _isUnmatchedGuest(g)) return true;
+  // 機率 chips
+  const probChips = ['低','中','未評估'].filter(p => _guestProbFilter.has(p));
+  if (probChips.length === 0) return false; // 只勾了 QR自助 但這位不是 stub
   const raw = g.joinProb;
   const key = (raw === '低' || raw === '中' || raw === '高') ? raw : '未評估';
-  return _guestProbFilter.has(key);
+  return probChips.includes(key);
 }
 
 function _toggleGuestProbFilter(v) {
@@ -705,10 +719,11 @@ function _probFilterChipsHtml() {
       <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${active?'white':color};"></span>${label}
     </button>`;
   };
-  return `<div id="guestProbFilterChips" style="display:flex;gap:6px;flex-shrink:0;">
+  return `<div id="guestProbFilterChips" style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;">
     ${chip('低','低','#c0392b')}
     ${chip('中','中','#d4ac0d')}
     ${chip('未評估','未評估','#9ca3af')}
+    ${chip('QR自助','QR自助','#92400e')}
   </div>`;
 }
 
