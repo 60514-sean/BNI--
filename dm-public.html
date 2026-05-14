@@ -431,6 +431,8 @@ const GUEST_KEY = 'bni_dm_guest';
 const GUEST_TTL_DAYS = 7;
 const MEET_KEY = 'bni_dm_meet'; // 已點過想認識的會員名稱陣列
 const RETRY_STASH_KEY = 'bni_dm_retry_events'; // 網路失敗時暫存事件，下次進入時補送
+const MEMBERS_CACHE_KEY = 'bni_dm_members_cache'; // 會員清單本地快取（含時間戳）
+const MEMBERS_CACHE_TTL_MS = 24 * 3600 * 1000; // 24 小時內可直接顯示舊資料，背景再刷新
 
 // 行為追蹤：buffer + 批次發送（減少 API 呼叫次數，降低 rate limit 壓力）
 let _sessionStart = null; // 本次造訪開始時間（ISO string）
@@ -527,6 +529,32 @@ function _stashEventsForRetry(events) {
     // 上限 200 筆避免無限增長
     const trimmed = merged.length > 200 ? merged.slice(-200) : merged;
     localStorage.setItem(RETRY_STASH_KEY, JSON.stringify(trimmed));
+  } catch (e) {}
+}
+
+// 縮圖優化：Google Drive 圖片 URL 沒帶 size 時自動加 =s128 取小圖（顯示尺寸 64px，2x 視網膜 128 即可）
+function _optimizedPhotoUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  if (url.indexOf('lh3.googleusercontent.com') !== -1 && url.indexOf('=') === -1) {
+    return url + '=s128';
+  }
+  return url;
+}
+
+// 會員清單本地快取（stale-while-revalidate）
+function _loadMembersCache() {
+  try {
+    const raw = localStorage.getItem(MEMBERS_CACHE_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || !Array.isArray(obj.data) || !obj.t) return null;
+    if (Date.now() - obj.t > MEMBERS_CACHE_TTL_MS) return null;
+    return obj.data;
+  } catch (e) { return null; }
+}
+function _saveMembersCache(data) {
+  try {
+    localStorage.setItem(MEMBERS_CACHE_KEY, JSON.stringify({ data, t: Date.now() }));
   } catch (e) {}
 }
 
@@ -755,14 +783,15 @@ function renderMembers(members) {
       <div class="member-list">
         ${groups[g].map(m => {
           const uniq = escAttr(m.name) + '-' + (_memberIdx++);
-          const photoUrl = m.photo
+          const rawPhoto = m.photo
             ? m.photo
             : (m.gender === '男' || m.gender === 'M' ? 'default-male.png'
               : (m.gender === '女' || m.gender === 'F' ? 'default-female.png' : ''));
+          const photoUrl = _optimizedPhotoUrl(rawPhoto);
           return `
           <div class="member-card" data-member="${escH(m.name)}" data-uniq="${uniq}">
             ${photoUrl
-              ? `<img class="mc-photo" src="${escH(photoUrl)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+              ? `<img class="mc-photo" src="${escH(photoUrl)}" loading="lazy" decoding="async" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
                  <div class="mc-photo-empty" style="display:none">?</div>`
               : `<div class="mc-photo-empty">?</div>`}
             <div class="mc-info">
@@ -892,7 +921,7 @@ function showLoginPage() {
       setTimeout(() => {
         overlay.classList.add('fade-out');
         setTimeout(() => { overlay.remove(); resolve({ name, phone, matched, matchedName }); }, 400);
-      }, IS_PREVIEW ? 900 : 1800);
+      }, IS_PREVIEW ? 600 : 1000);
     };
   });
 }
@@ -920,6 +949,23 @@ async function ensureGuestLogin() {
     document.body.appendChild(banner);
   }
 
+  // ⚡ 並行起跑：使用者還在填登入表單時，背景已開始抓會員資料
+  // 步驟 1：先用 localStorage 快取立刻渲染（如果有的話），讓登入完成時畫面已在
+  // 步驟 2：背景發 API 拿最新版，回來再覆蓋一次
+  let _membersRendered = false;
+  const cached = _loadMembersCache();
+  if (cached && cached.length) {
+    renderMembers(cached);
+    _membersRendered = true;
+  }
+  const membersPromise = loadMembers(token).then(fresh => {
+    _saveMembersCache(fresh);
+    return fresh;
+  }).catch(e => {
+    if (!_membersRendered) throw e; // 沒快取又抓失敗才報錯
+    return null; // 已用快取畫過，背景刷新失敗就沉默
+  });
+
   // 強制登入：先取得來賓資料才能進入 DM
   await ensureGuestLogin();
 
@@ -930,8 +976,8 @@ async function ensureGuestLogin() {
   _sessionStart = nowIso();
 
   try {
-    const members = await loadMembers(token);
-    renderMembers(members);
+    const members = await membersPromise;
+    if (members) renderMembers(members);
   } catch (e) {
     if (e.code === 'rate_limit') {
       document.getElementById('content').innerHTML = `<div class="error-box">使用人數較多，請稍候 1 分鐘再試<br><br>（系統為防止濫用設有流量保護）</div>`;
