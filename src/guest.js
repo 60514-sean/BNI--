@@ -349,6 +349,7 @@ function _guestProgressDots(g) {
 
 // 打開進度編輯彈窗（仿續約管理的編輯流程）
 function openGuestProgressModal(year, sheetRow) {
+  if (!_canEditTab('guesttrack')) { showToast('無編輯權限'); return; }
   if (!_guestData) return;
   const g = _guestData.find(x => x.year === year && x.sheetRow === sheetRow);
   if (!g) { showToast('找不到該來賓'); return; }
@@ -412,6 +413,7 @@ function _gpStepChange() {
 }
 
 async function saveGuestProgress(year, sheetRow) {
+  if (!_canEditTab('guesttrack')) { showToast('無編輯權限'); return; }
   const g = _guestData?.find(x => x.year === year && x.sheetRow === sheetRow);
   if (!g) return;
   const applied = document.getElementById('gp_applied')?.checked || false;
@@ -644,8 +646,8 @@ async function renderGuestTrack() {
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
       <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">來賓追蹤</h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="openGuestModal()">+</button>
-        <button class="btn" style="background:white;border:1.5px solid var(--red);color:var(--red);font-weight:700;" onclick="openGuestImportModal()">匯入</button>
+        ${_canEditTab('guesttrack') ? `<button class="btn btn-primary" onclick="openGuestModal()">+</button>
+        <button class="btn" style="background:white;border:1.5px solid var(--red);color:var(--red);font-weight:700;" onclick="openGuestImportModal()">匯入</button>` : ''}
         <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="_guestData=null;renderGuestTrack()">重整</button>
       </div>
     </div>
@@ -939,7 +941,7 @@ function _guestCardHtml(g) {
         ${hasStar ? `<span title="有想認識會員或熱度高" style="color:#c0392b;font-size:20px;line-height:1;user-select:none;">★</span>` : ''}
         ${g._pending
           ? `<span style="padding:6px 12px;font-size:12px;color:var(--text-soft);background:#f4f6f8;border-radius:6px;">同步中...</span>`
-          : `<button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="event.stopPropagation();openGuestModal('${_escH(editArg)}')">編輯</button>`}
+          : (_canEditTab('guesttrack') ? `<button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="event.stopPropagation();openGuestModal('${_escH(editArg)}')">編輯</button>` : '')}
       </div>
     </div>
     ${progressHtml}
@@ -1021,6 +1023,7 @@ let _editingRows = null; // 多訪時為長度 2 的陣列；單訪為 1；新�
 let _editingIdx = 0;     // 目前在編輯哪個 row
 
 async function openGuestModal(arg, opts) {
+  if (!_canEditTab('guesttrack')) { showToast('無編輯權限'); return; }
   opts = opts || {};
   if (!_memberData) fetchMembers();
 
@@ -1516,6 +1519,7 @@ function _selectMemberSuggest(inputId, name) {
 }
 
 async function saveGuest(gKey) {
+  if (!_canEditTab('guesttrack')) { showToast('無編輯權限'); return; }
   const name = document.getElementById('gm_name').value.trim();
   if (!name) { showToast('請輸入姓名'); return; }
   const phone = _formatPhoneTw(document.getElementById('gm_phone').value);
@@ -1649,6 +1653,7 @@ async function saveGuest(gKey) {
 }
 
 function deleteGuestConfirm(gKey) {
+  if (!_canEditTab('guesttrack')) { showToast('無編輯權限'); return; }
   const [year, row] = gKey.split('-').map(Number);
   const g = _guestData.find(x => x.year === year && x.sheetRow === row);
   if (!g) return;
@@ -1679,6 +1684,7 @@ const SHEETJS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.ful
 let _importParsedGuests = []; // 暫存解析後的待匯入清單
 
 async function openGuestImportModal() {
+  if (!_canEditTab('guesttrack')) { showToast('無編輯權限'); return; }
   showLoader && showLoader(true, '載入匯入模組...');
   try {
     await _loadScript(SHEETJS_CDN);

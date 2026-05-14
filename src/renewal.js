@@ -69,7 +69,7 @@ function _renewalDateTs(s) {
 async function renderRenewal() {
   if (!_memberData) await fetchMembers();
   if (!_memberData) return;
-  const canEdit = CR === 'admin';
+  const canEdit = _canEditTab('renewal');
 
   // 1. 自動重置（renewRibbon=TRUE 且 renewDays ≤ 120）→ 進入新一輪
   let autoResetCount = 0;

@@ -238,7 +238,7 @@ async function renderMembers() {
     if (parts.length !== 3) return false;
     return parseInt(parts[1]) === parseInt(_memberBirthMonth);
   });
-  const canEdit = CR === 'admin';
+  const canEdit = _canEditTab('member');
   const selectStyle = `padding:7px 10px;border:1.5px solid var(--gray-border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--text-soft);background:white;cursor:pointer;`;
   const monthOpts = ['<option value="">生日月份（全部）</option>']
     .concat([1,2,3,4,5,6,7,8,9,10,11,12].map(m => `<option value="${m}"${String(m)===_memberBirthMonth?' selected':''}>${m} 月生日</option>`)).join('');

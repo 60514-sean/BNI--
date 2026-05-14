@@ -40,7 +40,7 @@ async function renderPlate() {
     ? `${count} 筆車牌 · A4 直印 · 預覽如下`
     : `本周 ${count} 位來賓 · A4 直印 · 預覽如下`;
   const subBtn = (v, label) => `<button class="signin-subtab ${tab===v?'active':''}" onclick="_plateSwitch('${v}')">${label}</button>`;
-  const extraBtn = tab === 'member'
+  const extraBtn = (tab === 'member' && _canEditTab('plate'))
     ? `<button class="btn" style="background:white;border:1.5px solid var(--red);color:var(--red);font-weight:900;flex-shrink:0;" onclick="openPlateExtraModal()" title="新增非會員車牌">+</button>`
     : '';
   const refreshHandler = tab === 'member'
@@ -318,6 +318,7 @@ function _renderPlateExtraList() {
 }
 
 function addPlateExtra() {
+  if (!_canEditTab('plate')) { showToast('無編輯權限'); return; }
   const nameEl  = document.getElementById('plateExtraName');
   const plateEl = document.getElementById('plateExtraPlate');
   const name  = nameEl  ? nameEl.value.trim()  : '';
@@ -334,6 +335,7 @@ function addPlateExtra() {
 }
 
 function removePlateExtra(i) {
+  if (!_canEditTab('plate')) { showToast('無編輯權限'); return; }
   const arr = _getPlateExtras();
   arr.splice(i, 1);
   _setPlateExtras(arr);
