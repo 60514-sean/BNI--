@@ -159,6 +159,7 @@ function _getWeekGuestsForSignin() {
   if (!_guestData) return [];
   const { mon, sun } = _weekRange();
   return _guestData.filter(g => {
+    if (_isUnmatchedGuest(g)) return false;
     const d = _parseDateStr(g.firstVisit);
     return d && d >= mon && d <= sun;
   }).sort((a,b) => (a.firstVisit||'').localeCompare(b.firstVisit||''));
