@@ -128,6 +128,8 @@ const GUEST_ROLES = ['EDM手', '來賓組', '主席', '副主席', '報到組'];
 const TAB_LIST = [
   { id: 'todo',       label: '待辦事項', group: '日常' },
   { id: 'main',       label: '工事清單', group: '日常' },
+  { id: 'sanchang',   label: '三長周會', group: '日常' },
+  { id: 'leadership', label: '領導月會', group: '日常' },
   { id: 'meeting',    label: '例會流程', group: '例會' },
   { id: 'signin',     label: '出席簽到', group: '例會' },
   { id: 'plate',      label: '車牌登記', group: '例會' },
@@ -326,7 +328,8 @@ function _applyEditLock(tabId) {
   const map = {
     todo:'todoContent', main:'mainContent', member:'memberContent',
     dm:'dmContent', slogan:'sloganContent', plate:'plateContent', signin:'signinContent', guesttrack:'guestTrackContent',
-    placard:'placardContent', schedule:'scheduleContent', finance:'financeContent', meeting:'meetingContent'
+    placard:'placardContent', schedule:'scheduleContent', finance:'financeContent', meeting:'meetingContent',
+    sanchang:'sanchangContent', leadership:'leadershipContent'
   };
   const targets = [];
   if (map[tabId]) {

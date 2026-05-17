@@ -101,7 +101,7 @@ async function doLogin() {
   } else {
     // 沒有任何頁籤 → 空畫面 + 提示
     const ml = document.getElementById('menuLabel'); if (ml) ml.textContent = '歡迎';
-    ['todoContent','mainContent','memberContent','dmContent','sloganContent','plateContent','signinContent','guestTrackContent','placardContent','scheduleContent','financeContent','meetingContent'].forEach(id => {
+    ['todoContent','mainContent','memberContent','dmContent','sloganContent','plateContent','signinContent','guestTrackContent','placardContent','scheduleContent','financeContent','meetingContent','sanchangContent','leadershipContent'].forEach(id => {
       const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
     const msgEl = document.getElementById('mainContent');

@@ -4,7 +4,7 @@ let _activeTab = 'main';
 const TAB_LABELS = {
   todo:'待辦事項', main:'工事清單', member:'會員資料', renewal:'續約管理', dm:'會員DM', slogan:'會員口號', plate:'車牌登記',
   signin:'出席簽到', guesttrack:'來賓追蹤', placard:'桌牌製作', schedule:'簡報排程',
-  finance:'財務控管', meeting:'例會流程', settings:'系統設定'
+  finance:'財務控管', meeting:'例會流程', sanchang:'三長周會', leadership:'領導月會', settings:'系統設定'
 };
 
 function switchTab(tab) {
@@ -24,6 +24,8 @@ function switchTab(tab) {
   document.getElementById('scheduleContent').style.display   = tab === 'schedule'   ? '' : 'none';
   document.getElementById('financeContent').style.display    = tab === 'finance'    ? '' : 'none';
   document.getElementById('meetingContent').style.display    = tab === 'meeting'    ? '' : 'none';
+  document.getElementById('sanchangContent').style.display   = tab === 'sanchang'   ? '' : 'none';
+  document.getElementById('leadershipContent').style.display = tab === 'leadership' ? '' : 'none';
   _updateMenuActive(tab);
   const label = TAB_LABELS[tab] || '';
   const ml = document.getElementById('menuLabel');
@@ -41,6 +43,8 @@ function switchTab(tab) {
   if (tab === 'schedule')   renderSchedule();
   if (tab === 'finance')    renderFinance();
   if (tab === 'meeting')    renderMeeting();
+  if (tab === 'sanchang')   renderSanchang();
+  if (tab === 'leadership') renderLeadership();
 }
 
 function _updateMenuActive(tab) {

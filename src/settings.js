@@ -165,6 +165,8 @@ function showSettings() {
   document.getElementById('scheduleContent').style.display   = 'none';
   document.getElementById('financeContent').style.display    = 'none';
   document.getElementById('meetingContent').style.display    = 'none';
+  document.getElementById('sanchangContent').style.display   = 'none';
+  document.getElementById('leadershipContent').style.display = 'none';
   _activeTab = 'settings';
   _updateMenuActive('settings');
   const cfg = getConfig();
