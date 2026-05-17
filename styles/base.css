@@ -1973,8 +1973,8 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
 /* 會員歷史 */
 .sched-hist-row { cursor:pointer; }
 .sched-hist-row:hover td { background:#eef4fb; }
-.sched-hist-row td { padding:8px 10px; }
-.sched-flag { display:inline-block; width:8px; height:8px; border-radius:50%; margin-left:4px; vertical-align:middle; }
+.sched-hist-row td { padding:8px 10px; white-space:nowrap; }
+.sched-flag { display:inline-block; width:8px; height:8px; border-radius:50%; margin-left:4px; vertical-align:middle; flex-shrink:0; }
 .sched-hist-detail-row td { padding:0 !important; border-bottom:1.5px solid var(--gray-border); }
 
 /* 編輯 modal */
@@ -1982,7 +1982,6 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
 .se-block-title { font-size:12px; font-weight:900; color:var(--text); margin-bottom:6px; }
 
 @media (max-width:720px) {
-  .sched-hero { grid-template-columns:1fr; }
   .sched-table { font-size:11px; }
   .sched-table th, .sched-table td { padding:6px 7px; }
 }
@@ -1995,37 +1994,102 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   .sched-desktop-only { display:none; }
 }
 
-/* 手機卡片：每位簡報者一張卡 */
+/* 手機卡片：左側狀態色塊 + 右側白底內容區 */
 .sched-cards { display:flex; flex-direction:column; gap:10px; padding:4px 0; }
 .sched-mc {
   background:white;
   border:1px solid var(--gray-border);
-  border-radius:10px;
+  border-radius:12px;
   overflow:hidden;
   font-size:13px;
+  transition: box-shadow 0.15s;
 }
-.sched-mc.is-today { border-color:#e67e22; background:#fff7e6; }
-.sched-mc.is-past { background:#fafbfc; }
-.sched-mc.is-empty { background:#fef0ee; border-color:#f0c1bb; }
-.sched-mc.is-skip { background:#f4f6f8; }
-.sched-mc.is-left-row { background:#f4f6f8; }
-.sched-mc.is-left-row .sched-name,
-.sched-mc.is-left-row .sched-mentor { color:#9ca3af; }
+.sched-mc.is-expanded { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.sched-mc.is-left-row .sched-mc-c-mid .sched-mc-names { color:#9ca3af; text-decoration:line-through; }
 
-.sched-mc-head {
-  display:flex; align-items:center; justify-content:space-between; gap:10px;
-  padding:10px 12px;
-  border-bottom:1px solid var(--gray-border);
+/* 摺疊頭：橫向佈局，左側日期色塊 + 中間講者名 + 右側 caret */
+.sched-mc-collapsed {
+  display:flex; align-items:stretch; gap:0;
+  cursor:pointer;
+  user-select:none;
 }
-.sched-mc-date { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
-.sched-mc-md { font-size:15px; font-weight:900; color:var(--text); }
-.sched-mc-year { font-size:10px; color:var(--text-soft); }
-.sched-mc-status { font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; background:rgba(0,0,0,0.06); }
-.sched-mc-status.sched-status-empty { background:#fcdfdb; color:#c0392b; }
-.sched-mc-status.sched-status-now { background:#fde6cb; color:#e67e22; }
-.sched-mc-status.sched-status-done { background:transparent; color:var(--text-soft); font-weight:400; }
+.sched-mc-collapsed:active { background:var(--gray-bg); }
+.sched-mc.is-expanded .sched-mc-collapsed { border-bottom:1px solid var(--gray-border); }
 
-.sched-mc-body { padding:10px 12px; display:grid; gap:8px; }
+/* 日期色塊（左側）：固定欄寬，跨卡片完美對齊 */
+.sched-mc-dateblock {
+  flex-shrink:0;
+  width:128px;
+  padding:8px 10px;
+  display:grid;
+  grid-template-columns:44px 16px 1fr;
+  align-items:center;
+  gap:7px;
+  border-right:1px solid var(--gray-border);
+}
+.sched-mc-dateblock .sched-mc-md { font-size:14px; font-weight:900; line-height:1; text-align:left; }
+.sched-mc-dateblock .sched-mc-wk { font-size:11px; opacity:0.7; line-height:1; text-align:center; }
+.sched-mc-dateblock .sched-mc-status-tag {
+  font-size:9px; font-weight:700; letter-spacing:0.05em;
+  padding:2px 6px; border-radius:4px;
+  background:rgba(255,255,255,0.85);
+  white-space:nowrap;
+  text-align:center;
+  justify-self:start;
+}
+
+/* 主題：本週（橘實色，最強對比） */
+.sched-mc-theme-now { background:#e67e22; color:white; }
+.sched-mc-theme-now .sched-mc-status-tag { background:rgba(255,255,255,0.92); color:#e67e22; }
+
+/* 主題：空缺（紅實色，警示） */
+.sched-mc-theme-empty { background:#c0392b; color:white; }
+.sched-mc-theme-empty .sched-mc-status-tag { background:rgba(255,255,255,0.92); color:#c0392b; }
+
+/* 主題：已排定（米黃，未來需注意） */
+.sched-mc-theme-planned { background:#fff5e1; color:var(--text); }
+.sched-mc-theme-planned .sched-mc-status-tag { background:#e67e22; color:white; }
+
+/* 主題：已完成（純白，整卡褪色） */
+.sched-mc-theme-done { background:#ffffff; color:var(--text-soft); }
+.sched-mc-theme-done .sched-mc-md { color:var(--text); }
+.sched-mc-theme-done .sched-mc-status-tag { background:#eef0f2; color:var(--text-soft); font-weight:500; }
+
+/* 主題：暫停（淺灰，識別「不需關注」） */
+.sched-mc-theme-skip { background:#f1f3f5; color:#9ca3af; }
+.sched-mc-theme-skip .sched-mc-md { color:#9ca3af; }
+.sched-mc-theme-skip .sched-mc-status-tag { background:#e5e7eb; color:#6b7280; }
+
+/* 整卡褪色：過去 / 暫停 視覺權重降低，hover 還原 */
+.sched-mc.theme-done,
+.sched-mc.theme-skip { opacity:0.55; transition:opacity 0.15s; }
+.sched-mc.theme-done:hover,
+.sched-mc.theme-skip:hover,
+.sched-mc.theme-done.is-expanded,
+.sched-mc.theme-skip.is-expanded { opacity:1; }
+
+/* 暫停卡片：內容區的講者名也淡化（如果有的話）*/
+.sched-mc.theme-skip .sched-mc-c-mid { color:#9ca3af; }
+
+/* 中間講者名區 + 右側 caret */
+.sched-mc-c-mid {
+  flex:1; min-width:0;
+  padding:8px 12px;
+  display:flex; align-items:center;
+  font-size:13px; color:var(--text);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.sched-mc-names { font-weight:600; }
+.sched-mc-caret {
+  flex-shrink:0;
+  width:36px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:14px; color:var(--text-soft);
+}
+.sched-mc.is-expanded .sched-mc-caret { color:var(--text); }
+
+/* 展開區 */
+.sched-mc-body { padding:12px 14px; display:grid; gap:8px; background:white; }
 .sched-mc-row {
   display:grid;
   grid-template-columns:54px 1fr;
@@ -2055,24 +2119,12 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   margin-top:8px;
   padding-top:8px;
   border-top:1px solid var(--gray-border);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
 }
-
-/* 摺疊頭：點整列展開/收回 */
-.sched-mc-collapsed {
-  display:flex; align-items:center; gap:10px;
-  padding:10px 12px;
-  cursor:pointer;
-  user-select:none;
-}
-.sched-mc.is-expanded .sched-mc-collapsed {
-  border-bottom:1px solid var(--gray-border);
-}
-.sched-mc-c-left { display:flex; align-items:center; gap:8px; flex-shrink:0; }
-.sched-mc-c-mid { flex:1; min-width:0; font-size:13px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.sched-mc-names { font-weight:600; }
-.sched-mc-caret { font-size:14px; color:var(--text-soft); flex-shrink:0; }
-.sched-mc.is-expanded .sched-mc-caret { color:var(--text); }
-.sched-mc-collapsed:active { background:var(--gray-bg); }
+.sched-mc-deadline-row > .sched-mc-row { flex:1; min-width:0; }
 
 /* 委員群組（在副主席之後）*/
 .sc-committee-group {

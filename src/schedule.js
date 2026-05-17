@@ -15,7 +15,7 @@ window._schedToggleMobileCard = function(rowIdx) {
 };
 let _scheduleSuggestOpen  = false;      // 折疊
 let _scheduleUnmatchedOpen = false;     // 折疊
-let _scheduleHistoryOpen  = true;       // 預設展開
+let _scheduleHistoryOpen  = false;      // 預設收起
 let _scheduleHistoryTarget = '';
 
 // 暱稱／替代寫法 → 正式姓名（會員清單裡的拼法為準）
@@ -246,7 +246,6 @@ async function renderSchedule() {
   if (!_memberData) await fetchMembers();
 
   el.innerHTML = `<div class="sched-wrap">
-    ${_schedHeaderHtml()}
     ${_schedHeroHtml()}
     ${_schedSuggestHtml()}
     ${_schedUnmatchedHtml()}
@@ -690,7 +689,7 @@ function _schedTableHtml() {
   <div class="sched-mobile-only sched-cards">${list.map(_schedMobileCardsForItem).join('')}</div>`;
 }
 
-// 手機卡片（摺疊式）：預設只顯示日期 + 狀態 + 講者名，點擊展開詳細
+// 手機卡片（摺疊式）：左側狀態色塊 + 右側白底內容區
 function _schedMobileCardsForItem(x) {
   const today = _todayIso();
   const canEdit = _canEditTab('schedule');
@@ -701,11 +700,16 @@ function _schedMobileCardsForItem(x) {
   const deadlineWarn = daysToDeadline !== null && daysToDeadline >= 0 && daysToDeadline <= 7;
   const expanded = _schedExpandedMobile.has(x.rowIndex);
 
-  let statusText, statusClass;
-  if (x.isEmpty) { statusText = '空缺'; statusClass = 'sched-status-empty'; }
-  else if (isToday) { statusText = '本週'; statusClass = 'sched-status-now'; }
-  else if (isPast) { statusText = '已完成'; statusClass = 'sched-status-done'; }
-  else { statusText = '已排定'; statusClass = ''; }
+  // 解析日期取得星期
+  const dateObj = new Date(x.dateIso + 'T00:00:00');
+  const weekday = ['日', '一', '二', '三', '四', '五', '六'][dateObj.getDay()];
+
+  let statusText, dateblockTheme;
+  if (x.isEmpty)         { statusText = '空缺';   dateblockTheme = 'empty'; }
+  else if (isToday)      { statusText = '本週';   dateblockTheme = 'now'; }
+  else if (x.isSkip)     { statusText = '暫停';   dateblockTheme = 'skip'; }
+  else if (isPast)       { statusText = '已完成'; dateblockTheme = 'done'; }
+  else                   { statusText = '已排定'; dateblockTheme = 'planned'; }
 
   // 講者簡短列表（collapsed 時的標題）
   let summaryText;
@@ -719,20 +723,20 @@ function _schedMobileCardsForItem(x) {
   }
 
   const allLeft = !x.isEmpty && !x.isSkip && x.presenters.length > 0 && x.presenters.every(p => _isLeftMember(p));
-  const classes = ['sched-mc'];
-  if (x.isEmpty) classes.push('is-empty');
-  if (isToday) classes.push('is-today');
-  if (x.isSkip) classes.push('is-skip');
-  if (isPast && !isToday && !x.isEmpty) classes.push('is-past');
+  const classes = ['sched-mc', `theme-${dateblockTheme}`];
   if (allLeft) classes.push('is-left-row');
   if (expanded) classes.push('is-expanded');
 
-  // 摺疊頭：點擊展開/收回（傳整列當大按鈕）
+  // 日期色塊（左側）：日期 + 星期 + 狀態
+  const dateBlock = `<div class="sched-mc-dateblock sched-mc-theme-${dateblockTheme}">
+    <div class="sched-mc-md">${x.dateMd}</div>
+    <div class="sched-mc-wk">${weekday}</div>
+    <div class="sched-mc-status-tag">${statusText}</div>
+  </div>`;
+
+  // 摺疊頭：點擊展開/收回
   const collapsedHead = `<div class="sched-mc-collapsed" onclick="_schedToggleMobileCard(${x.rowIndex})">
-    <div class="sched-mc-c-left">
-      <span class="sched-mc-md">${x.dateMd}</span>
-      <span class="sched-mc-status ${statusClass}">${statusText}</span>
-    </div>
+    ${dateBlock}
     <div class="sched-mc-c-mid">${summaryText}</div>
     <span class="sched-mc-caret">${expanded ? '▾' : '▸'}</span>
   </div>`;
@@ -741,14 +745,18 @@ function _schedMobileCardsForItem(x) {
   let expandedBody = '';
   if (expanded) {
     if (x.isEmpty) {
+      const editBtnEmpty = canEdit ? `<button class="sched-edit-btn" onclick="_schedOpenEdit(${x.rowIndex})">編輯</button>` : '';
       expandedBody = `<div class="sched-mc-body">
         <div class="sched-mc-row"><span class="sched-mc-lbl">簡報者</span><span style="color:#c0392b;font-weight:700;">— 待排定 —</span></div>
         <div class="sched-mc-row"><span class="sched-mc-lbl">年度</span><span style="color:var(--text-soft);">${x.year}</span></div>
+        ${editBtnEmpty ? `<div class="sched-mc-deadline-row" style="justify-content:flex-end;border-top:none;padding-top:0;">${editBtnEmpty}</div>` : ''}
       </div>`;
     } else if (x.isSkip && x.presenters.length === 0) {
+      const editBtnSkip = canEdit ? `<button class="sched-edit-btn" onclick="_schedOpenEdit(${x.rowIndex})">編輯</button>` : '';
       expandedBody = `<div class="sched-mc-body">
         <div class="sched-mc-row"><span class="sched-mc-lbl">類型</span><span>${_escH(_displayType(x.type))}</span></div>
         <div class="sched-mc-row"><span class="sched-mc-lbl">年度</span><span style="color:var(--text-soft);">${x.year}</span></div>
+        ${editBtnSkip ? `<div class="sched-mc-deadline-row" style="justify-content:flex-end;border-top:none;padding-top:0;">${editBtnSkip}</div>` : ''}
       </div>`;
     } else {
       const mentorsRaw = _splitNames(x.mentor).map(m => ({ full: _resolvedName(m), left: _isLeftMember(m) }));
@@ -793,11 +801,13 @@ function _schedMobileCardsForItem(x) {
       const editBtn = canEdit ? `<button class="sched-edit-btn" onclick="_schedOpenEdit(${x.rowIndex})">編輯</button>` : '';
       expandedBody = `<div class="sched-mc-body">
         ${blocks}
-        <div class="sched-mc-row sched-mc-deadline-row">
-          <span class="sched-mc-lbl">截稿日</span>
-          ${deadlineHtml}
+        <div class="sched-mc-deadline-row">
+          <div class="sched-mc-row" style="margin:0;">
+            <span class="sched-mc-lbl">截稿日</span>
+            ${deadlineHtml}
+          </div>
+          ${editBtn}
         </div>
-        ${editBtn ? `<div style="margin-top:8px;display:flex;justify-content:flex-end;">${editBtn}</div>` : ''}
       </div>`;
     }
   }
