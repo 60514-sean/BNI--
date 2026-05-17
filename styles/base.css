@@ -2057,6 +2057,23 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   border-top:1px solid var(--gray-border);
 }
 
+/* 摺疊頭：點整列展開/收回 */
+.sched-mc-collapsed {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px;
+  cursor:pointer;
+  user-select:none;
+}
+.sched-mc.is-expanded .sched-mc-collapsed {
+  border-bottom:1px solid var(--gray-border);
+}
+.sched-mc-c-left { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.sched-mc-c-mid { flex:1; min-width:0; font-size:13px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sched-mc-names { font-weight:600; }
+.sched-mc-caret { font-size:14px; color:var(--text-soft); flex-shrink:0; }
+.sched-mc.is-expanded .sched-mc-caret { color:var(--text); }
+.sched-mc-collapsed:active { background:var(--gray-bg); }
+
 /* 委員群組（在副主席之後）*/
 .sc-committee-group {
   margin:6px -8px;
