@@ -836,8 +836,9 @@ function _schedOpenEdit(rowIdx) {
   const tp1 = topicParts[0] || '';
   const tp2 = topicParts[1] || '';
 
-  const autoCount = sp1 ? _autoDetectCount(sp1, item.dateIso) : '';
-  const initCount = (item.count && item.count !== 'N/A') ? item.count : autoCount;
+  // 次數一律由系統自動計算（過去場次 + 1），避免人工誤填
+  const initCount  = sp1 ? _autoDetectCount(sp1, item.dateIso) : '';
+  const initCount2 = sp2 ? _autoDetectCount(sp2, item.dateIso) : '';
 
   const isPaused = item.type === '暫停';
 
@@ -870,7 +871,7 @@ function _schedOpenEdit(rowIdx) {
         </div>
         <div>
           <div class="se-lbl">次數</div>
-          <input id="se_count" class="modal-input" type="text" value="${_escH(initCount)}" placeholder="自動" style="font-size:14px;text-align:center;">
+          <input id="se_count" class="modal-input" type="text" value="${_escH(initCount)}" placeholder="自動" readonly title="自動計算（過去場次 +1）" style="font-size:14px;text-align:center;background:#f3f4f6;color:var(--text-soft);cursor:not-allowed;">
         </div>
       </div>
       <div style="margin-bottom:6px;">
@@ -884,9 +885,15 @@ function _schedOpenEdit(rowIdx) {
 
       <div id="se_speaker2_block" style="border-top:1px dashed var(--gray-border);padding-top:10px;">
         <div class="se-block-title">講者 2</div>
-        <div style="margin-bottom:6px;">
-          <div class="se-lbl">姓名</div>
-          <input id="se_speaker2" class="modal-input" type="text" value="${_escH(sp2)}" list="se_member_list" style="font-size:14px;">
+        <div style="display:grid;grid-template-columns:1fr 90px;gap:8px;margin-bottom:6px;">
+          <div>
+            <div class="se-lbl">姓名</div>
+            <input id="se_speaker2" class="modal-input" type="text" value="${_escH(sp2)}" list="se_member_list" oninput="_schedRecountAuto2(${rowIdx})" style="font-size:14px;">
+          </div>
+          <div>
+            <div class="se-lbl">次數</div>
+            <input id="se_count2" class="modal-input" type="text" value="${_escH(initCount2)}" placeholder="自動" readonly title="自動計算（過去場次 +1）" style="font-size:14px;text-align:center;background:#f3f4f6;color:var(--text-soft);cursor:not-allowed;">
+          </div>
         </div>
         <div style="margin-bottom:6px;">
           <div class="se-lbl">主題</div>
@@ -930,6 +937,17 @@ function _schedRecountAuto(rowIdx) {
   cnt.value = _autoDetectCount(name, item.dateIso);
 }
 
+function _schedRecountAuto2(rowIdx) {
+  const item = _scheduleData.find(x => x.rowIndex === rowIdx);
+  if (!item) return;
+  const inp = document.getElementById('se_speaker2');
+  const cnt = document.getElementById('se_count2');
+  if (!inp || !cnt) return;
+  const name = inp.value.trim();
+  if (!name) { cnt.value = ''; return; }
+  cnt.value = _autoDetectCount(name, item.dateIso);
+}
+
 async function _schedSaveEdit(rowIdx) {
   const item = _scheduleData.find(x => x.rowIndex === rowIdx);
   if (!item) return;
@@ -940,7 +958,8 @@ async function _schedSaveEdit(rowIdx) {
   const me2 = (document.getElementById('se_mentor2')?.value || '').trim();
   const tp1 = (document.getElementById('se_topic1')?.value || '').trim();
   const tp2 = (document.getElementById('se_topic2')?.value || '').trim();
-  const count = (document.getElementById('se_count')?.value || '').trim();
+  const count1 = (document.getElementById('se_count')?.value || '').trim();
+  const count2 = (document.getElementById('se_count2')?.value || '').trim();
   const deadline = (document.getElementById('se_deadline').value || '').trim();
 
   const isPaused = type === '暫停';
@@ -950,7 +969,10 @@ async function _schedSaveEdit(rowIdx) {
   const mentorList = isPaused ? [] : [...new Set([me1, me2].filter(Boolean))];
   const mentor = mentorList.join('、');
   const topic = isPaused ? '' : [tp1, tp2].filter(Boolean).join('｜');
-  const finalCount = isPaused ? 'N/A' : count;
+  // 兩位講者 → 「3｜2」格式；單位/暫停 → 單一值或 N/A
+  const finalCount = isPaused
+    ? 'N/A'
+    : (sp2 && count2 ? `${count1}｜${count2}` : count1);
 
   item.type = type;
   item.presenters = presenters;
