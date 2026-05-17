@@ -4,40 +4,32 @@ const SCHEDULE_CSV = 'https://docs.google.com/spreadsheets/d/12cGPw7f8L1HxZv6G5H
 const SCHEDULE_API_URL = 'https://script.google.com/macros/s/AKfycbyCbrWCBgRxngzVXB3njoyqZaDrHOIzQ_9Dcvr85BX-HxfDEpjNI-jmpDhsIpTtS9IaMQ/exec';
 
 let _scheduleData = null;
-let _scheduleFilterTerm   = '__all__';
-let _scheduleFilterYear   = '__all__';
-let _scheduleFilterStatus = '__all__';
-let _scheduleFilterType   = '__all__';
-let _scheduleHistoryOpen  = false;
-let _scheduleSuggestOpen  = true;
+let _scheduleFilterTerm   = null;       // null=自動帶最新屆，'__all__'=全部
+let _scheduleFilterType   = '__all__';  // __all__ / 主題簡報 / 主題日 / special
+let _scheduleSuggestOpen  = false;      // 折疊
+let _scheduleUnmatchedOpen = false;     // 折疊
+let _scheduleHistoryOpen  = true;       // 預設展開
 let _scheduleHistoryTarget = '';
 
-const _SCHED_TYPE_COLORS = {
-  '主題簡報': '#27ae60',
-  '主題日':   '#e67e22',
-  '共識會':   '#7f8c8d',
-  'BOD':      '#8e44ad',
-  '大商分享': '#16a085',
-  '啟動會':   '#2980b9',
-  '年會':     '#34495e',
-  '暫停':     '#bdc3c7',
-};
-
 // 暱稱／替代寫法 → 正式姓名（會員清單裡的拼法為準）
+// TODO: 未來搬到 cfg.scheduleAliases 由設定頁維護
 const _NAME_ALIASES = {
   'Stan':   '温智翔',
-  '溫智翔': '温智翔',  // 排程用「溫」，會員清單用「温」（不同 Unicode）
+  '溫智翔': '温智翔',
   'Happy':  '金萱蓉',
   '小哈':   '蔡忠翰',
   '張毓芠': '張宥瑩',
-  '詠宸':   '陳詠宸',  // 短名 → 已離會會員的正式姓名
+  '詠宸':   '陳詠宸',
+  '謝佳霖': '蔡佳霖',
 };
 
 // 已確認的離會會員（不再警示，但仍以淡灰色呈現該列）
+// TODO: 未來搬到 cfg.scheduleLeftMembers 由設定頁維護
 const _LEFT_MEMBERS = new Set([
   '賴笙','蘇泓達','陳詠宸','李汶昇','李佳蓉','蘇玲玉','潘穎鈞',
   '黃莉萍','王瑜甄','吳晉魁','吳映瑩','陳森棠','王靖雯',
   '黃若綾','王筱君','顏柏倫','郭宥蓁','黃煒雯',
+  '郭懷憶','吳少宇',
 ]);
 
 // ===== 資料解析 =====
@@ -61,11 +53,10 @@ function _parseScheduleRows(rows) {
   let lastMonth = 0;
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i] || [];
-    // 第六屆分頁格式：A 欄空白、B 排序/標記、C 日期、D 簡報者、E 輔導、F 截稿日、G 主題（無次數欄）
     const c0 = _schedCell(r[1]);
     const c1 = _schedCell(r[2]);
     const c2 = _schedCell(r[3]);
-    const c3 = '';                    // 此分頁無「次數」欄，由前端統計推算
+    const c3 = '';
     const c4 = _schedCell(r[4]);
     const c5 = _schedCell(r[5]);
     const c6 = _schedCell(r[6]);
@@ -74,7 +65,7 @@ function _parseScheduleRows(rows) {
 
     const tm = c0.match(/(第[一二三四五六七八九十]+屆)/);
     if (tm) { curTerm = tm[1]; continue; }
-    const ym = c0.match(/^(\d{4})年?$/);   // 接受純數字 "2026" 或 "2026年"
+    const ym = c0.match(/^(\d{4})年?$/);
     if (ym) { curYear = parseInt(ym[1]); lastMonth = 0; continue; }
 
     if (!c1) continue;
@@ -83,7 +74,8 @@ function _parseScheduleRows(rows) {
     const M = parseInt(dm[1]);
     const D = parseInt(dm[2]);
 
-    if (lastMonth > 6 && M <= 2 && lastMonth >= 11) curYear++;
+    // 跨年判斷：上一筆是 11/12 月，這筆變成 1/2 月 → 年份 +1
+    if (lastMonth >= 11 && M <= 2) curYear++;
     lastMonth = M;
 
     const isoDate = `${curYear}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`;
@@ -122,15 +114,13 @@ function _parseScheduleRows(rows) {
       weekIndex: c0,
       type, isEmpty, isSkip, presenters,
       count: c3, mentor: c4, deadline: c5, topic: c6,
-      sheetName, sheetRow,        // 後端帶來的「來源分頁 + 真實 row」，寫入時要回傳
+      sheetName, sheetRow,
       raw: { c0, c1, c2, c3, c4, c5, c6 }
     });
   }
   return out;
 }
 
-// 清洗 + 切分姓名字串（共用：講者、顧問都用這支）
-// 規則：先移除「X/Y出村」、括號內註記，再用各種分隔符切，最後過濾雜訊
 function _splitNames(str) {
   if (!str) return [];
   let body = String(str)
@@ -146,7 +136,6 @@ function _extractPresenters(s) {
   if (!s) return [];
   let body = s;
   if (/主題日/.test(s)) {
-    // 主題日：括號內或破折號後的人名才是講者
     const paren = s.match(/[（(]([^（()）]+)[)）]/);
     if (paren) body = paren[1];
     else {
@@ -158,10 +147,7 @@ function _extractPresenters(s) {
   return _splitNames(body);
 }
 
-// ===== 姓名解析（短名 / 暱稱 → 完整姓名） =====
-// _canonicalName：永遠回傳「正式姓名」（即使該人已離會也可解析）
-// _matchMemberName：必須在當前會員清單中才回傳，否則 null
-// _isLeftMember：true 表示「我知道是誰，但他不在當前會員清單」或「完全不認識」
+// ===== 姓名解析 =====
 function _canonicalName(short) {
   if (!short) return '';
   const s = String(short).trim();
@@ -174,7 +160,7 @@ function _canonicalName(short) {
   if (ends.length === 1) return ends[0].name;
   const contains = _memberData.filter(x => x.name.includes(aliased));
   if (contains.length === 1) return contains[0].name;
-  return aliased; // 保持 alias 後的全名（即使非當前會員）
+  return aliased;
 }
 function _matchMemberName(short) {
   const canon = _canonicalName(short);
@@ -204,10 +190,10 @@ function _collectUnmatchedNames() {
   if (!_memberData || !_memberData.length) return [];
   const map = new Map();
   const add = (name, kind, dateIso) => {
-    if (_NAME_ALIASES[name]) return;             // 已知 alias
-    if (_matchMemberName(name)) return;          // 在當前會員清單
+    if (_NAME_ALIASES[name]) return;
+    if (_matchMemberName(name)) return;
     const canon = _canonicalName(name);
-    if (canon && _LEFT_MEMBERS.has(canon)) return; // 已知離會會員
+    if (canon && _LEFT_MEMBERS.has(canon)) return;
     if (!map.has(name)) map.set(name, { name, presenter: 0, mentor: 0, lastDate: null });
     const v = map.get(name);
     v[kind]++;
@@ -246,22 +232,20 @@ async function renderSchedule() {
   if (_scheduleData === null) await fetchSchedule();
   if (!_scheduleData) {
     el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">
-      載入失敗 <button class="btn" style="margin-left:12px;background:var(--red);color:white;" onclick="_scheduleData=null;renderSchedule()">重試</button>
+      載入失敗 <button class="sched-jump-btn" style="margin-left:12px;" onclick="_scheduleData=null;renderSchedule()">重試</button>
     </div>`;
     return;
   }
   if (!_memberData) await fetchMembers();
 
-  el.innerHTML = `<div class="sched-wrap" style="padding:14px 12px 60px;">
+  el.innerHTML = `<div class="sched-wrap">
     ${_schedHeaderHtml()}
-    ${_schedUnmatchedHtml()}
+    ${_schedHeroHtml()}
     ${_schedSuggestHtml()}
-    ${_schedStatsHtml()}
-    ${_schedFilterHtml()}
-    <div id="schedTableHost">${_schedTableHtml()}</div>
-    <div id="schedHistoryHost">${_schedHistoryHtml()}</div>
-  </div>
-  <style>${_schedStyles()}</style>`;
+    ${_schedUnmatchedHtml()}
+    ${_schedHistoryCardHtml()}
+    ${_schedTableCardHtml()}
+  </div>`;
 }
 
 function _schedHeaderHtml() {
@@ -269,82 +253,81 @@ function _schedHeaderHtml() {
   const editTag = canEdit
     ? `<span style="background:#27ae60;color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;">可編輯</span>`
     : `<span style="background:#bdc3c7;color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;">唯讀</span>`;
-  return `<div class="card" style="padding:14px 18px;margin-bottom:12px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+  return `<div class="sched-card">
+    <div class="sched-card-head no-cursor">
       <div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <div style="font-size:17px;font-weight:900;color:var(--text);">簡報排程</div>
+          <div class="sched-card-title">簡報排程</div>
           ${editTag}
         </div>
-        <div style="font-size:11px;color:var(--text-soft);margin-top:3px;">資料來源：Google Sheet · 共 ${_scheduleData.length} 筆</div>
+        <div class="sched-card-sub">資料來源：Google Sheet · 共 ${_scheduleData.length} 筆</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="_schedJumpToToday()" style="padding:7px 14px;font-size:12px;">跳到本週</button>
-        <button class="btn" style="padding:7px 14px;font-size:12px;background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="_schedExportCsv()">匯出 CSV</button>
-        <button class="btn" style="padding:7px 14px;font-size:12px;background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="_scheduleData=null;renderSchedule()">重整</button>
+        <button class="sched-jump-btn" onclick="_schedExportCsv()" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);">匯出 CSV</button>
+        <button class="sched-jump-btn" onclick="_scheduleData=null;renderSchedule()" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);">重整</button>
       </div>
     </div>
   </div>`;
 }
 
-// ===== 無法判定姓名警示 =====
-function _schedUnmatchedHtml() {
-  if (!_memberData || !_memberData.length) return '';
-  const list = _collectUnmatchedNames();
-  if (list.length === 0) return '';
-  const items = list.sort((a,b) => (b.presenter+b.mentor) - (a.presenter+a.mentor)).map(u => {
-    const detail = [
-      u.presenter ? `講者×${u.presenter}` : '',
-      u.mentor    ? `顧問×${u.mentor}`    : '',
-    ].filter(Boolean).join(' · ');
-    return `<span class="sched-unmatched-pill" title="最近：${u.lastDate||''}">${_escH(u.name)} <span style="opacity:.7;font-weight:400;">${detail}</span></span>`;
-  }).join('');
-  return `<div class="card" style="padding:10px 14px;margin-bottom:10px;background:#fff5e1;border:1.5px solid #e67e22;">
-    <div style="font-size:12px;font-weight:900;color:#923f00;margin-bottom:4px;">無法判定的姓名（${list.length}）</div>
-    <div style="font-size:11px;color:#7c3a00;margin-bottom:6px;line-height:1.5;">下列姓名在現有會員清單中無法唯一比對，可能是已離會、暱稱、或非會員講者。請在編輯時改為完整姓名（會自動同步至 Sheet）。</div>
-    <div>${items}</div>
+// ===== Hero：本週 / 下週 =====
+function _schedHeroHtml() {
+  const today = _todayIso();
+  const future = _scheduleData
+    .filter(x => x.dateIso >= today && !x.isSkip)
+    .sort((a,b) => a.dateIso.localeCompare(b.dateIso));
+  const thisWeek = future[0] || null;
+  const nextWeek = future[1] || null;
+
+  const card = (slot, label, accent) => {
+    if (!slot) {
+      return `<div class="sched-hero-card">
+        <div class="sched-hero-label">${label}</div>
+        <div class="sched-hero-empty-text">無資料</div>
+      </div>`;
+    }
+    if (slot.isEmpty) {
+      return `<div class="sched-hero-card is-empty">
+        <div class="sched-hero-label">${label}</div>
+        <div class="sched-hero-date">${slot.dateMd} <span style="font-size:12px;color:var(--text-soft);font-weight:500;">${slot.year}</span></div>
+        <div class="sched-hero-empty-text">— 待排定 —</div>
+      </div>`;
+    }
+    const presNames = slot.presenters.map(p => _escH(_resolvedName(p))).join('、') || '—';
+    const mentorList = [...new Set(_splitNames(slot.mentor).map(m => _resolvedName(m)))];
+    const mentorTxt = mentorList.length ? mentorList.map(_escH).join('、') : '—';
+    const dl = slot.deadline ? _normalizeDeadline(slot.deadline, slot.year) : null;
+    const dlDays = dl ? _daysUntil(dl) : null;
+    const dlWarn = dlDays !== null && dlDays >= 0 && dlDays <= 7;
+    return `<div class="sched-hero-card ${accent}">
+      <div class="sched-hero-label">${label}</div>
+      <div class="sched-hero-date">${slot.dateMd} <span style="font-size:12px;color:var(--text-soft);font-weight:500;">${slot.year}</span> <span class="sched-hero-type">${_escH(_displayType(slot.type))}</span></div>
+      <div class="sched-hero-pres">${presNames}</div>
+      <div class="sched-hero-meta">顧問：<b>${mentorTxt}</b></div>
+      ${slot.topic && slot.topic !== 'N/A' ? `<div class="sched-hero-meta">主題：<b>${_escH(slot.topic.split(/[\n｜|]/)[0].trim())}</b></div>` : ''}
+      ${slot.deadline ? `<div class="sched-hero-meta">截稿：<b style="${dlWarn?'color:#c0392b;':''}">${_escH(slot.deadline)}${dlWarn?` (${dlDays}天)`:''}</b></div>` : ''}
+    </div>`;
+  };
+
+  return `<div class="sched-hero">
+    ${card(thisWeek, '本週', 'is-now')}
+    ${card(nextWeek, '下週', '')}
   </div>`;
 }
 
-// ===== 統計卡 =====
-function _schedStatsHtml() {
-  const list = _schedFiltered();
-  const total = list.length;
-  const scheduled = list.filter(x => !x.isEmpty && !x.isSkip).length;
-  const empty = list.filter(x => x.isEmpty).length;
-  const special = list.filter(x => x.isSkip).length;
-  const upcoming = list.filter(x => !x.isEmpty && !x.isSkip && _daysUntil(x.dateIso) >= 0 && _daysUntil(x.dateIso) <= 56).length;
-  const stat = (n, l, c) => `<div style="flex:1;min-width:90px;text-align:center;padding:10px 6px;background:white;border:1.5px solid var(--gray-border);border-radius:10px;">
-    <div style="font-size:22px;font-weight:900;color:${c};">${n}</div>
-    <div style="font-size:11px;color:var(--text-soft);margin-top:2px;">${l}</div>
-  </div>`;
-  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-    ${stat(total, '總場次', 'var(--text)')}
-    ${stat(scheduled, '已排定', '#27ae60')}
-    ${stat(empty, '空缺', '#c0392b')}
-    ${stat(upcoming, '8 週內', '#e67e22')}
-    ${stat(special, '特殊日', '#7f8c8d')}
-  </div>`;
-}
-
-// ===== 待排建議 =====
+// ===== 待排建議（折疊） =====
 function _schedSuggestHtml() {
   const today = _todayIso();
   const empties = _scheduleData
     .filter(x => x.isEmpty && x.dateIso >= today)
     .sort((a,b) => a.dateIso.localeCompare(b.dateIso))
     .slice(0, 8);
-
-  if (empties.length === 0) {
-    return `<div class="card" style="padding:12px 16px;margin-bottom:10px;background:#e8f5ec;border:1.5px solid #27ae60;">
-      <div style="font-size:13px;font-weight:700;color:#27ae60;">未來日期已排滿，無待排建議</div>
-    </div>`;
-  }
+  if (empties.length === 0) return '';
 
   const suggestions = empties.map(slot => {
     const recs = _recommendPresenters(slot, 3);
     const recTags = recs.length
-      ? recs.map(r => `<span class="sched-rec-pill" title="上次：${r.lastDate || '從未'} · 累積：${r.count} 次">${_escH(r.name)} <span style="opacity:.7;">${r.lastDate ? `${r.weeksAgo}週前` : '新人'}</span></span>`).join('')
+      ? recs.map(r => `<span class="sched-suggest-pill" title="上次：${r.lastDate || '從未'} · 累積：${r.count} 次">${_escH(r.name)} <span style="opacity:.7;font-weight:400;">${r.lastDate ? `${r.weeksAgo}週前` : '新人'}</span></span>`).join('')
       : `<span style="font-size:11px;color:var(--text-soft);">無候選</span>`;
     const weeks = Math.max(0, Math.round(_daysUntil(slot.dateIso) / 7));
     return `<div class="sched-slot-row">
@@ -356,16 +339,15 @@ function _schedSuggestHtml() {
     </div>`;
   }).join('');
 
-  const arrow = _scheduleSuggestOpen ? '▼' : '▶';
-  return `<div class="card" style="padding:0;margin-bottom:10px;overflow:hidden;border:1.5px solid #c0392b;">
-    <div style="padding:12px 16px;background:#fef0ee;cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="_scheduleSuggestOpen=!_scheduleSuggestOpen;renderSchedule()">
+  return `<div class="sched-card">
+    <div class="sched-card-head" onclick="_scheduleSuggestOpen=!_scheduleSuggestOpen;renderSchedule()">
       <div>
-        <div style="font-size:13px;font-weight:900;color:#c0392b;">待排建議（${empties.length} 個空缺）</div>
-        <div style="font-size:11px;color:var(--text-soft);margin-top:2px;">依「最久未簡報 + 累積次數最少」排序推薦</div>
+        <div class="sched-card-title" style="color:#c0392b;">待排建議（${empties.length} 個空缺）</div>
+        <div class="sched-card-sub">依「最久未簡報 + 累積次數最少」排序推薦</div>
       </div>
-      <div style="font-size:14px;color:#c0392b;">${arrow}</div>
+      <div class="sched-arrow">${_scheduleSuggestOpen ? '▼' : '▶'}</div>
     </div>
-    ${_scheduleSuggestOpen ? `<div style="padding:8px 12px;background:white;">${suggestions}</div>` : ''}
+    ${_scheduleSuggestOpen ? `<div class="sched-card-body" style="padding:8px 12px;">${suggestions}</div>` : ''}
   </div>`;
 }
 
@@ -375,15 +357,40 @@ function _recommendPresenters(slot, n) {
   const stats = _scheduleMemberStats();
   const candidates = _memberData.map(m => {
     const s = stats[m.name] || { count: 0, lastDate: null, weeksAgo: 9999 };
-    return { name: m.name, industry: m.industry, count: s.count, lastDate: s.lastDate, weeksAgo: s.weeksAgo };
+    return { name: m.name, industry: m.industry, member: m, count: s.count, lastDate: s.lastDate, weeksAgo: s.weeksAgo };
   });
-  const futureNames = new Set(_scheduleData
-    .filter(x => !x.isEmpty && !x.isSkip && x.dateIso >= today && x.dateIso <= slot.dateIso)
+  // 排除「今天以後」任何已被排上的人（不管哪一場）
+  const scheduledNames = new Set(_scheduleData
+    .filter(x => !x.isEmpty && !x.isSkip && x.dateIso >= today)
     .flatMap(x => x.presenters.map(p => _resolvedName(p))));
   return candidates
-    .filter(c => !futureNames.has(c.name))
+    .filter(c => !scheduledNames.has(c.name))
+    .filter(c => !_isNewMember(c.member))   // 入會未滿 3 個月不推薦
     .sort((a,b) => (b.weeksAgo - a.weeksAgo) || (a.count - b.count))
     .slice(0, n);
+}
+
+// 入會未滿 3 個月（90 天）視為新會員，不列入待排建議
+function _isNewMember(m) {
+  if (!m) return false;
+  const join = _parseMemberJoinDate(m);
+  if (!join) return false;
+  const diffDays = (Date.now() - join.getTime()) / 86400000;
+  return diffDays < 90;
+}
+function _parseMemberJoinDate(m) {
+  // 優先用「入會感言日期」(ceremonyDate)，無則用「到期日」往前推 1 年
+  const tryParse = s => {
+    if (!s) return null;
+    const mm = String(s).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (!mm) return null;
+    return new Date(+mm[1], +mm[2]-1, +mm[3]);
+  };
+  const j = tryParse(m.ceremonyDate);
+  if (j) return j;
+  const r = tryParse(m.renewDate);
+  if (r) return new Date(r.getTime() - 365 * 86400000);
+  return null;
 }
 
 function _scheduleMemberStats() {
@@ -408,173 +415,37 @@ function _scheduleMemberStats() {
   return map;
 }
 
-// ===== 篩選列 =====
-function _schedFilterHtml() {
-  const terms = ['__all__', ...new Set(_scheduleData.map(x => x.term).filter(Boolean))];
-  const years = ['__all__', ...new Set(_scheduleData.map(x => x.year))].sort();
-  const types = ['__all__','主題簡報','主題日','共識會','BOD','大商分享','啟動會','年會','暫停'];
-  const opts = (arr, cur) => arr.map(v => {
-    const label = v === '__all__' ? '全部' : _displayType(v);
-    return `<option value="${v}" ${v===cur?'selected':''}>${label}</option>`;
+// ===== 無法判定姓名警示（折疊） =====
+function _schedUnmatchedHtml() {
+  if (!_memberData || !_memberData.length) return '';
+  const list = _collectUnmatchedNames();
+  if (list.length === 0) return '';
+  const items = list.sort((a,b) => (b.presenter+b.mentor) - (a.presenter+a.mentor)).map(u => {
+    const detail = [
+      u.presenter ? `講者×${u.presenter}` : '',
+      u.mentor    ? `顧問×${u.mentor}`    : '',
+    ].filter(Boolean).join(' · ');
+    return `<span class="sched-unmatched-pill" title="最近：${u.lastDate||''}">${_escH(u.name)} <span style="opacity:.7;font-weight:400;">${detail}</span></span>`;
   }).join('');
-  return `<div class="card" style="padding:12px 14px;margin-bottom:10px;">
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;">
+  return `<div class="sched-card">
+    <div class="sched-card-head" onclick="_scheduleUnmatchedOpen=!_scheduleUnmatchedOpen;renderSchedule()">
       <div>
-        <div style="font-size:10px;color:var(--text-soft);font-weight:600;margin-bottom:3px;">屆別</div>
-        <select class="sched-fl" onchange="_scheduleFilterTerm=this.value;_schedRefreshTable()">${opts(terms, _scheduleFilterTerm)}</select>
+        <div class="sched-card-title">姓名待確認（${list.length}）</div>
+        <div class="sched-card-sub">無法在會員清單比對到的姓名，可能是離會或暱稱</div>
       </div>
-      <div>
-        <div style="font-size:10px;color:var(--text-soft);font-weight:600;margin-bottom:3px;">年份</div>
-        <select class="sched-fl" onchange="_scheduleFilterYear=this.value;_schedRefreshTable()">${opts(years, _scheduleFilterYear)}</select>
-      </div>
-      <div>
-        <div style="font-size:10px;color:var(--text-soft);font-weight:600;margin-bottom:3px;">狀態</div>
-        <select class="sched-fl" onchange="_scheduleFilterStatus=this.value;_schedRefreshTable()">
-          <option value="__all__" ${_scheduleFilterStatus==='__all__'?'selected':''}>全部</option>
-          <option value="scheduled" ${_scheduleFilterStatus==='scheduled'?'selected':''}>已排定</option>
-          <option value="empty" ${_scheduleFilterStatus==='empty'?'selected':''}>未排定</option>
-          <option value="special" ${_scheduleFilterStatus==='special'?'selected':''}>特殊日</option>
-          <option value="future" ${_scheduleFilterStatus==='future'?'selected':''}>未來</option>
-        </select>
-      </div>
-      <div>
-        <div style="font-size:10px;color:var(--text-soft);font-weight:600;margin-bottom:3px;">類型</div>
-        <select class="sched-fl" onchange="_scheduleFilterType=this.value;_schedRefreshTable()">${opts(types, _scheduleFilterType)}</select>
-      </div>
+      <div class="sched-arrow">${_scheduleUnmatchedOpen ? '▼' : '▶'}</div>
     </div>
+    ${_scheduleUnmatchedOpen ? `<div class="sched-card-body" style="padding:10px 14px;">${items}</div>` : ''}
   </div>`;
 }
 
-function _schedFiltered() {
-  const today = _todayIso();
-  return _scheduleData.filter(x => {
-    if (_scheduleFilterTerm   !== '__all__' && x.term !== _scheduleFilterTerm) return false;
-    if (_scheduleFilterYear   !== '__all__' && String(x.year) !== String(_scheduleFilterYear)) return false;
-    if (_scheduleFilterStatus === 'scheduled' && (x.isEmpty || x.isSkip)) return false;
-    if (_scheduleFilterStatus === 'empty'     && !x.isEmpty) return false;
-    if (_scheduleFilterStatus === 'special'   && !x.isSkip)  return false;
-    if (_scheduleFilterStatus === 'future'    && x.dateIso < today) return false;
-    if (_scheduleFilterType   !== '__all__' && x.type !== _scheduleFilterType) return false;
-    return true;
-  });
+// ===== 會員簡報歷史（中段、預設展開） =====
+function _schedHistoryCardHtml() {
+  return `<div id="schedHistCard">${_schedHistoryCardInner()}</div>`;
 }
-
-function _schedRefreshTable() {
-  document.getElementById('schedTableHost').innerHTML = _schedTableHtml();
-}
-
-// ===== 主表格 =====
-function _schedTableHtml() {
-  const list = _schedFiltered();
-  if (!list.length) return `<div class="card" style="padding:24px;text-align:center;color:var(--text-soft);font-size:13px;">沒有符合條件的紀錄</div>`;
-  const today = _todayIso();
-  const canEdit = _canEditTab('schedule');
-
-  const rowHtml = (x) => {
-    const typeColor = _SCHED_TYPE_COLORS[x.type] || '#7f8c8d';
-    const isPast = x.dateIso < today;
-    const isToday = x.dateIso === today;
-    const isPaused = x.type === '暫停';
-    const dl = x.deadline ? _normalizeDeadline(x.deadline, x.year) : null;
-    const daysToDeadline = dl ? _daysUntil(dl) : null;
-    const deadlineWarn = daysToDeadline !== null && daysToDeadline >= 0 && daysToDeadline <= 7;
-
-    // 講者（多位上下排列）
-    let presenterTxt;
-    if (x.isEmpty) {
-      presenterTxt = `<span style="color:#c0392b;font-weight:700;white-space:nowrap;">— 待排定 —</span>`;
-    } else if (x.isSkip && x.presenters.length === 0) {
-      presenterTxt = `<span style="color:var(--text-soft);">—</span>`;
-    } else {
-      presenterTxt = x.presenters.map(p => {
-        const full = _resolvedName(p);
-        const left = _isLeftMember(p);
-        return `<div><span class="sched-name${left?' is-left':''}" onclick="_schedShowMemberHistory('${_escH(full)}')">${_escH(full)}</span></div>`;
-      }).join('');
-    }
-
-    // 顧問（多位上下排列；同人去重；個別離會單獨灰色＋刪除線）
-    const mentorRaw = _splitNames(x.mentor);
-    const seenM = new Set();
-    const mentorItems = [];
-    mentorRaw.forEach(m => {
-      const full = _resolvedName(m);
-      if (seenM.has(full)) return;
-      seenM.add(full);
-      mentorItems.push({ full, left: _isLeftMember(m) });
-    });
-    const mentorTxt = mentorItems.length
-      ? `<span style="white-space:nowrap;">` + mentorItems.map(u => `<span class="sched-mentor${u.left?' is-left':''}">${_escH(u.full)}</span>`).join('、') + `</span>`
-      : '<span style="color:var(--text-soft);">—</span>';
-
-    // 主題：多位講者的題目以換行 / ｜ / | 分隔，全部分上下顯示
-    let topicTxt;
-    if (x.topic && x.topic !== 'N/A') {
-      const parts = String(x.topic).split(/[\n｜|]/).map(s => s.trim()).filter(Boolean);
-      topicTxt = parts.length > 1
-        ? parts.map(p => `<div>${_escH(p)}</div>`).join('')
-        : _escH(parts[0] || '');
-    } else {
-      topicTxt = '<span style="color:var(--text-soft);">—</span>';
-    }
-
-    const statusBadge = x.isEmpty
-      ? `<span class="sched-status" style="color:#c0392b;font-weight:700;">空缺</span>`
-      : (isToday ? `<span class="sched-status" style="color:#e67e22;font-weight:700;">本週</span>`
-        : (isPast ? `<span class="sched-status" style="color:var(--text-soft);">已完成</span>` : `<span class="sched-status" style="color:#27ae60;font-weight:700;">已排定</span>`));
-
-    const editBtn = canEdit ? `<button class="sched-edit-btn" onclick="_schedOpenEdit(${x.rowIndex})">編輯</button>` : '';
-
-    // 已離會：所有講者均不在當前會員清單內（且不是空缺/特殊日）
-    const allLeft = !x.isEmpty && !x.isSkip && x.presenters.length > 0 && x.presenters.every(p => _isLeftMember(p));
-    const trClasses = [];
-    if (x.isEmpty) trClasses.push('is-empty');
-    if (isToday) trClasses.push('is-today');
-    if (isPaused) trClasses.push('is-paused');
-    if (allLeft)  trClasses.push('is-left-row');
-
-    return `<tr class="${trClasses.join(' ')}">
-      <td><div class="sched-term-bar" style="background:${typeColor};" title="${_displayType(x.type)}"></div></td>
-      <td>
-        <div style="font-weight:900;font-size:13px;color:var(--text);white-space:nowrap;">${x.dateMd}</div>
-        <div style="font-size:10px;color:var(--text-soft);">${x.year}</div>
-      </td>
-      <td>${statusBadge}</td>
-      <td><span class="sched-type-text">${_displayType(x.type)}</span></td>
-      <td>${presenterTxt}</td>
-      <td>${mentorTxt}</td>
-      <td>${x.deadline ? `<span class="sched-deadline ${deadlineWarn?'warn':''}">${_escH(x.deadline)}${deadlineWarn?` (${daysToDeadline}天)`:''}</span>` : '<span style="color:var(--text-soft);">—</span>'}</td>
-      <td style="font-size:12px;color:var(--text);">${topicTxt}</td>
-      <td>${editBtn}</td>
-    </tr>`;
-  };
-
-  return `<div class="card" style="padding:0;overflow:hidden;">
-    <div class="sched-table-wrap">
-      <table class="sched-table">
-        <thead>
-          <tr>
-            <th style="width:6px;"></th>
-            <th>日期</th>
-            <th>狀態</th>
-            <th>類型</th>
-            <th>簡報者</th>
-            <th>顧問</th>
-            <th>截稿日</th>
-            <th>主題</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>${list.map(rowHtml).join('')}</tbody>
-      </table>
-    </div>
-  </div>`;
-}
-
-// ===== 會員簡報歷史 =====
-function _schedHistoryHtml() {
+function _schedHistoryCardInner() {
   if (!_memberData || !_memberData.length) {
-    return `<div class="card" style="padding:14px;margin-top:10px;color:var(--text-soft);font-size:12px;">會員資料尚未載入，無法計算簡報歷史</div>`;
+    return `<div class="sched-card"><div class="sched-card-body" style="padding:14px;color:var(--text-soft);font-size:12px;">會員資料尚未載入</div></div>`;
   }
   const stats = _scheduleMemberStats();
   const list = _memberData.map(m => ({
@@ -585,9 +456,9 @@ function _schedHistoryHtml() {
   const rows = list.map(s => {
     const lastTxt = s.lastDate ? `${s.lastDate}（${s.weeksAgo} 週前）` : `<span style="color:#c0392b;font-weight:700;">尚未簡報</span>`;
     const flag = s.weeksAgo >= 24
-      ? '<span class="sched-flag" style="background:#ef4444;"></span>'
+      ? '<span class="sched-flag" style="background:#ef4444;" title="超過 24 週"></span>'
       : s.weeksAgo >= 12
-      ? '<span class="sched-flag" style="background:#f59e0b;"></span>'
+      ? '<span class="sched-flag" style="background:#f59e0b;" title="超過 12 週"></span>'
       : '';
     const isOpen = _scheduleHistoryTarget === s.name;
     const histRows = isOpen && s.history && s.history.length
@@ -596,7 +467,6 @@ function _schedHistoryHtml() {
             ${s.history.sort((a,b)=>b.dateIso.localeCompare(a.dateIso)).map(h => `
               <div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px dashed var(--gray-border);font-size:11px;">
                 <span style="font-weight:700;min-width:55px;">${h.dateMd}</span>
-                <span style="color:var(--text-soft);min-width:30px;">第${h.count||'?'}次</span>
                 <span style="color:var(--text-soft);min-width:60px;">顧問：${_escH(_resolvedName(_splitNames(h.mentor)[0])||'—')}</span>
                 <span style="color:var(--text);">${_escH(h.topic||'')}</span>
               </div>
@@ -612,31 +482,33 @@ function _schedHistoryHtml() {
     </tr>${histRows}`;
   }).join('');
 
-  const arrow = _scheduleHistoryOpen ? '▼' : '▶';
-  return `<div class="card" style="padding:0;margin-top:12px;overflow:hidden;">
-    <div style="padding:12px 16px;background:var(--gray-light);cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="_schedToggleHistoryOpen()">
+  return `<div class="sched-card">
+    <div class="sched-card-head" onclick="_scheduleHistoryOpen=!_scheduleHistoryOpen;_schedRefreshHistory()">
       <div>
-        <div style="font-size:13px;font-weight:900;color:var(--text);">會員簡報歷史</div>
-        <div style="font-size:11px;color:var(--text-soft);margin-top:2px;">依「最久未簡報」排序 · 點會員列展開歷次紀錄</div>
+        <div class="sched-card-title">會員簡報歷史</div>
+        <div class="sched-card-sub">依「最久未簡報」排序 · 點會員列展開歷次紀錄</div>
       </div>
-      <div style="font-size:14px;color:var(--text-soft);">${arrow}</div>
+      <div class="sched-arrow">${_scheduleHistoryOpen ? '▼' : '▶'}</div>
     </div>
-    ${_scheduleHistoryOpen ? `<div class="sched-table-wrap" style="max-height:60vh;overflow-y:auto;">
-      <table class="sched-table sched-hist-table">
-        <thead><tr><th>會員</th><th>產業</th><th style="text-align:center;">累積次數</th><th>上次簡報</th><th></th></tr></thead>
+    ${_scheduleHistoryOpen ? `<div class="sched-table-wrap">
+      <table class="sched-table">
+        <thead><tr><th>會員</th><th>產業</th><th style="text-align:center;">累積</th><th>上次簡報</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>` : ''}
   </div>`;
 }
-
 function _schedRefreshHistory() {
-  const host = document.getElementById('schedHistoryHost');
-  if (host) host.innerHTML = _schedHistoryHtml();
-}
-function _schedToggleHistoryOpen() {
-  _scheduleHistoryOpen = !_scheduleHistoryOpen;
-  _schedRefreshHistory();
+  const host = document.getElementById('schedHistCard');
+  if (!host) return;
+  // 保留：頁面捲動位置 + 表格內部捲動位置
+  const winScroll = window.scrollY;
+  const wrap = host.querySelector('.sched-table-wrap');
+  const wrapScroll = wrap ? wrap.scrollTop : 0;
+  host.innerHTML = _schedHistoryCardInner();
+  const newWrap = host.querySelector('.sched-table-wrap');
+  if (newWrap) newWrap.scrollTop = wrapScroll;
+  if (window.scrollY !== winScroll) window.scrollTo(0, winScroll);
 }
 function _schedToggleHistory(name) {
   _scheduleHistoryTarget = (_scheduleHistoryTarget === name) ? '' : name;
@@ -651,6 +523,163 @@ function _schedShowMemberHistory(name) {
       if (r.textContent.startsWith(name)) r.scrollIntoView({behavior:'smooth', block:'center'});
     });
   }, 100);
+}
+
+// ===== 完整排程表（含篩選） =====
+function _schedTableCardHtml() {
+  return `<div class="sched-card">
+    <div class="sched-card-head no-cursor">
+      <div>
+        <div class="sched-card-title">完整排程</div>
+      </div>
+    </div>
+    ${_schedFilterHtml()}
+    <div id="schedTableHost">${_schedTableHtml()}</div>
+  </div>`;
+}
+
+function _schedFilterHtml() {
+  const allTerms = [...new Set(_scheduleData.map(x => x.term).filter(Boolean))];
+  if (_scheduleFilterTerm === null) {
+    _scheduleFilterTerm = allTerms[allTerms.length - 1] || '__all__';
+  }
+  const termOpts = allTerms.map(t => `<option value="${t}" ${t===_scheduleFilterTerm?'selected':''}>${t}</option>`).join('');
+  return `<div class="sched-filter-row">
+    <select class="sched-fl" onchange="_scheduleFilterTerm=this.value;_schedRefreshTable()">
+      <option value="__all__" ${_scheduleFilterTerm==='__all__'?'selected':''}>全部屆別</option>
+      ${termOpts}
+    </select>
+    <select class="sched-fl" onchange="_scheduleFilterType=this.value;_schedRefreshTable()">
+      <option value="__all__" ${_scheduleFilterType==='__all__'?'selected':''}>全部類型</option>
+      <option value="主題簡報" ${_scheduleFilterType==='主題簡報'?'selected':''}>主題簡報</option>
+      <option value="主題日" ${_scheduleFilterType==='主題日'?'selected':''}>主題日</option>
+      <option value="special" ${_scheduleFilterType==='special'?'selected':''}>特殊日</option>
+    </select>
+    <button class="sched-jump-btn" onclick="_schedJumpToThisWeek()">回到本週</button>
+  </div>`;
+}
+
+function _schedFiltered() {
+  return _scheduleData.filter(x => {
+    if (_scheduleFilterTerm && _scheduleFilterTerm !== '__all__' && x.term !== _scheduleFilterTerm) return false;
+    if (_scheduleFilterType === '主題簡報' && x.type !== '主題簡報') return false;
+    if (_scheduleFilterType === '主題日' && x.type !== '主題日') return false;
+    if (_scheduleFilterType === 'special' && !x.isSkip) return false;
+    return true;
+  });
+}
+
+function _schedRefreshTable() {
+  const host = document.getElementById('schedTableHost');
+  if (host) host.innerHTML = _schedTableHtml();
+}
+
+function _schedTableHtml() {
+  const list = _schedFiltered();
+  if (!list.length) return `<div style="padding:24px;text-align:center;color:var(--text-soft);font-size:13px;">沒有符合條件的紀錄</div>`;
+  const today = _todayIso();
+  const canEdit = _canEditTab('schedule');
+
+  const rowHtml = (x) => {
+    const isPast = x.dateIso < today;
+    const isToday = x.dateIso === today;
+    const dl = x.deadline ? _normalizeDeadline(x.deadline, x.year) : null;
+    const daysToDeadline = dl ? _daysUntil(dl) : null;
+    const deadlineWarn = daysToDeadline !== null && daysToDeadline >= 0 && daysToDeadline <= 7;
+
+    // 講者 ↔ 顧問配對：第 i 位講者搭配第 i 位顧問；若顧問數較少，最後一位 fallback
+    let presenterTxt, mentorTxt;
+    if (x.isEmpty) {
+      presenterTxt = `<span style="color:#c0392b;font-weight:700;white-space:nowrap;">— 待排定 —</span>`;
+      mentorTxt = '<span style="color:var(--text-soft);">—</span>';
+    } else if (x.isSkip && x.presenters.length === 0) {
+      presenterTxt = `<span style="color:var(--text-soft);">${_escH(_displayType(x.type))}</span>`;
+      mentorTxt = '<span style="color:var(--text-soft);">—</span>';
+    } else {
+      const mentorsRaw = _splitNames(x.mentor).map(m => ({ full: _resolvedName(m), left: _isLeftMember(m) }));
+      // 去重後算唯一顧問數；若所有講者共用同一位顧問 → 顧問欄只顯示一次
+      const uniqMentors = [];
+      const seenM = new Set();
+      mentorsRaw.forEach(m => { if (!seenM.has(m.full)) { seenM.add(m.full); uniqMentors.push(m); } });
+      const sameMentor = uniqMentors.length === 1 && x.presenters.length > 1;
+
+      const presRows = x.presenters.map(p => {
+        const full = _resolvedName(p);
+        const left = _isLeftMember(p);
+        return `<div><span class="sched-name${left?' is-left':''}" onclick="_schedShowMemberHistory('${_escH(full)}')">${_escH(full)}</span></div>`;
+      });
+
+      let mentRows;
+      if (uniqMentors.length === 0) {
+        mentRows = [`<span style="color:var(--text-soft);">—</span>`];
+      } else if (sameMentor) {
+        mentRows = [`<div><span class="sched-mentor${uniqMentors[0].left?' is-left':''}">${_escH(uniqMentors[0].full)}</span></div>`];
+      } else {
+        mentRows = x.presenters.map((p, i) => {
+          const m = mentorsRaw[i] || mentorsRaw[mentorsRaw.length - 1];
+          return `<div><span class="sched-mentor${m.left?' is-left':''}">${_escH(m.full)}</span></div>`;
+        });
+      }
+      presenterTxt = presRows.join('') || `<span style="color:var(--text-soft);">—</span>`;
+      mentorTxt = mentRows.join('');
+    }
+
+    let topicTxt;
+    if (x.topic && x.topic !== 'N/A') {
+      const parts = String(x.topic).split(/[\n｜|]/).map(s => s.trim()).filter(Boolean);
+      topicTxt = parts.length > 1
+        ? parts.map(p => `<div>${_escH(p)}</div>`).join('')
+        : _escH(parts[0] || '');
+    } else {
+      topicTxt = '<span style="color:var(--text-soft);">—</span>';
+    }
+
+    let statusBadge = '';
+    if (x.isEmpty) statusBadge = `<span class="sched-status-cell sched-status-empty">空缺</span>`;
+    else if (isToday) statusBadge = `<span class="sched-status-cell sched-status-now">本週</span>`;
+    else if (isPast) statusBadge = `<span class="sched-status-cell sched-status-done">已完成</span>`;
+    else statusBadge = `<span class="sched-status-cell" style="color:var(--text-soft);">已排定</span>`;
+
+    const editBtn = canEdit ? `<button class="sched-edit-btn" onclick="_schedOpenEdit(${x.rowIndex})">編輯</button>` : '';
+
+    const allLeft = !x.isEmpty && !x.isSkip && x.presenters.length > 0 && x.presenters.every(p => _isLeftMember(p));
+    const trClasses = [];
+    if (x.isEmpty) trClasses.push('is-empty');
+    if (isToday) trClasses.push('is-today');
+    if (x.isSkip) trClasses.push('is-skip');
+    if (isPast && !isToday && !x.isEmpty) trClasses.push('is-past');
+    if (allLeft) trClasses.push('is-left-row');
+
+    return `<tr class="${trClasses.join(' ')}" data-iso="${x.dateIso}">
+      <td>
+        <div style="font-weight:900;font-size:13px;color:var(--text);white-space:nowrap;">${x.dateMd}</div>
+        <div style="font-size:10px;color:var(--text-soft);">${x.year}</div>
+      </td>
+      <td>${statusBadge}</td>
+      <td>${presenterTxt}</td>
+      <td>${mentorTxt}</td>
+      <td>${x.deadline ? `<span class="sched-deadline ${deadlineWarn?'warn':''}">${_escH(x.deadline)}${deadlineWarn?` (${daysToDeadline}天)`:''}</span>` : '<span style="color:var(--text-soft);">—</span>'}</td>
+      <td style="font-size:12px;color:var(--text);">${topicTxt}</td>
+      <td>${editBtn}</td>
+    </tr>`;
+  };
+
+  return `<div class="sched-table-wrap">
+    <table class="sched-table">
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>狀態</th>
+          <th>簡報者</th>
+          <th>顧問</th>
+          <th>截稿日</th>
+          <th>主題</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>${list.map(rowHtml).join('')}</tbody>
+    </table>
+  </div>`;
 }
 
 // ===== 編輯 modal =====
@@ -782,7 +811,6 @@ async function _schedSaveEdit(rowIdx) {
   const SPECIAL_TYPES = ['共識會','BOD','大商分享','啟動會','年會','暫停'];
 
   const presenters = isPaused ? [] : [sp1, sp2].filter(Boolean);
-  // 顧問去重（兩位填同人 → 只存一次）
   const mentorList = isPaused ? [] : [...new Set([me1, me2].filter(Boolean))];
   const mentor = mentorList.join('、');
   const topic = isPaused ? '' : [tp1, tp2].filter(Boolean).join('｜');
@@ -799,8 +827,6 @@ async function _schedSaveEdit(rowIdx) {
 
   if (SCHEDULE_API_URL) {
     try {
-      // 優先使用後端帶來的 sheetName + sheetRow（多分頁合併讀取後的真實位置）
-      // 若後端是舊版（無附帶資訊），sheetRow=0 則退回 rowIndex+1
       const targetRow = item.sheetRow || (item.rowIndex + 1);
       const r = await fetch(SCHEDULE_API_URL, {
         method: 'POST',
@@ -840,10 +866,14 @@ function _normalizeDeadline(s, year) {
   if (!m) return _todayIso();
   return `${year}-${String(parseInt(m[1])).padStart(2,'0')}-${String(parseInt(m[2])).padStart(2,'0')}`;
 }
-function _schedJumpToToday() {
-  _scheduleFilterStatus = 'future';
-  _schedRefreshTable();
-  showToast('已切換至「未來」');
+function _schedJumpToThisWeek() {
+  // 捲到表格本週列（或最接近今天的未來列）
+  setTimeout(() => {
+    const todayRow = document.querySelector('.sched-table tr.is-today');
+    if (todayRow) { todayRow.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    const upcoming = document.querySelector('.sched-table tr:not(.is-past):not(.is-skip)');
+    if (upcoming) upcoming.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 50);
 }
 function _schedExportCsv() {
   const list = _schedFiltered();
@@ -861,59 +891,4 @@ function _schedExportCsv() {
   a.href = url; a.download = `簡報排程_${_todayIso()}.csv`;
   a.click();
   URL.revokeObjectURL(url);
-}
-
-// ===== Styles =====
-function _schedStyles() {
-  return `
-  .sched-table-wrap { overflow-x:auto; }
-  .sched-table { width:100%; border-collapse:collapse; font-size:12px; }
-  .sched-table th { background:#f9fafb; padding:8px 10px; text-align:left; font-size:11px; color:var(--text-soft); font-weight:700; border-bottom:1.5px solid var(--gray-border); position:sticky; top:0; z-index:1; white-space:nowrap; }
-  .sched-table td { padding:8px 10px; border-bottom:1px solid var(--gray-border); vertical-align:middle; }
-  .sched-table tr.is-empty td { background:#fef0ee; }
-  .sched-table tr.is-today td { background:#fff7e6; }
-  .sched-table tr.is-paused td,
-  .sched-table tr.is-left-row td { background:#f4f6f8 !important; }
-  .sched-table tr.is-paused td,
-  .sched-table tr.is-paused td *,
-  .sched-table tr.is-left-row td,
-  .sched-table tr.is-left-row td * { color:#9ca3af !important; }
-  .sched-table tr.is-paused .sched-count-pill,
-  .sched-table tr.is-left-row .sched-count-pill { background:#e5e7eb !important; }
-  .sched-table tr.is-paused .sched-term-bar,
-  .sched-table tr.is-left-row .sched-term-bar { background:#d1d5db !important; }
-  .sched-table tr:hover td { background:#f4f7fa; }
-  .sched-term-bar { width:5px; height:32px; border-radius:2px; }
-  .sched-status { white-space:nowrap; font-size:11px; font-weight:700; }
-  .sched-type-text { font-weight:700; color:var(--text); white-space:nowrap; }
-  .sched-count-pill { display:inline-block; padding:2px 7px; border-radius:99px; font-size:10px; font-weight:700; margin-left:6px; }
-  .sched-count-1 { background:#d4edda; color:#155724; }
-  .sched-count-2 { background:#cfe2ff; color:#0c5cb8; }
-  .sched-count-3 { background:#e0d4f5; color:#5b3296; }
-  .sched-name { color:var(--text); font-weight:600; cursor:pointer; padding:0 2px; }
-  .sched-name:hover { color:var(--red); text-decoration:underline; }
-  .sched-name.is-left { color:#9ca3af; text-decoration:line-through; }
-  .sched-mentor { color:var(--text); font-weight:500; }
-  .sched-mentor.is-left { color:#9ca3af; text-decoration:line-through; }
-  .sched-deadline { font-size:12px; white-space:nowrap; }
-  .sched-deadline.warn { color:#c0392b; font-weight:700; }
-  .sched-edit-btn { background:white; border:1.5px solid var(--gray-border); padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:var(--text-soft); font-family:inherit; white-space:nowrap; }
-  .sched-edit-btn:hover { border-color:var(--red); color:var(--red); }
-  .sched-fl { width:100%; padding:7px 8px; border:1.5px solid var(--gray-border); border-radius:7px; font-size:12px; background:white; font-family:inherit; }
-  .sched-fl:focus { border-color:var(--red); outline:none; }
-  .sched-rec-pill { display:inline-block; padding:3px 9px; background:#eef4fb; color:#1a5490; border-radius:99px; font-size:11px; font-weight:700; }
-  .sched-slot-row { padding:8px 6px; border-bottom:1px dashed var(--gray-border); }
-  .sched-slot-row:last-child { border-bottom:none; }
-  .sched-flag { display:inline-block; width:8px; height:8px; border-radius:50%; margin-left:4px; vertical-align:middle; }
-  .sched-hist-row { cursor:pointer; }
-  .sched-hist-row:hover td { background:#eef4fb; }
-  .sched-hist-detail-row td { padding:0 !important; border-bottom:1.5px solid var(--gray-border); }
-  .sched-unmatched-pill { display:inline-block; padding:3px 9px; background:white; border:1px solid #e67e22; color:#923f00; border-radius:99px; font-size:11px; font-weight:700; margin:2px; }
-  .se-lbl { font-size:11px; color:var(--text-soft); font-weight:600; margin-bottom:4px; }
-  .se-block-title { font-size:12px; font-weight:900; color:var(--text); margin-bottom:6px; }
-  @media (max-width: 720px) {
-    .sched-table { font-size:11px; }
-    .sched-table th, .sched-table td { padding:6px 7px; }
-  }
-  `;
 }

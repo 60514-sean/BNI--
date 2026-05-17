@@ -1886,6 +1886,107 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
 }
 .sc-report-text { min-height:40px; font-size:13px; }
 
+/* ===== 簡報排程 ===== */
+.sched-wrap { padding:14px 12px 60px; display:flex; flex-direction:column; gap:10px; }
+.sched-card { background:white; border-radius:14px; box-shadow:var(--shadow); overflow:hidden; }
+.sched-card-head { padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; }
+.sched-card-head.no-cursor { cursor:default; }
+.sched-card-title { font-size:14px; font-weight:900; color:var(--text); }
+.sched-card-sub { font-size:11px; color:var(--text-soft); margin-top:2px; }
+.sched-card-body { padding:12px 16px; border-top:1px solid var(--gray-border); }
+.sched-arrow { color:var(--text-soft); font-size:13px; }
+
+/* Hero：本週 / 下週 */
+.sched-hero { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.sched-hero-card {
+  background:white; border-radius:14px; box-shadow:var(--shadow);
+  padding:14px 16px; border-left:4px solid var(--gray-border);
+  display:flex; flex-direction:column; gap:6px;
+}
+.sched-hero-card.is-now { border-left-color:var(--red); background:linear-gradient(135deg, #fff5f3 0%, #ffffff 60%); }
+.sched-hero-card.is-empty { border-left-color:#c0392b; background:#fef0ee; }
+.sched-hero-label { font-size:11px; color:var(--text-soft); font-weight:700; letter-spacing:1px; }
+.sched-hero-date { font-size:18px; font-weight:900; color:var(--text); }
+.sched-hero-type { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px; background:var(--gray-light); color:var(--text-soft); }
+.sched-hero-pres { font-size:14px; font-weight:700; color:var(--text); line-height:1.5; }
+.sched-hero-meta { font-size:11px; color:var(--text-soft); }
+.sched-hero-meta b { color:var(--text); font-weight:600; }
+.sched-hero-empty-text { font-size:14px; font-weight:700; color:#c0392b; }
+
+/* 表格 */
+.sched-table-wrap { overflow-x:auto; max-height:70vh; overflow-y:auto; }
+.sched-table { width:100%; border-collapse:collapse; font-size:12px; }
+.sched-table th {
+  background:#f9fafb; padding:8px 10px; text-align:left;
+  font-size:11px; color:var(--text-soft); font-weight:700;
+  border-bottom:1.5px solid var(--gray-border);
+  position:sticky; top:0; z-index:1; white-space:nowrap;
+}
+.sched-table td { padding:8px 10px; border-bottom:1px solid var(--gray-border); vertical-align:middle; }
+.sched-table tr.is-empty td { background:#fef0ee; }
+.sched-table tr.is-today td { background:#fff7e6; }
+.sched-table tr.is-past td,
+.sched-table tr.is-skip td,
+.sched-table tr.is-left-row td { color:#9ca3af; background:#fafbfc; }
+.sched-table tr.is-skip td,
+.sched-table tr.is-left-row td { background:#f4f6f8 !important; }
+.sched-table tr:hover td { background:#f4f7fa; }
+.sched-name { color:var(--text); font-weight:600; cursor:pointer; }
+.sched-name:hover { color:var(--red); text-decoration:underline; }
+.sched-name.is-left { color:#9ca3af; text-decoration:line-through; }
+.sched-mentor { color:var(--text); font-weight:500; }
+.sched-mentor.is-left { color:#9ca3af; text-decoration:line-through; }
+.sched-deadline { font-size:12px; white-space:nowrap; }
+.sched-deadline.warn { color:#c0392b; font-weight:700; }
+.sched-edit-btn {
+  background:white; border:1.5px solid var(--gray-border);
+  padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer;
+  color:var(--text-soft); font-family:inherit; white-space:nowrap;
+}
+.sched-edit-btn:hover { border-color:var(--red); color:var(--red); }
+.sched-status-cell { font-size:11px; font-weight:700; white-space:nowrap; }
+.sched-status-empty { color:#c0392b; }
+.sched-status-now { color:#e67e22; }
+.sched-status-done { color:var(--text-soft); font-weight:400; }
+
+/* 篩選 */
+.sched-filter-row { display:flex; gap:8px; padding:10px 16px; flex-wrap:wrap; align-items:center; }
+.sched-fl {
+  padding:7px 10px; border:1.5px solid var(--gray-border); border-radius:7px;
+  font-size:12px; background:white; font-family:inherit; color:var(--text);
+  cursor:pointer; min-width:110px;
+}
+.sched-fl:focus { border-color:var(--red); outline:none; }
+.sched-jump-btn {
+  padding:7px 14px; border:none; border-radius:7px;
+  background:var(--red); color:white; font-size:12px; font-weight:700;
+  cursor:pointer; font-family:inherit;
+}
+.sched-jump-btn:hover { background:var(--red-dark); }
+
+/* 待排建議 / 警示（折疊式） */
+.sched-suggest-pill { display:inline-block; padding:3px 9px; background:#eef4fb; color:#1a5490; border-radius:99px; font-size:11px; font-weight:700; margin:2px; }
+.sched-slot-row { padding:8px 6px; border-bottom:1px dashed var(--gray-border); }
+.sched-slot-row:last-child { border-bottom:none; }
+.sched-unmatched-pill { display:inline-block; padding:3px 9px; background:white; border:1px solid var(--gray-border); color:var(--text); border-radius:99px; font-size:11px; font-weight:700; margin:2px; }
+
+/* 會員歷史 */
+.sched-hist-row { cursor:pointer; }
+.sched-hist-row:hover td { background:#eef4fb; }
+.sched-hist-row td { padding:8px 10px; }
+.sched-flag { display:inline-block; width:8px; height:8px; border-radius:50%; margin-left:4px; vertical-align:middle; }
+.sched-hist-detail-row td { padding:0 !important; border-bottom:1.5px solid var(--gray-border); }
+
+/* 編輯 modal */
+.se-lbl { font-size:11px; color:var(--text-soft); font-weight:600; margin-bottom:4px; }
+.se-block-title { font-size:12px; font-weight:900; color:var(--text); margin-bottom:6px; }
+
+@media (max-width:720px) {
+  .sched-hero { grid-template-columns:1fr; }
+  .sched-table { font-size:11px; }
+  .sched-table th, .sched-table td { padding:6px 7px; }
+}
+
 /* 委員群組（在副主席之後）*/
 .sc-committee-group {
   margin:6px -8px;
