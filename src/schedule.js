@@ -664,7 +664,7 @@ function _schedTableHtml() {
     </tr>`;
   };
 
-  return `<div class="sched-table-wrap">
+  return `<div class="sched-table-wrap sched-desktop-only">
     <table class="sched-table">
       <thead>
         <tr>
@@ -679,6 +679,118 @@ function _schedTableHtml() {
       </thead>
       <tbody>${list.map(rowHtml).join('')}</tbody>
     </table>
+  </div>
+  <div class="sched-mobile-only sched-cards">${list.map(_schedMobileCardsForItem).join('')}</div>`;
+}
+
+// 手機卡片：每個日期一張卡片，多位簡報者用分隔線堆疊在卡片內
+function _schedMobileCardsForItem(x) {
+  const today = _todayIso();
+  const canEdit = _canEditTab('schedule');
+  const isPast = x.dateIso < today;
+  const isToday = x.dateIso === today;
+  const dl = x.deadline ? _normalizeDeadline(x.deadline, x.year) : null;
+  const daysToDeadline = dl ? _daysUntil(dl) : null;
+  const deadlineWarn = daysToDeadline !== null && daysToDeadline >= 0 && daysToDeadline <= 7;
+
+  let statusText, statusClass;
+  if (x.isEmpty) { statusText = '空缺'; statusClass = 'sched-status-empty'; }
+  else if (isToday) { statusText = '本週'; statusClass = 'sched-status-now'; }
+  else if (isPast) { statusText = '已完成'; statusClass = 'sched-status-done'; }
+  else { statusText = '已排定'; statusClass = ''; }
+
+  const editBtn = canEdit ? `<button class="sched-edit-btn" onclick="_schedOpenEdit(${x.rowIndex})">編輯</button>` : '';
+
+  const dateHeader = `<div class="sched-mc-head">
+    <div class="sched-mc-date">
+      <span class="sched-mc-md">${x.dateMd}</span>
+      <span class="sched-mc-year">${x.year}</span>
+      <span class="sched-mc-status ${statusClass}">${statusText}</span>
+    </div>
+    ${editBtn}
+  </div>`;
+
+  const allLeft = !x.isEmpty && !x.isSkip && x.presenters.length > 0 && x.presenters.every(p => _isLeftMember(p));
+  const classes = ['sched-mc'];
+  if (x.isEmpty) classes.push('is-empty');
+  if (isToday) classes.push('is-today');
+  if (x.isSkip) classes.push('is-skip');
+  if (isPast && !isToday && !x.isEmpty) classes.push('is-past');
+  if (allLeft) classes.push('is-left-row');
+
+  // 空缺
+  if (x.isEmpty) {
+    return `<div class="${classes.join(' ')}">
+      ${dateHeader}
+      <div class="sched-mc-body">
+        <div class="sched-mc-row"><span class="sched-mc-lbl">簡報者</span><span style="color:#c0392b;font-weight:700;">— 待排定 —</span></div>
+      </div>
+    </div>`;
+  }
+  // 暫停 / special
+  if (x.isSkip && x.presenters.length === 0) {
+    return `<div class="${classes.join(' ')}">
+      ${dateHeader}
+      <div class="sched-mc-body">
+        <div class="sched-mc-row"><span class="sched-mc-lbl">類型</span><span style="color:var(--text-soft);">${_escH(_displayType(x.type))}</span></div>
+      </div>
+    </div>`;
+  }
+
+  // 1+ 簡報者：日期顯示一次，每位簡報者一個 block
+  const mentorsRaw = _splitNames(x.mentor).map(m => ({ full: _resolvedName(m), left: _isLeftMember(m) }));
+  const uniqMentors = [];
+  const seenM = new Set();
+  mentorsRaw.forEach(m => { if (!seenM.has(m.full)) { seenM.add(m.full); uniqMentors.push(m); } });
+  const sameMentor = uniqMentors.length === 1 && x.presenters.length > 1;
+
+  const topicParts = (x.topic && x.topic !== 'N/A')
+    ? String(x.topic).split(/[\n｜|]/).map(s => s.trim()).filter(Boolean)
+    : [];
+
+  const deadlineHtml = x.deadline
+    ? `<span class="sched-deadline ${deadlineWarn?'warn':''}">${_escH(x.deadline)}${deadlineWarn?` (${daysToDeadline}天)`:''}</span>`
+    : `<span style="color:var(--text-soft);">—</span>`;
+
+  const blocks = x.presenters.map((p, i) => {
+    const presFull = _resolvedName(p);
+    const presLeft = _isLeftMember(p);
+    const mentor = sameMentor
+      ? uniqMentors[0]
+      : (mentorsRaw[i] || mentorsRaw[mentorsRaw.length - 1] || null);
+    const mentorHtml = mentor
+      ? `<span class="sched-mentor${mentor.left?' is-left':''}">${_escH(mentor.full)}</span>`
+      : `<span style="color:var(--text-soft);">—</span>`;
+    const topic = topicParts.length === 1 ? topicParts[0] : (topicParts[i] || '');
+    const topicHtml = topic
+      ? _escH(topic)
+      : `<span style="color:var(--text-soft);">—</span>`;
+
+    return `<div class="sched-mc-speaker">
+      <div class="sched-mc-row">
+        <span class="sched-mc-lbl">簡報者</span>
+        <span class="sched-name${presLeft?' is-left':''}" onclick="_schedShowMemberHistory('${_escH(presFull)}')">${_escH(presFull)}</span>
+      </div>
+      <div class="sched-mc-row">
+        <span class="sched-mc-lbl">顧問</span>
+        ${mentorHtml}
+      </div>
+      <div class="sched-mc-row">
+        <span class="sched-mc-lbl">主題</span>
+        <span class="sched-mc-topic">${topicHtml}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="${classes.join(' ')}">
+    ${dateHeader}
+    <div class="sched-mc-body">
+      ${blocks}
+      <div class="sched-mc-row sched-mc-deadline-row">
+        <span class="sched-mc-lbl">截稿日</span>
+        ${deadlineHtml}
+      </div>
+    </div>
   </div>`;
 }
 
