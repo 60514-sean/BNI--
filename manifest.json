@@ -1,0 +1,16 @@
+{
+  "name": "BNI 秘書財務週行程",
+  "short_name": "BNI Weekly",
+  "description": "BNI 秘書財務進度追蹤系統",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f9ecec",
+  "theme_color": "#c0392b",
+  "lang": "zh-TW",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
