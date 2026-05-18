@@ -583,110 +583,7 @@ function _schedRefreshTable() {
 function _schedTableHtml() {
   const list = _schedFiltered();
   if (!list.length) return `<div style="padding:24px;text-align:center;color:var(--text-soft);font-size:13px;">沒有符合條件的紀錄</div>`;
-  const today = _todayIso();
-  const canEdit = _canEditTab('schedule');
-
-  const rowHtml = (x) => {
-    const isPast = x.dateIso < today;
-    const isToday = x.dateIso === today;
-    const dl = x.deadline ? _normalizeDeadline(x.deadline, x.year) : null;
-    const daysToDeadline = dl ? _daysUntil(dl) : null;
-    const deadlineWarn = daysToDeadline !== null && daysToDeadline >= 0 && daysToDeadline <= 7;
-
-    // 講者 ↔ 顧問配對：第 i 位講者搭配第 i 位顧問；若顧問數較少，最後一位 fallback
-    let presenterTxt, mentorTxt;
-    if (x.isEmpty) {
-      presenterTxt = `<span style="color:#c0392b;font-weight:700;white-space:nowrap;">— 待排定 —</span>`;
-      mentorTxt = '<span style="color:var(--text-soft);">—</span>';
-    } else if (x.isSkip && x.presenters.length === 0) {
-      presenterTxt = `<span style="color:var(--text-soft);">${_escH(_displayType(x.type))}</span>`;
-      mentorTxt = '<span style="color:var(--text-soft);">—</span>';
-    } else {
-      const mentorsRaw = _splitNames(x.mentor).map(m => ({ full: _resolvedName(m), left: _isLeftMember(m) }));
-      // 去重後算唯一顧問數；若所有講者共用同一位顧問 → 顧問欄只顯示一次
-      const uniqMentors = [];
-      const seenM = new Set();
-      mentorsRaw.forEach(m => { if (!seenM.has(m.full)) { seenM.add(m.full); uniqMentors.push(m); } });
-      const sameMentor = uniqMentors.length === 1 && x.presenters.length > 1;
-
-      const presRows = x.presenters.map(p => {
-        const full = _resolvedName(p);
-        const left = _isLeftMember(p);
-        return `<div><span class="sched-name${left?' is-left':''}" onclick="_schedShowMemberHistory('${_escH(full)}')">${_escH(full)}</span></div>`;
-      });
-
-      let mentRows;
-      if (uniqMentors.length === 0) {
-        mentRows = [`<span style="color:var(--text-soft);">—</span>`];
-      } else if (sameMentor) {
-        mentRows = [`<div><span class="sched-mentor${uniqMentors[0].left?' is-left':''}">${_escH(uniqMentors[0].full)}</span></div>`];
-      } else {
-        mentRows = x.presenters.map((p, i) => {
-          const m = mentorsRaw[i] || mentorsRaw[mentorsRaw.length - 1];
-          return `<div><span class="sched-mentor${m.left?' is-left':''}">${_escH(m.full)}</span></div>`;
-        });
-      }
-      presenterTxt = presRows.join('') || `<span style="color:var(--text-soft);">—</span>`;
-      mentorTxt = mentRows.join('');
-    }
-
-    let topicTxt;
-    if (x.topic && x.topic !== 'N/A') {
-      const parts = String(x.topic).split(/[\n｜|]/).map(s => s.trim()).filter(Boolean);
-      topicTxt = parts.length > 1
-        ? parts.map(p => `<div>${_escH(p)}</div>`).join('')
-        : _escH(parts[0] || '');
-    } else {
-      topicTxt = '<span style="color:var(--text-soft);">—</span>';
-    }
-
-    let statusBadge = '';
-    if (x.isEmpty) statusBadge = `<span class="sched-status-cell sched-status-empty">空缺</span>`;
-    else if (isToday) statusBadge = `<span class="sched-status-cell sched-status-now">本週</span>`;
-    else if (isPast) statusBadge = `<span class="sched-status-cell sched-status-done">已完成</span>`;
-    else statusBadge = `<span class="sched-status-cell" style="color:var(--text-soft);">已排定</span>`;
-
-    const editBtn = canEdit ? `<button class="sched-edit-btn" onclick="_schedOpenEdit(${x.rowIndex})">編輯</button>` : '';
-
-    const allLeft = !x.isEmpty && !x.isSkip && x.presenters.length > 0 && x.presenters.every(p => _isLeftMember(p));
-    const trClasses = [];
-    if (x.isEmpty) trClasses.push('is-empty');
-    if (isToday) trClasses.push('is-today');
-    if (x.isSkip) trClasses.push('is-skip');
-    if (isPast && !isToday && !x.isEmpty) trClasses.push('is-past');
-    if (allLeft) trClasses.push('is-left-row');
-
-    return `<tr class="${trClasses.join(' ')}" data-iso="${x.dateIso}">
-      <td>
-        <div style="font-weight:900;font-size:13px;color:var(--text);white-space:nowrap;">${x.dateMd}</div>
-        <div style="font-size:10px;color:var(--text-soft);">${x.year}</div>
-      </td>
-      <td>${statusBadge}</td>
-      <td>${presenterTxt}</td>
-      <td>${mentorTxt}</td>
-      <td>${x.deadline ? `<span class="sched-deadline ${deadlineWarn?'warn':''}">${_escH(x.deadline)}${deadlineWarn?` (${daysToDeadline}天)`:''}</span>` : '<span style="color:var(--text-soft);">—</span>'}</td>
-      <td style="font-size:12px;color:var(--text);">${topicTxt}</td>
-      <td>${editBtn}</td>
-    </tr>`;
-  };
-
-  return `<div class="sched-table-wrap sched-desktop-only">
-    <table class="sched-table">
-      <thead>
-        <tr>
-          <th>日期</th>
-          <th>狀態</th>
-          <th>簡報者</th>
-          <th>顧問</th>
-          <th>截稿日</th>
-          <th>主題</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>${list.map(rowHtml).join('')}</tbody>
-    </table>
-  </div>
-  <div class="sched-mobile-only sched-cards">${list.map(_schedMobileCardsForItem).join('')}</div>`;
+  return `<div class="sched-cards">${list.map(_schedMobileCardsForItem).join('')}</div>`;
 }
 
 // 手機卡片（摺疊式）：左側狀態色塊 + 右側白底內容區
@@ -1025,12 +922,21 @@ function _normalizeDeadline(s, year) {
   return `${year}-${String(parseInt(m[1])).padStart(2,'0')}-${String(parseInt(m[2])).padStart(2,'0')}`;
 }
 function _schedJumpToThisWeek() {
-  // 捲到表格本週列（或最接近今天的未來列）
+  // 捲到本週卡片（或最接近今天的未來卡片）
   setTimeout(() => {
-    const todayRow = document.querySelector('.sched-table tr.is-today');
-    if (todayRow) { todayRow.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
-    const upcoming = document.querySelector('.sched-table tr:not(.is-past):not(.is-skip)');
-    if (upcoming) upcoming.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const today = _todayIso();
+    const cards = document.querySelectorAll('#schedTableHost .sched-mc');
+    let todayCard = null, upcoming = null;
+    cards.forEach(c => {
+      const head = c.querySelector('.sched-mc-collapsed');
+      const dateblock = c.querySelector('.sched-mc-dateblock');
+      if (!dateblock) return;
+      // 從卡片內 theme 判斷：本週 / 未來已排定
+      if (!todayCard && dateblock.classList.contains('sched-mc-theme-now')) todayCard = c;
+      if (!upcoming && (dateblock.classList.contains('sched-mc-theme-planned') || dateblock.classList.contains('sched-mc-theme-empty'))) upcoming = c;
+    });
+    const target = todayCard || upcoming;
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, 50);
 }
 function _schedExportCsv() {
