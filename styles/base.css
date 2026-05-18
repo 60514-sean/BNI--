@@ -1839,15 +1839,20 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   font-size:14px; font-family:inherit; color:var(--text);
   outline:none; transition:border .15s; background:white;
   box-sizing:border-box;
+  line-height:1.4;
 }
+/* 強制 input / select 同樣的最小高度，避免日期欄位變矮 */
+input.sc-input, select.sc-input, select.sc-select { min-height:42px; }
+input.sc-input-sm, select.sc-input-sm { min-height:34px; }
 /* 日期欄位：iOS / 行動裝置會有預設最小寬度，需明確覆寫 */
 .sc-input[type="date"] {
   -webkit-appearance:none;
   appearance:none;
   min-width:0;
   max-width:100%;
+  font-family:inherit;
 }
-.sc-input[type="date"]::-webkit-date-and-time-value { text-align:left; }
+.sc-input[type="date"]::-webkit-date-and-time-value { text-align:left; line-height:inherit; }
 .sc-input:focus, .sc-textarea:focus, .sc-select:focus { border-color:var(--red); }
 .sc-textarea { resize:vertical; min-height:60px; line-height:1.5; }
 .sc-input-flex { flex:1; min-width:0; }
