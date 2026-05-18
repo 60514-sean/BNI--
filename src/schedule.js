@@ -602,11 +602,12 @@ function _schedMobileCardsForItem(x) {
   const weekday = ['日', '一', '二', '三', '四', '五', '六'][dateObj.getDay()];
 
   let statusText, dateblockTheme;
-  if (x.isEmpty)         { statusText = '空缺';   dateblockTheme = 'empty'; }
-  else if (isToday)      { statusText = '本週';   dateblockTheme = 'now'; }
-  else if (x.isSkip)     { statusText = '暫停';   dateblockTheme = 'skip'; }
-  else if (isPast)       { statusText = '已完成'; dateblockTheme = 'done'; }
-  else                   { statusText = '已排定'; dateblockTheme = 'planned'; }
+  if (x.isEmpty)              { statusText = '空缺';   dateblockTheme = 'empty'; }
+  else if (isToday)           { statusText = '本週';   dateblockTheme = 'now'; }
+  else if (x.type === '暫停') { statusText = '暫停';   dateblockTheme = 'skip'; }
+  else if (x.isSkip)          { statusText = isPast ? '已完成' : '已排定'; dateblockTheme = 'skip'; }
+  else if (isPast)            { statusText = '已完成'; dateblockTheme = 'done'; }
+  else                        { statusText = '已排定'; dateblockTheme = 'planned'; }
 
   // 講者簡短列表（collapsed 時的標題）
   let summaryText;
