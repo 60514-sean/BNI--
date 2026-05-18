@@ -2461,7 +2461,7 @@ input.sc-input-sm, select.sc-input-sm { min-height:34px; }
 /* 區段分頁與職掌跳轉列共用的 sticky 容器 */
 .sc-sticky-head {
   position:sticky; top:0;
-  background:var(--bg, #f5f6f8);
+  background:#f0f2f7;
   z-index:5;
   padding-top:4px;
   margin-bottom:4px;
