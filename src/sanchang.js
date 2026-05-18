@@ -41,10 +41,11 @@ const _SC_MODULES = {
     hasReports: true,
     hasMotions: true,
     hasSummary: true,
+    hasAnnouncements: true,
     reportRoles: ['主席', '副主席', '秘書財務', '活動協調員', '教育協調員', '成長協調員', '導師協調員', '來賓接待員', '網站管理員', '董顧', '支持成長董顧'],
     sectionTabs: [
       { id: 'basic', label: '基本' },
-      { id: 'reports', label: '報告' },
+      { id: 'announce', label: '布達' },
       { id: 'actions', label: '待辦' },
       { id: 'motions', label: '動議' }
     ]
@@ -288,6 +289,7 @@ async function _scCreateThisWeek() {
 function _scRenderEditor(m) {
   const canEdit = _canEditTab(_scMod().id);
   const mod = _scMod();
+  if (mod.id === 'leadership') _scMigrateLeadershipReports(m);
   const showTopics       = mod.hasTopics !== false;
   const showMotions      = mod.hasMotions === true;
   const showSummary      = mod.hasSummary !== false;
@@ -403,17 +405,82 @@ function _scAnnouncementCardHtml(mid, a, idx, displayIdx, canEdit) {
 function _scAnnouncementsEditorHtml(m, canEdit) {
   const mod = _scMod();
   const roles = mod.owners || [];
-  return roles.map(role => {
+  const supportsCommittee = mod.hasReports === true; // 領導月會才有委員
+  const out = [];
+  roles.forEach(role => {
     const items = _scAnnouncementsForRole(m, role);
     const inner = items.map(({ a, idx }, di) => _scAnnouncementCardHtml(m.id, a, idx, di, canEdit)).join('');
-    return `<div class="sc-card sc-card-role">
+    out.push(`<div class="sc-card sc-card-role">
       <div class="sc-card-head">
         <span class="sc-card-title"><span class="sc-role-tag">${role}</span>本周布達事項</span>
         ${canEdit ? `<button class="sc-btn sc-btn-sm" onclick="_scAddAnnouncement('${m.id}','${role}')">+ 新增布達</button>` : ''}
       </div>
       ${inner || `<div class="sc-empty-mini">尚無布達事項</div>`}
+    </div>`);
+    // 副主席 之後插入委員群組（領導月會專用）
+    if (supportsCommittee && role === '副主席') {
+      out.push(_scCommitteeAnnounceBlockHtml(m, canEdit));
+    }
+  });
+  return out.join('');
+}
+
+// 委員群組（合併在布達區塊內）：每位委員 = 一張卡（姓名 + 布達清單 + 新增布達 + 刪除委員）
+function _scCommitteeAnnounceBlockHtml(m, canEdit) {
+  const committee = Array.isArray(m.committee) ? m.committee : [];
+  const rows = committee.map((c, i) => {
+    const items = Array.isArray(c.announcements) ? c.announcements : [];
+    const inner = items.map((a, di) => `
+      <div class="sc-topic sc-announce">
+        <div class="sc-topic-head">
+          <span class="sc-topic-num">第 ${di + 1} 則</span>
+          ${canEdit ? `<button class="sc-icon-btn" onclick="_scDelCommitteeAnnouncement('${m.id}',${i},${di})" title="刪除">×</button>` : ''}
+        </div>
+        <textarea class="sc-textarea" rows="2" placeholder="布達內容（資訊共識，無須討論）" oninput="_scUpdateCommitteeAnnouncement('${m.id}',${i},${di},this.value)">${_scEsc(a.content || '')}</textarea>
+      </div>
+    `).join('');
+    return `<div class="sc-card sc-card-role">
+      <div class="sc-card-head">
+        <span class="sc-card-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span class="sc-role-tag">委員</span>
+          <input type="text" class="sc-input sc-input-sm" placeholder="委員姓名" value="${_scEsc(c.name || '')}" oninput="_scUpdateCommittee('${m.id}',${i},'name',this.value)" style="width:auto;min-width:120px;">
+          ${canEdit ? `<button class="sc-icon-btn" onclick="_scDelCommittee('${m.id}',${i})" title="刪除委員">×</button>` : ''}
+        </span>
+        ${canEdit ? `<button class="sc-btn sc-btn-sm" onclick="_scAddCommitteeAnnouncement('${m.id}',${i})">+ 新增布達</button>` : ''}
+      </div>
+      ${inner || `<div class="sc-empty-mini">尚無布達事項</div>`}
     </div>`;
   }).join('');
+  const addBtn = canEdit
+    ? `<div style="margin:6px 0 14px;"><button class="sc-btn sc-btn-sm sc-btn-ghost" onclick="_scAddCommittee('${m.id}')">+ 新增委員</button></div>`
+    : '';
+  return rows + addBtn;
+}
+
+// === 委員布達 CRUD ===
+async function _scAddCommitteeAnnouncement(mid, cidx) {
+  const m = _scFindMeeting(mid);
+  if (!m || !m.committee || !m.committee[cidx]) return;
+  if (!Array.isArray(m.committee[cidx].announcements)) m.committee[cidx].announcements = [];
+  m.committee[cidx].announcements.push({ content: '' });
+  await _scUpsertMeeting(m);
+  _scRenderActive();
+}
+async function _scDelCommitteeAnnouncement(mid, cidx, aidx) {
+  if (!confirm('刪除這則布達？')) return;
+  const m = _scFindMeeting(mid);
+  if (!m || !m.committee || !m.committee[cidx] || !m.committee[cidx].announcements) return;
+  m.committee[cidx].announcements.splice(aidx, 1);
+  await _scUpsertMeeting(m);
+  _scRenderActive();
+}
+function _scUpdateCommitteeAnnouncement(mid, cidx, aidx, val) {
+  const m = _scFindMeeting(mid);
+  if (!m || !m.committee || !m.committee[cidx]) return;
+  if (!Array.isArray(m.committee[cidx].announcements)) m.committee[cidx].announcements = [];
+  if (!m.committee[cidx].announcements[aidx]) return;
+  m.committee[cidx].announcements[aidx].content = val;
+  _scDebouncedSave(m);
 }
 
 async function _scAddAnnouncement(mid, role) {
@@ -1079,45 +1146,78 @@ function _scBuildSanchangBlocks(m) {
   return blocks;
 }
 
+// 領導月會：把舊版的 reports + committee.report 資料遷移到 announcements 結構
+function _scMigrateLeadershipReports(m) {
+  if (m._leadershipReportsMigrated) return;
+  if (!Array.isArray(m.announcements)) m.announcements = [];
+  // m.reports[role] → m.announcements
+  Object.entries(m.reports || {}).forEach(([role, text]) => {
+    const t = (text || '').trim();
+    if (!t) return;
+    const exists = m.announcements.some(a => a.role === role && a.content === t);
+    if (!exists) m.announcements.push({ role, content: t });
+  });
+  // m.committee[i].report → m.committee[i].announcements
+  (m.committee || []).forEach(c => {
+    if (!Array.isArray(c.announcements)) c.announcements = [];
+    const t = (c.report || '').trim();
+    if (!t) return;
+    const exists = c.announcements.some(a => a.content === t);
+    if (!exists) c.announcements.push({ content: t });
+  });
+  m._leadershipReportsMigrated = true;
+}
+
 // 領導月會：產生扁平 block 清單（與三長周會共用動態分頁）
 function _scBuildLeadershipBlocks(m) {
   const mod = _scMod();
+  _scMigrateLeadershipReports(m);
   const blocks = [];
 
-  // === 各領導人報告事項 ===
-  if (mod.hasReports) {
-    const roles = mod.reportRoles || mod.owners || [];
-    const reports = m.reports || {};
+  // === 本周布達事項（11 領導角色 + 委員，已合併原本的「報告」）===
+  if (mod.hasAnnouncements === true) {
+    const roles = mod.owners || [];
     const committee = (Array.isArray(m.committee) ? m.committee : [])
-      .filter(c => (c.name || '').trim() && (c.report || '').trim());
-    const hasAny = roles.some(r => (reports[r] || '').trim()) || committee.length > 0;
+      .filter(c => (c.name || '').trim() && Array.isArray(c.announcements) && c.announcements.length);
+    const fixedHasAny = roles.some(r => _scAnnouncementsForRole(m, r).length);
+    const hasAny = fixedHasAny || committee.length > 0;
 
-    blocks.push({
-      html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>各領導人報告事項</div>`,
-      keepWithNext: true,
-      pageBreakBefore: true
-    });
-    if (!hasAny) {
-      blocks.push({ html: `<div class="sc-sheet-empty-block">本次無報告事項</div>` });
-    } else {
+    if (hasAny) {
+      blocks.push({
+        html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>本周布達事項</div>`,
+        keepWithNext: true,
+        pageBreakBefore: true
+      });
       roles.forEach(role => {
-        if ((reports[role] || '').trim()) {
+        const items = _scAnnouncementsForRole(m, role);
+        if (items.length) {
           blocks.push({
             html: `<div class="sc-sheet-role-h">${role}</div>`,
             keepWithNext: true
           });
-          blocks.push({
-            html: `<div class="sc-sheet-report-text">${_scEsc(reports[role]).replace(/\n/g, '<br>')}</div>`
+          items.forEach(({ a }, i) => {
+            blocks.push({
+              html: `<div class="sc-sheet-announce-item">
+                <span class="sc-sheet-announce-num">${i + 1}</span>
+                <span class="sc-sheet-announce-text">${_scEsc(a.content || '').replace(/\n/g, '<br>')}</span>
+              </div>`
+            });
           });
         }
+        // 副主席之後：穿插委員的布達
         if (role === '副主席') {
           committee.forEach(c => {
             blocks.push({
-              html: `<div class="sc-sheet-role-h">委員 ${_scEsc(c.name)}</div>`,
+              html: `<div class="sc-sheet-role-h">${_scEsc(c.name)}</div>`,
               keepWithNext: true
             });
-            blocks.push({
-              html: `<div class="sc-sheet-report-text">${_scEsc(c.report).replace(/\n/g, '<br>')}</div>`
+            c.announcements.forEach((a, i) => {
+              blocks.push({
+                html: `<div class="sc-sheet-announce-item">
+                  <span class="sc-sheet-announce-num">${i + 1}</span>
+                  <span class="sc-sheet-announce-text">${_scEsc(a.content || '').replace(/\n/g, '<br>')}</span>
+                </div>`
+              });
             });
           });
         }
@@ -1475,19 +1575,31 @@ function _scBuildLineText(m) {
   if (m.absent) lines.push(`請假：${m.absent}`);
   lines.push('');
 
-  if (_scMod().hasAnnouncements === true && (m.announcements || []).length) {
+  if (_scMod().hasAnnouncements === true) {
     const _amod = _scMod();
     const roles = _amod.owners || [];
-    const hasAny = roles.some(r => _scAnnouncementsForRole(m, r).length);
+    const committee = (Array.isArray(m.committee) ? m.committee : [])
+      .filter(c => (c.name || '').trim() && Array.isArray(c.announcements) && c.announcements.length);
+    const fixedHasAny = roles.some(r => _scAnnouncementsForRole(m, r).length);
+    const hasAny = fixedHasAny || committee.length > 0;
     if (hasAny) {
       lines.push('━━ 本周布達事項 ━━');
       roles.forEach(role => {
         const items = _scAnnouncementsForRole(m, role);
-        if (!items.length) return;
-        lines.push(`【${role}】`);
-        items.forEach(({ a }, i) => {
-          lines.push(`  ${i + 1}. ${a.content || ''}`);
-        });
+        if (items.length) {
+          lines.push(`【${role}】`);
+          items.forEach(({ a }, i) => {
+            lines.push(`  ${i + 1}. ${a.content || ''}`);
+          });
+        }
+        if (role === '副主席') {
+          committee.forEach(c => {
+            lines.push(`【${c.name}】`);
+            c.announcements.forEach((a, i) => {
+              lines.push(`  ${i + 1}. ${a.content || ''}`);
+            });
+          });
+        }
       });
       lines.push('');
     }
@@ -1513,30 +1625,7 @@ function _scBuildLineText(m) {
     }
   }
 
-  const _mod = _scMod();
-  if (_mod.hasReports) {
-    const roles = _mod.reportRoles || _mod.owners || [];
-    const reports = m.reports || {};
-    const committee = (Array.isArray(m.committee) ? m.committee : [])
-      .filter(c => (c.name || '').trim() && (c.report || '').trim());
-    const hasAnyReport = roles.some(r => (reports[r] || '').trim()) || committee.length > 0;
-    if (hasAnyReport) {
-      lines.push('━━ 各領導人報告 ━━');
-      roles.forEach(r => {
-        if ((reports[r] || '').trim()) {
-          lines.push(`【${r}】`);
-          reports[r].split('\n').forEach(line => { if (line.trim()) lines.push(`  ${line}`); });
-        }
-        if (r === '副主席') {
-          committee.forEach(c => {
-            lines.push(`【委員 ${c.name}】`);
-            c.report.split('\n').forEach(line => { if (line.trim()) lines.push(`  ${line}`); });
-          });
-        }
-      });
-      lines.push('');
-    }
-  }
+  // 領導月會的「各領導人報告」已合併到「本周布達事項」
 
   if ((m.actions || []).length) {
     const _amod = _scMod();
