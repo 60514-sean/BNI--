@@ -1015,15 +1015,17 @@ function _scBuildSanchangBlocks(m) {
 
   // 結論摘要已併入 headline 的「摘要」欄，此處不再重複輸出
 
-  // === 本周布達事項 ===
+  // === 本周布達事項（總是顯示）===
   if (mod.hasAnnouncements === true) {
     const hasAny = (mod.owners || []).some(r => _scAnnouncementsForRole(m, r).length);
-    if (hasAny) {
-      blocks.push({
-        html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>本周布達事項</div>`,
-        keepWithNext: true,
-        pageBreakBefore: true
-      });
+    blocks.push({
+      html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>本周布達事項</div>`,
+      keepWithNext: true,
+      pageBreakBefore: true
+    });
+    if (!hasAny) {
+      blocks.push({ html: `<div class="sc-sheet-empty-block">本次無布達事項</div>` });
+    } else {
       (mod.owners || []).forEach(role => {
         const items = _scAnnouncementsForRole(m, role);
         if (!items.length) return;
@@ -1174,7 +1176,7 @@ function _scBuildLeadershipBlocks(m) {
   _scMigrateLeadershipReports(m);
   const blocks = [];
 
-  // === 本周布達事項（11 領導角色 + 委員，已合併原本的「報告」）===
+  // === 本周布達事項（11 領導角色 + 委員，已合併原本的「報告」，總是顯示）===
   if (mod.hasAnnouncements === true) {
     const roles = mod.owners || [];
     const committee = (Array.isArray(m.committee) ? m.committee : [])
@@ -1182,12 +1184,14 @@ function _scBuildLeadershipBlocks(m) {
     const fixedHasAny = roles.some(r => _scAnnouncementsForRole(m, r).length);
     const hasAny = fixedHasAny || committee.length > 0;
 
-    if (hasAny) {
-      blocks.push({
-        html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>本周布達事項</div>`,
-        keepWithNext: true,
-        pageBreakBefore: true
-      });
+    blocks.push({
+      html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>本周布達事項</div>`,
+      keepWithNext: true,
+      pageBreakBefore: true
+    });
+    if (!hasAny) {
+      blocks.push({ html: `<div class="sc-sheet-empty-block">本次無布達事項</div>` });
+    } else {
       roles.forEach(role => {
         const items = _scAnnouncementsForRole(m, role);
         if (items.length) {
@@ -1582,8 +1586,10 @@ function _scBuildLineText(m) {
       .filter(c => (c.name || '').trim() && Array.isArray(c.announcements) && c.announcements.length);
     const fixedHasAny = roles.some(r => _scAnnouncementsForRole(m, r).length);
     const hasAny = fixedHasAny || committee.length > 0;
-    if (hasAny) {
-      lines.push('━━ 本周布達事項 ━━');
+    lines.push('━━ 本周布達事項 ━━');
+    if (!hasAny) {
+      lines.push('  本次無布達事項');
+    } else {
       roles.forEach(role => {
         const items = _scAnnouncementsForRole(m, role);
         if (items.length) {
@@ -1601,8 +1607,8 @@ function _scBuildLineText(m) {
           });
         }
       });
-      lines.push('');
     }
+    lines.push('');
   }
 
   if (_scMod().hasTopics !== false && (m.topics || []).length) {

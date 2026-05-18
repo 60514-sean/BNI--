@@ -1840,6 +1840,14 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   outline:none; transition:border .15s; background:white;
   box-sizing:border-box;
 }
+/* 日期欄位：iOS / 行動裝置會有預設最小寬度，需明確覆寫 */
+.sc-input[type="date"] {
+  -webkit-appearance:none;
+  appearance:none;
+  min-width:0;
+  max-width:100%;
+}
+.sc-input[type="date"]::-webkit-date-and-time-value { text-align:left; }
 .sc-input:focus, .sc-textarea:focus, .sc-select:focus { border-color:var(--red); }
 .sc-textarea { resize:vertical; min-height:60px; line-height:1.5; }
 .sc-input-flex { flex:1; min-width:0; }
@@ -2696,6 +2704,12 @@ body.sc-print-mode #sanchangPrintArea .sc-sheet-page { box-shadow:none; margin-t
   .sc-grid-2 { grid-template-columns:1fr; }
   .sc-action-meta { grid-template-columns:1fr 1fr; }
   .sc-action-meta .sc-status { grid-column:1 / -1; }
+  /* 無 owner 下拉時，只有 期限 + 狀態 兩欄；行動裝置中讓兩個各佔一行 */
+  .sc-action.sc-action-no-owner .sc-action-meta { grid-template-columns:1fr; }
+  .sc-action.sc-action-no-owner .sc-action-meta .sc-status { grid-column:1; }
+  /* 日期輸入需要明確的 min-width:0 才不會撐破網格 */
+  .sc-action-meta input[type="date"],
+  .sc-action-meta .sc-select { min-width:0; max-width:100%; }
   .sc-toolbar { padding:10px; }
   .sc-btn { padding:9px 12px; font-size:13px; }
 }
