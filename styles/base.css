@@ -1987,11 +1987,12 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
 }
 
 /* === 完整排程：桌面 table / 手機 cards 切換 === */
-.sched-mobile-only { display:none; }
-.sched-desktop-only { display:block; }
+/* 用 !important 避免被後面 .sched-cards { display:flex } 蓋掉 */
+.sched-mobile-only { display:none !important; }
+.sched-desktop-only { display:block !important; }
 @media (max-width:640px) {
-  .sched-mobile-only { display:block; }
-  .sched-desktop-only { display:none; }
+  .sched-mobile-only { display:flex !important; }
+  .sched-desktop-only { display:none !important; }
 }
 
 /* 手機卡片：左側狀態色塊 + 右側白底內容區 */
