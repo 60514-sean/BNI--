@@ -110,6 +110,9 @@ function _parseScheduleRows(rows) {
       isEmpty = true;
     }
 
+    // 補強：c2 有內容但解析不到名字（例如 "—" / "N/A"）也視為空缺
+    if (!isSkip && presenters.length === 0) isEmpty = true;
+
     out.push({
       rowIndex: i,
       term: curTerm,
@@ -136,7 +139,7 @@ function _splitNames(str) {
   return body
     .split(/[、,，\/／\n\r.]/)
     .map(x => x.replace(/\s+/g, '').trim())
-    .filter(x => x && !/^N\/A$/i.test(x) && !/無主題簡報/.test(x) && !/當天壽星/.test(x));
+    .filter(x => x && !/^N\/A$/i.test(x) && !/無主題簡報/.test(x) && !/當天壽星/.test(x) && !/^[—\-–]+$/.test(x));
 }
 
 function _extractPresenters(s) {
