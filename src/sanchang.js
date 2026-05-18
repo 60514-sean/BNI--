@@ -53,8 +53,8 @@ const _SC_MODULES = {
 };
 
 const _scStates = {
-  sanchang: { view: 'current', histDetailId: null, section: 'topics' },
-  leadership: { view: 'current', histDetailId: null, section: 'reports' }
+  sanchang:   { view: 'current', histDetailId: null, section: 'topics',   roleCollapsed: {} },
+  leadership: { view: 'current', histDetailId: null, section: 'announce', roleCollapsed: {} }
 };
 
 let _scCurMod = 'sanchang';
@@ -63,6 +63,130 @@ function _scMod() { return _SC_MODULES[_scCurMod]; }
 function _scSetModule(modId) {
   _scCurMod = modId;
   _scState = _scStates[modId];
+  // 防呆：若 section 不在當前模組的 sectionTabs，自動 fallback 到第一個
+  const mod = _SC_MODULES[modId];
+  if (mod && Array.isArray(mod.sectionTabs) && mod.sectionTabs.length) {
+    const valid = mod.sectionTabs.some(s => s.id === _scState.section);
+    if (!valid) _scState.section = mod.sectionTabs[0].id;
+  }
+  if (!_scState.roleCollapsed) _scState.roleCollapsed = {};
+}
+
+// 是否該收合某職掌卡片
+// 規則：使用者明確設定 > 預設（沒內容自動收合，有內容自動展開）
+function _scIsRoleCollapsed(section, role, itemCount) {
+  const key = `${section}:${role}`;
+  const explicit = _scState.roleCollapsed[key];
+  if (explicit === true || explicit === false) return explicit;
+  return itemCount === 0;
+}
+function _scToggleRoleCollapsed(section, role, ev) {
+  if (ev) { ev.stopPropagation(); }
+  const key = `${section}:${role}`;
+  const cur = _scState.roleCollapsed[key];
+  // 取得目前實際狀態（未設定時依預設）→ 切換為相反
+  const card = document.getElementById(`sc-role-card-${section}-${_scRoleSlug(role)}`);
+  const body = card ? card.querySelector('.sc-card-body') : null;
+  const nowCollapsed = body ? body.classList.contains('is-collapsed') : (cur === true);
+  _scState.roleCollapsed[key] = !nowCollapsed;
+  if (body) {
+    body.classList.toggle('is-collapsed', !nowCollapsed);
+    card.classList.toggle('is-collapsed', !nowCollapsed);
+  }
+}
+function _scExpandRole(section, role) {
+  _scState.roleCollapsed[`${section}:${role}`] = false;
+}
+function _scSetAllRolesCollapsed(section, collapsed) {
+  // 從 DOM 掃描當前 section 內所有職掌卡，套用狀態
+  const container = document.getElementById(_scMod().contentEl);
+  if (!container) return;
+  container.querySelectorAll(`.sc-card-role[data-role-key]`).forEach(card => {
+    const sec = card.dataset.sec;
+    const key = card.dataset.roleKey;
+    if (sec !== section) return;
+    _scState.roleCollapsed[`${section}:${key}`] = collapsed;
+    card.classList.toggle('is-collapsed', collapsed);
+    const body = card.querySelector('.sc-card-body');
+    if (body) body.classList.toggle('is-collapsed', collapsed);
+  });
+}
+function _scExpandAllRoles(section)   { _scSetAllRolesCollapsed(section, false); }
+function _scCollapseAllRoles(section) { _scSetAllRolesCollapsed(section, true); }
+function _scRoleSlug(role) {
+  // 把中文職掌名轉為 DOM id 安全字元（直接 encode）
+  return encodeURIComponent(role).replace(/%/g, '_');
+}
+function _scScrollToRole(section, role) {
+  // 確保展開
+  _scExpandRole(section, role);
+  const id = `sc-role-card-${section}-${_scRoleSlug(role)}`;
+  const card = document.getElementById(id);
+  if (card) {
+    const body = card.querySelector('.sc-card-body');
+    if (body) { body.classList.remove('is-collapsed'); }
+    card.classList.remove('is-collapsed');
+    // 計算 sticky 區頭部高度做 offset
+    const stickyHead = document.querySelector(`#${_scMod().contentEl} .sc-sticky-head`);
+    const offset = stickyHead ? stickyHead.offsetHeight + 60 : 80; // 60 為 app header 高度
+    const top = card.getBoundingClientRect().top + window.pageYOffset - offset;
+    window.scrollTo({ top, behavior: 'smooth' });
+  }
+}
+
+function _scRoleCounts(m, section) {
+  const roles = _scMod().owners || [];
+  const out = {};
+  if (section === 'announce') {
+    roles.forEach(r => { out[r] = _scAnnouncementsForRole(m, r).length; });
+  } else if (section === 'topics') {
+    roles.forEach(r => { out[r] = _scTopicsForRole(m, r).length; });
+  } else if (section === 'actions') {
+    roles.forEach(r => { out[r] = _scActionsForRole(m, r).length; });
+  }
+  return out;
+}
+
+// 職掌快速跳轉列 + 全部展開/收合
+function _scRoleNavBarHtml(m, section) {
+  const roles = (_scMod().owners || []).slice();
+  const counts = _scRoleCounts(m, section);
+  // 領導月會 announce 區段：把委員姓名也納入跳轉列
+  const committeeChips = [];
+  if (section === 'announce' && _scMod().hasReports && Array.isArray(m.committee)) {
+    m.committee.forEach(c => {
+      const n = (c.name || '').trim();
+      if (!n) return;
+      const cnt = (Array.isArray(c.announcements) ? c.announcements : []).length;
+      committeeChips.push({ role: n, label: n, count: cnt, key: `_com_${n}`, isCommittee: true });
+    });
+  }
+  const chips = roles.map(r => ({ role: r, label: r, count: counts[r] || 0, key: r, isCommittee: false }));
+  // 副主席之後插入委員 chip（領導月會）
+  let finalChips = chips;
+  if (committeeChips.length) {
+    const idx = chips.findIndex(x => x.role === '副主席');
+    if (idx >= 0) finalChips = [...chips.slice(0, idx + 1), ...committeeChips, ...chips.slice(idx + 1)];
+    else finalChips = [...chips, ...committeeChips];
+  }
+  const jsEsc = s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const chipsHtml = finalChips.map(c => {
+    const muted = c.count === 0 ? ' is-muted' : '';
+    const com = c.isCommittee ? ' is-committee' : '';
+    return `<button class="sc-role-chip${muted}${com}" onclick="_scScrollToRole('${section}', '${jsEsc(c.role)}')" title="${_scEsc(c.label)} (${c.count})">
+      <span class="sc-role-chip-name">${_scEsc(c.label)}</span>
+      <span class="sc-role-chip-count">${c.count}</span>
+    </button>`;
+  }).join('');
+  return `
+    <div class="sc-role-nav">
+      <div class="sc-role-nav-actions">
+        <button class="sc-role-nav-btn" onclick="_scExpandAllRoles('${section}')" title="全部展開">＋全展</button>
+        <button class="sc-role-nav-btn" onclick="_scCollapseAllRoles('${section}')" title="全部收合">－全收</button>
+      </div>
+      <div class="sc-role-nav-chips">${chipsHtml}</div>
+    </div>
+  `;
 }
 
 const _scDebounceTimers = new Map();
@@ -359,7 +483,13 @@ function _scRenderEditor(m) {
     else if (active === 'reports')  secHtml = sectionMap.reports;
     else if (active === 'actions')  secHtml = sectionMap.actions;
     else if (active === 'motions')  secHtml = sectionMap.motions;
-    body = `<div class="sc-sec-tabs">${tabs}</div>${secHtml}`;
+    // 職掌分組區段：在 sticky 區頭加上職掌跳轉列
+    const roleGrouped =
+      (active === 'announce' && mod.hasAnnouncements === true) ||
+      (active === 'topics'   && mod.hasTopics !== false) ||
+      (active === 'actions'  && mod.groupActionsByRole === true);
+    const roleNavHtml = roleGrouped ? _scRoleNavBarHtml(m, active) : '';
+    body = `<div class="sc-sticky-head"><div class="sc-sec-tabs">${tabs}</div>${roleNavHtml}</div>${secHtml}`;
   } else {
     body = sectionMap.basic + sectionMap.topics + sectionMap.reports + sectionMap.actions + sectionMap.motions;
   }
@@ -410,12 +540,18 @@ function _scAnnouncementsEditorHtml(m, canEdit) {
   roles.forEach(role => {
     const items = _scAnnouncementsForRole(m, role);
     const inner = items.map(({ a, idx }, di) => _scAnnouncementCardHtml(m.id, a, idx, di, canEdit)).join('');
-    out.push(`<div class="sc-card sc-card-role">
-      <div class="sc-card-head">
-        <span class="sc-card-title"><span class="sc-role-tag">${role}</span>本周布達事項</span>
-        ${canEdit ? `<button class="sc-btn sc-btn-sm" onclick="_scAddAnnouncement('${m.id}','${role}')">+ 新增布達</button>` : ''}
+    const collapsed = _scIsRoleCollapsed('announce', role, items.length);
+    out.push(`<div class="sc-card sc-card-role${collapsed ? ' is-collapsed' : ''}" id="sc-role-card-announce-${_scRoleSlug(role)}" data-sec="announce" data-role-key="${role}">
+      <div class="sc-card-head sc-card-head-toggle" onclick="_scToggleRoleCollapsed('announce','${role}',event)">
+        <span class="sc-card-title"><span class="sc-role-tag">${role}</span>本周布達事項<span class="sc-role-count">${items.length}</span></span>
+        <span class="sc-card-head-actions">
+          ${canEdit ? `<button class="sc-btn sc-btn-sm" onclick="event.stopPropagation();_scAddAnnouncement('${m.id}','${role}')">+ 新增布達</button>` : ''}
+          <span class="sc-card-chevron">▾</span>
+        </span>
       </div>
-      ${inner || `<div class="sc-empty-mini">尚無布達事項</div>`}
+      <div class="sc-card-body${collapsed ? ' is-collapsed' : ''}">
+        ${inner || `<div class="sc-empty-mini">尚無布達事項</div>`}
+      </div>
     </div>`);
     // 副主席 之後插入委員群組（領導月會專用）
     if (supportsCommittee && role === '副主席') {
@@ -430,6 +566,11 @@ function _scCommitteeAnnounceBlockHtml(m, canEdit) {
   const committee = Array.isArray(m.committee) ? m.committee : [];
   const rows = committee.map((c, i) => {
     const items = Array.isArray(c.announcements) ? c.announcements : [];
+    const name = (c.name || '').trim();
+    const slug = `_com_${i}_${_scRoleSlug(name || 'unnamed')}`;
+    const collapseKey = name ? `_com_${name}` : `_com_idx_${i}`;
+    const jsKey = String(collapseKey).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const collapsed = _scIsRoleCollapsed('announce', collapseKey, items.length);
     const inner = items.map((a, di) => `
       <div class="sc-topic sc-announce">
         <div class="sc-topic-head">
@@ -439,16 +580,22 @@ function _scCommitteeAnnounceBlockHtml(m, canEdit) {
         <textarea class="sc-textarea" rows="2" placeholder="布達內容（資訊共識，無須討論）" oninput="_scUpdateCommitteeAnnouncement('${m.id}',${i},${di},this.value)">${_scEsc(a.content || '')}</textarea>
       </div>
     `).join('');
-    return `<div class="sc-card sc-card-role">
-      <div class="sc-card-head">
+    return `<div class="sc-card sc-card-role${collapsed ? ' is-collapsed' : ''}" id="sc-role-card-announce-${slug}" data-sec="announce" data-role-key="${_scEsc(collapseKey)}">
+      <div class="sc-card-head sc-card-head-toggle" onclick="_scToggleRoleCollapsed('announce','${jsKey}',event)">
         <span class="sc-card-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <span class="sc-role-tag">委員</span>
-          <input type="text" class="sc-input sc-input-sm" placeholder="委員姓名" value="${_scEsc(c.name || '')}" oninput="_scUpdateCommittee('${m.id}',${i},'name',this.value)" style="width:auto;min-width:120px;">
-          ${canEdit ? `<button class="sc-icon-btn" onclick="_scDelCommittee('${m.id}',${i})" title="刪除委員">×</button>` : ''}
+          <input type="text" class="sc-input sc-input-sm" placeholder="委員姓名" value="${_scEsc(c.name || '')}" oninput="_scUpdateCommittee('${m.id}',${i},'name',this.value)" onclick="event.stopPropagation();" style="width:auto;min-width:120px;">
+          ${canEdit ? `<button class="sc-icon-btn" onclick="event.stopPropagation();_scDelCommittee('${m.id}',${i})" title="刪除委員">×</button>` : ''}
+          <span class="sc-role-count">${items.length}</span>
         </span>
-        ${canEdit ? `<button class="sc-btn sc-btn-sm" onclick="_scAddCommitteeAnnouncement('${m.id}',${i})">+ 新增布達</button>` : ''}
+        <span class="sc-card-head-actions">
+          ${canEdit ? `<button class="sc-btn sc-btn-sm" onclick="event.stopPropagation();_scAddCommitteeAnnouncement('${m.id}',${i})">+ 新增布達</button>` : ''}
+          <span class="sc-card-chevron">▾</span>
+        </span>
       </div>
-      ${inner || `<div class="sc-empty-mini">尚無布達事項</div>`}
+      <div class="sc-card-body${collapsed ? ' is-collapsed' : ''}">
+        ${inner || `<div class="sc-empty-mini">尚無布達事項</div>`}
+      </div>
     </div>`;
   }).join('');
   const addBtn = canEdit
@@ -463,6 +610,9 @@ async function _scAddCommitteeAnnouncement(mid, cidx) {
   if (!m || !m.committee || !m.committee[cidx]) return;
   if (!Array.isArray(m.committee[cidx].announcements)) m.committee[cidx].announcements = [];
   m.committee[cidx].announcements.push({ content: '' });
+  const name = (m.committee[cidx].name || '').trim();
+  const key = name ? `_com_${name}` : `_com_idx_${cidx}`;
+  _scExpandRole('announce', key);
   await _scUpsertMeeting(m);
   _scRenderActive();
 }
@@ -487,6 +637,7 @@ async function _scAddAnnouncement(mid, role) {
   const m = _scFindMeeting(mid);
   if (!m) return;
   (m.announcements = m.announcements || []).push({ role: role || '主席', content: '' });
+  _scExpandRole('announce', role || '主席');
   await _scUpsertMeeting(m);
   _scRenderActive();
 }
@@ -513,12 +664,18 @@ function _scTopicsEditorHtml(m, canEdit) {
   return roles.map(role => {
     const items = _scTopicsForRole(m, role);
     const inner = items.map(({ t, idx }, di) => _scTopicCardHtml(m.id, t, idx, di, canEdit)).join('');
-    return `<div class="sc-card sc-card-role">
-      <div class="sc-card-head">
-        <span class="sc-card-title"><span class="sc-role-tag">${role}</span>會議議題與決議</span>
-        ${canEdit ? `<button class="sc-btn sc-btn-sm" onclick="_scAddTopic('${m.id}','${role}')">+ 新增議題</button>` : ''}
+    const collapsed = _scIsRoleCollapsed('topics', role, items.length);
+    return `<div class="sc-card sc-card-role${collapsed ? ' is-collapsed' : ''}" id="sc-role-card-topics-${_scRoleSlug(role)}" data-sec="topics" data-role-key="${role}">
+      <div class="sc-card-head sc-card-head-toggle" onclick="_scToggleRoleCollapsed('topics','${role}',event)">
+        <span class="sc-card-title"><span class="sc-role-tag">${role}</span>會議議題與決議<span class="sc-role-count">${items.length}</span></span>
+        <span class="sc-card-head-actions">
+          ${canEdit ? `<button class="sc-btn sc-btn-sm" onclick="event.stopPropagation();_scAddTopic('${m.id}','${role}')">+ 新增議題</button>` : ''}
+          <span class="sc-card-chevron">▾</span>
+        </span>
       </div>
-      ${inner || `<div class="sc-empty-mini">尚未新增議題</div>`}
+      <div class="sc-card-body${collapsed ? ' is-collapsed' : ''}">
+        ${inner || `<div class="sc-empty-mini">尚未新增議題</div>`}
+      </div>
     </div>`;
   }).join('');
 }
@@ -531,12 +688,18 @@ function _scActionsEditorHtml(m, canEdit, isTrack) {
     const items = _scActionsForRole(m, role);
     if (isTrack && !items.length) return '';
     const inner = items.map(({ a, idx }) => _scActionRowHtml(m, a, idx, canEdit, isTrack)).join('');
-    return `<div class="sc-card sc-card-role">
-      <div class="sc-card-head">
-        <span class="sc-card-title"><span class="sc-role-tag">${role}</span>${titleLabel}</span>
-        ${(canEdit && !isTrack) ? `<button class="sc-btn sc-btn-sm" onclick="_scAddAction('${m.id}','${role}')">+ 新增待辦</button>` : ''}
+    const collapsed = _scIsRoleCollapsed('actions', role, items.length);
+    return `<div class="sc-card sc-card-role${collapsed ? ' is-collapsed' : ''}" id="sc-role-card-actions-${_scRoleSlug(role)}" data-sec="actions" data-role-key="${role}">
+      <div class="sc-card-head sc-card-head-toggle" onclick="_scToggleRoleCollapsed('actions','${role}',event)">
+        <span class="sc-card-title"><span class="sc-role-tag">${role}</span>${titleLabel}<span class="sc-role-count">${items.length}</span></span>
+        <span class="sc-card-head-actions">
+          ${(canEdit && !isTrack) ? `<button class="sc-btn sc-btn-sm" onclick="event.stopPropagation();_scAddAction('${m.id}','${role}')">+ 新增待辦</button>` : ''}
+          <span class="sc-card-chevron">▾</span>
+        </span>
       </div>
-      ${inner || `<div class="sc-empty-mini">尚未新增待辦</div>`}
+      <div class="sc-card-body${collapsed ? ' is-collapsed' : ''}">
+        ${inner || `<div class="sc-empty-mini">尚未新增待辦</div>`}
+      </div>
     </div>`;
   }).join('');
   // 未指派的待辦（owner 是空字串）→ 額外列出，不顯示新增按鈕
@@ -544,9 +707,11 @@ function _scActionsEditorHtml(m, canEdit, isTrack) {
   const unassignedHtml = unassigned.length
     ? `<div class="sc-card sc-card-role">
         <div class="sc-card-head">
-          <span class="sc-card-title"><span class="sc-role-tag sc-role-tag-muted">未指派</span>${titleLabel}</span>
+          <span class="sc-card-title"><span class="sc-role-tag sc-role-tag-muted">未指派</span>${titleLabel}<span class="sc-role-count">${unassigned.length}</span></span>
         </div>
-        ${unassigned.map(({ a, idx }) => _scActionRowHtml(m, a, idx, canEdit, isTrack)).join('')}
+        <div class="sc-card-body">
+          ${unassigned.map(({ a, idx }) => _scActionRowHtml(m, a, idx, canEdit, isTrack)).join('')}
+        </div>
       </div>`
     : '';
   return groups + unassignedHtml;
@@ -690,6 +855,7 @@ async function _scAddTopic(mid, role) {
   const m = _scFindMeeting(mid);
   if (!m) return;
   (m.topics = m.topics || []).push({ role: role || '主席', title: '', content: '', decision: '' });
+  _scExpandRole('topics', role || '主席');
   await _scUpsertMeeting(m);
   _scRenderActive();
 }
@@ -767,6 +933,7 @@ async function _scAddAction(mid, owner) {
   const m = _scFindMeeting(mid);
   if (!m) return;
   (m.actions = m.actions || []).push({ text: '', owner: owner || '', due: '', status: 'pending' });
+  if (owner) _scExpandRole('actions', owner);
   await _scUpsertMeeting(m);
   _scRenderActive();
 }
