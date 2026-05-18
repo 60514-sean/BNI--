@@ -2176,6 +2176,12 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   font-size:10.5pt; color:#1a1a2e; line-height:1.6;
   white-space:pre-wrap;
 }
+/* 領導月會新版：報告內容作為獨立 block，縮排對齊 role-h 文字 */
+.sc-sheet-page > .sc-sheet-report-text {
+  padding-left:6mm;
+  padding-bottom:3mm;
+  margin-top:-1mm;
+}
 
 /* RWD: 報告列在窄螢幕改為單欄 */
 @media (max-width: 640px) {
@@ -2191,6 +2197,7 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
 }
 .sc-action-main { display:flex; align-items:center; gap:8px; }
 .sc-action-meta { display:grid; grid-template-columns:1fr 1fr auto; gap:8px; align-items:center; }
+.sc-action.sc-action-no-owner .sc-action-meta { grid-template-columns:1fr auto; }
 .sc-status { min-width:90px; font-weight:600; }
 .sc-status-pending { background:#fff5e6; color:#d97706; border-color:#fcd9a8; }
 .sc-status-done    { background:#e6f7ec; color:#16a34a; border-color:#a8e0bd; }
@@ -2301,6 +2308,7 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
 }
 .sc-sheet-in-modal {
   margin:0 auto;
+  align-items:center;
   --sc-scale: 0.6;
 }
 .sc-sheet-in-modal .sc-page-wrap {
@@ -2323,7 +2331,8 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
 
 .sc-sheet-bar {
   display:flex; align-items:center; justify-content:space-between;
-  border-bottom:3px solid var(--red); padding-bottom:4mm; margin-bottom:6mm;
+  margin:-6mm -2mm 6mm; /* 往上靠近頁邊 */
+  padding-bottom:0;
 }
 .sc-sheet-bar-left { font-size:11pt; font-weight:700; color:var(--red); letter-spacing:2px; }
 .sc-sheet-bar-right { font-size:11pt; color:#666; letter-spacing:1px; }
@@ -2336,20 +2345,42 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
 }
 .sc-sheet-date { font-size:20pt; font-weight:900; color:#1a1a2e; line-height:1.1; }
 .sc-sheet-meta-strong { font-size:11pt; font-weight:700; color:var(--red); margin-top:1mm; }
-.sc-sheet-meta { font-size:10.5pt; color:#333; line-height:1.6; }
-.sc-sheet-meta-key {
-  display:inline-block; background:var(--red); color:white;
-  padding:1px 6px; border-radius:3px; font-size:9pt; font-weight:700;
-  margin-right:3mm; letter-spacing:1px;
+/* headline 右側 meta：用 grid 讓內容多行時對齊首行（懸掛縮排） */
+.sc-sheet-meta {
+  font-size:10.5pt; color:#333; line-height:1.6;
+  display:grid; grid-template-columns:auto 1fr;
+  column-gap:3mm; align-items:start;
 }
+.sc-sheet-meta-key {
+  background:var(--red); color:white;
+  padding:1px 6px; border-radius:3px; font-size:9pt; font-weight:700;
+  letter-spacing:1px;
+  align-self:start; justify-self:start;
+  white-space:nowrap;
+  margin-top:1mm;
+}
+.sc-sheet-meta-val { display:block; text-align:left; word-break:break-word; }
+.sc-sheet-meta-summary .sc-sheet-meta-val { font-size:10pt; color:#1a1a2e; }
 
 .sc-sheet-section { margin-bottom:6mm; }
+/* 動態分頁時，sc-sheet-h2 是獨立區塊，需要上下間距（除了頁首後第一個） */
+.sc-sheet-page > .sc-sheet-h2 { margin-top:5mm; }
+.sc-sheet-page > .sc-sheet-h2:first-of-type,
+.sc-sheet-page > .sc-sheet-headline + .sc-sheet-h2,
+.sc-sheet-page > .sc-sheet-bar + .sc-sheet-h2 { margin-top:0; }
 .sc-sheet-h2 {
-  font-size:13pt; font-weight:900; color:#1a1a2e;
-  display:flex; align-items:center; gap:3mm;
-  margin-bottom:3mm;
+  background:var(--red-dark);
+  color:white;
+  font-size:12pt; font-weight:900;
+  text-align:center;
+  letter-spacing:8px;
+  padding:2.5mm 4mm;
+  margin-bottom:3.5mm;
+  border-radius:1mm;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
 }
-.sc-sheet-h2-bar { width:5mm; height:4mm; background:var(--red); border-radius:1mm; display:inline-block; }
+/* 舊版的小色塊已不需要 — h2 本身就是色塊 */
+.sc-sheet-h2-bar { display:none; }
 
 .sc-sheet-topic {
   border:0.4mm solid var(--gray-border); border-radius:2mm;
@@ -2373,6 +2404,93 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   white-space:pre-wrap;
 }
 .sc-sheet-topic-num-alt { background:#1a1a2e !important; }
+
+/* A4 預覽：議題按角色（主席/副主席/秘書財務）分組 */
+.sc-sheet-role-group { margin-bottom:4mm; }
+.sc-sheet-role-group:last-child { margin-bottom:0; }
+.sc-sheet-role-h {
+  font-size:11pt; font-weight:900; color:var(--red);
+  padding:1mm 0;
+  margin-bottom:2.5mm;
+  margin-top:8mm;
+  letter-spacing:1px;
+  display:flex; align-items:center; gap:2.5mm;
+}
+.sc-sheet-role-h::before {
+  content:'';
+  display:inline-block;
+  width:3.5mm; height:3.5mm;
+  background:var(--red);
+  border-radius:0.5mm;
+  flex-shrink:0;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+.sc-sheet-role-h-muted::before { background:#7a8693; }
+/* 第一個角色（接在 section h2/hero/bar 之後）不需要額外上邊距 */
+.sc-sheet-page > .sc-sheet-h2 + .sc-sheet-role-h,
+.sc-sheet-page > .sc-sheet-hero + .sc-sheet-role-h,
+.sc-sheet-page > .sc-sheet-bar + .sc-sheet-role-h,
+.sc-sheet-page > .sc-sheet-role-h:first-of-type { margin-top:0; }
+
+/* 編輯區：角色分組卡的標題小標籤 */
+.sc-role-tag {
+  display:inline-block;
+  background:var(--red-light); color:var(--red);
+  font-size:11px; font-weight:800;
+  padding:2px 8px; border-radius:4px;
+  margin-right:8px; letter-spacing:0.5px;
+}
+.sc-role-tag-muted { background:#eef0f3; color:#7a8693; }
+
+/* A4 預覽：未指派分組標題（灰色版） */
+.sc-sheet-role-h-muted { color:#7a8693; }
+
+/* 區段分頁（基本/布達/議題/待辦/結論） */
+.sc-sec-tabs {
+  display:flex; gap:6px; flex-wrap:wrap;
+  padding:4px 0 12px;
+  position:sticky; top:0;
+  background:var(--bg, #f5f6f8);
+  z-index:5;
+  margin-bottom:4px;
+}
+.sc-sec-tab {
+  padding:8px 14px;
+  border:1.5px solid var(--gray-border);
+  background:white;
+  border-radius:999px;
+  font-size:13px; font-weight:700;
+  color:var(--text-soft);
+  cursor:pointer; font-family:inherit;
+  display:inline-flex; align-items:center; gap:6px;
+  white-space:nowrap;
+}
+.sc-sec-tab:hover { color:var(--red); border-color:var(--red); }
+.sc-sec-tab.active {
+  background:var(--red); color:white;
+  border-color:var(--red);
+}
+.sc-sec-count {
+  background:rgba(0,0,0,0.08); color:inherit;
+  font-size:11px; font-weight:700;
+  padding:1px 7px; border-radius:99px;
+  min-width:18px; text-align:center;
+}
+.sc-sec-tab.active .sc-sec-count { background:rgba(255,255,255,0.28); color:white; }
+
+/* A4 預覽：本周布達事項條目 */
+.sc-sheet-announce-item {
+  display:flex; gap:3mm; align-items:flex-start;
+  padding:1.5mm 0;
+  font-size:10.5pt; color:#1a1a2e; line-height:1.6;
+}
+.sc-sheet-announce-item + .sc-sheet-announce-item { border-top:0.2mm dashed var(--gray-border); }
+.sc-sheet-announce-num {
+  flex-shrink:0;
+  display:inline-block; min-width:5mm;
+  font-weight:800; color:var(--red);
+}
+.sc-sheet-announce-text { flex:1; white-space:pre-wrap; }
 .sc-sheet-tag {
   display:inline-block; background:var(--red); color:white;
   padding:0.3mm 2mm; border-radius:1mm;
@@ -2387,6 +2505,140 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
 .sc-sheet-table {
   width:100%; border-collapse:collapse; font-size:10pt;
 }
+/* 議題表格：較密集的字級 + 內容自動換行 */
+.sc-sheet-table-topics { font-size:9.5pt; }
+.sc-sheet-table-topics td { word-break:break-word; }
+.sc-sheet-table-topics td.sc-sheet-td-text { line-height:1.55; vertical-align:top; }
+
+/* 文件式議題列表（無背景塊 / 無徽章） */
+.sc-doc-item { padding:1.5mm 0 2mm 4mm; }
+.sc-doc-item + .sc-doc-item { border-top:0.2mm dashed var(--gray-border); margin-top:1mm; padding-top:2.5mm; }
+.sc-doc-item-title {
+  display:grid; grid-template-columns:6mm 1fr; gap:1mm;
+  font-size:11pt; font-weight:700; color:#1a1a2e;
+  line-height:1.45;
+}
+.sc-doc-item-num { color:var(--red); font-weight:900; }
+.sc-doc-item-name { word-break:break-word; }
+.sc-doc-item-row {
+  display:grid; grid-template-columns:14mm 1fr; gap:1mm;
+  margin-left:6mm; margin-top:1mm;
+  font-size:10pt; color:#333; line-height:1.6;
+}
+.sc-doc-item-lbl { color:#7a8693; font-weight:700; }
+.sc-doc-item-val { word-break:break-word; white-space:pre-wrap; }
+.sc-doc-item-val-decision { color:var(--red-dark); font-weight:600; }
+
+/* 待辦：狀態 pill + 期限 同一列 */
+.sc-doc-item-meta {
+  margin-left:6mm; margin-top:1.2mm;
+  display:flex; align-items:center; gap:3mm; flex-wrap:wrap;
+  font-size:10pt; color:#333;
+}
+.sc-doc-item-due { color:#555; }
+.sc-doc-item-due b { color:#1a1a2e; font-weight:700; }
+
+/* === 清爽風格表格（議題與待辦共用） === */
+.sc-doc-table {
+  width:100%; border-collapse:collapse;
+  font-size:10pt; color:#1a1a2e;
+}
+.sc-doc-table thead th {
+  text-align:left;
+  font-size:9.5pt; font-weight:700;
+  color:#1a1a2e; letter-spacing:1.5px;
+  padding:2.5mm 3mm;
+  border-bottom:0.5mm solid rgba(26,26,46,0.42);
+  background:transparent;
+  white-space:nowrap;
+}
+.sc-doc-table tbody td {
+  padding:3mm; vertical-align:top;
+  border-bottom:0.2mm solid #e5e7eb;
+  text-align:left;
+}
+.sc-doc-table tbody tr:last-child td { border-bottom:none; }
+.sc-doc-table .d-col-num { width:7mm; text-align:center; }
+.sc-doc-table thead th.d-col-num { text-align:center; }
+.sc-doc-table tbody .d-col-num { color:var(--red); font-weight:800; }
+.sc-doc-table .d-col-end { text-align:right; }
+.sc-doc-table thead th.d-col-end { text-align:right; }
+.sc-doc-table .d-title {
+  color:var(--red); font-weight:700;
+  font-size:10.5pt; line-height:1.4;
+  margin-bottom:1mm; word-break:break-word;
+}
+.sc-doc-table .d-desc {
+  color:#555; font-size:9.5pt; line-height:1.55;
+  white-space:pre-wrap; word-break:break-word;
+}
+.sc-doc-table .d-muted { color:#999; }
+
+/* === 第一頁品牌 hero 區塊（取代原本的 bar+headline） === */
+.sc-sheet-hero {
+  background:var(--red-dark);
+  color:white;
+  padding:9mm 11mm;
+  margin:-14mm -14mm 6mm; /* 抵消 sc-sheet-page 的 padding，讓 hero 出血到頁邊 */
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:14mm;
+  align-items:start;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+.sc-sheet-hero-l {
+  display:flex; flex-direction:column; gap:0;
+  min-width:55mm;
+}
+.sc-sheet-hero-brand {
+  font-size:24pt; font-weight:900;
+  letter-spacing:6px; line-height:1;
+}
+.sc-sheet-hero-org {
+  font-size:10pt; font-weight:500;
+  letter-spacing:3px; opacity:0.85;
+  margin-top:2mm;
+}
+.sc-sheet-hero-divider {
+  width:12mm; height:0.4mm;
+  background:rgba(255,255,255,0.5);
+  margin:4mm 0;
+}
+.sc-sheet-hero-doctitle {
+  font-size:9.5pt; font-weight:400;
+  letter-spacing:4px; opacity:0.8;
+  text-transform:uppercase;
+}
+.sc-sheet-hero-date {
+  font-size:22pt; font-weight:900;
+  margin-top:1.5mm; line-height:1.05;
+  letter-spacing:1px;
+}
+.sc-sheet-hero-r {
+  display:flex; flex-direction:column; gap:1.5mm;
+  font-size:9.5pt;
+}
+.sc-sheet-hero-meta {
+  display:grid;
+  grid-template-columns:auto 1fr;
+  column-gap:3mm;
+  align-items:start;
+  line-height:1.55;
+}
+.sc-sheet-hero-key {
+  display:inline-block;
+  background:rgba(255,255,255,0.18);
+  color:white;
+  padding:0.5mm 2.5mm;
+  border-radius:1.2mm;
+  font-size:8.5pt; font-weight:700;
+  letter-spacing:1.5px;
+  white-space:nowrap;
+  align-self:start;
+  margin-top:0.8mm;
+}
+.sc-sheet-hero-val { color:white; word-break:break-word; }
+.sc-sheet-hero-meta-summary .sc-sheet-hero-val { font-size:9pt; line-height:1.6; opacity:0.95; }
 .sc-sheet-table th, .sc-sheet-table td {
   border:0.3mm solid #333; padding:2mm 2.5mm;
   vertical-align:middle; text-align:center;
@@ -2396,8 +2648,8 @@ body.meet-print-mode #meetingPrintArea .meet-preview-sheet { transform:none !imp
   font-size:10pt; letter-spacing:1px;
   -webkit-print-color-adjust:exact; print-color-adjust:exact;
 }
-.sc-sheet-td-num { font-weight:700; color:var(--red); }
-.sc-sheet-td-text { text-align:left; padding-left:3mm; }
+.sc-sheet-table td.sc-sheet-td-num { font-weight:700; color:var(--red); }
+.sc-sheet-table td.sc-sheet-td-text { text-align:left; padding-left:3mm; }
 .sc-sheet-tracknote {
   font-size:9pt; color:#666; margin-top:1mm;
   border-top:0.2mm dashed var(--gray-border); padding-top:1mm;

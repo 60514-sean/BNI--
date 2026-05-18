@@ -19,7 +19,15 @@ const _SC_MODULES = {
     filePrefix: '三長周會',
     hasTopics: true,
     hasMotions: false,
-    hasSummary: true
+    hasSummary: true,
+    hasAnnouncements: true,
+    groupActionsByRole: true,
+    sectionTabs: [
+      { id: 'basic', label: '基本' },
+      { id: 'announce', label: '布達' },
+      { id: 'topics', label: '議題' },
+      { id: 'actions', label: '待辦' }
+    ]
   },
   leadership: {
     id: 'leadership',
@@ -32,14 +40,20 @@ const _SC_MODULES = {
     hasTopics: false,
     hasReports: true,
     hasMotions: true,
-    hasSummary: false,
-    reportRoles: ['主席', '副主席', '秘書財務', '活動協調員', '教育協調員', '成長協調員', '導師協調員', '來賓接待員', '網站管理員', '董顧', '支持成長董顧']
+    hasSummary: true,
+    reportRoles: ['主席', '副主席', '秘書財務', '活動協調員', '教育協調員', '成長協調員', '導師協調員', '來賓接待員', '網站管理員', '董顧', '支持成長董顧'],
+    sectionTabs: [
+      { id: 'basic', label: '基本' },
+      { id: 'reports', label: '報告' },
+      { id: 'actions', label: '待辦' },
+      { id: 'motions', label: '動議' }
+    ]
   }
 };
 
 const _scStates = {
-  sanchang: { view: 'current', histDetailId: null },
-  leadership: { view: 'current', histDetailId: null }
+  sanchang: { view: 'current', histDetailId: null, section: 'topics' },
+  leadership: { view: 'current', histDetailId: null, section: 'reports' }
 };
 
 let _scCurMod = 'sanchang';
@@ -63,6 +77,30 @@ function _scTodayDateStr() {
   const d = new Date();
   return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
 }
+
+// 與 <input type="date"> 格式互轉
+// 顯示用 yyyy/mm/dd，date input 需要 yyyy-mm-dd
+function _scDateToInput(s) {
+  if (!s) return '';
+  const m = String(s).match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if (!m) return '';
+  return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+}
+function _scDateFromInput(s) {
+  if (!s) return '';
+  const m = String(s).match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) return s;
+  return `${m[1]}/${m[2].padStart(2,'0')}/${m[3].padStart(2,'0')}`;
+}
+// 待辦期限：欄位用日期選擇，但儲存仍可能是 MM/DD 舊資料；顯示時統一傳整碼
+function _scDueToInput(s, fallbackYear) {
+  if (!s) return '';
+  let m = String(s).match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m = String(s).match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (m && fallbackYear) return `${fallbackYear}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+  return '';
+}
 function _scNewId(prefix) {
   return prefix + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 }
@@ -73,6 +111,7 @@ function _scNewMeeting() {
     weekKey: getWeekKey(),
     meetingDate: _scTodayDateStr(),
     absent: '',
+    announcements: [],
     topics: [],
     motions: [],
     actions: [],
@@ -108,6 +147,42 @@ function _scComputedOwners(m) {
 }
 
 function _scFindMeeting(mid) { return _scGetMeetings().find(m => m.id === mid); }
+
+// 取出該角色的議題（含原始索引）。沒填 role 的舊資料歸給「主席」
+function _scTopicsForRole(m, role) {
+  const topics = m.topics || [];
+  const out = [];
+  topics.forEach((t, idx) => {
+    const r = t.role || '主席';
+    if (r === role) out.push({ t, idx });
+  });
+  return out;
+}
+
+// 取出該角色的布達（含原始索引）。沒填 role 的舊資料歸給「主席」
+function _scAnnouncementsForRole(m, role) {
+  const list = m.announcements || [];
+  const out = [];
+  list.forEach((a, idx) => {
+    const r = a.role || '主席';
+    if (r === role) out.push({ a, idx });
+  });
+  return out;
+}
+
+// 取出該負責人的待辦（含原始索引）。role=null → 未指派
+function _scActionsForRole(m, role) {
+  const actions = m.actions || [];
+  const out = [];
+  actions.forEach((a, idx) => {
+    if (role === null) {
+      if (!a.owner) out.push({ a, idx });
+    } else if (a.owner === role) {
+      out.push({ a, idx });
+    }
+  });
+  return out;
+}
 
 function _scCurrentMeeting() {
   const wk = getWeekKey();
@@ -170,6 +245,23 @@ function _scRenderActive() {
   `;
 }
 function _scSwitchView(v) { _scState.view = v; _scState.histDetailId = null; _scRenderActive(); }
+function _scSetSection(s) { _scState.section = s; _scRenderActive(); }
+
+// 計算各區段的數量徽章
+function _scSectionCounts(m) {
+  const mod = _scMod();
+  const roles = mod.reportRoles || mod.owners || [];
+  const reports = m.reports || {};
+  const committee = (Array.isArray(m.committee) ? m.committee : []).filter(c => (c.name || '').trim() && (c.report || '').trim());
+  const filledReports = roles.filter(r => (reports[r] || '').trim()).length + committee.length;
+  return {
+    announce: (m.announcements || []).length,
+    topics:   (m.topics   || []).length,
+    reports:  filledReports,
+    actions:  (m.actions  || []).length,
+    motions:  (m.motions  || []).length,
+  };
+}
 
 // ===== 本週會議 =====
 function _scRenderCurrent() {
@@ -196,22 +288,19 @@ async function _scCreateThisWeek() {
 function _scRenderEditor(m) {
   const canEdit = _canEditTab(_scMod().id);
   const mod = _scMod();
-  const showTopics  = mod.hasTopics !== false;
-  const showMotions = mod.hasMotions === true;
-  const showSummary = mod.hasSummary !== false;
-  const topicsHtml  = showTopics  ? (m.topics  || []).map((t, i) => _scTopicCardHtml(m.id, t, i, canEdit)).join('') : '';
-  const motionsHtml = showMotions ? (m.motions || []).map((mo, i) => _scMotionCardHtml(m.id, mo, i, canEdit)).join('') : '';
-  const actionsHtml = (m.actions || []).map((a, i) => _scActionRowHtml(m, a, i, canEdit, false)).join('');
-  const reportsHtml = _scReportsSectionHtml(m, canEdit);
+  const showTopics       = mod.hasTopics !== false;
+  const showMotions      = mod.hasMotions === true;
+  const showSummary      = mod.hasSummary !== false;
+  const showAnnouncements= mod.hasAnnouncements === true;
 
-  return `
-    <div class="sc-card">
+  const sectionMap = {
+    basic: `<div class="sc-card">
       <div class="sc-card-head">
         <span class="sc-card-title">基本資訊</span>
       </div>
       <label class="sc-field">
         <span class="sc-label">會議日期</span>
-        <input type="text" class="sc-input" value="${_scEsc(m.meetingDate)}" placeholder="2026/05/20" oninput="_scUpdateField('${m.id}','meetingDate',this.value)">
+        <input type="date" class="sc-input" value="${_scDateToInput(m.meetingDate)}" onchange="_scUpdateDateField('${m.id}','meetingDate',this.value)">
       </label>
       <label class="sc-field">
         <span class="sc-label">出席人員</span>
@@ -221,47 +310,60 @@ function _scRenderEditor(m) {
         <span class="sc-label">請假人員（如有）</span>
         <input type="text" class="sc-input" value="${_scEsc(m.absent)}" placeholder="例：副主席" oninput="_scUpdateField('${m.id}','absent',this.value)">
       </label>
-    </div>
-
-    ${showTopics ? `<div class="sc-card">
-      <div class="sc-card-head">
-        <span class="sc-card-title">會議議題與決議</span>
-        ${canEdit ? `<button class="sc-btn sc-btn-sm" onclick="_scAddTopic('${m.id}')">+ 新增議題</button>` : ''}
-      </div>
-      ${topicsHtml || `<div class="sc-empty-mini">尚未新增議題</div>`}
-    </div>` : ''}
-
-    ${reportsHtml}
-
-    <div class="sc-card">
-      <div class="sc-card-head">
-        <span class="sc-card-title">本週決議待辦</span>
-        ${canEdit ? `<button class="sc-btn sc-btn-sm" onclick="_scAddAction('${m.id}')">+ 新增待辦</button>` : ''}
-      </div>
-      ${actionsHtml || `<div class="sc-empty-mini">尚未新增待辦事項</div>`}
-    </div>
-
-    ${showMotions ? `<div class="sc-card">
+      <label class="sc-field">
+        <span class="sc-label">下次會議日期</span>
+        <input type="date" class="sc-input" value="${_scDateToInput(m.nextMeeting)}" onchange="_scUpdateDateField('${m.id}','nextMeeting',this.value)">
+      </label>
+      ${showSummary ? `<label class="sc-field">
+        <span class="sc-label">摘要</span>
+        <textarea class="sc-textarea" rows="3" placeholder="本次會議重點摘要..." oninput="_scUpdateField('${m.id}','summary',this.value)">${_scEsc(m.summary)}</textarea>
+      </label>` : ''}
+    </div>`,
+    announce: showAnnouncements ? _scAnnouncementsEditorHtml(m, canEdit) : '',
+    topics: showTopics ? _scTopicsEditorHtml(m, canEdit) : '',
+    reports: _scReportsSectionHtml(m, canEdit),
+    actions: mod.groupActionsByRole
+      ? _scActionsEditorHtml(m, canEdit, false)
+      : `<div class="sc-card">
+        <div class="sc-card-head">
+          <span class="sc-card-title">本週決議待辦</span>
+          ${canEdit ? `<button class="sc-btn sc-btn-sm" onclick="_scAddAction('${m.id}')">+ 新增待辦</button>` : ''}
+        </div>
+        ${(m.actions || []).map((a, i) => _scActionRowHtml(m, a, i, canEdit, false)).join('') || `<div class="sc-empty-mini">尚未新增待辦事項</div>`}
+      </div>`,
+    motions: showMotions ? `<div class="sc-card">
       <div class="sc-card-head">
         <span class="sc-card-title">臨時動議</span>
         ${canEdit ? `<button class="sc-btn sc-btn-sm" onclick="_scAddMotion('${m.id}')">+ 新增動議</button>` : ''}
       </div>
-      ${motionsHtml || `<div class="sc-empty-mini">本次無臨時動議</div>`}
-    </div>` : ''}
+      ${(m.motions || []).map((mo, i) => _scMotionCardHtml(m.id, mo, i, canEdit)).join('') || `<div class="sc-empty-mini">本次無臨時動議</div>`}
+    </div>` : '',
+  };
 
-    <div class="sc-card">
-      <div class="sc-card-head">
-        <span class="sc-card-title">${showSummary ? '下次會議與結論' : '下次會議'}</span>
-      </div>
-      <label class="sc-field">
-        <span class="sc-label">下次會議日期</span>
-        <input type="text" class="sc-input" value="${_scEsc(m.nextMeeting)}" placeholder="2026/05/27" oninput="_scUpdateField('${m.id}','nextMeeting',this.value)">
-      </label>
-      ${showSummary ? `<label class="sc-field">
-        <span class="sc-label">結論摘要</span>
-        <textarea class="sc-textarea" rows="3" placeholder="本次會議重點結論..." oninput="_scUpdateField('${m.id}','summary',this.value)">${_scEsc(m.summary)}</textarea>
-      </label>` : ''}
-    </div>
+  // 區段分頁模式：只渲染當前 section；否則全部渲染
+  let body;
+  if (mod.sectionTabs && mod.sectionTabs.length) {
+    const active = _scState.section || mod.sectionTabs[0].id;
+    const counts = _scSectionCounts(m);
+    const tabs = mod.sectionTabs.map(s => {
+      const c = counts[s.id];
+      const cBadge = c ? `<span class="sc-sec-count">${c}</span>` : '';
+      return `<button class="sc-sec-tab ${active === s.id ? 'active' : ''}" onclick="_scSetSection('${s.id}')">${s.label}${cBadge}</button>`;
+    }).join('');
+    let secHtml = '';
+    if (active === 'basic')         secHtml = sectionMap.basic;
+    else if (active === 'announce') secHtml = sectionMap.announce;
+    else if (active === 'topics')   secHtml = sectionMap.topics;
+    else if (active === 'reports')  secHtml = sectionMap.reports;
+    else if (active === 'actions')  secHtml = sectionMap.actions;
+    else if (active === 'motions')  secHtml = sectionMap.motions;
+    body = `<div class="sc-sec-tabs">${tabs}</div>${secHtml}`;
+  } else {
+    body = sectionMap.basic + sectionMap.topics + sectionMap.reports + sectionMap.actions + sectionMap.motions;
+  }
+
+  return `
+    ${body}
 
     <div class="sc-toolbar">
       <button class="sc-btn sc-btn-ghost" onclick="_scPreview('${m.id}')">預覽</button>
@@ -272,11 +374,11 @@ function _scRenderEditor(m) {
   `;
 }
 
-function _scTopicCardHtml(mid, t, idx, canEdit) {
+function _scTopicCardHtml(mid, t, idx, displayIdx, canEdit) {
   return `
     <div class="sc-topic" data-tidx="${idx}">
       <div class="sc-topic-head">
-        <span class="sc-topic-num">議題 ${idx + 1}</span>
+        <span class="sc-topic-num">議題 ${displayIdx + 1}</span>
         ${canEdit ? `<button class="sc-icon-btn" onclick="_scDelTopic('${mid}',${idx})" title="刪除">×</button>` : ''}
       </div>
       <input type="text" class="sc-input" placeholder="議題標題" value="${_scEsc(t.title || '')}" oninput="_scUpdateTopic('${mid}',${idx},'title',this.value)">
@@ -284,6 +386,103 @@ function _scTopicCardHtml(mid, t, idx, canEdit) {
       <textarea class="sc-textarea sc-textarea-decision" rows="2" placeholder="決議" oninput="_scUpdateTopic('${mid}',${idx},'decision',this.value)">${_scEsc(t.decision || '')}</textarea>
     </div>
   `;
+}
+
+function _scAnnouncementCardHtml(mid, a, idx, displayIdx, canEdit) {
+  return `
+    <div class="sc-topic sc-announce" data-aidx="${idx}">
+      <div class="sc-topic-head">
+        <span class="sc-topic-num">第 ${displayIdx + 1} 則</span>
+        ${canEdit ? `<button class="sc-icon-btn" onclick="_scDelAnnouncement('${mid}',${idx})" title="刪除">×</button>` : ''}
+      </div>
+      <textarea class="sc-textarea" rows="2" placeholder="布達內容（資訊共識，無須討論）" oninput="_scUpdateAnnouncement('${mid}',${idx},'content',this.value)">${_scEsc(a.content || '')}</textarea>
+    </div>
+  `;
+}
+
+function _scAnnouncementsEditorHtml(m, canEdit) {
+  const mod = _scMod();
+  const roles = mod.owners || [];
+  return roles.map(role => {
+    const items = _scAnnouncementsForRole(m, role);
+    const inner = items.map(({ a, idx }, di) => _scAnnouncementCardHtml(m.id, a, idx, di, canEdit)).join('');
+    return `<div class="sc-card sc-card-role">
+      <div class="sc-card-head">
+        <span class="sc-card-title"><span class="sc-role-tag">${role}</span>本周布達事項</span>
+        ${canEdit ? `<button class="sc-btn sc-btn-sm" onclick="_scAddAnnouncement('${m.id}','${role}')">+ 新增布達</button>` : ''}
+      </div>
+      ${inner || `<div class="sc-empty-mini">尚無布達事項</div>`}
+    </div>`;
+  }).join('');
+}
+
+async function _scAddAnnouncement(mid, role) {
+  const m = _scFindMeeting(mid);
+  if (!m) return;
+  (m.announcements = m.announcements || []).push({ role: role || '主席', content: '' });
+  await _scUpsertMeeting(m);
+  _scRenderActive();
+}
+
+async function _scDelAnnouncement(mid, idx) {
+  if (!confirm('刪除這則布達？')) return;
+  const m = _scFindMeeting(mid);
+  if (!m || !m.announcements) return;
+  m.announcements.splice(idx, 1);
+  await _scUpsertMeeting(m);
+  _scRenderActive();
+}
+
+function _scUpdateAnnouncement(mid, idx, field, val) {
+  const m = _scFindMeeting(mid);
+  if (!m || !m.announcements[idx]) return;
+  m.announcements[idx][field] = val;
+  _scDebouncedSave(m);
+}
+
+function _scTopicsEditorHtml(m, canEdit) {
+  const mod = _scMod();
+  const roles = mod.owners || [];
+  return roles.map(role => {
+    const items = _scTopicsForRole(m, role);
+    const inner = items.map(({ t, idx }, di) => _scTopicCardHtml(m.id, t, idx, di, canEdit)).join('');
+    return `<div class="sc-card sc-card-role">
+      <div class="sc-card-head">
+        <span class="sc-card-title"><span class="sc-role-tag">${role}</span>會議議題與決議</span>
+        ${canEdit ? `<button class="sc-btn sc-btn-sm" onclick="_scAddTopic('${m.id}','${role}')">+ 新增議題</button>` : ''}
+      </div>
+      ${inner || `<div class="sc-empty-mini">尚未新增議題</div>`}
+    </div>`;
+  }).join('');
+}
+
+function _scActionsEditorHtml(m, canEdit, isTrack) {
+  const mod = _scMod();
+  const roles = mod.owners || [];
+  const titleLabel = isTrack ? '待辦追蹤' : '本週決議待辦';
+  const groups = roles.map(role => {
+    const items = _scActionsForRole(m, role);
+    if (isTrack && !items.length) return '';
+    const inner = items.map(({ a, idx }) => _scActionRowHtml(m, a, idx, canEdit, isTrack)).join('');
+    return `<div class="sc-card sc-card-role">
+      <div class="sc-card-head">
+        <span class="sc-card-title"><span class="sc-role-tag">${role}</span>${titleLabel}</span>
+        ${(canEdit && !isTrack) ? `<button class="sc-btn sc-btn-sm" onclick="_scAddAction('${m.id}','${role}')">+ 新增待辦</button>` : ''}
+      </div>
+      ${inner || `<div class="sc-empty-mini">尚未新增待辦</div>`}
+    </div>`;
+  }).join('');
+  // 未指派的待辦（owner 是空字串）→ 額外列出，不顯示新增按鈕
+  const unassigned = _scActionsForRole(m, null);
+  const unassignedHtml = unassigned.length
+    ? `<div class="sc-card sc-card-role">
+        <div class="sc-card-head">
+          <span class="sc-card-title"><span class="sc-role-tag sc-role-tag-muted">未指派</span>${titleLabel}</span>
+        </div>
+        ${unassigned.map(({ a, idx }) => _scActionRowHtml(m, a, idx, canEdit, isTrack)).join('')}
+      </div>`
+    : '';
+  return groups + unassignedHtml;
 }
 
 function _scMotionCardHtml(mid, mo, idx, canEdit) {
@@ -302,19 +501,21 @@ function _scMotionCardHtml(mid, mo, idx, canEdit) {
 function _scActionRowHtml(m, a, idx, canEdit, isTrack) {
   const mid = m.id;
   const status = a.status || 'pending';
+  const mod = _scMod();
+  const hideOwner = mod.groupActionsByRole === true;
   const ownersList = _scComputedOwners(m);
   return `
-    <div class="sc-action" data-aidx="${idx}">
+    <div class="sc-action${hideOwner ? ' sc-action-no-owner' : ''}" data-aidx="${idx}">
       <div class="sc-action-main">
         <input type="text" class="sc-input sc-input-flex" placeholder="待辦內容" value="${_scEsc(a.text || '')}" oninput="_scUpdateAction('${mid}',${idx},'text',this.value)">
         ${canEdit ? `<button class="sc-icon-btn" onclick="_scDelAction('${mid}',${idx})" title="刪除">×</button>` : ''}
       </div>
       <div class="sc-action-meta">
-        <select class="sc-select sc-input-sm" onchange="_scUpdateAction('${mid}',${idx},'owner',this.value)">
+        ${hideOwner ? '' : `<select class="sc-select sc-input-sm" onchange="_scUpdateAction('${mid}',${idx},'owner',this.value)">
           <option value="" ${!a.owner ? 'selected' : ''}>選負責人</option>
           ${ownersList.map(o => `<option value="${o}" ${a.owner === o ? 'selected' : ''}>${o}</option>`).join('')}
-        </select>
-        <input type="text" class="sc-input sc-input-sm" placeholder="期限（如 05/24）" value="${_scEsc(a.due || '')}" oninput="_scUpdateAction('${mid}',${idx},'due',this.value)">
+        </select>`}
+        <input type="date" class="sc-input sc-input-sm" value="${_scDueToInput(a.due, (m.meetingDate||'').slice(0,4))}" onchange="_scUpdateActionDate('${mid}',${idx},'due',this.value)">
         <select class="sc-select sc-input-sm sc-status sc-status-${status}" onchange="_scUpdateAction('${mid}',${idx},'status',this.value)">
           ${_SC_STATUS_ORDER.map(k => `<option value="${k}" ${status === k ? 'selected' : ''}>${_SC_STATUS_LABELS[k]}</option>`).join('')}
         </select>
@@ -402,10 +603,26 @@ function _scUpdateField(mid, field, val) {
   _scDebouncedSave(m);
 }
 
-async function _scAddTopic(mid) {
+// 日期欄位專用：將 <input type="date"> 的 yyyy-mm-dd 轉成 yyyy/mm/dd 後儲存
+function _scUpdateDateField(mid, field, val) {
   const m = _scFindMeeting(mid);
   if (!m) return;
-  (m.topics = m.topics || []).push({ title: '', content: '', decision: '' });
+  m[field] = _scDateFromInput(val);
+  _scDebouncedSave(m);
+}
+
+// 待辦期限：同樣轉成 yyyy/mm/dd（保留完整日期）
+function _scUpdateActionDate(mid, idx, field, val) {
+  const m = _scFindMeeting(mid);
+  if (!m || !m.actions[idx]) return;
+  m.actions[idx][field] = _scDateFromInput(val);
+  _scDebouncedSave(m);
+}
+
+async function _scAddTopic(mid, role) {
+  const m = _scFindMeeting(mid);
+  if (!m) return;
+  (m.topics = m.topics || []).push({ role: role || '主席', title: '', content: '', decision: '' });
   await _scUpsertMeeting(m);
   _scRenderActive();
 }
@@ -479,10 +696,10 @@ function _scUpdateMotion(mid, idx, field, val) {
   _scDebouncedSave(m);
 }
 
-async function _scAddAction(mid) {
+async function _scAddAction(mid, owner) {
   const m = _scFindMeeting(mid);
   if (!m) return;
-  (m.actions = m.actions || []).push({ text: '', owner: '', due: '', status: 'pending' });
+  (m.actions = m.actions || []).push({ text: '', owner: owner || '', due: '', status: 'pending' });
   await _scUpsertMeeting(m);
   _scRenderActive();
 }
@@ -514,6 +731,9 @@ function _scUpdateAction(mid, idx, field, val) {
       if (badge) badge.textContent = `${done}/${total} 完成 ${pct}%`;
       if (bar) bar.style.width = pct + '%';
     }
+  } else if (field === 'owner' && _scMod().groupActionsByRole) {
+    // 負責人改變 → 重新渲染讓待辦移到對應分組
+    _scUpsertMeeting(m).then(() => _scRenderActive());
   } else {
     _scDebouncedSave(m);
   }
@@ -539,14 +759,19 @@ function _scRenderTrack() {
       </div>
     `;
   }
+  const mod = _scMod();
   const canEdit = _canEditTab('sanchang');
   const actions = m.actions || [];
   const total = actions.length;
   const done = actions.filter(a => a.status === 'done').length;
   const pct = total ? Math.round(done / total * 100) : 0;
-  const rows = actions.length
-    ? actions.map((a, i) => _scActionRowHtml(m, a, i, canEdit, true)).join('')
-    : `<div class="sc-empty-mini">上一場無待辦事項</div>`;
+
+  const trackBody = mod.groupActionsByRole
+    ? (actions.length ? _scActionsEditorHtml(m, canEdit, true) : `<div class="sc-card"><div class="sc-empty-mini">上一場無待辦事項</div></div>`)
+    : `<div class="sc-card">
+        <div class="sc-card-head"><span class="sc-card-title">待辦追蹤</span></div>
+        ${actions.length ? actions.map((a, i) => _scActionRowHtml(m, a, i, canEdit, true)).join('') : `<div class="sc-empty-mini">上一場無待辦事項</div>`}
+      </div>`;
 
   return `
     <div class="sc-card">
@@ -556,12 +781,7 @@ function _scRenderTrack() {
       </div>
       <div class="sc-progress"><div class="sc-progress-fill" style="width:${pct}%"></div></div>
     </div>
-    <div class="sc-card">
-      <div class="sc-card-head">
-        <span class="sc-card-title">待辦追蹤</span>
-      </div>
-      ${rows}
-    </div>
+    ${trackBody}
     <div class="sc-toolbar">
       <button class="sc-btn sc-btn-ghost" onclick="_scPreview('${m.id}')">預覽</button>
       <button class="sc-btn sc-btn-primary" onclick="_scCopyLineText('${m.id}')">複製文字</button>
@@ -616,8 +836,380 @@ function _scEsc(s) {
 // ===== A4 預覽 sheet HTML =====
 function _scBuildSheetHtml(m) {
   const mod = _scMod();
-  const topicsHtml = (m.topics || []).length
-    ? m.topics.map((t, i) => `
+
+  const barHtml = `
+    <div class="sc-sheet-bar">
+      <div class="sc-sheet-bar-left">BNI 億展白金分會</div>
+      <div class="sc-sheet-bar-right">${_scMod().title}紀錄</div>
+    </div>
+  `;
+  // 第一頁的品牌 hero 區塊（取代原本的 bar + headline）
+  const headlineHtml = `
+    <div class="sc-sheet-hero">
+      <div class="sc-sheet-hero-l">
+        <div class="sc-sheet-hero-brand">BNI</div>
+        <div class="sc-sheet-hero-org">億展白金分會</div>
+        <div class="sc-sheet-hero-divider"></div>
+        <div class="sc-sheet-hero-doctitle">${_scMod().title}紀錄</div>
+        <div class="sc-sheet-hero-date">${_scEsc(m.meetingDate || '')}</div>
+      </div>
+      <div class="sc-sheet-hero-r">
+        <div class="sc-sheet-hero-meta"><span class="sc-sheet-hero-key">出席</span><span class="sc-sheet-hero-val">${_scComputedAttendees(m)}</span></div>
+        ${m.absent ? `<div class="sc-sheet-hero-meta"><span class="sc-sheet-hero-key">請假</span><span class="sc-sheet-hero-val">${_scEsc(m.absent)}</span></div>` : ''}
+        <div class="sc-sheet-hero-meta"><span class="sc-sheet-hero-key">下次</span><span class="sc-sheet-hero-val">${_scEsc(m.nextMeeting || '未訂')}</span></div>
+        <div class="sc-sheet-hero-meta"><span class="sc-sheet-hero-key">紀錄</span><span class="sc-sheet-hero-val">${_scEsc(CU || '')}</span></div>
+        ${m.summary ? `<div class="sc-sheet-hero-meta sc-sheet-hero-meta-summary"><span class="sc-sheet-hero-key">摘要</span><span class="sc-sheet-hero-val">${_scEsc(m.summary).replace(/\n/g, '<br>')}</span></div>` : ''}
+      </div>
+    </div>
+  `;
+  const footHtml = '';
+
+  // 兩個模組共用動態分頁 + hero header
+  const blocks = mod.hasReports
+    ? _scBuildLeadershipBlocks(m)
+    : _scBuildSanchangBlocks(m);
+
+  // ===== 量測高度 =====
+  const measureEl = document.createElement('div');
+  measureEl.className = 'sc-sheet-page';
+  measureEl.style.cssText = 'position:fixed!important;left:-10000px!important;top:0!important;height:auto!important;box-shadow:none!important;visibility:hidden;';
+  document.body.appendChild(measureEl);
+  const measure = (html) => {
+    const d = document.createElement('div');
+    d.innerHTML = html;
+    measureEl.appendChild(d);
+    const h = d.offsetHeight;
+    measureEl.removeChild(d);
+    return h;
+  };
+  const headerH = measure(headlineHtml);
+  const barH    = measure(barHtml);
+  const footH   = measure(footHtml);
+  blocks.forEach(b => { b.height = measure(b.html); });
+  document.body.removeChild(measureEl);
+
+  // ===== 分頁 =====
+  const MM_PX = 96 / 25.4;
+  // 內容區高度 = 297 - 14 上 - 15 下保留區（給頁碼 + 預留空白）
+  const PAGE_INNER_PX = (297 - 14 - 15) * MM_PX;
+
+  const pages = [];
+  let cur = { blocks: [], used: headerH };
+  for (const b of blocks) {
+    const needBreak = (b.pageBreakBefore && cur.blocks.length > 0)
+      || (cur.used + b.height > PAGE_INNER_PX && cur.blocks.length > 0);
+    if (needBreak) {
+      pages.push(cur);
+      cur = { blocks: [], used: barH };
+    }
+    cur.blocks.push(b);
+    cur.used += b.height;
+  }
+  pages.push(cur);
+
+  // 頁尾若放不進最後一頁 → 新增空白頁
+  const lastPage = pages[pages.length - 1];
+  if (lastPage.used + footH > PAGE_INNER_PX) {
+    pages.push({ blocks: [], used: barH });
+  }
+
+  // 處理 keepWithNext：避免區段標題 / 角色標題落單在頁尾
+  for (let p = 0; p < pages.length - 1; p++) {
+    const cp = pages[p];
+    while (cp.blocks.length > 0) {
+      const tail = cp.blocks[cp.blocks.length - 1];
+      if (tail.keepWithNext) {
+        cp.blocks.pop();
+        cp.used -= tail.height;
+        pages[p + 1].blocks.unshift(tail);
+        pages[p + 1].used += tail.height;
+      } else break;
+    }
+  }
+
+  // ===== 組裝最終 HTML =====
+  return pages.map((page, idx) => {
+    const isFirst = idx === 0;
+    const isLast  = idx === pages.length - 1;
+    const top = isFirst ? headlineHtml : barHtml;
+    const bottom = isLast ? footHtml : '';
+    const content = page.blocks.map(b => b.html).join('');
+    const pageNo = pages.length > 1
+      ? `<div class="sc-sheet-page-no">- ${idx + 1} / ${pages.length} -</div>`
+      : '';
+    return `<div class="sc-sheet-page" data-page="${idx + 1}">${top}${content}${bottom}${pageNo}</div>`;
+  }).join('');
+}
+
+// 三長周會：產生扁平 block 清單（每個 block 可獨立配置到不同 A4 頁）
+function _scBuildSanchangBlocks(m) {
+  const mod = _scMod();
+  const blocks = [];
+
+  // 結論摘要已併入 headline 的「摘要」欄，此處不再重複輸出
+
+  // === 本周布達事項 ===
+  if (mod.hasAnnouncements === true) {
+    const hasAny = (mod.owners || []).some(r => _scAnnouncementsForRole(m, r).length);
+    if (hasAny) {
+      blocks.push({
+        html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>本周布達事項</div>`,
+        keepWithNext: true,
+        pageBreakBefore: true
+      });
+      (mod.owners || []).forEach(role => {
+        const items = _scAnnouncementsForRole(m, role);
+        if (!items.length) return;
+        blocks.push({
+          html: `<div class="sc-sheet-role-h">${role}</div>`,
+          keepWithNext: true
+        });
+        items.forEach(({ a }, i) => {
+          blocks.push({
+            html: `<div class="sc-sheet-announce-item">
+              <span class="sc-sheet-announce-num">${i + 1}</span>
+              <span class="sc-sheet-announce-text">${_scEsc(a.content || '').replace(/\n/g, '<br>')}</span>
+            </div>`
+          });
+        });
+      });
+    }
+  }
+
+  // === 議題與決議（清爽表格） ===
+  if (mod.hasTopics !== false) {
+    const hasAny = (mod.owners || []).some(r => _scTopicsForRole(m, r).length);
+    blocks.push({
+      html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>議題與決議</div>`,
+      keepWithNext: true,
+      pageBreakBefore: true
+    });
+    if (!hasAny) {
+      blocks.push({ html: `<div class="sc-sheet-empty-block">本次無議題</div>` });
+    } else {
+      const buildTopicsDocTable = (items) => `<table class="sc-doc-table">
+        <colgroup>
+          <col style="width:7mm"><col><col style="width:38%">
+        </colgroup>
+        <thead><tr>
+          <th class="d-col-num">#</th>
+          <th>議題 / 內容</th>
+          <th>決議</th>
+        </tr></thead>
+        <tbody>
+          ${items.map(({ t }, i) => `
+            <tr>
+              <td class="d-col-num">${i + 1}</td>
+              <td>
+                <div class="d-title">${_scEsc(t.title || '(未填標題)')}</div>
+                ${t.content ? `<div class="d-desc">${_scEsc(t.content).replace(/\n/g, '<br>')}</div>` : ''}
+              </td>
+              <td>${t.decision ? _scEsc(t.decision).replace(/\n/g, '<br>') : '<span class="d-muted">—</span>'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+      (mod.owners || []).forEach(role => {
+        const items = _scTopicsForRole(m, role);
+        if (!items.length) return;
+        blocks.push({
+          html: `<div class="sc-sheet-role-h">${role}</div>`,
+          keepWithNext: true
+        });
+        blocks.push({ html: buildTopicsDocTable(items) });
+      });
+    }
+  }
+
+  // === 待辦事項追蹤（清爽表格） ===
+  blocks.push({
+    html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>待辦事項追蹤</div>`,
+    keepWithNext: true,
+    pageBreakBefore: true
+  });
+  const buildActionsDocTable = (items) => `<table class="sc-doc-table">
+    <colgroup>
+      <col style="width:7mm"><col><col style="width:22mm"><col style="width:22mm">
+    </colgroup>
+    <thead><tr>
+      <th class="d-col-num">#</th>
+      <th>待辦事項</th>
+      <th class="d-col-end">期限</th>
+      <th class="d-col-end">狀態</th>
+    </tr></thead>
+    <tbody>
+      ${items.map((a, i) => `
+        <tr>
+          <td class="d-col-num">${i + 1}</td>
+          <td>
+            <div class="d-title">${_scEsc(a.text || '(未填內容)')}</div>
+            ${a.trackNote ? `<div class="d-desc">追蹤：${_scEsc(a.trackNote).replace(/\n/g, '<br>')}</div>` : ''}
+          </td>
+          <td class="d-col-end">${a.due ? _scEsc(a.due) : '<span class="d-muted">—</span>'}</td>
+          <td class="d-col-end"><span class="sc-sheet-status sc-sheet-status-${a.status || 'pending'}">${_SC_STATUS_LABELS[a.status || 'pending']}</span></td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>`;
+
+  let hasAnyAction = false;
+  (mod.owners || []).forEach(role => {
+    const items = _scActionsForRole(m, role).map(x => x.a);
+    if (!items.length) return;
+    hasAnyAction = true;
+    blocks.push({
+      html: `<div class="sc-sheet-role-h">${role}</div>`,
+      keepWithNext: true
+    });
+    blocks.push({ html: buildActionsDocTable(items) });
+  });
+  const unassigned = _scActionsForRole(m, null).map(x => x.a);
+  if (unassigned.length) {
+    hasAnyAction = true;
+    blocks.push({
+      html: `<div class="sc-sheet-role-h sc-sheet-role-h-muted">未指派</div>`,
+      keepWithNext: true
+    });
+    blocks.push({ html: buildActionsDocTable(unassigned) });
+  }
+  if (!hasAnyAction) {
+    blocks.push({ html: `<div class="sc-sheet-empty-block">本次無待辦事項</div>` });
+  }
+
+  return blocks;
+}
+
+// 領導月會：產生扁平 block 清單（與三長周會共用動態分頁）
+function _scBuildLeadershipBlocks(m) {
+  const mod = _scMod();
+  const blocks = [];
+
+  // === 各領導人報告事項 ===
+  if (mod.hasReports) {
+    const roles = mod.reportRoles || mod.owners || [];
+    const reports = m.reports || {};
+    const committee = (Array.isArray(m.committee) ? m.committee : [])
+      .filter(c => (c.name || '').trim() && (c.report || '').trim());
+    const hasAny = roles.some(r => (reports[r] || '').trim()) || committee.length > 0;
+
+    blocks.push({
+      html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>各領導人報告事項</div>`,
+      keepWithNext: true,
+      pageBreakBefore: true
+    });
+    if (!hasAny) {
+      blocks.push({ html: `<div class="sc-sheet-empty-block">本次無報告事項</div>` });
+    } else {
+      roles.forEach(role => {
+        if ((reports[role] || '').trim()) {
+          blocks.push({
+            html: `<div class="sc-sheet-role-h">${role}</div>`,
+            keepWithNext: true
+          });
+          blocks.push({
+            html: `<div class="sc-sheet-report-text">${_scEsc(reports[role]).replace(/\n/g, '<br>')}</div>`
+          });
+        }
+        if (role === '副主席') {
+          committee.forEach(c => {
+            blocks.push({
+              html: `<div class="sc-sheet-role-h">委員 ${_scEsc(c.name)}</div>`,
+              keepWithNext: true
+            });
+            blocks.push({
+              html: `<div class="sc-sheet-report-text">${_scEsc(c.report).replace(/\n/g, '<br>')}</div>`
+            });
+          });
+        }
+      });
+    }
+  }
+
+  // === 待辦事項追蹤（領導月會：含「負責人」欄位，不分組）===
+  blocks.push({
+    html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>待辦事項追蹤</div>`,
+    keepWithNext: true,
+    pageBreakBefore: true
+  });
+  if ((m.actions || []).length) {
+    const actsHtml = `<table class="sc-doc-table">
+      <colgroup>
+        <col style="width:7mm"><col><col style="width:24mm"><col style="width:22mm"><col style="width:22mm">
+      </colgroup>
+      <thead><tr>
+        <th class="d-col-num">#</th>
+        <th>待辦事項</th>
+        <th class="d-col-end">負責人</th>
+        <th class="d-col-end">期限</th>
+        <th class="d-col-end">狀態</th>
+      </tr></thead>
+      <tbody>
+        ${m.actions.map((a, i) => `
+          <tr>
+            <td class="d-col-num">${i + 1}</td>
+            <td>
+              <div class="d-title">${_scEsc(a.text || '(未填內容)')}</div>
+              ${a.trackNote ? `<div class="d-desc">追蹤：${_scEsc(a.trackNote).replace(/\n/g, '<br>')}</div>` : ''}
+            </td>
+            <td class="d-col-end">${a.owner ? _scEsc(a.owner) : '<span class="d-muted">—</span>'}</td>
+            <td class="d-col-end">${a.due ? _scEsc(a.due) : '<span class="d-muted">—</span>'}</td>
+            <td class="d-col-end"><span class="sc-sheet-status sc-sheet-status-${a.status || 'pending'}">${_SC_STATUS_LABELS[a.status || 'pending']}</span></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+    blocks.push({ html: actsHtml });
+  } else {
+    blocks.push({ html: `<div class="sc-sheet-empty-block">本次無待辦事項</div>` });
+  }
+
+  // === 臨時動議 ===
+  if (mod.hasMotions === true) {
+    blocks.push({
+      html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>臨時動議</div>`,
+      keepWithNext: true,
+      pageBreakBefore: true
+    });
+    if ((m.motions || []).length) {
+      const motionsHtml = `<table class="sc-doc-table">
+        <colgroup>
+          <col style="width:7mm"><col><col style="width:38%">
+        </colgroup>
+        <thead><tr>
+          <th class="d-col-num">#</th>
+          <th>動議內容</th>
+          <th>決議</th>
+        </tr></thead>
+        <tbody>
+          ${m.motions.map((mo, i) => `
+            <tr>
+              <td class="d-col-num">${i + 1}</td>
+              <td><div class="d-title">${_scEsc(mo.title || '(未填內容)')}</div></td>
+              <td>${mo.decision ? _scEsc(mo.decision).replace(/\n/g, '<br>') : '<span class="d-muted">—</span>'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+      blocks.push({ html: motionsHtml });
+    } else {
+      blocks.push({ html: `<div class="sc-sheet-empty-block">本次無臨時動議</div>` });
+    }
+  }
+
+  return blocks;
+}
+
+// === 舊版領導月會固定 2 頁分頁（已停用，保留參考） ===
+function _scBuildLeadershipSheetHtml_OLD(m, barHtml, headlineHtml, footHtml) {
+  const mod = _scMod();
+  const headerHtml = barHtml + headlineHtml;
+
+  // 議題（領導月會 hasTopics=false，但保險起見）
+  const topicsBlock = mod.hasTopics !== false ? (() => {
+    const roleSections = (mod.owners || []).map(role => {
+      const items = _scTopicsForRole(m, role);
+      if (!items.length) return '';
+      const inner = items.map(({ t }, i) => `
         <div class="sc-sheet-topic">
           <div class="sc-sheet-topic-title">
             <span class="sc-sheet-topic-num">議題 ${i + 1}</span>
@@ -626,21 +1218,19 @@ function _scBuildSheetHtml(m) {
           ${t.content ? `<div class="sc-sheet-topic-content">${_scEsc(t.content)}</div>` : ''}
           ${t.decision ? `<div class="sc-sheet-topic-decision"><span class="sc-sheet-tag">決議</span>${_scEsc(t.decision)}</div>` : ''}
         </div>
-      `).join('')
-    : `<div class="sc-sheet-empty-block">本次無議題</div>`;
+      `).join('');
+      return `<div class="sc-sheet-role-group"><div class="sc-sheet-role-h">${role}</div>${inner}</div>`;
+    }).join('');
+    const topicsHtml = roleSections || `<div class="sc-sheet-empty-block">本次無議題</div>`;
+    return `<div class="sc-sheet-section">
+      <div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>議題與決議</div>
+      ${topicsHtml}
+    </div>`;
+  })() : '';
 
-  const motionsHtml = (m.motions || []).length
-    ? m.motions.map((mo, i) => `
-        <div class="sc-sheet-topic">
-          <div class="sc-sheet-topic-title">
-            <span class="sc-sheet-topic-num sc-sheet-topic-num-alt">動議 ${i + 1}</span>
-            <span>${_scEsc(mo.title || '(未填內容)')}</span>
-          </div>
-          ${mo.decision ? `<div class="sc-sheet-topic-decision"><span class="sc-sheet-tag">決議</span>${_scEsc(mo.decision)}</div>` : ''}
-        </div>
-      `).join('')
-    : `<div class="sc-sheet-empty-block">本次無臨時動議</div>`;
+  const reportsBlock = _scBuildSheetReports(m);
 
+  // 待辦
   const actsHtml = (m.actions || []).length
     ? `<table class="sc-sheet-table">
         <thead><tr>
@@ -663,39 +1253,23 @@ function _scBuildSheetHtml(m) {
         </tbody>
       </table>`
     : `<div class="sc-sheet-empty-block">本次無待辦事項</div>`;
-
-  const barHtml = `
-    <div class="sc-sheet-bar">
-      <div class="sc-sheet-bar-left">BNI 億展白金分會</div>
-      <div class="sc-sheet-bar-right">${_scMod().title}紀錄</div>
-    </div>
-  `;
-  const headlineHtml = `
-    <div class="sc-sheet-headline">
-      <div class="sc-sheet-headline-l">
-        <div class="sc-sheet-date">${_scEsc(m.meetingDate || '')}</div>
-        <div class="sc-sheet-meta-strong">${_scMod().title}</div>
-      </div>
-      <div class="sc-sheet-headline-r">
-        <div class="sc-sheet-meta"><span class="sc-sheet-meta-key">出席</span><b>${_scComputedAttendees(m)}</b></div>
-        ${m.absent ? `<div class="sc-sheet-meta"><span class="sc-sheet-meta-key">請假</span>${_scEsc(m.absent)}</div>` : ''}
-      </div>
-    </div>
-  `;
-  const headerHtml = barHtml + headlineHtml;
-
-  const topicsBlock = mod.hasTopics !== false ? `<div class="sc-sheet-section">
-    <div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>議題與決議</div>
-    ${topicsHtml}
-  </div>` : '';
-
-  const reportsBlock = _scBuildSheetReports(m);
-
   const actionsBlock = `<div class="sc-sheet-section">
     <div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>待辦事項追蹤</div>
     ${actsHtml}
   </div>`;
 
+  // 動議
+  const motionsHtml = (m.motions || []).length
+    ? m.motions.map((mo, i) => `
+        <div class="sc-sheet-topic">
+          <div class="sc-sheet-topic-title">
+            <span class="sc-sheet-topic-num sc-sheet-topic-num-alt">動議 ${i + 1}</span>
+            <span>${_scEsc(mo.title || '(未填內容)')}</span>
+          </div>
+          ${mo.decision ? `<div class="sc-sheet-topic-decision"><span class="sc-sheet-tag">決議</span>${_scEsc(mo.decision)}</div>` : ''}
+        </div>
+      `).join('')
+    : `<div class="sc-sheet-empty-block">本次無臨時動議</div>`;
   const motionsBlock = mod.hasMotions === true ? `<div class="sc-sheet-section">
     <div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>臨時動議</div>
     ${motionsHtml}
@@ -706,25 +1280,11 @@ function _scBuildSheetHtml(m) {
     <div class="sc-sheet-summary">${_scEsc(m.summary).replace(/\n/g, '<br>')}</div>
   </div>` : '';
 
-  const footHtml = `<div class="sc-sheet-foot">
-    <div>下次會議：<b>${_scEsc(m.nextMeeting || '未訂')}</b></div>
-    <div>紀錄人：${_scEsc(CU || '')}</div>
-  </div>`;
-
-  // 分頁規則：有 hasReports 的模組（領導月會）→ 報告全部放第一頁，待辦/動議/結論放第二頁
-  // 第二頁不重複日期與出席名單（只保留 BNI 標頭）
-  let pages;
-  if (mod.hasReports) {
-    pages = [
-      headerHtml + topicsBlock + reportsBlock,
-      barHtml + actionsBlock + motionsBlock + summaryBlock + footHtml
-    ];
-  } else {
-    pages = [
-      headerHtml + topicsBlock + reportsBlock + actionsBlock + motionsBlock + summaryBlock + footHtml
-    ];
-  }
-  return pages.map((p, i) => `<div class="sc-sheet-page" data-page="${i + 1}">${p}${mod.hasReports ? `<div class="sc-sheet-page-no">- ${i + 1} -</div>` : ''}</div>`).join('');
+  const pages = [
+    headerHtml + topicsBlock + reportsBlock,
+    barHtml + actionsBlock + motionsBlock + summaryBlock + footHtml
+  ];
+  return pages.map((p, i) => `<div class="sc-sheet-page" data-page="${i + 1}">${p}<div class="sc-sheet-page-no">- ${i + 1} -</div></div>`).join('');
 }
 
 function _scBuildSheetReports(m) {
@@ -915,14 +1475,42 @@ function _scBuildLineText(m) {
   if (m.absent) lines.push(`請假：${m.absent}`);
   lines.push('');
 
+  if (_scMod().hasAnnouncements === true && (m.announcements || []).length) {
+    const _amod = _scMod();
+    const roles = _amod.owners || [];
+    const hasAny = roles.some(r => _scAnnouncementsForRole(m, r).length);
+    if (hasAny) {
+      lines.push('━━ 本周布達事項 ━━');
+      roles.forEach(role => {
+        const items = _scAnnouncementsForRole(m, role);
+        if (!items.length) return;
+        lines.push(`【${role}】`);
+        items.forEach(({ a }, i) => {
+          lines.push(`  ${i + 1}. ${a.content || ''}`);
+        });
+      });
+      lines.push('');
+    }
+  }
+
   if (_scMod().hasTopics !== false && (m.topics || []).length) {
-    lines.push('━━ 議題與決議 ━━');
-    m.topics.forEach((t, i) => {
-      lines.push(`[議題${i + 1}] ${t.title || ''}`);
-      if (t.content) lines.push(`  內容：${t.content}`);
-      if (t.decision) lines.push(`  決議：${t.decision}`);
-    });
-    lines.push('');
+    const _tmod = _scMod();
+    const roles = _tmod.owners || [];
+    const hasAny = roles.some(r => _scTopicsForRole(m, r).length);
+    if (hasAny) {
+      lines.push('━━ 議題與決議 ━━');
+      roles.forEach(role => {
+        const items = _scTopicsForRole(m, role);
+        if (!items.length) return;
+        lines.push(`【${role}】`);
+        items.forEach(({ t }, i) => {
+          lines.push(`  [議題${i + 1}] ${t.title || ''}`);
+          if (t.content) lines.push(`    內容：${t.content}`);
+          if (t.decision) lines.push(`    決議：${t.decision}`);
+        });
+      });
+      lines.push('');
+    }
   }
 
   const _mod = _scMod();
@@ -951,17 +1539,41 @@ function _scBuildLineText(m) {
   }
 
   if ((m.actions || []).length) {
-    lines.push('━━ 待辦事項 ━━');
-    m.actions.forEach((a, i) => {
-      const meta = [];
-      if (a.owner) meta.push(`負責：${a.owner}`);
-      if (a.due) meta.push(`期限：${a.due}`);
-      meta.push(`狀態：${_SC_STATUS_LABELS[a.status || 'pending']}`);
-      lines.push(`${i + 1}. ${a.text || ''}`);
-      lines.push(`   ${meta.join('｜')}`);
-      if (a.trackNote) lines.push(`   追蹤：${a.trackNote}`);
-    });
-    lines.push('');
+    const _amod = _scMod();
+    if (_amod.groupActionsByRole) {
+      const roles = _amod.owners || [];
+      const dumpGroup = (label, items) => {
+        if (!items.length) return;
+        lines.push(`【${label}】`);
+        items.forEach(({ a }, i) => {
+          const meta = [];
+          if (a.due) meta.push(`期限：${a.due}`);
+          meta.push(`狀態：${_SC_STATUS_LABELS[a.status || 'pending']}`);
+          lines.push(`  ${i + 1}. ${a.text || ''}`);
+          lines.push(`     ${meta.join('｜')}`);
+          if (a.trackNote) lines.push(`     追蹤：${a.trackNote}`);
+        });
+      };
+      const hasAny = roles.some(r => _scActionsForRole(m, r).length) || _scActionsForRole(m, null).length;
+      if (hasAny) {
+        lines.push('━━ 待辦事項 ━━');
+        roles.forEach(r => dumpGroup(r, _scActionsForRole(m, r)));
+        dumpGroup('未指派', _scActionsForRole(m, null));
+        lines.push('');
+      }
+    } else {
+      lines.push('━━ 待辦事項 ━━');
+      m.actions.forEach((a, i) => {
+        const meta = [];
+        if (a.owner) meta.push(`負責：${a.owner}`);
+        if (a.due) meta.push(`期限：${a.due}`);
+        meta.push(`狀態：${_SC_STATUS_LABELS[a.status || 'pending']}`);
+        lines.push(`${i + 1}. ${a.text || ''}`);
+        lines.push(`   ${meta.join('｜')}`);
+        if (a.trackNote) lines.push(`   追蹤：${a.trackNote}`);
+      });
+      lines.push('');
+    }
   }
 
   if (_scMod().hasMotions === true && (m.motions || []).length) {
