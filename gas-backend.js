@@ -832,6 +832,18 @@ function doGet(e) {
     }
   }
 
+  if (action === 'listMeetingVersions') {
+    try {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: true, data: listMeetingVersions() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, error: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   const props = PropertiesService.getScriptProperties();
   const data = {};
   props.getKeys().forEach(function(k) {
@@ -895,6 +907,17 @@ function doPost(e) {
     if (action === 'deleteGuest') {
       return ContentService
         .createTextOutput(JSON.stringify(deleteGuest(body)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'saveMeetingVersion') {
+      return ContentService
+        .createTextOutput(JSON.stringify(saveMeetingVersion(body.version)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    if (action === 'deleteMeetingVersion') {
+      return ContentService
+        .createTextOutput(JSON.stringify(deleteMeetingVersion(body.id)))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -1265,4 +1288,72 @@ function applyKKOrder_2026_05() {
   orderSheet.getRange(2, 1, ORDER.length, 1).setValues(ORDER.map(function(n) { return [n]; }));
 
   reorderMembers();
+}
+
+// ===== 例會流程版本管理（跨裝置同步）=====
+const MEETING_VERSIONS_SHEET = 'MeetingVersions';
+
+function _meetVersionsSheet_() {
+  const ss = SpreadsheetApp.openById(SS_ID);
+  let sh = ss.getSheetByName(MEETING_VERSIONS_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(MEETING_VERSIONS_SHEET);
+    sh.getRange(1, 1, 1, 3).setValues([['id', 'json', 'savedAt']]);
+    sh.getRange('A1:C1').setFontWeight('bold').setBackground('#fff2cc');
+    sh.setColumnWidth(1, 200);
+    sh.setColumnWidth(2, 600);
+    sh.setColumnWidth(3, 200);
+  }
+  return sh;
+}
+
+function listMeetingVersions() {
+  const sh = _meetVersionsSheet_();
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const rows = sh.getRange(2, 1, lastRow - 1, 3).getValues();
+  const versions = [];
+  for (let i = 0; i < rows.length; i++) {
+    try {
+      const obj = JSON.parse(rows[i][1]);
+      if (obj && obj.id) versions.push(obj);
+    } catch (e) {}
+  }
+  versions.sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
+  return versions;
+}
+
+function saveMeetingVersion(v) {
+  if (!v || !v.id) return { ok: false, error: 'missing id' };
+  const sh = _meetVersionsSheet_();
+  const lastRow = sh.getLastRow();
+  let rowIdx = -1;
+  if (lastRow >= 2) {
+    const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (let i = 0; i < ids.length; i++) {
+      if (ids[i][0] === v.id) { rowIdx = i + 2; break; }
+    }
+  }
+  const row = [v.id, JSON.stringify(v), v.savedAt || new Date().toISOString()];
+  if (rowIdx > 0) {
+    sh.getRange(rowIdx, 1, 1, 3).setValues([row]);
+  } else {
+    sh.appendRow(row);
+  }
+  return { ok: true };
+}
+
+function deleteMeetingVersion(id) {
+  if (!id) return { ok: false, error: 'missing id' };
+  const sh = _meetVersionsSheet_();
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: true };
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) {
+    if (ids[i][0] === id) {
+      sh.deleteRow(i + 2);
+      break;
+    }
+  }
+  return { ok: true };
 }

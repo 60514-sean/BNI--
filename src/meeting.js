@@ -93,12 +93,13 @@ const _MEET_EVENTS = {
   declareNew: { topic:'宣布新人入會，宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●', serialHighlight:true },
   declareRenew: { topic:'宣布續約會員，宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●', serialHighlight:true },
   declareExit: { topic:'宣布出村會員，宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●', serialHighlight:true },
-  declareNewRenew: { topic:'宣布續約、新人入會，宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●', serialHighlight:true },
-  declareExitNewRenew: { topic:'宣布出村、續約、新人入會，宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●', serialHighlight:true },
+  declareNewRenew: { topic:'宣布新人入會、續約，宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●', serialHighlight:true },
+  declareExitNewRenew: { topic:'宣布新人入會、續約，宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●', serialHighlight:true },
   declareExitRenew: { topic:'宣布出村、續約會員，宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●', serialHighlight:true },
   declareExitNew: { topic:'宣布出村、新人入會，宣讀BNI道德規範', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●', serialHighlight:true },
   newmember: { topic:'入會感言\n→五長拍照', presenter:'副主席-主持\n會員-入會', minutes:2, note:'□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●', serialHighlight:true },
   renew: { topic:'續約感言\n→五長拍照', presenter:'副主席-主持\n會員-續約', minutes:2, note:'□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●', serialHighlight:true },
+  newRenewMerged: { topic:'入會感言\n續約感言\n→五長拍照', presenter:'副主席-主持\n會員-入會\n會員-續約\n', minutes:3, note:'□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●', serialHighlight:true },
   exit: { topic:'出村典禮', presenter:'主席-主持\n會員-導生\n會員-導師', minutes:3, note:'□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●\n□計時 0:30按●，0:45按●●', serialHighlight:true }
 };
 
@@ -124,8 +125,13 @@ function _meetBuildGeneralItems(ceremonies) {
   const declareKey = _meetPickDeclareKey(c);
   const inserts = [];
   if (declareKey) inserts.push({ ..._MEET_EVENTS[declareKey] });
-  if (c.newmember) inserts.push({ ..._MEET_EVENTS.newmember });
-  if (c.renew) inserts.push({ ..._MEET_EVENTS.renew });
+  const allThree = c.newmember && c.renew && c.exit;
+  if (allThree) {
+    inserts.push({ ..._MEET_EVENTS.newRenewMerged });
+  } else {
+    if (c.newmember) inserts.push({ ..._MEET_EVENTS.newmember });
+    if (c.renew) inserts.push({ ..._MEET_EVENTS.renew });
+  }
   if (c.exit) inserts.push({ ..._MEET_EVENTS.exit });
   arr.splice(6, 0, ...inserts);
   // 單純只有出村典禮的特例調整
@@ -203,6 +209,26 @@ function _meetLoadDraft() {
         }
       });
     }
+    // 遷移：宣布道德規範句子改為「新人入會、續約」順序
+    if (d && Array.isArray(d.items)) {
+      d.items.forEach(it => {
+        if (typeof it.topic === 'string') {
+          if (it.topic === '宣布出村、續約、新人入會，宣讀BNI道德規範' ||
+              it.topic === '宣布續約、新人入會，宣讀BNI道德規範') {
+            it.topic = '宣布新人入會、續約，宣讀BNI道德規範';
+          }
+        }
+      });
+    }
+    // 遷移：三個全選時合併入會/續約感言
+    if (d && d.templateId === 'general' && d.ceremonies && d.ceremonies.newmember && d.ceremonies.renew && d.ceremonies.exit && Array.isArray(d.items)) {
+      const hasNew = d.items.some(it => it.topic === '入會感言\n→五長拍照');
+      const hasRenew = d.items.some(it => it.topic === '續約感言\n→五長拍照');
+      const hasMerged = d.items.some(it => it.topic === '入會感言\n續約感言\n→五長拍照');
+      if (hasNew && hasRenew && !hasMerged) {
+        d.items = _meetBuildGeneralItems(d.ceremonies).map(x => ({ ...x, defaultMinutes: x.minutes }));
+      }
+    }
     return d;
   } catch {}
   return null;
@@ -217,6 +243,26 @@ function _meetLoadVersions() {
 }
 function _meetSaveVersions(arr) {
   try { localStorage.setItem(_MEET_LS_VERS, JSON.stringify(arr)); } catch {}
+}
+
+async function _meetFetchVersionsRemote() {
+  try {
+    const res = await fetch(API_URL + '?action=listMeetingVersions&t=' + Date.now(), { signal: AbortSignal.timeout(10000) });
+    const json = await res.json();
+    if (json && json.ok && Array.isArray(json.data)) {
+      _meetSaveVersions(json.data);
+      return json.data;
+    }
+  } catch {}
+  return null;
+}
+
+function _meetSaveVersionRemote(version) {
+  try { _apiPost({ action: 'saveMeetingVersion', version }); } catch {}
+}
+
+function _meetDeleteVersionRemote(id) {
+  try { _apiPost({ action: 'deleteMeetingVersion', id }); } catch {}
 }
 
 function _meetParseHHMM(s) {
@@ -288,6 +334,7 @@ function renderMeeting() {
     <div class="meet-wrapper">
       <div class="meet-toolbar">
         <button class="meet-tb-btn" onclick="_meetOpenSettings()">會議設定</button>
+        <button class="meet-tb-btn" onclick="_meetOpenAddItem()">新增項目</button>
         <span style="flex:1"></span>
         <button class="meet-tb-btn primary" onclick="_meetExportPDF()">輸出 PDF</button>
         <button class="meet-tb-btn primary" onclick="_meetExportJPG()">輸出 JPG</button>
@@ -330,9 +377,8 @@ function _meetExpandRows() {
   const titleCs = getComputedStyle(title);
   const titleH = title.offsetHeight + parseFloat(titleCs.marginTop) + parseFloat(titleCs.marginBottom);
   const theadH = thead ? thead.offsetHeight : 0;
-  const naturalH = tbody.offsetHeight;
-  const availableH = innerH - titleH - theadH;
-  if (availableH <= naturalH) return; // 內容已填滿或超出
+  const bottomReserve = parseFloat(cs.paddingBottom);
+  const availableH = innerH - titleH - theadH - bottomReserve;
   const rows = tbody.querySelectorAll('tr');
   if (!rows.length) return;
   const rowH = availableH / rows.length;
@@ -518,6 +564,86 @@ function _meetSettingsSaveVersion() {
   _meetOpenSettings();
 }
 
+function _meetOpenAddItem() {
+  if (!_meetState) return;
+  const items = _meetState.items || [];
+  const opts = ['<option value="0">＝＝開頭（成為第 1 列）＝＝</option>'];
+  items.forEach((it, idx) => {
+    const topicFirst = String(it.topic||'').split('\n')[0] || '(無議程)';
+    opts.push(`<option value="${idx+1}">第 ${idx+1} 列「${_escH(topicFirst)}」之後</option>`);
+  });
+  const defaultPos = items.length;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'meetAddItemModal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-title">新增臨時項目</div>
+      <div class="modal-field">
+        <div class="modal-label">插入位置</div>
+        <select class="modal-input" id="ai_position">${opts.join('')}</select>
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">議程（可換行）</div>
+        <textarea class="modal-input" id="ai_topic" rows="2" placeholder="例：臨時宣布事項"></textarea>
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">報告人（可換行）</div>
+        <textarea class="modal-input" id="ai_presenter" rows="2" placeholder="例：主席"></textarea>
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">時長(分)</div>
+        <input class="modal-input" id="ai_minutes" type="number" min="0" step="0.5" value="2">
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">備註（可換行）</div>
+        <textarea class="modal-input" id="ai_note" rows="3">□計時 1:30按●，2:00按●●</textarea>
+      </div>
+      <div class="modal-btns">
+        <button class="modal-save" onclick="_meetCommitAddItem()">新增</button>
+        <button class="modal-cancel" onclick="_meetCloseAddItem()">取消</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const sel = document.getElementById('ai_position');
+  if (sel) sel.value = String(defaultPos);
+  setTimeout(() => document.getElementById('ai_topic')?.focus(), 30);
+}
+
+function _meetCloseAddItem() {
+  const m = document.getElementById('meetAddItemModal');
+  if (m) m.remove();
+}
+
+function _meetCommitAddItem() {
+  if (!_meetState) return;
+  const v = id => document.getElementById(id);
+  const pos = parseInt(v('ai_position').value, 10);
+  const topic = (v('ai_topic').value || '').trim();
+  const presenter = (v('ai_presenter').value || '').trim();
+  const minutes = _meetParseDuration(v('ai_minutes').value);
+  const note = v('ai_note').value || '';
+  if (!topic) { showToast('請輸入議程'); return; }
+  const newItem = { topic, presenter, minutes, note, custom: true, defaultMinutes: minutes };
+  if (!Array.isArray(_meetState.items)) _meetState.items = [];
+  const insertAt = Math.max(0, Math.min(_meetState.items.length, isNaN(pos) ? _meetState.items.length : pos));
+  _meetState.items.splice(insertAt, 0, newItem);
+  _meetCloseAddItem();
+  _meetAfterEdit();
+}
+
+function _meetDeleteRow(idx) {
+  if (!_meetState || !Array.isArray(_meetState.items)) return;
+  const it = _meetState.items[idx];
+  if (!it) return;
+  if (!it.custom) { showToast('內建項目無法刪除，請改用「會議設定」'); return; }
+  if (!confirm(`刪除第 ${idx+1} 項「${String(it.topic||'').split('\n')[0]}」？`)) return;
+  _meetState.items.splice(idx, 1);
+  _meetCloseRowEditor();
+  _meetAfterEdit();
+}
+
 function _meetOpenRowEditor(idx) {
   const it = _meetState.items[idx];
   if (!it) return;
@@ -558,6 +684,7 @@ function _meetOpenRowEditor(idx) {
         <textarea class="modal-input" id="mr_note" rows="${noteRows}" style="resize:vertical;line-height:1.4">${_escH(it.note||'')}</textarea>
       </div>
       <div class="modal-btns">
+        ${it.custom ? `<button class="modal-cancel" style="background:#fff5f4;color:var(--red);border-color:var(--red)" onclick="_meetDeleteRow(${idx})">刪除此項目</button>` : ''}
         <button class="modal-save" onclick="_meetSaveRowEditor()">儲存</button>
         <button class="modal-cancel" onclick="_meetCloseRowEditor()">取消</button>
       </div>
@@ -654,11 +781,14 @@ function _meetRenderPreview() {
     const lockedCls = it.fixed ? ' is-locked' : '';
     const highlightCls = it.serialHighlight ? ' is-serial-highlight' : '';
     const noTd = `<td class="col-no meet-pv-no-btn${lockedCls}${highlightCls}" title="點擊編輯此項" onclick="_meetOpenRowEditor(${idx})">${idx+1}</td>`;
+    const resolvedPresenter = _resolveMeetingPresenter(it.presenter||'');
+    const isSingleLine = !String(it.topic||'').includes('\n') && !resolvedPresenter.includes('\n') && !String(it.note||'').includes('\n');
+    const singleCls = isSingleLine ? ' is-single-line' : '';
     return `
-      <tr class="${titleCls}${serialRowCls}">
+      <tr class="${titleCls}${serialRowCls}${singleCls}">
         ${noTd}
         <td class="col-topic">${_escH(displayTopic(it.topic||'')).replace(/\n/g,'<br>')}</td>
-        <td class="col-presenter">${_escH(_resolveMeetingPresenter(it.presenter||'')).replace(/\n/g,'<br>')}</td>
+        <td class="col-presenter">${_escH(resolvedPresenter).replace(/\n/g,'<br>')}</td>
         <td class="col-dur">${_meetFmtDur(it.minutes)}</td>
         <td class="col-st">${t.start}</td>
         <td class="col-et">${t.end}</td>
@@ -749,7 +879,8 @@ function _meetSaveAsVersion() {
     versions.unshift(snapshot);
   }
   _meetSaveVersions(versions);
-  showToast('已存版本');
+  _meetSaveVersionRemote(snapshot);
+  showToast('已存版本（同步雲端中）');
   renderMeeting();
 }
 
@@ -781,12 +912,14 @@ function _meetLoadVersion(id) {
   showToast('已載入版本');
 }
 
-function _meetManageVersions() {
-  const versions = _meetLoadVersions();
+async function _meetManageVersions() {
   const body = document.getElementById('meetBody');
   if (!body) return;
+  body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-soft)">載入雲端版本中...</div>';
+  const remote = await _meetFetchVersionsRemote();
+  const versions = remote || _meetLoadVersions();
   if (!versions.length) {
-    showToast('尚無歷史紀錄');
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-soft)">尚無歷史紀錄<div style="margin-top:12px"><button class="meet-tb-btn" onclick="_meetRenderBody()">返回</button></div></div>';
     return;
   }
   body.innerHTML = `
@@ -798,7 +931,7 @@ function _meetManageVersions() {
       ${versions.map(v => `
         <div class="meet-version-item">
           <div class="meet-v-info">
-            <div class="meet-v-title">${_escH(v.dateStr||'')}${v.seqNum?` 第${_escH(v.seqNum)}次`:''}</div>
+            <div class="meet-v-title">${_escH(_meetVersionFullTitle(v))}</div>
             <div class="meet-v-sub">${_escH(_meetVersionLabel(v))} · ${(v.items||[]).length} 項 · 存於 ${(v.savedAt||'').slice(0,10)}</div>
           </div>
           <button onclick="_meetLoadVersion('${_escH(v.id)}')">載入</button>
@@ -807,6 +940,14 @@ function _meetManageVersions() {
       `).join('')}
     </div>
   `;
+}
+
+function _meetVersionFullTitle(v) {
+  const dateStr = v.dateStr || '';
+  const title = v.title || '億展';
+  const seqNum = v.seqNum || '00';
+  const meetingType = v.meetingType || '正式例會';
+  return `${dateStr} ${title}第 ${seqNum} 次${meetingType}流程表`;
 }
 
 function _meetVersionLabel(v) {
@@ -826,6 +967,7 @@ function _meetDelVersion(id) {
   if (!confirm('刪除這個版本？')) return;
   const versions = _meetLoadVersions().filter(v => v.id !== id);
   _meetSaveVersions(versions);
+  _meetDeleteVersionRemote(id);
   _meetManageVersions();
 }
 
@@ -860,7 +1002,7 @@ async function _meetExportPDF() {
     const imgData = canvas.toDataURL('image/jpeg', 0.9);
     const pdf = new jsPDFCtor({ orientation: 'p', unit: 'mm', format: 'a4' });
     pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
-    const safeName = `例會流程_${_meetState.dateStr || _meetTodayDate()}_第${_meetState.seqNum||'00'}次`.replace(/[\\/:*?"<>|]/g,'_') + '.pdf';
+    const safeName = _meetVersionFullTitle(_meetState).replace(/[\\/:*?"<>|]/g,'_') + '.pdf';
     _downloadPdfBlob(pdf.output('blob'), safeName);
     showToast('PDF 已產生');
   } catch (e) {
@@ -887,7 +1029,7 @@ async function _meetExportJPG() {
     const canvas = await html2canvas(sheet, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
     const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
     const a = document.createElement('a');
-    const safeName = `例會流程_${_meetState.dateStr || _meetTodayDate()}_第${_meetState.seqNum||'00'}次`.replace(/[\\/:*?"<>|]/g,'_');
+    const safeName = _meetVersionFullTitle(_meetState).replace(/[\\/:*?"<>|]/g,'_');
     a.href = dataUrl;
     a.download = safeName + '.jpg';
     document.body.appendChild(a);
