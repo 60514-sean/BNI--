@@ -2,7 +2,8 @@
 const SIGNIN_ROWS_PER_PAGE = 15;     // 會員每頁人數
 const SIGNIN_GUEST_PER_PAGE = 10;    // 來賓每頁人數
 const SIGNIN_GUEST_TOTAL    = 10;    // 來賓總人數
-let _signinSubTab = 'member';       // 'member' | 'guest'
+const SIGNIN_VISITOR_PER_PAGE = 15;  // 外賓每頁人數（比照會員）
+let _signinSubTab = 'member';       // 'member' | 'guest' | 'visitor'
 let _signinDate = '';                // 'YYYY-MM-DD'，預設今天
 
 function _rocDateText(isoDate) {
@@ -24,7 +25,7 @@ async function renderSignin() {
   const el = document.getElementById('signinContent');
   el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
   if (!_memberData) await fetchMembers();
-  if (!_memberData) { el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試</div>`; return; }
+  if (!_memberData) { el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試 <button class="btn" style="margin-left:12px;background:var(--red);color:white;" onclick="_memberData=null;renderSignin()">重試</button></div>`; return; }
   // 來賓簽到表需要本周來賓資料
   if (_signinSubTab === 'guest' && _guestData === null) await fetchGuests();
 
@@ -32,12 +33,15 @@ async function renderSignin() {
   const dateText = _rocDateText(_signinDate);
   const tab = _signinSubTab;
   const subBtn = (v, label) => `<button class="signin-subtab ${tab===v?'active':''}" onclick="_signinSwitch('${v}')">${label}</button>`;
-  const sheetsHtml = tab === 'member' ? _buildMemberSheets(dateText) : _buildGuestSheets(dateText);
+  const sheetsHtml = tab === 'member' ? _buildMemberSheets(dateText)
+                   : tab === 'guest'  ? _buildGuestSheets(dateText)
+                   : _buildVisitorSheets(dateText);
   const pageCount = (sheetsHtml.match(/class="signin-sheet"/g) || []).length;
   const weekGuestCount = tab === 'guest' ? _getWeekGuestsForSignin().length : 0;
-  const desc = tab === 'member'
-    ? `共 ${_memberData.length} 位會員 · ${pageCount} 張 A4（每張 ${SIGNIN_ROWS_PER_PAGE} 人）`
-    : `本周 ${weekGuestCount} 位 · 表格 ${SIGNIN_GUEST_TOTAL} 格 · ${pageCount} 張 A4`;
+  const visitorCount   = tab === 'visitor' ? getVisitors().length : 0;
+  const desc = tab === 'member' ? `共 ${_memberData.length} 位會員 · ${pageCount} 張 A4（每張 ${SIGNIN_ROWS_PER_PAGE} 人）`
+             : tab === 'guest'  ? `本周 ${weekGuestCount} 位 · 表格 ${SIGNIN_GUEST_TOTAL} 格 · ${pageCount} 張 A4`
+             : `共 ${visitorCount} 位外賓 · ${pageCount} 張 A4（每張 ${SIGNIN_VISITOR_PER_PAGE} 人）`;
 
   el.innerHTML = `<div class="signin-wrapper">
     <div class="card" style="margin-bottom:14px;padding:16px 20px;">
@@ -55,6 +59,7 @@ async function renderSignin() {
       <div style="display:flex;gap:8px;margin-top:14px;">
         ${subBtn('member','會員')}
         ${subBtn('guest','來賓')}
+        ${subBtn('visitor','外賓')}
       </div>
     </div>
     <div class="signin-preview-outer" id="signinOuter">
@@ -81,6 +86,47 @@ function _buildMemberSheets(dateText) {
   ).join('');
 }
 
+function _buildVisitorSheets(dateText) {
+  const visitors = getVisitors();
+  const chunks = [];
+  for (let i = 0; i < visitors.length; i += SIGNIN_VISITOR_PER_PAGE) {
+    chunks.push(visitors.slice(i, i + SIGNIN_VISITOR_PER_PAGE));
+  }
+  if (!chunks.length) chunks.push([]);
+  return chunks.map((arr, pi) =>
+    _visitorSigninSheetHtml(dateText, arr, pi * SIGNIN_VISITOR_PER_PAGE, pi + 1, chunks.length)
+  ).join('');
+}
+
+function _visitorSigninSheetHtml(dateText, visitors, startIdx, pageNum, totalPages) {
+  const rowH = 14;
+  const suffix = totalPages > 1 ? `（${pageNum}/${totalPages}）` : '';
+  let rows = '';
+  for (let i = 0; i < SIGNIN_VISITOR_PER_PAGE; i++) {
+    const v = visitors[i];
+    rows += `
+    <tr style="height:${rowH}mm;">
+      <td class="c-num">${startIdx + i + 1}</td>
+      <td class="c-name">${v ? _escH(v.name || '') : ''}</td>
+      <td></td>
+      <td class="c-time">:</td>
+      <td></td>
+      <td></td>
+    </tr>`;
+  }
+  return `<div class="signin-sheet">
+    <div class="ss-title">BNI 億展白金分會　外賓出席簽到${suffix}</div>
+    <div class="ss-subtitle">${dateText}　　6:15 領導團隊應到　6:30 應到</div>
+    <table class="ss-table">
+      <colgroup>
+        <col style="width:9%"><col style="width:17%"><col style="width:22%"><col style="width:16%"><col style="width:12%"><col style="width:24%">
+      </colgroup>
+      <thead><tr><th>序號</th><th>外賓</th><th>簽名</th><th>簽到時間</th><th>收費</th><th>備註</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
 function _buildGuestSheets(dateText) {
   const total   = SIGNIN_GUEST_TOTAL;
   const perPage = SIGNIN_GUEST_PER_PAGE;
@@ -97,15 +143,19 @@ function _buildGuestSheets(dateText) {
 function _memberSheetHtml(dateText, members, startIdx, pageNum, totalPages) {
   const rowH = 14; // mm，每列 14mm 以容納 26pt 姓名
   const suffix = totalPages > 1 ? `（${pageNum}/${totalPages}）` : '';
-  const rows = members.map((m, i) => `
+  let rows = '';
+  for (let i = 0; i < SIGNIN_ROWS_PER_PAGE; i++) {
+    const m = members[i];
+    rows += `
     <tr style="height:${rowH}mm;">
       <td class="c-num">${startIdx + i + 1}</td>
-      <td class="c-name">${_escH(m.name)}</td>
+      <td class="c-name">${m ? _escH(m.name) : ''}</td>
       <td></td>
       <td class="c-time">:</td>
       <td></td>
       <td></td>
-    </tr>`).join('');
+    </tr>`;
+  }
   return `<div class="signin-sheet">
     <div class="ss-title">BNI 億展白金分會　會員出席簽到${suffix}</div>
     <div class="ss-subtitle">${dateText}　　6:15 領導團隊應到　6:30 會員應到</div>
@@ -212,9 +262,9 @@ async function printSignin() {
       if (i > 0) doc.addPage();
       doc.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 210, 297);
     }
-    const fn = _signinSubTab === 'member'
-      ? `BNI-億展分會-會員出席簽到-${_signinDate}.pdf`
-      : `BNI-億展分會-來賓出席簽到-${_signinDate}.pdf`;
+    const fn = _signinSubTab === 'member'  ? `BNI-億展分會-會員出席簽到-${_signinDate}.pdf`
+             : _signinSubTab === 'guest'   ? `BNI-億展分會-來賓出席簽到-${_signinDate}.pdf`
+             : `BNI-億展分會-外賓出席簽到-${_signinDate}.pdf`;
     _downloadPdfBlob(doc.output('blob'), fn);
     showToast('PDF 已下載');
   } catch {

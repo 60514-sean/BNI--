@@ -1,11 +1,29 @@
 // ===== 桌牌製作 =====
-let _placardSubTab = 'guest';        // 'guest' | 'member'
+let _placardSubTab = 'guest';        // 'guest' | 'member' | 'director'
 let _placardMemberSelected = null;   // null = 全選；Set<sheetRow> = 自訂
 let _placardMemberPanelOpen = false;
 let _placardGuestSelected = null;    // null = 全選；Set<year-sheetRow> = 自訂
 let _placardGuestPanelOpen = false;
+let _placardDirectorSelected = null; // null = 全選；Set<id> = 自訂
+let _placardDirectorPanelOpen = false;
+let _placardVisitorSelected = null;  // null = 全選；Set<id> = 自訂
+let _placardVisitorPanelOpen = false;
 
 function _placardSwitch(v) { _placardSubTab = v; renderPlacard(); }
+
+// ===== 董顧資料（手動新增，存於後端 cache['__directors__']）=====
+function getDirectors() {
+  const v = cache['__directors__'];
+  return Array.isArray(v) ? v : [];
+}
+async function saveDirectors(list) { await apiSave('__directors__', list); }
+
+// ===== 外賓（外分會參訪）資料（手動新增，存於後端 cache['__visitors__']）=====
+function getVisitors() {
+  const v = cache['__visitors__'];
+  return Array.isArray(v) ? v : [];
+}
+async function saveVisitors(list) { await apiSave('__visitors__', list); }
 
 function _getSelectedMembers() {
   if (!_memberData) return [];
@@ -74,6 +92,72 @@ function _placardToggleGuestSelectorPanel() {
   if (arrow) arrow.textContent = _placardGuestPanelOpen ? '▲' : '▼';
 }
 
+// ===== 董顧選擇 =====
+function _getSelectedDirectors() {
+  const all = getDirectors();
+  if (_placardDirectorSelected === null) return [...all];
+  return all.filter(d => _placardDirectorSelected.has(String(d.id)));
+}
+function _placardSelectAllDirectors() {
+  _placardDirectorSelected = null;
+  document.querySelectorAll('.dplacard-selector-item input').forEach(cb => cb.checked = true);
+  _placardRefreshDirectorView();
+}
+function _placardSelectNoneDirectors() {
+  _placardDirectorSelected = new Set();
+  document.querySelectorAll('.dplacard-selector-item input').forEach(cb => cb.checked = false);
+  _placardRefreshDirectorView();
+}
+function _placardToggleDirector(id) {
+  const key = String(id);
+  if (_placardDirectorSelected === null) {
+    _placardDirectorSelected = new Set(getDirectors().map(d => String(d.id)));
+  }
+  if (_placardDirectorSelected.has(key)) _placardDirectorSelected.delete(key);
+  else _placardDirectorSelected.add(key);
+  _placardRefreshDirectorView();
+}
+function _placardToggleDirectorSelectorPanel() {
+  _placardDirectorPanelOpen = !_placardDirectorPanelOpen;
+  const p = document.getElementById('dplacardPanel');
+  const arrow = document.getElementById('dplacardSelArrow');
+  if (p) p.style.display = _placardDirectorPanelOpen ? '' : 'none';
+  if (arrow) arrow.textContent = _placardDirectorPanelOpen ? '▲' : '▼';
+}
+
+// ===== 外賓選擇 =====
+function _getSelectedVisitors() {
+  const all = getVisitors();
+  if (_placardVisitorSelected === null) return [...all];
+  return all.filter(v => _placardVisitorSelected.has(String(v.id)));
+}
+function _placardSelectAllVisitors() {
+  _placardVisitorSelected = null;
+  document.querySelectorAll('.vplacard-selector-item input').forEach(cb => cb.checked = true);
+  _placardRefreshVisitorView();
+}
+function _placardSelectNoneVisitors() {
+  _placardVisitorSelected = new Set();
+  document.querySelectorAll('.vplacard-selector-item input').forEach(cb => cb.checked = false);
+  _placardRefreshVisitorView();
+}
+function _placardToggleVisitor(id) {
+  const key = String(id);
+  if (_placardVisitorSelected === null) {
+    _placardVisitorSelected = new Set(getVisitors().map(v => String(v.id)));
+  }
+  if (_placardVisitorSelected.has(key)) _placardVisitorSelected.delete(key);
+  else _placardVisitorSelected.add(key);
+  _placardRefreshVisitorView();
+}
+function _placardToggleVisitorSelectorPanel() {
+  _placardVisitorPanelOpen = !_placardVisitorPanelOpen;
+  const p = document.getElementById('vplacardPanel');
+  const arrow = document.getElementById('vplacardSelArrow');
+  if (p) p.style.display = _placardVisitorPanelOpen ? '' : 'none';
+  if (arrow) arrow.textContent = _placardVisitorPanelOpen ? '▲' : '▼';
+}
+
 function _placardRefreshGuestView() {
   const week  = _getWeekGuestsForSignin();
   const sel   = _getSelectedGuests();
@@ -87,6 +171,38 @@ function _placardRefreshGuestView() {
   if (btn) btn.disabled = count === 0;
   const selTx = document.getElementById('gplacardSelBtnText');
   if (selTx) selTx.textContent = `選擇來賓（已選 ${count} / ${total} 位）`;
+  _scalePlacard();
+}
+
+function _placardRefreshDirectorView() {
+  const all   = getDirectors();
+  const sel   = _getSelectedDirectors();
+  const total = all.length;
+  const count = sel.length;
+  const body  = document.getElementById('placardBody');
+  if (body) body.innerHTML = _placardBodyHtml('director', [], sel);
+  const desc  = document.getElementById('placardDesc');
+  if (desc) desc.textContent = `已選 ${count} / ${total} 位 · ${Math.ceil(count/2)} 張 A4（每張 2 位，上下對摺為立牌）`;
+  const btn   = document.getElementById('placardPdfBtn');
+  if (btn) btn.disabled = count === 0;
+  const selTx = document.getElementById('dplacardSelBtnText');
+  if (selTx) selTx.textContent = `選擇董顧（已選 ${count} / ${total} 位）`;
+  _scalePlacard();
+}
+
+function _placardRefreshVisitorView() {
+  const all   = getVisitors();
+  const sel   = _getSelectedVisitors();
+  const total = all.length;
+  const count = sel.length;
+  const body  = document.getElementById('placardBody');
+  if (body) body.innerHTML = _placardBodyHtml('visitor', sel, []);
+  const desc  = document.getElementById('placardDesc');
+  if (desc) desc.textContent = `已選 ${count} / ${total} 位 · ${count} 張 A4（每張 1 位，上下對摺為立牌）`;
+  const btn   = document.getElementById('placardPdfBtn');
+  if (btn) btn.disabled = count === 0;
+  const selTx = document.getElementById('vplacardSelBtnText');
+  if (selTx) selTx.textContent = `選擇外賓（已選 ${count} / ${total} 位）`;
   _scalePlacard();
 }
 
@@ -121,17 +237,29 @@ async function renderPlacard() {
 
   const subBtn = (v, label) => `<button class="signin-subtab ${tab===v?'active':''}" onclick="_placardSwitch('${v}')">${label}</button>`;
 
-  const weekGuests   = tab === 'guest'  ? _getWeekGuestsForSignin() : [];
-  const allMembers   = tab === 'member' ? [..._memberData]           : [];
-  const selGuests    = tab === 'guest'  ? _getSelectedGuests()       : [];
-  const sel          = tab === 'member' ? _getSelectedMembers()      : [];
-  const count        = tab === 'guest'  ? selGuests.length           : sel.length;
-  const totalGuests  = weekGuests.length;
-  const totalMembers = allMembers.length;
-  const title = tab === 'guest' ? '來賓桌牌' : '會員桌牌';
-  const desc  = tab === 'guest'
-    ? `已選 ${count} / ${totalGuests} 位 · ${count} 張 A4（每張 1 位，上下對摺為立牌）`
-    : `已選 ${count} / ${totalMembers} 位 · ${Math.ceil(count/2)} 張 A4（每張 2 位，上下對摺為立牌）`;
+  const weekGuests   = tab === 'guest'    ? _getWeekGuestsForSignin() : [];
+  const allMembers   = tab === 'member'   ? [..._memberData]          : [];
+  const allDirectors = tab === 'director' ? getDirectors()            : [];
+  const allVisitors  = tab === 'visitor'  ? getVisitors()             : [];
+  const selGuests    = tab === 'guest'    ? _getSelectedGuests()      : [];
+  const sel          = tab === 'member'   ? _getSelectedMembers()     : [];
+  const selDirectors = tab === 'director' ? _getSelectedDirectors()   : [];
+  const selVisitors  = tab === 'visitor'  ? _getSelectedVisitors()    : [];
+  let count, total, title, desc;
+  if (tab === 'guest')        { count = selGuests.length;    total = weekGuests.length;   title = '來賓桌牌'; desc = `已選 ${count} / ${total} 位 · ${count} 張 A4（每張 1 位，上下對摺為立牌）`; }
+  else if (tab === 'member')  { count = sel.length;          total = allMembers.length;   title = '會員桌牌'; desc = `已選 ${count} / ${total} 位 · ${Math.ceil(count/2)} 張 A4（每張 2 位，上下對摺為立牌）`; }
+  else if (tab === 'director'){ count = selDirectors.length; total = allDirectors.length; title = '董顧桌牌'; desc = `已選 ${count} / ${total} 位 · ${Math.ceil(count/2)} 張 A4（每張 2 位，上下對摺為立牌）`; }
+  else                        { count = selVisitors.length;  total = allVisitors.length;  title = '外賓桌牌'; desc = `已選 ${count} / ${total} 位 · ${count} 張 A4（每張 1 位，上下對摺為立牌）`; }
+
+  const refreshExpr = tab === 'guest' ? '_guestData=null;renderPlacard()'
+                    : tab === 'member' ? '_memberData=null;renderPlacard()'
+                    : '_bgRefresh().then(()=>renderPlacard())';
+
+  let bodyArg1, bodyArg2;
+  if (tab === 'guest')         { bodyArg1 = selGuests;    bodyArg2 = []; }
+  else if (tab === 'member')   { bodyArg1 = weekGuests;   bodyArg2 = sel; }
+  else if (tab === 'director') { bodyArg1 = [];           bodyArg2 = selDirectors; }
+  else                         { bodyArg1 = selVisitors;  bodyArg2 = []; }
 
   el.innerHTML = `<div class="placard-wrapper">
     <div class="card" style="margin-bottom:14px;padding:16px 20px;">
@@ -141,18 +269,24 @@ async function renderPlacard() {
           <div id="placardDesc" style="font-size:12px;color:var(--text-soft);margin-top:3px;">${desc}</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${tab === 'director' ? `<button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text);" onclick="_placardOpenDirectorManager()">管理董顧</button>` : ''}
+          ${tab === 'visitor'  ? `<button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text);" onclick="_placardOpenVisitorManager()">管理外賓</button>` : ''}
           <button id="placardPdfBtn" class="btn btn-primary" onclick="printPlacards()" ${count===0?'disabled':''}>匯出 PDF</button>
-          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="${tab==='guest'?'_guestData':'_memberData'}=null;renderPlacard()">重整</button>
+          <button class="btn" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);" onclick="${refreshExpr}">重整</button>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;">
         ${subBtn('member','會員')}
         ${subBtn('guest','來賓')}
+        ${subBtn('director','董顧')}
+        ${subBtn('visitor','外賓')}
       </div>
-      ${tab === 'member' ? _memberSelectorHtml(allMembers) : ''}
-      ${tab === 'guest'  ? _guestSelectorHtml(weekGuests)  : ''}
+      ${tab === 'member'   ? _memberSelectorHtml(allMembers)     : ''}
+      ${tab === 'guest'    ? _guestSelectorHtml(weekGuests)      : ''}
+      ${tab === 'director' ? _directorSelectorHtml(allDirectors) : ''}
+      ${tab === 'visitor'  ? _visitorSelectorHtml(allVisitors)   : ''}
     </div>
-    <div id="placardBody">${_placardBodyHtml(tab, tab==='guest'?selGuests:weekGuests, sel)}</div>
+    <div id="placardBody">${_placardBodyHtml(tab, bodyArg1, bodyArg2)}</div>
   </div>`;
   _scalePlacard();
 }
@@ -204,6 +338,62 @@ function _memberSelectorHtml(members) {
   </div>`;
 }
 
+function _visitorSelectorHtml(visitors) {
+  const sel = _getSelectedVisitors();
+  const isSelected = (v) => _placardVisitorSelected === null || _placardVisitorSelected.has(String(v.id));
+  if (!visitors.length) {
+    return `<div class="mplacard-selector" style="padding:12px 0;color:var(--text-soft);font-size:13px;">
+      尚無外賓資料，請點右上「管理外賓」新增。
+    </div>`;
+  }
+  const items = visitors.map(v => `
+    <label class="mplacard-selector-item vplacard-selector-item">
+      <input type="checkbox" ${isSelected(v) ? 'checked' : ''} onchange="_placardToggleVisitor('${_escH(v.id)}')">
+      <span>${_escH(v.name || '')}${v.industry ? `<span style="color:var(--text-soft);font-size:12px;margin-left:6px;">${_escH(v.industry)}</span>` : ''}</span>
+    </label>`).join('');
+  return `<div class="mplacard-selector">
+    <button class="mplacard-selector-btn" onclick="_placardToggleVisitorSelectorPanel()">
+      <span id="vplacardSelBtnText">選擇外賓（已選 ${sel.length} / ${visitors.length} 位）</span>
+      <span id="vplacardSelArrow" style="color:var(--text-soft);font-size:12px;">${_placardVisitorPanelOpen ? '▲' : '▼'}</span>
+    </button>
+    <div class="mplacard-selector-panel" id="vplacardPanel" style="display:${_placardVisitorPanelOpen ? '' : 'none'};">
+      <div class="mplacard-selector-actions">
+        <button onclick="_placardSelectAllVisitors()">全選</button>
+        <button onclick="_placardSelectNoneVisitors()">全不選</button>
+      </div>
+      <div class="mplacard-selector-list">${items}</div>
+    </div>
+  </div>`;
+}
+
+function _directorSelectorHtml(directors) {
+  const sel = _getSelectedDirectors();
+  const isSelected = (d) => _placardDirectorSelected === null || _placardDirectorSelected.has(String(d.id));
+  if (!directors.length) {
+    return `<div class="mplacard-selector" style="padding:12px 0;color:var(--text-soft);font-size:13px;">
+      尚無董顧資料，請點右上「管理董顧」新增。
+    </div>`;
+  }
+  const items = directors.map(d => `
+    <label class="mplacard-selector-item dplacard-selector-item">
+      <input type="checkbox" ${isSelected(d) ? 'checked' : ''} onchange="_placardToggleDirector('${_escH(d.id)}')">
+      <span>${_escH(d.name || '')}${d.specialty ? `<span style="color:var(--text-soft);font-size:12px;margin-left:6px;">${_escH(d.specialty)}</span>` : ''}</span>
+    </label>`).join('');
+  return `<div class="mplacard-selector">
+    <button class="mplacard-selector-btn" onclick="_placardToggleDirectorSelectorPanel()">
+      <span id="dplacardSelBtnText">選擇董顧（已選 ${sel.length} / ${directors.length} 位）</span>
+      <span id="dplacardSelArrow" style="color:var(--text-soft);font-size:12px;">${_placardDirectorPanelOpen ? '▲' : '▼'}</span>
+    </button>
+    <div class="mplacard-selector-panel" id="dplacardPanel" style="display:${_placardDirectorPanelOpen ? '' : 'none'};">
+      <div class="mplacard-selector-actions">
+        <button onclick="_placardSelectAllDirectors()">全選</button>
+        <button onclick="_placardSelectNoneDirectors()">全不選</button>
+      </div>
+      <div class="mplacard-selector-list">${items}</div>
+    </div>
+  </div>`;
+}
+
 function _placardBodyHtml(tab, weekGuests, members) {
   if (tab === 'guest') {
     const totalWeek = _getWeekGuestsForSignin().length;
@@ -218,6 +408,43 @@ function _placardBodyHtml(tab, weekGuests, members) {
     }
     return `<div class="placard-preview-outer" id="placardOuter">
         <div class="placard-preview-inner" id="placardInner">${weekGuests.map(_placardSheetHtml).join('')}</div>
+      </div>`;
+  }
+  if (tab === 'director') {
+    const totalAll = getDirectors().length;
+    if (!totalAll) {
+      return `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">
+        尚無董顧資料<br>
+        <span style="font-size:12px;">請點擊右上「管理董顧」新增姓名與職稱</span>
+      </div>`;
+    }
+    if (!members.length) {
+      return `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">
+        尚未選取任何董顧<br>
+        <span style="font-size:12px;">請點擊上方「選擇董顧」下拉選單勾選要製作的董顧</span>
+      </div>`;
+    }
+    return `<div class="placard-preview-outer" id="placardOuter">
+        <div class="placard-preview-inner" id="placardInner">${_buildMemberPlacardSheets(members)}</div>
+      </div>`;
+  }
+  if (tab === 'visitor') {
+    const visitors = weekGuests;  // visitor 分頁時 bodyArg1 為已選外賓清單
+    const totalAll = getVisitors().length;
+    if (!totalAll) {
+      return `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">
+        尚無外賓資料<br>
+        <span style="font-size:12px;">請點擊右上「管理外賓」新增姓名、產業與職稱</span>
+      </div>`;
+    }
+    if (!visitors.length) {
+      return `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">
+        尚未選取任何外賓<br>
+        <span style="font-size:12px;">請點擊上方「選擇外賓」下拉選單勾選要製作的外賓</span>
+      </div>`;
+    }
+    return `<div class="placard-preview-outer" id="placardOuter">
+        <div class="placard-preview-inner" id="placardInner">${visitors.map(_visitorSheetHtml).join('')}</div>
       </div>`;
   }
   if (!members.length) {
@@ -272,6 +499,33 @@ function _placardSheetHtml(g) {
   </div>`;
 }
 
+// 外賓專用：背景圖右下角內建「外賓」字樣；職稱以黑底白字小框顯示（比照來賓黑色框框位置）
+function _visitorSheetHtml(g) {
+  const name = _escH(g.name || '');
+  const industry = _escH(g.industry || '');
+  const title = _escH(g.inviter || '');  // 內部沿用 inviter 欄位，UI 顯示為「職稱」
+  // 黑色框（位置/尺寸比照來賓 .placard-inviter-box，右側齊右對齊「賓」字）
+  const titleBox = title
+    ? `<div style="position:absolute;right:12%;top:85.97%;width:30%;height:11.40%;display:flex;align-items:center;justify-content:flex-end;color:white;font-size:8.5mm;font-weight:700;letter-spacing:1mm;padding-right:0;line-height:1;white-space:nowrap;z-index:3;box-sizing:border-box;">${title}</div>`
+    : '';
+  const contentHtml = `
+    <div class="placard-content" style="z-index:2;">
+      <div class="placard-industry-box">${industry}</div>
+      <div class="placard-name-box">${name}</div>
+      ${titleBox}
+    </div>`;
+  // 上半部底圖需 180 度（對摺後正向）；用內層 div 包住底圖層 rotate，不影響 placard-content
+  const upperBg = `<div style="position:absolute;inset:0;background-image:url('placard_bg/visitor.jpg');background-size:100% 100%;background-repeat:no-repeat;transform:rotate(180deg);z-index:0;"></div>`;
+  const lowerBg = `<div style="position:absolute;inset:0;background-image:url('placard_bg/visitor.jpg');background-size:100% 100%;background-repeat:no-repeat;z-index:0;"></div>`;
+  return `<div class="placard-sheet">
+    <div class="placard-row" style="background-image:url('placard_bg/4.png');"></div>
+    <div class="placard-row placard-row-upper">${upperBg}${contentHtml}</div>
+    <div class="placard-fold-line"></div>
+    <div class="placard-row placard-row-lower">${lowerBg}${contentHtml}</div>
+    <div class="placard-row" style="background-image:url('placard_bg/1.png');"></div>
+  </div>`;
+}
+
 function _scalePlacard() {
   const outer = document.getElementById('placardOuter');
   const inner = document.getElementById('placardInner');
@@ -318,7 +572,10 @@ async function printPlacards() {
       if (i > 0) doc.addPage();
       doc.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 210, 297);
     }
-    const fname = _placardSubTab === 'member' ? '會員桌牌' : '來賓桌牌';
+    const fname = _placardSubTab === 'member' ? '會員桌牌'
+                : _placardSubTab === 'director' ? '董顧桌牌'
+                : _placardSubTab === 'visitor' ? '外賓桌牌'
+                : '來賓桌牌';
     _downloadPdfBlob(doc.output('blob'), `BNI-${fname}-${_todayIso()}.pdf`);
     showToast('PDF 已下載');
   } catch {
@@ -330,3 +587,121 @@ async function printPlacards() {
   }
 }
 
+// ===== 管理董顧 modal =====
+function _placardDirectorRowHtml(d) {
+  const id = _escH(d && d.id != null ? d.id : ('new-' + Date.now() + '-' + Math.random().toString(36).slice(2,8)));
+  const name = _escH(d && d.name || '');
+  const spec = _escH(d && d.specialty || '');
+  return `<div class="director-edit-row" data-id="${id}" style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+    <input class="modal-input" data-field="name" value="${name}" placeholder="姓名" style="flex:1;">
+    <input class="modal-input" data-field="specialty" value="${spec}" placeholder="職稱" style="flex:1;">
+    <button type="button" class="modal-del" style="padding:9px 12px;font-size:13px;margin:0;" onclick="this.closest('.director-edit-row').remove()">刪除</button>
+  </div>`;
+}
+function _placardOpenDirectorManager() {
+  const list = getDirectors();
+  const itemHtml = list.map(_placardDirectorRowHtml).join('');
+  const html = `<div class="modal-overlay" id="directorMgrModal" onclick="if(event.target===this) _placardCloseDirectorManager()">
+    <div class="modal-box">
+      <div class="modal-title">管理董顧名單</div>
+      <div style="font-size:12px;color:var(--text-soft);margin-bottom:10px;">每筆需填寫姓名（必填）與職稱。空白姓名儲存時會被忽略。</div>
+      <div id="directorEditList">${itemHtml}</div>
+      <button type="button" class="btn" style="margin-top:6px;background:white;border:1.5px solid var(--gray-border);color:var(--text);" onclick="_placardDirectorAddRow()">＋ 新增一筆</button>
+      <div class="modal-btns">
+        <button type="button" class="modal-cancel" onclick="_placardCloseDirectorManager()">取消</button>
+        <button type="button" class="modal-save" onclick="_placardSaveDirectors()">儲存</button>
+      </div>
+    </div>
+  </div>`;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap.firstChild);
+}
+function _placardCloseDirectorManager() {
+  const m = document.getElementById('directorMgrModal');
+  if (m) m.remove();
+}
+function _placardDirectorAddRow() {
+  const list = document.getElementById('directorEditList');
+  if (!list) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = _placardDirectorRowHtml(null);
+  list.appendChild(tmp.firstChild);
+}
+async function _placardSaveDirectors() {
+  const rows = document.querySelectorAll('#directorEditList .director-edit-row');
+  const out = [];
+  rows.forEach(r => {
+    const id = r.dataset.id || ('d-' + Date.now() + '-' + Math.random().toString(36).slice(2,8));
+    const name = (r.querySelector('[data-field="name"]')?.value || '').trim();
+    const specialty = (r.querySelector('[data-field="specialty"]')?.value || '').trim();
+    if (!name) return;
+    out.push({ id, name, specialty });
+  });
+  await saveDirectors(out);
+  _placardDirectorSelected = null;
+  _placardCloseDirectorManager();
+  showToast('已儲存董顧名單');
+  if (_placardSubTab === 'director') renderPlacard();
+}
+
+// ===== 管理外賓 modal =====
+function _placardVisitorRowHtml(v) {
+  const id = _escH(v && v.id != null ? v.id : ('new-' + Date.now() + '-' + Math.random().toString(36).slice(2,8)));
+  const name     = _escH(v && v.name     || '');
+  const industry = _escH(v && v.industry || '');
+  const inviter  = _escH(v && v.inviter  || '');
+  return `<div class="visitor-edit-row" data-id="${id}" style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">
+    <input class="modal-input" data-field="name"     value="${name}"     placeholder="姓名"   style="flex:1 1 110px;min-width:90px;">
+    <input class="modal-input" data-field="industry" value="${industry}" placeholder="產業"   style="flex:1 1 110px;min-width:90px;">
+    <input class="modal-input" data-field="inviter"  value="${inviter}"  placeholder="職稱" style="flex:1 1 110px;min-width:90px;">
+    <button type="button" class="modal-del" style="padding:9px 12px;font-size:13px;margin:0;" onclick="this.closest('.visitor-edit-row').remove()">刪除</button>
+  </div>`;
+}
+function _placardOpenVisitorManager() {
+  const list = getVisitors();
+  const itemHtml = list.map(_placardVisitorRowHtml).join('');
+  const html = `<div class="modal-overlay" id="visitorMgrModal" onclick="if(event.target===this) _placardCloseVisitorManager()">
+    <div class="modal-box">
+      <div class="modal-title">管理外賓名單（外分會參訪）</div>
+      <div style="font-size:12px;color:var(--text-soft);margin-bottom:10px;">每筆需填寫姓名（必填）、產業、職稱。空白姓名儲存時會被忽略。</div>
+      <div id="visitorEditList">${itemHtml}</div>
+      <button type="button" class="btn" style="margin-top:6px;background:white;border:1.5px solid var(--gray-border);color:var(--text);" onclick="_placardVisitorAddRow()">＋ 新增一筆</button>
+      <div class="modal-btns">
+        <button type="button" class="modal-cancel" onclick="_placardCloseVisitorManager()">取消</button>
+        <button type="button" class="modal-save" onclick="_placardSaveVisitors()">儲存</button>
+      </div>
+    </div>
+  </div>`;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap.firstChild);
+}
+function _placardCloseVisitorManager() {
+  const m = document.getElementById('visitorMgrModal');
+  if (m) m.remove();
+}
+function _placardVisitorAddRow() {
+  const list = document.getElementById('visitorEditList');
+  if (!list) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = _placardVisitorRowHtml(null);
+  list.appendChild(tmp.firstChild);
+}
+async function _placardSaveVisitors() {
+  const rows = document.querySelectorAll('#visitorEditList .visitor-edit-row');
+  const out = [];
+  rows.forEach(r => {
+    const id = r.dataset.id || ('v-' + Date.now() + '-' + Math.random().toString(36).slice(2,8));
+    const name     = (r.querySelector('[data-field="name"]')?.value     || '').trim();
+    const industry = (r.querySelector('[data-field="industry"]')?.value || '').trim();
+    const inviter  = (r.querySelector('[data-field="inviter"]')?.value  || '').trim();
+    if (!name) return;
+    out.push({ id, name, industry, inviter });
+  });
+  await saveVisitors(out);
+  _placardVisitorSelected = null;
+  _placardCloseVisitorManager();
+  showToast('已儲存外賓名單');
+  if (_placardSubTab === 'visitor') renderPlacard();
+}
