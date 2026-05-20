@@ -824,23 +824,23 @@ input.is-locked:focus, textarea.is-locked:focus {
 }
 .nameplate-industry {
   position: absolute;
-  left: 6%;
-  top: 11%;
+  left: 8%;
+  top: 10%;
   font-size: 5mm;
   font-weight: 700;
-  color: #1a1a2e;
+  color: #1a1a1a;
   letter-spacing: 0.3mm;
   line-height: 1;
   white-space: nowrap;
 }
 .nameplate-name {
   position: absolute;
-  left: 6%;
-  top: 30%;
-  font-size: 11mm;
+  left: 5%;
+  top: 27%;
+  font-size: 13mm;
   font-weight: 900;
-  color: #1a1a2e;
-  letter-spacing: 2mm;
+  color: #1a1a1a;
+  letter-spacing: 3mm;
   line-height: 1;
   white-space: nowrap;
 }
