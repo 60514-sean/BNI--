@@ -136,6 +136,8 @@ const TAB_LIST = [
   { id: 'guesttrack', label: '來賓追蹤', group: '例會' },
   { id: 'placard',    label: '桌牌製作', group: '例會' },
   { id: 'schedule',   label: '簡報排程', group: '例會' },
+  { id: 'cardholder', label: '名片盒',   group: '例會' },
+  { id: 'nameplate',  label: '名牌',     group: '例會' },
   { id: 'member',     label: '會員資料', group: '會員' },
   { id: 'renewal',    label: '續約管理', group: '會員' },
   { id: 'dm',         label: '會員DM',   group: '會員' },
@@ -328,7 +330,7 @@ function _applyEditLock(tabId) {
   const map = {
     todo:'todoContent', main:'mainContent', member:'memberContent',
     dm:'dmContent', slogan:'sloganContent', plate:'plateContent', signin:'signinContent', guesttrack:'guestTrackContent',
-    placard:'placardContent', schedule:'scheduleContent', finance:'financeContent', meeting:'meetingContent',
+    placard:'placardContent', nameplate:'nameplateContent', cardholder:'cardholderContent', schedule:'scheduleContent', finance:'financeContent', meeting:'meetingContent',
     sanchang:'sanchangContent', leadership:'leadershipContent'
   };
   const targets = [];

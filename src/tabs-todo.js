@@ -3,7 +3,7 @@ let _activeTab = 'main';
 
 const TAB_LABELS = {
   todo:'待辦事項', main:'工事清單', member:'會員資料', renewal:'續約管理', dm:'會員DM', slogan:'會員口號', plate:'車牌登記',
-  signin:'出席簽到', guesttrack:'來賓追蹤', placard:'桌牌製作', schedule:'簡報排程',
+  signin:'出席簽到', guesttrack:'來賓追蹤', placard:'桌牌製作', nameplate:'名牌', cardholder:'名片盒', schedule:'簡報排程',
   finance:'財務控管', meeting:'例會流程', sanchang:'三長周會', leadership:'領導月會', settings:'系統設定'
 };
 
@@ -21,6 +21,8 @@ function switchTab(tab) {
   document.getElementById('signinContent').style.display     = tab === 'signin'     ? '' : 'none';
   document.getElementById('guestTrackContent').style.display = tab === 'guesttrack' ? '' : 'none';
   document.getElementById('placardContent').style.display    = tab === 'placard'    ? '' : 'none';
+  document.getElementById('nameplateContent').style.display  = tab === 'nameplate'  ? '' : 'none';
+  document.getElementById('cardholderContent').style.display = tab === 'cardholder' ? '' : 'none';
   document.getElementById('scheduleContent').style.display   = tab === 'schedule'   ? '' : 'none';
   document.getElementById('financeContent').style.display    = tab === 'finance'    ? '' : 'none';
   document.getElementById('meetingContent').style.display    = tab === 'meeting'    ? '' : 'none';
@@ -40,6 +42,8 @@ function switchTab(tab) {
   if (tab === 'signin')     renderSignin();
   if (tab === 'guesttrack') renderGuestTrack();
   if (tab === 'placard')    renderPlacard();
+  if (tab === 'nameplate')  renderNameplate();
+  if (tab === 'cardholder') renderCardholder();
   if (tab === 'schedule')   renderSchedule();
   if (tab === 'finance')    renderFinance();
   if (tab === 'meeting')    renderMeeting();

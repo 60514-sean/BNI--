@@ -803,6 +803,90 @@ input.is-locked:focus, textarea.is-locked:focus {
 .ss-table td.c-check-top { border-bottom: none; }
 .ss-table td.c-check-bot { border-top: none; }
 
+/* 名牌（工作區域 79mm × 45.5mm，一張 PDF 一位會員） */
+.nameplate-wrapper { padding: 0; max-width: 980px; margin: 0 auto; }
+.nameplate-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.nameplate-sheet {
+  width: 79mm; height: 45.5mm;
+  background: white; box-shadow: var(--shadow-lg);
+  font-family: 'Noto Sans TC','Microsoft JhengHei',sans-serif; color: #1a1a2e;
+  box-sizing: border-box;
+  position: relative;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  overflow: hidden;
+}
+.nameplate-industry {
+  position: absolute;
+  left: 6%;
+  top: 11%;
+  font-size: 5mm;
+  font-weight: 700;
+  color: #1a1a2e;
+  letter-spacing: 0.3mm;
+  line-height: 1;
+  white-space: nowrap;
+}
+.nameplate-name {
+  position: absolute;
+  left: 6%;
+  top: 30%;
+  font-size: 11mm;
+  font-weight: 900;
+  color: #1a1a2e;
+  letter-spacing: 2mm;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* 名片盒（工作區域 90mm × 75mm，一張 PDF 一位會員） */
+.cardholder-wrapper { padding: 0; max-width: 980px; margin: 0 auto; }
+.cardholder-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.cardholder-sheet {
+  width: 90mm; height: 75mm;
+  background: white; box-shadow: var(--shadow-lg);
+  font-family: 'Noto Sans TC','Microsoft JhengHei',sans-serif; color: #1a1a2e;
+  box-sizing: border-box;
+  position: relative;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  overflow: hidden;
+}
+.cardholder-industry {
+  position: absolute;
+  left: 9%;
+  top: 9%;
+  font-size: 5mm;
+  font-weight: 700;
+  color: #1a1a2e;
+  letter-spacing: 0.3mm;
+  line-height: 1;
+  white-space: nowrap;
+}
+.cardholder-name {
+  position: absolute;
+  left: 55%;
+  top: 7%;
+  font-size: 8mm;
+  font-weight: 900;
+  color: #1a1a2e;
+  letter-spacing: 2mm;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 /* 來賓桌牌 */
 .placard-wrapper { padding: 0; max-width: 980px; margin: 0 auto; }
 .placard-preview-outer { margin-bottom: 14px; overflow: hidden; }
