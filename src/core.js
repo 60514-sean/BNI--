@@ -136,12 +136,12 @@ const TAB_LIST = [
   { id: 'guesttrack', label: '來賓追蹤', group: '例會' },
   { id: 'placard',    label: '桌牌',     group: '例會' },
   { id: 'schedule',   label: '簡報排程', group: '例會' },
-  { id: 'cardholder', label: '名片盒',   group: '例會' },
-  { id: 'nameplate',  label: '名牌',     group: '例會' },
   { id: 'member',     label: '會員資料', group: '會員' },
   { id: 'renewal',    label: '續約管理', group: '會員' },
   { id: 'dm',         label: '會員DM',   group: '會員' },
   { id: 'slogan',     label: '會員口號', group: '會員' },
+  { id: 'cardholder', label: '名片盒',   group: '會員' },
+  { id: 'nameplate',  label: '名牌',     group: '會員' },
   { id: 'finance',    label: '財務控管', group: '財務' }
 ];
 const MENU_GROUP_ORDER = ['日常','例會','會員','財務'];

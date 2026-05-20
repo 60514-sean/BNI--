@@ -34,10 +34,13 @@ const PX2MM = 297 / 636;   // px→mm 換算（面板高 297mm / 畫布高 636px
 // 公開 DM 網址（QR code 內容）
 const DM_PUBLIC_URL = 'https://bni-weekly.vercel.app/dm-public.html?t=9k4r7p2m8x5v3t6y';
 
-// 取得 DM 底圖 URL（優先自訂，否則預設本地檔）
+// 取得 DM 底圖 URL（固定使用專案內預設檔；p3/p4 用 jpg 保留高品質）
+const _DM_BG_EXT = { 3: 'jpg', 4: 'jpg' };
+function _dmBgFile(panel) {
+  return 'dm_p' + panel + '.' + (_DM_BG_EXT[panel] || 'png');
+}
 function _dmBgSrc(panel) {
-  if (typeof getDMBgUrl === 'function') return getDMBgUrl(panel);
-  return 'dm_p' + panel + '.png';
+  return _dmBgFile(panel);
 }
 const DM_QR_COLOR = '#c0392b';
 
@@ -258,8 +261,6 @@ async function renderDM() {
   el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
   if (!_memberData) await fetchMembers();
   if (!_memberData) { el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試</div>`; return; }
-  // 確保 DM 底圖 URL 已載入（首次進入 DM 時觸發）
-  if (typeof _dmBgUrls !== 'undefined' && _dmBgUrls === null && typeof fetchDMBgs === 'function') await fetchDMBgs();
 
   const { panels, colorMap } = _dmDistribute();
   // px/mm 換算比例
@@ -495,17 +496,21 @@ async function printDM() {
     const h = +(297 - tmm - bmm).toFixed(2);
     return `<div style="position:absolute;left:${x}mm;top:${tmm}mm;width:${w}mm;height:${h}mm;overflow:hidden;">${pPanel(pi, h, 1.0)}</div>`;
   };
-  const bg = (n, xmm) => {
-    const customUrl = (typeof getDMBgUrl === 'function') ? getDMBgUrl(n) : null;
-    const url = (customUrl && customUrl.indexOf('dm_p') !== 0) ? customUrl : (base + 'dm_p' + n + '.png');
-    return `<img style="position:absolute;left:${xmm}mm;top:0;width:105mm;height:297mm;object-fit:contain;display:block;" src="${url}" crossorigin="anonymous">`;
-  };
+  // 蒐集底圖 URL（1~8），不再放進 pageEl，改由 jsPDF 直接 addImage 保留原圖解析度
+  const dmBgUrls = [];
+  for (let n = 1; n <= 8; n++) {
+    dmBgUrls.push(base + _dmBgFile(n));
+  }
+  // 預載底圖為 DataURL
+  const bgDataURLs = [];
+  for (const u of dmBgUrls) {
+    try { bgDataURLs.push(await _fetchAsDataURL(u)); }
+    catch { bgDataURLs.push(null); }
+  }
 
   // 為 P4 產生 QR code（PDF 版本，較高解析度）
-  // 新版 P4 底圖紅框位置：left=382mm, top=240mm, 寬 29mm × 高 27mm
   const qrDataUrl = await _generateQRDataURL(400);
   const qrSizeMm = 21;
-  // 新版 P4 紅框位置：64.3%~93.0% 水平 / 81.5%~90.0% 垂直
   const qrBoxX = 382.5;
   const qrBoxY = 242;
   const qrBoxW = 30;
@@ -516,44 +521,55 @@ async function printDM() {
     ? `<img src="${qrDataUrl}" style="position:absolute;left:${qrX}mm;top:${qrY}mm;width:${qrSizeMm}mm;height:${qrSizeMm}mm;display:block;">`
     : '';
 
+  // pages 內容只放 overlay（頭像/文字/QR）— 底圖另外用 addImage
   const pages = [
-    `${bg(1,0)}${bg(2,105)}${bg(3,210)}${bg(4,315)}${ovP12(0,0)}${ovP12(1,1)}${qrOverlay}`,
-    `${bg(5,0)}${bg(6,105)}${bg(7,210)}${bg(8,315)}${ovP58(2,0)}${ovP58(3,1)}${ovP58(4,2)}${ovP58(5,3)}`
+    `${ovP12(0,0)}${ovP12(1,1)}${qrOverlay}`,
+    `${ovP58(2,0)}${ovP58(3,1)}${ovP58(4,2)}${ovP58(5,3)}`
   ];
 
   // 建立隱藏渲染容器
   const wrap = document.createElement('div');
   wrap.style.cssText = 'position:absolute;left:-9999px;top:0;';
   const pageEl = document.createElement('div');
-  pageEl.style.cssText = "position:relative;width:420mm;height:297mm;overflow:hidden;background:white;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;";
+  pageEl.style.cssText = "position:relative;width:420mm;height:297mm;overflow:hidden;background:transparent;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;";
   wrap.appendChild(pageEl);
   document.body.appendChild(wrap);
 
   const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
   if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); document.body.removeChild(wrap); showLoader(false); _resumeEditLock(); return; }
-  const doc = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a3', compress: true });
+  const doc = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a3', compress: false });
 
   try {
     for (let i = 0; i < 2; i++) {
       pageEl.innerHTML = pages[i];
-      // 等待所有圖片載入
+      // 等待 overlay 內的圖片（頭像、QR）載入
       await Promise.all([...pageEl.querySelectorAll('img')].map(img =>
         img.complete ? Promise.resolve() :
         new Promise(r => { img.onload = r; img.onerror = r; })
       ));
       const canvas = await html2canvas(pageEl, {
-        scale: 2,
+        scale: 3,
         useCORS: true,
         allowTaint: false,
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: null
       });
       if (i > 0) doc.addPage();
-      doc.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 420, 297);
+      // 1) 先放 4 張底圖（原檔解析度）
+      const startIdx = i === 0 ? 0 : 4;
+      for (let p = 0; p < 4; p++) {
+        const data = bgDataURLs[startIdx + p];
+        if (!data) continue;
+        const fmt = dmBgUrls[startIdx + p].toLowerCase().endsWith('.jpg') ? 'JPEG' : 'PNG';
+        doc.addImage(data, fmt, p * 105, 0, 105, 297);
+      }
+      // 2) 疊上 overlay PNG（頭像 + 文字 + QR）
+      doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 420, 297);
     }
     _downloadPdfBlob(doc.output('blob'), 'BNI-億展分會-會員名錄.pdf');
     showToast('PDF 已下載');
-  } catch {
+  } catch (e) {
+    console.error(e);
     showToast('PDF 產生失敗，請重試');
   } finally {
     document.body.removeChild(wrap);

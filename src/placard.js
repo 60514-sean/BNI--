@@ -539,6 +539,52 @@ function _scalePlacard() {
 }
 window.addEventListener('resize', () => { if (_activeTab === 'placard') _scalePlacard(); });
 
+// ===== 高解析 PDF 工具 =====
+async function _fetchAsDataURL(url) {
+  const r = await fetch(url);
+  const blob = await r.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+async function _rotateImageDataURL(dataURL, deg) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(deg * Math.PI / 180);
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = reject;
+    img.src = dataURL;
+  });
+}
+function _extractBgUrl(el) {
+  const bg = el.style?.backgroundImage || '';
+  const m = bg.match(/url\(['"]?([^'")]+)['"]?\)/);
+  return m ? m[1] : null;
+}
+function _isRotated180Placard(el, sheetEl) {
+  let count = 0;
+  let p = el;
+  while (p && p !== sheetEl.parentElement) {
+    if (p.classList && p.classList.contains('rotated')) count++;
+    const t = p.style?.transform || '';
+    if (/rotate\s*\(\s*180/.test(t)) count++;
+    if (p === sheetEl) break;
+    p = p.parentElement;
+  }
+  return count % 2 === 1;
+}
+
 async function printPlacards() {
   _pauseEditLock();
   showLoader(true, 'PDF 產生中...');
@@ -552,25 +598,68 @@ async function printPlacards() {
   const sheets = document.querySelectorAll('#placardInner .placard-sheet');
   if (!sheets.length) { _resumeEditLock(); return; }
 
+  // 蒐集所有 inline background-image 的 URL，預載成 DataURL + 180 度版本
+  const urlSet = new Set();
+  sheets.forEach(s => {
+    s.querySelectorAll('[style*="background-image"]').forEach(el => {
+      const u = _extractBgUrl(el);
+      if (u) urlSet.add(u);
+    });
+  });
+  const bgCache = {};
+  for (const u of urlSet) {
+    try {
+      const normal = await _fetchAsDataURL(u);
+      bgCache[u] = { normal, rotated180: await _rotateImageDataURL(normal, 180) };
+    } catch {}
+  }
+
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:absolute;left:-9999px;top:0;background:white;';
+  wrap.style.cssText = 'position:absolute;left:-9999px;top:0;background:transparent;';
   document.body.appendChild(wrap);
 
   try {
     const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
     if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); return; }
-    const doc = new jsPDFCtor({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+    const doc = new jsPDFCtor({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: false });
+    const A4W = 210, A4H = 297;
+
     for (let i = 0; i < sheets.length; i++) {
+      if (i > 0) doc.addPage();
+      const sheet = sheets[i];
+      const sheetRect = sheet.getBoundingClientRect();
+
+      // 1) 對每個有 background-image 的元素，按位置直接 addImage 原圖（保留底圖原解析度）
+      const bgEls = sheet.querySelectorAll('[style*="background-image"]');
+      for (const el of bgEls) {
+        const url = _extractBgUrl(el);
+        if (!url || !bgCache[url]) continue;
+        const r = el.getBoundingClientRect();
+        const x = (r.left - sheetRect.left) / sheetRect.width  * A4W;
+        const y = (r.top  - sheetRect.top ) / sheetRect.height * A4H;
+        const w = r.width  / sheetRect.width  * A4W;
+        const h = r.height / sheetRect.height * A4H;
+        const rotated = _isRotated180Placard(el, sheet);
+        const data = rotated ? bgCache[url].rotated180 : bgCache[url].normal;
+        const fmt = url.toLowerCase().endsWith('.png') ? 'PNG' : 'JPEG';
+        doc.addImage(data, fmt, x, y, w, h);
+      }
+
+      // 2) html2canvas 抓無底圖的文字層，疊上去
       wrap.innerHTML = '';
-      const clone = sheets[i].cloneNode(true);
+      const clone = sheet.cloneNode(true);
+      clone.querySelectorAll('[style*="background-image"]').forEach(el => {
+        el.style.backgroundImage = 'none';
+        el.style.background = 'transparent';
+      });
       clone.style.boxShadow = 'none';
       clone.style.marginTop = '0';
+      clone.style.background = 'transparent';
       wrap.appendChild(clone);
       const canvas = await html2canvas(clone, {
-        scale: 2, useCORS: true, allowTaint: false, logging: false, backgroundColor: '#ffffff'
+        scale: 4, useCORS: true, allowTaint: false, logging: false, backgroundColor: null
       });
-      if (i > 0) doc.addPage();
-      doc.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 210, 297);
+      doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, A4W, A4H);
     }
     const fname = _placardSubTab === 'member' ? '會員桌牌'
                 : _placardSubTab === 'director' ? '董顧桌牌'
@@ -578,7 +667,8 @@ async function printPlacards() {
                 : '來賓桌牌';
     _downloadPdfBlob(doc.output('blob'), `BNI-${fname}-${_todayIso()}.pdf`);
     showToast('PDF 已下載');
-  } catch {
+  } catch (e) {
+    console.error(e);
     showToast('PDF 產生失敗，請重試');
   } finally {
     document.body.removeChild(wrap);
