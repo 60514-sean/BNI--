@@ -1,9 +1,26 @@
 // ===== REPORT（報告內容：簡報圖+備註台詞，可匯出 PDF 講義）=====
-// 主檔：__report__  = { title, slides: [{ id, note }] }（雲端共用）
-// 圖片雙寫：雲端 cache[`__report_img_<id>__`] + 本地 IndexedDB（同台電腦保底）
+// 圖片走 Cloudinary（外部 CDN，跨裝置同步穩定）
+// 主檔：__report__ = { title, slides: [{ id, note, url }] }，url 是 Cloudinary secure_url
+// 舊資料相容：若 slide 沒 url，回退查 cache[`__report_img_<id>__`] 的 dataURL
 
 const _RPT_IMG_MAX_PX  = 720;   // 上傳前壓縮邊長
 const _RPT_IMG_QUALITY = 0.72;  // JPEG 品質
+const CLOUDINARY_CLOUD_NAME    = 'due8faksv';
+const CLOUDINARY_UPLOAD_PRESET = 'bangqi_unsigned';
+const CLOUDINARY_FOLDER        = 'bni_report';
+
+async function _rptUploadToCloudinary(dataUrl) {
+  const form = new FormData();
+  form.append('file', dataUrl);
+  form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  form.append('folder', CLOUDINARY_FOLDER);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+    method: 'POST', body: form
+  });
+  const j = await res.json();
+  if (!j.secure_url) throw new Error((j.error && j.error.message) || 'Cloudinary upload failed');
+  return j.secure_url;
+}
 
 // ----- IndexedDB 本地保底層 -----
 const _RPT_IDB_NAME = 'bni_report';
@@ -81,11 +98,15 @@ function _rptLoadScript(url) {
   });
 }
 
-// dataURL → Blob URL（解碼一次，後續直接顯示，避免大字串每次渲染都重新解碼）
+// 圖片 URL 解析：優先 slide.url（Cloudinary）→ 退舊 cache/IDB 的 dataURL → Blob URL
 const _rptObjectUrls = new Map();
 function _rptGetImageSrc(id) {
+  // 1) 新版：主檔 slide.url（Cloudinary）
+  const d = getReportData();
+  const slide = d.slides.find(s => s.id === id);
+  if (slide && slide.url) return slide.url;
+  // 2) 舊資料相容：cache 或 IDB 的 dataURL（轉成 Blob URL 加速渲染）
   if (_rptObjectUrls.has(id)) return _rptObjectUrls.get(id);
-  // 優先：雲端 cache；找不到則退本機 IDB
   let dataUrl = getReportImage(id);
   if (!dataUrl) dataUrl = _rptIdbCache.get(id) || '';
   if (!dataUrl) return '';
@@ -337,25 +358,25 @@ async function addReportImages(fileList) {
   if (!fileList || !fileList.length) return;
   const files = [...fileList].filter(f => f.type.startsWith('image/'));
   if (!files.length) { showToast('沒有可上傳的圖片'); return; }
-  showLoader(true, `處理圖片 0 / ${files.length}`);
+  showLoader(true, `上傳圖片 0 / ${files.length}`);
   try {
     const d = getReportData();
+    let ok = 0;
     for (let i = 0; i < files.length; i++) {
-      showLoader(true, `處理圖片 ${i + 1} / ${files.length}`);
+      showLoader(true, `上傳圖片 ${i + 1} / ${files.length}`);
       try {
         const dataUrl = await _rptResize(files[i]);
+        const url = await _rptUploadToCloudinary(dataUrl);
         const id = _rptUid();
-        _rptIdbCache.set(id, dataUrl);
-        _rptIdbPut(id, dataUrl);              // 本機保底
-        await saveReportImage(id, dataUrl);   // 雲端同步
-        d.slides.push({ id, note: '' });
+        d.slides.push({ id, note: '', url });
+        ok++;
       } catch (e) {
-        console.error('[REPORT] 處理失敗', files[i].name, e);
-        showToast('「' + files[i].name + '」處理失敗');
+        console.error('[REPORT] 上傳失敗', files[i].name, e);
+        showToast('「' + files[i].name + '」上傳失敗：' + (e.message || e));
       }
     }
     await saveReportData(d);
-    showToast('已新增 ' + files.length + ' 張');
+    if (ok) showToast('已新增 ' + ok + ' 張');
   } finally {
     showLoader(false);
     const ip = document.getElementById('rptFileInput');
@@ -369,7 +390,8 @@ async function removeReportSlide(id) {
   const d = getReportData();
   d.slides = d.slides.filter(s => s.id !== id);
   await saveReportData(d);
-  await deleteReportImage(id);
+  // 舊版本若有寫進 cache/IDB，順手清掉以節省空間（Cloudinary 上檔案不主動刪）
+  try { deleteReportImage(id); } catch {}
   _rptIdbCache.delete(id);
   _rptIdbDelete(id);
   _rptRevokeImage(id);
@@ -396,9 +418,13 @@ function replaceReportImage(id) {
     showLoader(true, '更新圖片中...');
     try {
       const dataUrl = await _rptResize(f);
-      _rptIdbCache.set(id, dataUrl);
-      _rptIdbPut(id, dataUrl);
-      await saveReportImage(id, dataUrl);
+      const url = await _rptUploadToCloudinary(dataUrl);
+      const d = getReportData();
+      const slide = d.slides.find(s => s.id === id);
+      if (slide) {
+        slide.url = url;
+        await saveReportData(d);
+      }
       _rptRevokeImage(id);
       showToast('已更新');
     } catch (e) {

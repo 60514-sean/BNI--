@@ -231,7 +231,13 @@ function getReportData() {
   if (!d || typeof d !== 'object') return { title: '', slides: [] };
   return {
     title: typeof d.title === 'string' ? d.title : '',
-    slides: Array.isArray(d.slides) ? d.slides.map(s => ({ id: String(s.id || ''), note: String(s.note || '') })).filter(s => s.id) : []
+    slides: Array.isArray(d.slides)
+      ? d.slides.map(s => ({
+          id: String(s.id || ''),
+          note: String(s.note || ''),
+          url: typeof s.url === 'string' ? s.url : ''
+        })).filter(s => s.id)
+      : []
   };
 }
 async function saveReportData(d) { await apiSave(REPORT_KEY, d); }
