@@ -9,6 +9,31 @@ const CLOUDINARY_CLOUD_NAME    = 'due8faksv';
 const CLOUDINARY_UPLOAD_PRESET = 'bangqi_unsigned';
 const CLOUDINARY_FOLDER        = 'bni_report';
 
+// ===== 診斷工具：列出每張 slide 的儲存狀態（在 console 跑 _rptDebugInspect()）=====
+window._rptDebugInspect = function () {
+  const d = getReportData();
+  const rows = d.slides.map((s, i) => {
+    const url = s.url || '';
+    const cacheV = (typeof cache !== 'undefined') ? cache[`__report_img_${s.id}__`] : undefined;
+    let cacheTag = 'none';
+    if (typeof cacheV === 'string') cacheTag = `str(${cacheV.length})`;
+    else if (cacheV && typeof cacheV.n === 'number') cacheTag = `chunks(${cacheV.n})`;
+    else if (cacheV !== undefined) cacheTag = typeof cacheV;
+    const idbV = _rptIdbCache.get(s.id);
+    const idbTag = typeof idbV === 'string' ? `str(${idbV.length})` : 'none';
+    return {
+      idx: i + 1,
+      id: s.id,
+      hasUrl: !!url,
+      urlPreview: url ? (url.length > 70 ? url.slice(0, 50) + '...' + url.slice(-10) : url) : '',
+      cache: cacheTag,
+      idb: idbTag
+    };
+  });
+  console.table(rows);
+  return rows;
+};
+
 // 把本機殘留的舊 dataURL（cache/IDB）升級成 Cloudinary URL，補進主檔 slide.url
 let _rptMigrating = false;
 async function _rptMigrateLegacyImages() {
