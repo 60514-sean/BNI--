@@ -313,10 +313,18 @@ async function removeReportSlide(id) {
   renderReport();
 }
 
-async function replaceReportImage(id) {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*';
+function replaceReportImage(id) {
+  // 用單例的隱藏 input，避免動態 input 在 iOS Safari 上不彈出檔案選擇器
+  let input = document.getElementById('_rptReplaceInput');
+  if (!input) {
+    input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.id = '_rptReplaceInput';
+    input.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;';
+    document.body.appendChild(input);
+  }
+  input.value = '';
   input.onchange = async () => {
     const f = input.files && input.files[0];
     if (!f) return;
@@ -334,6 +342,7 @@ async function replaceReportImage(id) {
       showToast('更新失敗：' + (e.message || e));
     } finally {
       showLoader(false);
+      input.value = '';
       renderReport();
     }
   };
