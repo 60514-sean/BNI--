@@ -621,7 +621,7 @@ async function printPlacards() {
   try {
     const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
     if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); return; }
-    const doc = new jsPDFCtor({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: false });
+    const doc = new jsPDFCtor({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
     const A4W = 210, A4H = 297;
 
     for (let i = 0; i < sheets.length; i++) {
@@ -657,7 +657,7 @@ async function printPlacards() {
       clone.style.background = 'transparent';
       wrap.appendChild(clone);
       const canvas = await html2canvas(clone, {
-        scale: 4, useCORS: true, allowTaint: false, logging: false, backgroundColor: null
+        scale: 3, useCORS: true, allowTaint: false, logging: false, backgroundColor: null
       });
       doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, A4W, A4H);
     }
