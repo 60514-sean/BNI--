@@ -2973,7 +2973,12 @@ body.sc-print-mode #sanchangPrintArea .sc-sheet-page { box-shadow:none; margin-t
 
 /* Sortable 拖曳狀態 */
 .rpt-card-ghost { opacity:.3; }
-.rpt-card-chosen { box-shadow:0 8px 28px rgba(0,0,0,.28); transform:scale(1.03); }
+.rpt-card-chosen { box-shadow:0 8px 28px rgba(0,0,0,.28); }
+.rpt-card-drag {
+  box-shadow:0 14px 40px rgba(0,0,0,.35) !important;
+  transform:scale(1.04) !important;
+  z-index:9999;
+}
 
 /* 編輯 modal 內部 */
 .rpt-editor-thumb {

@@ -276,8 +276,13 @@ async function _rptInitSortable() {
     delay: 250,
     delayOnTouchOnly: true,
     touchStartThreshold: 5,
+    // iOS Safari 對 HTML5 drag API 支援差 → 強制走 Sortable 內建觸控/滑鼠實作
+    forceFallback: true,
+    fallbackOnBody: true,
+    fallbackTolerance: 3,
     ghostClass: 'rpt-card-ghost',
     chosenClass: 'rpt-card-chosen',
+    dragClass: 'rpt-card-drag',
     onEnd: async (evt) => {
       const o = evt.oldIndex, n = evt.newIndex;
       if (o == null || n == null || o === n) return;
