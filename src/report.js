@@ -1,9 +1,66 @@
 // ===== REPORT（報告內容：簡報圖+備註台詞，可匯出 PDF 講義）=====
 // 主檔：__report__  = { title, slides: [{ id, note }] }（雲端共用）
-// 圖片：__report_img_<id>__ = dataURL（每張獨立 key，避免單一 key 過大）
+// 圖片雙寫：雲端 cache[`__report_img_<id>__`] + 本地 IndexedDB（同台電腦保底）
 
 const _RPT_IMG_MAX_PX  = 720;   // 上傳前壓縮邊長
 const _RPT_IMG_QUALITY = 0.72;  // JPEG 品質
+
+// ----- IndexedDB 本地保底層 -----
+const _RPT_IDB_NAME = 'bni_report';
+const _RPT_IDB_STORE = 'images';
+let _rptIdbDb = null;
+const _rptIdbCache = new Map();  // id -> dataURL（preload 完才有資料）
+
+function _rptIdbOpen() {
+  return new Promise((resolve, reject) => {
+    if (_rptIdbDb) return resolve(_rptIdbDb);
+    if (typeof indexedDB === 'undefined') return reject(new Error('no indexedDB'));
+    const req = indexedDB.open(_RPT_IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(_RPT_IDB_STORE)) db.createObjectStore(_RPT_IDB_STORE);
+    };
+    req.onsuccess = () => { _rptIdbDb = req.result; resolve(_rptIdbDb); };
+    req.onerror = () => reject(req.error);
+  });
+}
+async function _rptIdbPut(id, dataUrl) {
+  try {
+    const db = await _rptIdbOpen();
+    await new Promise((res, rej) => {
+      const tx = db.transaction(_RPT_IDB_STORE, 'readwrite');
+      tx.objectStore(_RPT_IDB_STORE).put(dataUrl, id);
+      tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error);
+    });
+  } catch (e) { console.warn('[REPORT IDB put]', e); }
+}
+async function _rptIdbDelete(id) {
+  try {
+    const db = await _rptIdbOpen();
+    await new Promise((res, rej) => {
+      const tx = db.transaction(_RPT_IDB_STORE, 'readwrite');
+      tx.objectStore(_RPT_IDB_STORE).delete(id);
+      tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error);
+    });
+  } catch (e) { console.warn('[REPORT IDB delete]', e); }
+}
+async function _rptIdbPreload() {
+  try {
+    const db = await _rptIdbOpen();
+    await new Promise((res, rej) => {
+      const tx = db.transaction(_RPT_IDB_STORE, 'readonly');
+      const cur = tx.objectStore(_RPT_IDB_STORE).openCursor();
+      cur.onsuccess = (e) => {
+        const c = e.target.result;
+        if (c) { _rptIdbCache.set(c.key, c.value); c.continue(); }
+        else res();
+      };
+      cur.onerror = () => rej(cur.error);
+    });
+  } catch (e) { console.warn('[REPORT IDB preload]', e); }
+}
+// 啟動時就把本機已存的圖載到記憶體，渲染時可同步取用
+const _rptIdbReadyPromise = _rptIdbPreload();
 
 function _rptEsc(s) {
   return String(s == null ? '' : s)
@@ -28,7 +85,9 @@ function _rptLoadScript(url) {
 const _rptObjectUrls = new Map();
 function _rptGetImageSrc(id) {
   if (_rptObjectUrls.has(id)) return _rptObjectUrls.get(id);
-  const dataUrl = getReportImage(id);
+  // 優先：雲端 cache；找不到則退本機 IDB
+  let dataUrl = getReportImage(id);
+  if (!dataUrl) dataUrl = _rptIdbCache.get(id) || '';
   if (!dataUrl) return '';
   const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!m) return dataUrl;
@@ -72,8 +131,11 @@ function _rptPatchMissingImages() {
   });
   return stillMissing;
 }
-function _rptStartWaitImages() {
+async function _rptStartWaitImages() {
   _rptStopWaitImages();
+  // 等本機 IDB preload 完成，立刻 patch 一次（同台電腦自己上傳的圖直接顯示）
+  await _rptIdbReadyPromise;
+  _rptPatchMissingImages();
   if (typeof _bgRefresh === 'function') _bgRefresh();
   _rptWaitTimer = setInterval(() => {
     _rptWaitTries++;
@@ -81,7 +143,6 @@ function _rptStartWaitImages() {
     const stillMissing = _rptPatchMissingImages();
     if (stillMissing === 0) { _rptStopWaitImages(); return; }
     if (_rptWaitTries >= 30) { _rptStopWaitImages(); return; }
-    // 每 3 次再觸發一次背景同步，加速拉到圖
     if (_rptWaitTries % 3 === 0 && typeof _bgRefresh === 'function') _bgRefresh();
   }, 1000);
 }
@@ -221,7 +282,9 @@ async function addReportImages(fileList) {
       try {
         const dataUrl = await _rptResize(files[i]);
         const id = _rptUid();
-        await saveReportImage(id, dataUrl);
+        _rptIdbCache.set(id, dataUrl);
+        _rptIdbPut(id, dataUrl);              // 本機保底
+        await saveReportImage(id, dataUrl);   // 雲端同步
         d.slides.push({ id, note: '' });
       } catch (e) {
         console.error('[REPORT] 處理失敗', files[i].name, e);
@@ -244,6 +307,8 @@ async function removeReportSlide(id) {
   d.slides = d.slides.filter(s => s.id !== id);
   await saveReportData(d);
   await deleteReportImage(id);
+  _rptIdbCache.delete(id);
+  _rptIdbDelete(id);
   _rptRevokeImage(id);
   renderReport();
 }
@@ -259,6 +324,8 @@ async function replaceReportImage(id) {
     showLoader(true, '更新圖片中...');
     try {
       const dataUrl = await _rptResize(f);
+      _rptIdbCache.set(id, dataUrl);
+      _rptIdbPut(id, dataUrl);
       await saveReportImage(id, dataUrl);
       _rptRevokeImage(id);
       showToast('已更新');
