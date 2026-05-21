@@ -180,6 +180,8 @@ function _rptSlideRow(s, idx, total, canEdit) {
                 ${canEdit && idx > 0 ? '' : 'disabled'}>▲</button>
         <button class="rpt-mini" title="下移" onclick="moveReportSlide('${_rptEsc(s.id)}', 1)"
                 ${canEdit && idx < total - 1 ? '' : 'disabled'}>▼</button>
+        <button class="rpt-mini" title="換圖" onclick="replaceReportImage('${_rptEsc(s.id)}')"
+                ${canEdit ? '' : 'disabled'}>換</button>
         <button class="rpt-mini rpt-mini-del" title="刪除" onclick="removeReportSlide('${_rptEsc(s.id)}')"
                 ${canEdit ? '' : 'disabled'}>×</button>
       </div>
@@ -244,6 +246,31 @@ async function removeReportSlide(id) {
   await deleteReportImage(id);
   _rptRevokeImage(id);
   renderReport();
+}
+
+async function replaceReportImage(id) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async () => {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    if (!f.type.startsWith('image/')) { showToast('請選擇圖片檔'); return; }
+    showLoader(true, '更新圖片中...');
+    try {
+      const dataUrl = await _rptResize(f);
+      await saveReportImage(id, dataUrl);
+      _rptRevokeImage(id);
+      showToast('已更新');
+    } catch (e) {
+      console.error('[REPORT] 更新失敗', e);
+      showToast('更新失敗：' + (e.message || e));
+    } finally {
+      showLoader(false);
+      renderReport();
+    }
+  };
+  input.click();
 }
 
 async function moveReportSlide(id, delta) {
