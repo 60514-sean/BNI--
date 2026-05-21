@@ -2971,6 +2971,22 @@ body.sc-print-mode #sanchangPrintArea .sc-sheet-page { box-shadow:none; margin-t
 }
 .rpt-card-note.is-empty { color:#bbb; }
 
+/* 未升級到雲端的 slide 視覺警示 */
+.rpt-card-warn { outline:2px solid #e74c3c; outline-offset:-2px; }
+.rpt-card-warn-tag {
+  position:absolute; top:6px; right:6px; z-index:2;
+  background:#e74c3c; color:#fff;
+  padding:2px 8px; border-radius:4px;
+  font-size:10px; font-weight:900; letter-spacing:0.5px;
+  pointer-events:none;
+  box-shadow:0 1px 4px rgba(0,0,0,.25);
+}
+.rpt-editor-warn {
+  background:#fdecea; border:1px solid #e74c3c; color:#c0392b;
+  padding:8px 12px; border-radius:8px; font-size:13px;
+  margin-bottom:12px; line-height:1.5;
+}
+
 /* Sortable 拖曳狀態 */
 .rpt-card-ghost { opacity:.3; }
 .rpt-card-chosen { box-shadow:0 8px 28px rgba(0,0,0,.28); }

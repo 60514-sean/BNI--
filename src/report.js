@@ -315,14 +315,18 @@ function renderReport() {
 function _rptCardHtml(s, idx) {
   const img = _rptGetImageSrc(s.id);
   const note = (s.note || '').trim();
+  const hasCloudUrl = !!s.url;     // 雲端 Cloudinary URL 才能跨裝置看到
+  const cardClass = 'rpt-card' + (hasCloudUrl ? '' : ' rpt-card-warn');
   const imgHtml = img
     ? `<img src="${img}" alt="" loading="lazy" decoding="async">`
     : `<div class="rpt-thumb-empty">載入中…</div>`;
+  const warnTag = hasCloudUrl ? '' : `<div class="rpt-card-warn-tag">未上傳</div>`;
   return `
-    <div class="rpt-card" data-id="${_rptEsc(s.id)}" onclick="openReportSlideEditor('${_rptEsc(s.id)}')">
+    <div class="${cardClass}" data-id="${_rptEsc(s.id)}" onclick="openReportSlideEditor('${_rptEsc(s.id)}')">
       <div class="rpt-card-thumb">
         <div class="rpt-card-no">${idx + 1}</div>
         ${imgHtml}
+        ${warnTag}
       </div>
       <div class="rpt-card-note${note ? '' : ' is-empty'}">${_rptEsc(note || '（未填備註）')}</div>
     </div>`;
@@ -390,6 +394,7 @@ function openReportSlideEditor(id) {
         <button class="sc-icon-btn" onclick="closeReportSlideEditor()">×</button>
       </div>
       <div class="sc-modal-body">
+        ${s.url ? '' : '<div class="rpt-editor-warn"><b>這張未上傳到雲端</b>，其他裝置（手機、別人電腦）看不到。請點「換圖」重新上傳一次即可修復。</div>'}
         <div class="rpt-editor-thumb">
           ${img ? `<img src="${img}" alt="">` : `<div class="rpt-editor-empty">圖片載入中…</div>`}
         </div>
