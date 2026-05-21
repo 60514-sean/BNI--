@@ -538,11 +538,10 @@ function _rptRowHtml(s, idx) {
   return `
     <div class="rpt-pp-row">
       <div class="rpt-pp-left">
-        <div class="rpt-pp-no">${idx}</div>
         ${imgHtml}
       </div>
       <div class="rpt-pp-right">
-        <div class="rpt-pp-note-label">備註台詞</div>
+        <div class="rpt-pp-note-label"><span class="rpt-pp-no">${idx}</span>備註台詞</div>
         <div class="rpt-pp-note">${noteHtml || '<span style="color:#bbb;">（未填寫）</span>'}</div>
       </div>
     </div>`;
