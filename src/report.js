@@ -262,6 +262,13 @@ function _rptCardHtml(s, idx) {
     </div>`;
 }
 
+function _rptUpdateCardNumbers() {
+  document.querySelectorAll('#reportContent .rpt-grid .rpt-card').forEach((el, i) => {
+    const no = el.querySelector('.rpt-card-no');
+    if (no) no.textContent = i + 1;
+  });
+}
+
 // Sortable.js 拖曳排序（長按 250ms 觸發）
 async function _rptInitSortable() {
   try {
@@ -291,7 +298,8 @@ async function _rptInitSortable() {
       const [moved] = d.slides.splice(o, 1);
       d.slides.splice(n, 0, moved);
       await saveReportData(d);
-      renderReport();
+      // 不重渲 grid（Sortable 已把 DOM 排好），只更新編號角標即可避免圖片重新載入造成的閃跳
+      _rptUpdateCardNumbers();
     }
   });
 }
