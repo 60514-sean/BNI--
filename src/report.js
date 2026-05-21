@@ -9,6 +9,46 @@ const CLOUDINARY_CLOUD_NAME    = 'due8faksv';
 const CLOUDINARY_UPLOAD_PRESET = 'bangqi_unsigned';
 const CLOUDINARY_FOLDER        = 'bni_report';
 
+// ===== 清掉某張 slide 殘留的舊版 base64 / chunks（釋放後端 500KB 整體配額）=====
+function _rptCleanupOldKeysFor(id) {
+  const keys = [`__report_img_${id}__`];
+  for (let i = 0; i < 30; i++) keys.push(`__report_img_${id}__c${i}`);
+  for (const k of keys) {
+    if (cache[k] !== undefined && cache[k] !== '') {
+      apiSave(k, '');                              // 後端設空（last-write-wins）
+      try { delete cache[k]; } catch {}
+    }
+  }
+}
+
+// 全域清理：把全部殘留的舊圖緩存清掉（保留 Cloudinary URL 與 slide note）
+window._rptCleanupAllLegacy = async function () {
+  const keys = Object.keys(cache).filter(k => /^__report_img_/.test(k) && !/^__report_imgurl_/.test(k) && cache[k] !== '');
+  if (!keys.length) { showToast('沒有需要清理的舊資料'); return 0; }
+  if (!confirm(`即將清掉雲端 ${keys.length} 筆舊版圖片緩存（不影響 Cloudinary 圖、不影響備註）。確定？`)) return 0;
+  showLoader(true, `清理中 0 / ${keys.length}`);
+  let i = 0;
+  for (const k of keys) {
+    apiSave(k, '');
+    try { delete cache[k]; } catch {}
+    i++;
+    if (i % 20 === 0) showLoader(true, `清理中 ${i} / ${keys.length}`);
+  }
+  try { _lsSave && _lsSave(); } catch {}
+  showLoader(false);
+  showToast(`已清理 ${keys.length} 筆，等 1 分鐘後重傳那幾張`);
+  return keys.length;
+};
+
+// 驗證一個 key 是否真的有寫進雲端（繞過 _recentSaves，直接 GET 雲端比對）
+async function _rptVerifyCloudKey(key, expected) {
+  try {
+    const r = await fetch(API_URL, { signal: AbortSignal.timeout(10000) });
+    const j = await r.json();
+    return j && j[key] === expected;
+  } catch { return null; } // null = 無法判斷
+}
+
 // ===== 診斷工具：列出每張 slide 的儲存狀態（在 console 跑 _rptDebugInspect()）=====
 window._rptDebugInspect = function () {
   const d = getReportData();
@@ -56,9 +96,12 @@ async function _rptMigrateLegacyImages() {
     for (let i = 0; i < targets.length; i++) {
       showLoader(true, `升級舊圖 ${i + 1} / ${targets.length}`);
       try {
+        const sid = targets[i].slide.id;
         const url = await _rptUploadToCloudinary(targets[i].dataUrl);
-        await saveReportImageUrl(targets[i].slide.id, url);
+        await saveReportImageUrl(sid, url);
         targets[i].slide.url = url;
+        // 升完就立刻清掉那張的舊版 base64 / chunks 釋放配額
+        _rptCleanupOldKeysFor(sid);
         ok++;
       } catch (e) { console.warn('[REPORT migrate]', e); }
     }
@@ -523,6 +566,8 @@ function replaceReportImage(id) {
     showLoader(true, '更新圖片中...');
     try {
       const dataUrl = await _rptResize(f);
+      // 先清舊 base64 / chunks 釋放後端配額，避免新 url 寫不進去
+      _rptCleanupOldKeysFor(id);
       const url = await _rptUploadToCloudinary(dataUrl);
       await saveReportImageUrl(id, url);            // 獨立 key 備援（先寫）
       const d = getReportData();
@@ -532,7 +577,15 @@ function replaceReportImage(id) {
         await saveReportData(d);                    // 後寫主檔（即使被截斷仍有備援可讀）
       }
       _rptRevokeImage(id);
-      showToast('已更新');
+
+      // 驗證雲端真的寫入了（讓 GAS 有 4 秒處理時間）
+      await new Promise(r => setTimeout(r, 4000));
+      const ok = await _rptVerifyCloudKey(`__report_imgurl_${id}__`, url);
+      if (ok === false) {
+        showToast('上傳成功但雲端寫入失敗，請先到 console 跑 _rptCleanupAllLegacy() 清空間再試');
+      } else {
+        showToast('已更新');
+      }
     } catch (e) {
       console.error('[REPORT] 更新失敗', e);
       showToast('更新失敗：' + (e.message || e));
