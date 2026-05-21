@@ -8,7 +8,7 @@ function _setPlateExtras(arr) {
   apiSave('__plate_extras__', arr);
 }
 
-let _plateSubTab = 'member'; // 'member' | 'guest'
+let _plateSubTab = 'member'; // 'member' | 'guest' | 'visitor'
 
 async function renderPlate() {
   _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
@@ -31,21 +31,28 @@ async function renderPlate() {
   let rows;
   if (tab === 'member') {
     rows = _flattenPlateRows(_memberData);
-  } else {
+  } else if (tab === 'guest') {
     const weekGuests = _getWeekGuestsForSignin();
     rows = weekGuests.map(g => ({ name: g.name || '', plate: '' }));
+  } else {
+    rows = (typeof getVisitors === 'function' ? getVisitors() : [])
+      .map(v => ({ name: v.name || '', plate: '' }));
   }
   const count = rows.length;
   const desc = tab === 'member'
     ? `${count} 筆車牌 · A4 直印 · 預覽如下`
-    : `本周 ${count} 位來賓 · A4 直印 · 預覽如下`;
+    : tab === 'guest'
+      ? `本周 ${count} 位來賓 · A4 直印 · 預覽如下`
+      : `${count} 位外賓 · A4 直印 · 預覽如下`;
   const subBtn = (v, label) => `<button class="signin-subtab ${tab===v?'active':''}" onclick="_plateSwitch('${v}')">${label}</button>`;
   const extraBtn = (tab === 'member' && _canEditTab('plate'))
     ? `<button class="btn" style="background:white;border:1.5px solid var(--red);color:var(--red);font-weight:900;flex-shrink:0;" onclick="openPlateExtraModal()" title="新增非會員車牌">+</button>`
     : '';
   const refreshHandler = tab === 'member'
     ? `_memberData=null;renderPlate()`
-    : `_guestData=null;renderPlate()`;
+    : tab === 'guest'
+      ? `_guestData=null;renderPlate()`
+      : `_bgRefresh().then(()=>renderPlate())`;
 
   el.innerHTML = `<div class="plate-wrapper">
     <div class="card" style="margin-bottom:14px;padding:16px 20px;">
@@ -64,6 +71,7 @@ async function renderPlate() {
       <div style="display:flex;gap:8px;margin-top:14px;">
         ${subBtn('member','會員')}
         ${subBtn('guest','來賓')}
+        ${subBtn('visitor','外賓')}
       </div>
     </div>
     <div class="plate-preview-outer" id="plateOuter">
@@ -99,9 +107,8 @@ const PLATE_ROWS_PER_COL = 25;
 const PLATE_PER_PAGE = PLATE_ROWS_PER_COL * 2;
 
 function _buildPlateSheet(rows, type) {
-  const isGuest = type === 'guest';
-  const nameHeader = isGuest ? '來賓' : '會員';
-  const titlePrefix = isGuest ? '來賓車牌表' : '會員車牌表';
+  const nameHeader  = type === 'guest' ? '來賓' : type === 'visitor' ? '外賓' : '會員';
+  const titlePrefix = type === 'guest' ? '來賓車牌表' : type === 'visitor' ? '外賓車牌表' : '會員車牌表';
 
   const pages = Math.max(1, Math.ceil(rows.length / PLATE_PER_PAGE));
   const totalSlots = pages * PLATE_PER_PAGE;
@@ -231,7 +238,8 @@ async function exportPlatePdf() {
       if (i > 0) doc.addPage();
       doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
     }
-    const fnPrefix = _plateSubTab === 'guest' ? 'BNI-來賓車牌' : 'BNI-會員車牌';
+    const fnPrefix = _plateSubTab === 'guest' ? 'BNI-來賓車牌'
+                    : _plateSubTab === 'visitor' ? 'BNI-外賓車牌' : 'BNI-會員車牌';
     _downloadPdfBlob(doc.output('blob'), `${fnPrefix}-${_todayIso()}.pdf`);
     showToast('PDF 已下載');
   } catch {
@@ -256,7 +264,8 @@ async function exportPlateJpg() {
       const canvas = await _renderOneSheetCanvas(sheets[i]);
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/jpeg', 0.92);
-      const fnPrefix = _plateSubTab === 'guest' ? 'BNI-來賓車牌' : 'BNI-會員車牌';
+      const fnPrefix = _plateSubTab === 'guest' ? 'BNI-來賓車牌'
+                      : _plateSubTab === 'visitor' ? 'BNI-外賓車牌' : 'BNI-會員車牌';
       a.download = sheets.length > 1
         ? `${fnPrefix}-${_todayIso()}-${i + 1}.jpg`
         : `${fnPrefix}-${_todayIso()}.jpg`;
