@@ -351,6 +351,9 @@ function renderReport() {
           <span class="rpt-btn-short">PDF</span>
         </button>
       </div>
+      ${canEdit ? `<div class="rpt-cleanup-row">
+        <button class="rpt-cleanup-btn" onclick="_rptCleanupAllLegacy()" title="清掉後端舊版圖片緩存，釋放空間給新的 Cloudinary URL">清理舊版緩存（手機看不到時用）</button>
+      </div>` : ''}
 
       <div class="rpt-grid" id="rptGrid">${cardsHtml}</div>
     </div>`;
