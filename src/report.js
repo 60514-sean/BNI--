@@ -326,7 +326,7 @@ function openReportSlideEditor(id) {
                   ${canEdit ? '' : 'disabled'}>刪除</button>
         </div>
         <div class="rpt-editor-note-label">備註台詞</div>
-        <textarea class="rpt-editor-note" placeholder="輸入這張圖要講的台詞…"
+        <textarea class="rpt-editor-note" data-id="${_rptEsc(id)}" placeholder="輸入這張圖要講的台詞…"
                   oninput="_rptOnNote('${_rptEsc(id)}', this.value)"
                   ${canEdit ? '' : 'readonly'}>${_rptEsc(s.note)}</textarea>
       </div>
@@ -335,7 +335,22 @@ function openReportSlideEditor(id) {
 }
 
 function closeReportSlideEditor() {
-  document.getElementById('rptEditorOverlay')?.remove();
+  const ov = document.getElementById('rptEditorOverlay');
+  if (!ov) return;
+  // 先 flush textarea 內最新值（debounce 還在等的可能沒寫入）
+  const ta = ov.querySelector('.rpt-editor-note');
+  if (ta && ta.dataset.id) {
+    const id = ta.dataset.id;
+    clearTimeout(_rptDebounce['n_' + id]);
+    const d = getReportData();
+    const slide = d.slides.find(s => s.id === id);
+    if (slide && slide.note !== ta.value) {
+      slide.note = ta.value;
+      saveReportData(d);
+    }
+  }
+  ov.remove();
+  if (_activeTab === 'report') renderReport();
 }
 
 // ===== EDIT =====
