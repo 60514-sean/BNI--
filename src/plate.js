@@ -85,20 +85,41 @@ async function renderPlate() {
 
 function _plateSwitch(v) { _plateSubTab = v; renderPlate(); }
 
-// 把每位會員的多張車牌展開成 [{name, plate}, ...]，沒有車牌的會員跳過
-// 最後再 append 「非會員額外車牌」
+// 把每位會員的多張車牌展開成 [{name, plate}, ...]
+// 規則：
+//  1) 按會員資料的順序排列
+//  2) 同一會員的所有車牌（sheet 中以 | 分隔的 + 後來用「+」新增姓名相符的 extras）放一起
+//  3) 姓名對不到任何會員的 extras，依新增順序放在最後
 function _flattenPlateRows(members) {
+  const allExtras = _getPlateExtras().filter(x => x && (x.name || x.plate));
+  const matched = new Set();
+  const byName = new Map();
+  allExtras.forEach((ex, i) => {
+    const nm = (ex.name || '').trim();
+    if (!nm) return;
+    if (!byName.has(nm)) byName.set(nm, []);
+    byName.get(nm).push(i);
+  });
+
   const out = [];
   for (const m of members) {
-    if (!m.plates) continue;
-    const ps = m.plates.split('|').map(s => s.trim()).filter(Boolean);
-    for (const p of ps) out.push({ name: m.name || '', plate: p });
-  }
-  for (const ex of _getPlateExtras()) {
-    if (ex && (ex.name || ex.plate)) {
-      out.push({ name: ex.name || '', plate: ex.plate || '' });
+    const nm = (m.name || '').trim();
+    if (m.plates) {
+      const ps = m.plates.split('|').map(s => s.trim()).filter(Boolean);
+      for (const p of ps) out.push({ name: m.name || '', plate: p });
+    }
+    if (nm && byName.has(nm)) {
+      for (const idx of byName.get(nm)) {
+        const ex = allExtras[idx];
+        out.push({ name: ex.name, plate: ex.plate || '' });
+        matched.add(idx);
+      }
     }
   }
+  allExtras.forEach((ex, i) => {
+    if (matched.has(i)) return;
+    out.push({ name: ex.name || '', plate: ex.plate || '' });
+  });
   return out;
 }
 
