@@ -130,6 +130,7 @@ const TAB_LIST = [
   { id: 'main',       label: '工事清單', group: '日常' },
   { id: 'sanchang',   label: '三長周會', group: '日常' },
   { id: 'leadership', label: '領導月會', group: '日常' },
+  { id: 'report',     label: '報告內容', group: '日常' },
   { id: 'meeting',    label: '流程表',   group: '例會' },
   { id: 'signin',     label: '出席簽到', group: '例會' },
   { id: 'plate',      label: '車牌登記', group: '例會' },
@@ -213,6 +214,32 @@ async function saveProgData(d)  { await apiSave(`__prog_${getWeekKey()}__`, d); 
 
 function getNoteData()  { return cache[`__notes_${getWeekKey()}__`] || {}; }
 async function saveNoteData(d)  { await apiSave(`__notes_${getWeekKey()}__`, d); }
+
+// ===== REPORT（全員共用一份報告內容；每張圖獨立 key 雲端同步）=====
+// 主檔結構：{ title, slides: [{ id, note }] }；圖片以 __report_img_<id>__ 個別存
+const REPORT_KEY = '__report__';
+function _reportImgKey(id) { return `__report_img_${id}__`; }
+
+function getReportData() {
+  const d = cache[REPORT_KEY];
+  if (!d || typeof d !== 'object') return { title: '', slides: [] };
+  return {
+    title: typeof d.title === 'string' ? d.title : '',
+    slides: Array.isArray(d.slides) ? d.slides.map(s => ({ id: String(s.id || ''), note: String(s.note || '') })).filter(s => s.id) : []
+  };
+}
+async function saveReportData(d) { await apiSave(REPORT_KEY, d); }
+
+function getReportImage(id) {
+  const v = cache[_reportImgKey(id)];
+  return typeof v === 'string' ? v : '';
+}
+async function saveReportImage(id, dataUrl) { await apiSave(_reportImgKey(id), dataUrl); }
+async function deleteReportImage(id) {
+  // 把圖片內容清空（API 採 last-write-wins，空字串等同移除）
+  await apiSave(_reportImgKey(id), '');
+  try { delete cache[_reportImgKey(id)]; _lsSave(); } catch {}
+}
 
 // ===== TODOS（每位使用者一份，雲端同步）=====
 function getMyTodos() {
@@ -331,7 +358,7 @@ function _applyEditLock(tabId) {
     todo:'todoContent', main:'mainContent', member:'memberContent',
     dm:'dmContent', slogan:'sloganContent', plate:'plateContent', signin:'signinContent', guesttrack:'guestTrackContent',
     placard:'placardContent', nameplate:'nameplateContent', cardholder:'cardholderContent', schedule:'scheduleContent', finance:'financeContent', meeting:'meetingContent',
-    sanchang:'sanchangContent', leadership:'leadershipContent'
+    sanchang:'sanchangContent', leadership:'leadershipContent', report:'reportContent'
   };
   const targets = [];
   if (map[tabId]) {
