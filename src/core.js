@@ -216,9 +216,15 @@ function getNoteData()  { return cache[`__notes_${getWeekKey()}__`] || {}; }
 async function saveNoteData(d)  { await apiSave(`__notes_${getWeekKey()}__`, d); }
 
 // ===== REPORT（全員共用一份報告內容；每張圖獨立 key 雲端同步）=====
-// 主檔結構：{ title, slides: [{ id, note }] }；圖片以 __report_img_<id>__ 個別存
+// 主檔：__report__ = { title, slides: [{ id, note }] }
+// 圖片：切片儲存避開後端單 key 大小限制（每片 < 8KB）
+//   meta：cache[`__report_img_<id>__`]  = { n: chunkCount }  （新版）
+//        或 string  （舊版相容：未切片的單一 dataURL）
+//   chunks：cache[`__report_img_<id>__c<i>`] = string（每片約 7000 chars）
 const REPORT_KEY = '__report__';
+const REPORT_CHUNK_SIZE = 7000; // 每片大小（chars），預留給 base64 + JSON overhead
 function _reportImgKey(id) { return `__report_img_${id}__`; }
+function _reportImgChunkKey(id, i) { return `__report_img_${id}__c${i}`; }
 
 function getReportData() {
   const d = cache[REPORT_KEY];
@@ -231,12 +237,50 @@ function getReportData() {
 async function saveReportData(d) { await apiSave(REPORT_KEY, d); }
 
 function getReportImage(id) {
-  const v = cache[_reportImgKey(id)];
-  return typeof v === 'string' ? v : '';
+  const meta = cache[_reportImgKey(id)];
+  // 舊版相容：meta 直接是 dataURL string
+  if (typeof meta === 'string') return meta;
+  // 新版：meta = { n: chunkCount }，從 chunks 拼回
+  if (meta && typeof meta === 'object' && typeof meta.n === 'number' && meta.n > 0) {
+    let out = '';
+    for (let i = 0; i < meta.n; i++) {
+      const c = cache[_reportImgChunkKey(id, i)];
+      if (typeof c !== 'string' || !c) return ''; // 任一片缺即無法還原
+      out += c;
+    }
+    return out;
+  }
+  return '';
 }
-async function saveReportImage(id, dataUrl) { await apiSave(_reportImgKey(id), dataUrl); }
+
+async function saveReportImage(id, dataUrl) {
+  // 先清掉舊 chunks（如果之前是切片版，舊片數可能與新片數不同）
+  const oldMeta = cache[_reportImgKey(id)];
+  if (oldMeta && typeof oldMeta === 'object' && typeof oldMeta.n === 'number') {
+    for (let i = 0; i < oldMeta.n; i++) {
+      const k = _reportImgChunkKey(id, i);
+      apiSave(k, '');
+      try { delete cache[k]; } catch {}
+    }
+  }
+  // 切片
+  const chunks = [];
+  const s = dataUrl || '';
+  for (let i = 0; i < s.length; i += REPORT_CHUNK_SIZE) chunks.push(s.slice(i, i + REPORT_CHUNK_SIZE));
+  // 寫每片 + meta；apiSave 是 fire-and-forget，並行送出
+  for (let i = 0; i < chunks.length; i++) apiSave(_reportImgChunkKey(id, i), chunks[i]);
+  await apiSave(_reportImgKey(id), { n: chunks.length });
+}
+
 async function deleteReportImage(id) {
-  // 把圖片內容清空（API 採 last-write-wins，空字串等同移除）
+  const meta = cache[_reportImgKey(id)];
+  if (meta && typeof meta === 'object' && typeof meta.n === 'number') {
+    for (let i = 0; i < meta.n; i++) {
+      const k = _reportImgChunkKey(id, i);
+      apiSave(k, '');
+      try { delete cache[k]; } catch {}
+    }
+  }
   await apiSave(_reportImgKey(id), '');
   try { delete cache[_reportImgKey(id)]; _lsSave(); } catch {}
 }
