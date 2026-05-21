@@ -480,9 +480,24 @@ async function moveReportSlide(id, delta) {
 }
 
 // ===== 預覽（modal 內縮放呈現 A4 排版）=====
-function previewReport() {
+async function previewReport() {
   const d = getReportData();
   if (!d.slides.length) { showToast('沒有可預覽的內容'); return; }
+
+  // 先把所有圖預載進瀏覽器快取（並行），avoid Safari 在 transform/modal 內的 lazy 載入問題
+  const urls = d.slides.map(s => _rptGetImageSrc(s.id)).filter(u => u && /^https?:/.test(u));
+  if (urls.length) {
+    showLoader(true, `預載圖片 0 / ${urls.length}`);
+    let done = 0;
+    await Promise.all(urls.map(u => new Promise(res => {
+      const im = new Image();
+      const finish = () => { done++; showLoader(true, `預載圖片 ${done} / ${urls.length}`); res(); };
+      im.onload = finish; im.onerror = finish;
+      im.src = u;
+    })));
+    showLoader(false);
+  }
+
   const tmp = document.createElement('div');
   tmp.innerHTML = _rptBuildSheetHtml(d);
   const pages = [...tmp.children];
@@ -554,11 +569,23 @@ async function exportReportPDF() {
   }
 }
 
+// 預覽 / PDF 內圖片載入失敗時自動重試（最多 3 次，遞增延遲）
+window._rptOnImgErr = function(img) {
+  const r = (parseInt(img.dataset.r, 10) || 0) + 1;
+  if (r >= 4) return;
+  img.dataset.r = r;
+  const u = img.getAttribute('src');
+  if (!u) return;
+  img.removeAttribute('src');
+  setTimeout(() => { img.src = u; }, 600 * r);
+};
+
 // 單組 row（左圖 + 右備註）的 HTML
 function _rptRowHtml(s, idx) {
   const img = _rptGetImageSrc(s.id);
+  // 預覽 / PDF 內全部 eager loading，避免 fixed modal + transform 內的 lazy 圖被誤判隱藏
   const imgHtml = img
-    ? `<img class="rpt-pp-img" src="${img}" alt="" loading="lazy" decoding="async">`
+    ? `<img class="rpt-pp-img" src="${img}" alt="" loading="eager" decoding="async" onerror="_rptOnImgErr(this)">`
     : `<div class="rpt-pp-img rpt-pp-img-empty">（圖片）</div>`;
   const noteHtml = (s.note || '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
