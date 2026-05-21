@@ -191,7 +191,7 @@ function _rptResize(file) {
 
 // ===== RENDER =====
 function renderReport() {
-  document.getElementById('headerTitle').textContent = '報告內容';
+  document.getElementById('headerTitle').textContent = '秘財報告';
   const d = getReportData();
   const canEdit = _canEditTab('report');
 
@@ -519,7 +519,7 @@ async function exportReportPDF() {
       document.body.classList.remove('rpt-print-mode');
     }
 
-    const safeTitle = (d.title || '報告內容').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
+    const safeTitle = (d.title || '秘財報告').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
     pdf.save(`${safeTitle}.pdf`);
     showToast('PDF 已下載');
   } catch (e) {
@@ -558,7 +558,7 @@ function _rptBuildSheetHtml(d) {
   if (!slides.length) return '';
 
   const GAP_MM = 5;
-  const TITLE_HTML = _rptEsc(d.title || '報告內容');
+  const TITLE_HTML = _rptEsc(d.title || '秘財報告');
 
   // 1) 離畫面 measure 容器：放單一 .rpt-page，內含 head + 所有 row，量測每 row 高度
   const measure = document.createElement('div');

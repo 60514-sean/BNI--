@@ -130,7 +130,7 @@ const TAB_LIST = [
   { id: 'main',       label: '工事清單', group: '日常' },
   { id: 'sanchang',   label: '三長周會', group: '日常' },
   { id: 'leadership', label: '領導月會', group: '日常' },
-  { id: 'report',     label: '報告內容', group: '日常' },
+  { id: 'report',     label: '秘財報告', group: '日常' },
   { id: 'meeting',    label: '流程表',   group: '例會' },
   { id: 'signin',     label: '出席簽到', group: '例會' },
   { id: 'plate',      label: '車牌登記', group: '例會' },

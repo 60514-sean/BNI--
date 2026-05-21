@@ -4,7 +4,7 @@ let _activeTab = 'main';
 const TAB_LABELS = {
   todo:'待辦事項', main:'工事清單', member:'會員資料', renewal:'續約管理', dm:'會員DM', slogan:'會員口號', plate:'車牌登記',
   signin:'出席簽到', guesttrack:'來賓追蹤', placard:'桌牌', nameplate:'名牌', cardholder:'名片盒', schedule:'簡報排程',
-  finance:'財務控管', meeting:'流程表', sanchang:'三長周會', leadership:'領導月會', report:'報告內容', settings:'系統設定'
+  finance:'財務控管', meeting:'流程表', sanchang:'三長周會', leadership:'領導月會', report:'秘財報告', settings:'系統設定'
 };
 
 function switchTab(tab) {
