@@ -294,7 +294,7 @@ function _rptBuildSheetHtml(d) {
 
   // 1) 離畫面 measure 容器：放單一 .rpt-page，內含 head + 所有 row，量測每 row 高度
   const measure = document.createElement('div');
-  measure.style.cssText = 'position:fixed;left:-99999px;top:0;visibility:hidden;';
+  measure.style.cssText = 'position:fixed;left:-99999px;top:0;z-index:-1;visibility:hidden;pointer-events:none;';
   measure.innerHTML = `
     <div class="rpt-page">
       <div class="rpt-pp-head">
