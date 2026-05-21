@@ -472,11 +472,12 @@ function _memberPlacardSheetHtml(memberA, memberB) {
     <div class="mplacard-industry-box">${_escH(m.specialty || '')}</div>
     <div class="mplacard-name-box">${_escH(m.name || '')}</div>` : '';
   const rowB_empty = memberB ? '' : 'empty';
+  const bgB = memberB ? bg : ''; // 第 2 位若不存在，下半 row 不要嵌底圖（避免 PDF 多出空底圖）
   return `<div class="placard-sheet mplacard-sheet">
     <div class="mplacard-row rotated" style="${bg}">${content(memberA)}</div>
     <div class="mplacard-row" style="${bg}">${content(memberA)}</div>
-    <div class="mplacard-row rotated ${rowB_empty}" style="${bg}">${content(memberB)}</div>
-    <div class="mplacard-row ${rowB_empty}" style="${bg}">${content(memberB)}</div>
+    <div class="mplacard-row rotated ${rowB_empty}" style="${bgB}">${content(memberB)}</div>
+    <div class="mplacard-row ${rowB_empty}" style="${bgB}">${content(memberB)}</div>
   </div>`;
 }
 
