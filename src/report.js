@@ -24,6 +24,32 @@ function _rptLoadScript(url) {
   });
 }
 
+// dataURL → Blob URL（解碼一次，後續直接顯示，避免大字串每次渲染都重新解碼）
+const _rptObjectUrls = new Map();
+function _rptGetImageSrc(id) {
+  if (_rptObjectUrls.has(id)) return _rptObjectUrls.get(id);
+  const dataUrl = getReportImage(id);
+  if (!dataUrl) return '';
+  const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!m) return dataUrl;
+  try {
+    const bin = atob(m[2]);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([u8], { type: m[1] }));
+    _rptObjectUrls.set(id, url);
+    return url;
+  } catch {
+    return dataUrl;
+  }
+}
+function _rptRevokeImage(id) {
+  if (_rptObjectUrls.has(id)) {
+    URL.revokeObjectURL(_rptObjectUrls.get(id));
+    _rptObjectUrls.delete(id);
+  }
+}
+
 function _rptResize(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -94,9 +120,9 @@ function renderReport() {
 }
 
 function _rptSlideRow(s, idx, total, canEdit) {
-  const img = getReportImage(s.id);
+  const img = _rptGetImageSrc(s.id);
   const imgHtml = img
-    ? `<img class="rpt-thumb-img" src="${img}" alt="">`
+    ? `<img class="rpt-thumb-img" src="${img}" alt="" loading="lazy" decoding="async">`
     : `<div class="rpt-thumb-empty">載入中…</div>`;
   return `
     <div class="rpt-slide" data-id="${_rptEsc(s.id)}">
@@ -175,6 +201,7 @@ async function removeReportSlide(id) {
   d.slides = d.slides.filter(s => s.id !== id);
   await saveReportData(d);
   await deleteReportImage(id);
+  _rptRevokeImage(id);
   renderReport();
 }
 
@@ -266,9 +293,9 @@ async function exportReportPDF() {
 
 // 單組 row（左圖 + 右備註）的 HTML
 function _rptRowHtml(s, idx) {
-  const img = getReportImage(s.id);
+  const img = _rptGetImageSrc(s.id);
   const imgHtml = img
-    ? `<img class="rpt-pp-img" src="${img}" alt="">`
+    ? `<img class="rpt-pp-img" src="${img}" alt="" loading="lazy" decoding="async">`
     : `<div class="rpt-pp-img rpt-pp-img-empty">（圖片）</div>`;
   const noteHtml = (s.note || '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
