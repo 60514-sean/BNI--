@@ -9,6 +9,44 @@ const CLOUDINARY_CLOUD_NAME    = 'due8faksv';
 const CLOUDINARY_UPLOAD_PRESET = 'bangqi_unsigned';
 const CLOUDINARY_FOLDER        = 'bni_report';
 
+// 把本機殘留的舊 dataURL（cache/IDB）升級成 Cloudinary URL，補進主檔 slide.url
+let _rptMigrating = false;
+async function _rptMigrateLegacyImages() {
+  if (_rptMigrating) return;
+  _rptMigrating = true;
+  try {
+    const d = getReportData();
+    const targets = [];
+    for (const slide of d.slides) {
+      if (slide.url) continue;
+      const dataUrl = (typeof getReportImage === 'function' ? getReportImage(slide.id) : '')
+                   || _rptIdbCache.get(slide.id);
+      if (dataUrl && typeof dataUrl === 'string' && dataUrl.startsWith('data:')) {
+        targets.push({ slide, dataUrl });
+      }
+    }
+    if (!targets.length) return;
+    showLoader(true, `升級舊圖 0 / ${targets.length}`);
+    let ok = 0;
+    for (let i = 0; i < targets.length; i++) {
+      showLoader(true, `升級舊圖 ${i + 1} / ${targets.length}`);
+      try {
+        const url = await _rptUploadToCloudinary(targets[i].dataUrl);
+        targets[i].slide.url = url;
+        ok++;
+      } catch (e) { console.warn('[REPORT migrate]', e); }
+    }
+    if (ok > 0) {
+      await saveReportData(d);
+      showToast(`已升級 ${ok} 張舊圖到雲端`);
+      if (_activeTab === 'report') renderReport();
+    }
+  } finally {
+    _rptMigrating = false;
+    showLoader(false);
+  }
+}
+
 async function _rptUploadToCloudinary(dataUrl) {
   const form = new FormData();
   form.append('file', dataUrl);
@@ -199,6 +237,9 @@ function renderReport() {
   const hasMissing = d.slides.some(s => !_rptGetImageSrc(s.id));
   if (hasMissing) _rptStartWaitImages();
   else _rptStopWaitImages();
+
+  // 後台升級殘留舊圖（電腦端 IDB 有 dataURL 但沒 Cloudinary URL 的）
+  _rptIdbReadyPromise.then(() => _rptMigrateLegacyImages());
 
   const cardsHtml = d.slides.length
     ? d.slides.map((s, i) => _rptCardHtml(s, i)).join('')
