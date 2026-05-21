@@ -291,6 +291,18 @@ async function deleteReportImage(id) {
   try { delete cache[_reportImgKey(id)]; _lsSave(); } catch {}
 }
 
+// ===== REPORT IMAGE URL（Cloudinary URL 獨立存，避免主檔超 9KB 被截斷）=====
+function _reportImgUrlKey(id) { return `__report_imgurl_${id}__`; }
+function getReportImageUrl(id) {
+  const v = cache[_reportImgUrlKey(id)];
+  return typeof v === 'string' ? v : '';
+}
+async function saveReportImageUrl(id, url) { await apiSave(_reportImgUrlKey(id), url); }
+async function deleteReportImageUrl(id) {
+  await apiSave(_reportImgUrlKey(id), '');
+  try { delete cache[_reportImgUrlKey(id)]; _lsSave(); } catch {}
+}
+
 // ===== TODOS（每位使用者一份，雲端同步）=====
 function getMyTodos() {
   if (!CU) return [];

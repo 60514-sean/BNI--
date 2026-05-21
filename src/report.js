@@ -57,6 +57,7 @@ async function _rptMigrateLegacyImages() {
       showLoader(true, `升級舊圖 ${i + 1} / ${targets.length}`);
       try {
         const url = await _rptUploadToCloudinary(targets[i].dataUrl);
+        await saveReportImageUrl(targets[i].slide.id, url);
         targets[i].slide.url = url;
         ok++;
       } catch (e) { console.warn('[REPORT migrate]', e); }
@@ -168,6 +169,9 @@ function _rptGetImageSrc(id) {
   const d = getReportData();
   const slide = d.slides.find(s => s.id === id);
   if (slide && slide.url) return slide.url;
+  // 1.5) 備援：獨立 url key（雲端 cache 內，主檔被截斷時用這個）
+  const altUrl = (typeof getReportImageUrl === 'function') ? getReportImageUrl(id) : '';
+  if (altUrl) return altUrl;
   // 2) 舊資料相容：cache 或 IDB 的 dataURL（轉成 Blob URL 加速渲染）
   if (_rptObjectUrls.has(id)) return _rptObjectUrls.get(id);
   let dataUrl = getReportImage(id);
@@ -315,7 +319,8 @@ function renderReport() {
 function _rptCardHtml(s, idx) {
   const img = _rptGetImageSrc(s.id);
   const note = (s.note || '').trim();
-  const hasCloudUrl = !!s.url;     // 雲端 Cloudinary URL 才能跨裝置看到
+  const altUrl = (typeof getReportImageUrl === 'function') ? getReportImageUrl(s.id) : '';
+  const hasCloudUrl = !!(s.url || altUrl);  // 主檔 url 或獨立備援 key 任一存在即代表雲端有資料
   const cardClass = 'rpt-card' + (hasCloudUrl ? '' : ' rpt-card-warn');
   const imgHtml = img
     ? `<img src="${img}" alt="" loading="lazy" decoding="async">`
@@ -394,7 +399,7 @@ function openReportSlideEditor(id) {
         <button class="sc-icon-btn" onclick="closeReportSlideEditor()">×</button>
       </div>
       <div class="sc-modal-body">
-        ${s.url ? '' : '<div class="rpt-editor-warn"><b>這張未上傳到雲端</b>，其他裝置（手機、別人電腦）看不到。請點「換圖」重新上傳一次即可修復。</div>'}
+        ${(s.url || (typeof getReportImageUrl === 'function' && getReportImageUrl(id))) ? '' : '<div class="rpt-editor-warn"><b>這張未上傳到雲端</b>，其他裝置（手機、別人電腦）看不到。請點「換圖」重新上傳一次即可修復。</div>'}
         <div class="rpt-editor-thumb">
           ${img ? `<img src="${img}" alt="">` : `<div class="rpt-editor-empty">圖片載入中…</div>`}
         </div>
@@ -467,6 +472,7 @@ async function addReportImages(fileList) {
         const dataUrl = await _rptResize(files[i]);
         const url = await _rptUploadToCloudinary(dataUrl);
         const id = _rptUid();
+        await saveReportImageUrl(id, url);          // 獨立 key 備援（主檔超大時也能讀回）
         d.slides.push({ id, note: '', url });
         ok++;
       } catch (e) {
@@ -518,11 +524,12 @@ function replaceReportImage(id) {
     try {
       const dataUrl = await _rptResize(f);
       const url = await _rptUploadToCloudinary(dataUrl);
+      await saveReportImageUrl(id, url);            // 獨立 key 備援（先寫）
       const d = getReportData();
       const slide = d.slides.find(s => s.id === id);
       if (slide) {
         slide.url = url;
-        await saveReportData(d);
+        await saveReportData(d);                    // 後寫主檔（即使被截斷仍有備援可讀）
       }
       _rptRevokeImage(id);
       showToast('已更新');
