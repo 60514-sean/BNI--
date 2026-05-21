@@ -2922,6 +2922,7 @@ body.sc-print-mode #sanchangPrintArea .sc-sheet-page { box-shadow:none; margin-t
 .rpt-btn-preview { background:white; color:var(--red); border:1.5px solid var(--red); }
 .rpt-btn-preview:hover { background:#fde8e6; }
 .rpt-btn-export { background:#2c3e50; color:white; }
+.rpt-btn-short { display:none; }
 .rpt-btn[disabled], .rpt-btn.is-disabled { opacity:.45; cursor:not-allowed; filter:none; }
 .rpt-btn-primary input[type="file"] { display:none; }
 
@@ -3053,6 +3054,10 @@ body.rpt-print-mode #rptPrintArea {
   .rpt-header-card { padding:12px; gap:10px; }
   .rpt-title { font-size:16px; padding:4px 6px; }
   .rpt-stats-num { font-size:20px; }
+  .rpt-toolbar { flex-wrap:nowrap; gap:8px; }
+  .rpt-btn { flex:1 1 0; min-width:0; padding:11px 8px; font-size:14px; }
+  .rpt-btn-full { display:none; }
+  .rpt-btn-short { display:inline; }
   .rpt-slide {
     grid-template-columns:32px 1fr;
     gap:8px; padding:10px;

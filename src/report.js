@@ -75,7 +75,8 @@ function renderReport() {
           <input type="file" id="rptFileInput" accept="image/*" multiple
                  style="display:none"
                  onchange="addReportImages(this.files)" ${canEdit ? '' : 'disabled'}>
-          ＋ 新增圖片
+          <span class="rpt-btn-full">＋ 新增圖片</span>
+          <span class="rpt-btn-short">新增</span>
         </label>
         <button class="rpt-btn rpt-btn-preview" onclick="previewReport()"
                 ${d.slides.length ? '' : 'disabled'}>
@@ -83,7 +84,8 @@ function renderReport() {
         </button>
         <button class="rpt-btn rpt-btn-export" onclick="exportReportPDF()"
                 ${d.slides.length ? '' : 'disabled'}>
-          匯出 PDF
+          <span class="rpt-btn-full">匯出 PDF</span>
+          <span class="rpt-btn-short">PDF</span>
         </button>
       </div>
 
