@@ -35,9 +35,28 @@ window._rptCleanupAllLegacy = async function () {
     if (i % 20 === 0) showLoader(true, `清理中 ${i} / ${keys.length}`);
   }
   try { _lsSave && _lsSave(); } catch {}
+  // 2) 輪詢後端，確認那些 key 真的被清空了（最多等 60 秒）
+  showLoader(true, `等後端處理 0 / ${keys.length}`);
+  let cleared = 0;
+  for (let a = 0; a < 30; a++) {
+    await new Promise(r => setTimeout(r, 2000));
+    let snapshot = null;
+    try {
+      const r = await fetch(API_URL, { signal: AbortSignal.timeout(8000) });
+      snapshot = await r.json();
+    } catch { continue; }
+    if (!snapshot) continue;
+    cleared = keys.filter(k => !snapshot[k] || snapshot[k] === '').length;
+    showLoader(true, `等後端處理 ${cleared} / ${keys.length}`);
+    if (cleared === keys.length) break;
+  }
   showLoader(false);
-  showToast(`已清理 ${keys.length} 筆，等 1 分鐘後重傳那幾張`);
-  return keys.length;
+  if (cleared === keys.length) {
+    showToast(`已清理完成 ${cleared} 筆，現在可以重傳那幾張`);
+  } else {
+    showToast(`清理 ${cleared}/${keys.length} 後端仍未全部完成，可稍等再重傳`);
+  }
+  return cleared;
 };
 
 // 驗證一個 key 是否真的有寫進雲端（繞過 _recentSaves，直接 GET 雲端比對）
