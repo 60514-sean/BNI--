@@ -9,77 +9,6 @@ const CLOUDINARY_CLOUD_NAME    = 'due8faksv';
 const CLOUDINARY_UPLOAD_PRESET = 'bangqi_unsigned';
 const CLOUDINARY_FOLDER        = 'bni_report';
 
-// 全域清理：一次性工具，把殘留的舊版圖片切片緩存全部清掉（拆細版上線後可手動執行一次）
-window._rptCleanupAllLegacy = async function () {
-  const keys = Object.keys(cache).filter(k => /^__report_img_/.test(k) && !/^__report_imgurl_/.test(k) && cache[k] !== '');
-  if (!keys.length) { showToast('沒有需要清理的舊資料'); return 0; }
-  if (!confirm(`即將清掉雲端 ${keys.length} 筆舊版圖片緩存（不影響 Cloudinary 圖、不影響備註）。確定？`)) return 0;
-  showLoader(true, `清理中 0 / ${keys.length}`);
-  let i = 0;
-  for (const k of keys) {
-    apiSave(k, '');
-    try { delete cache[k]; } catch {}
-    i++;
-    if (i % 20 === 0) showLoader(true, `清理中 ${i} / ${keys.length}`);
-  }
-  try { _lsSave && _lsSave(); } catch {}
-  // 2) 輪詢後端，確認那些 key 真的被清空了（最多等 60 秒）
-  showLoader(true, `等後端處理 0 / ${keys.length}`);
-  let cleared = 0;
-  for (let a = 0; a < 30; a++) {
-    await new Promise(r => setTimeout(r, 2000));
-    let snapshot = null;
-    try {
-      const r = await fetch(API_URL, { signal: AbortSignal.timeout(8000) });
-      snapshot = await r.json();
-    } catch { continue; }
-    if (!snapshot) continue;
-    cleared = keys.filter(k => !snapshot[k] || snapshot[k] === '').length;
-    showLoader(true, `等後端處理 ${cleared} / ${keys.length}`);
-    if (cleared === keys.length) break;
-  }
-  showLoader(false);
-  if (cleared === keys.length) {
-    showToast(`已清理完成 ${cleared} 筆，現在可以重傳那幾張`);
-  } else {
-    showToast(`清理 ${cleared}/${keys.length} 後端仍未全部完成，可稍等再重傳`);
-  }
-  return cleared;
-};
-
-// 驗證一個 key 是否真的有寫進雲端（繞過 _recentSaves，直接 GET 雲端比對）
-async function _rptVerifyCloudKey(key, expected) {
-  try {
-    const r = await fetch(API_URL, { signal: AbortSignal.timeout(10000) });
-    const j = await r.json();
-    return j && j[key] === expected;
-  } catch { return null; } // null = 無法判斷
-}
-
-// ===== 診斷工具：列出每張 slide 的儲存狀態（在 console 跑 _rptDebugInspect()）=====
-window._rptDebugInspect = function () {
-  const d = getReportData();
-  const rows = d.slides.map((s, i) => {
-    const url = s.url || '';
-    const cacheV = (typeof cache !== 'undefined') ? cache[`__report_img_${s.id}__`] : undefined;
-    let cacheTag = 'none';
-    if (typeof cacheV === 'string') cacheTag = `str(${cacheV.length})`;
-    else if (cacheV && typeof cacheV.n === 'number') cacheTag = `chunks(${cacheV.n})`;
-    else if (cacheV !== undefined) cacheTag = typeof cacheV;
-    const idbV = _rptIdbCache.get(s.id);
-    const idbTag = typeof idbV === 'string' ? `str(${idbV.length})` : 'none';
-    return {
-      idx: i + 1,
-      id: s.id,
-      hasUrl: !!url,
-      urlPreview: url ? (url.length > 70 ? url.slice(0, 50) + '...' + url.slice(-10) : url) : '',
-      cache: cacheTag,
-      idb: idbTag
-    };
-  });
-  console.table(rows);
-  return rows;
-};
 
 // 把本機殘留的舊 dataURL（cache/IDB）升級成 Cloudinary URL，補進主檔 slide.url
 let _rptMigrating = false;
@@ -356,9 +285,6 @@ function renderReport() {
           <span class="rpt-btn-short">PDF</span>
         </button>
       </div>
-      ${canEdit ? `<div class="rpt-cleanup-row">
-        <button class="rpt-cleanup-btn" onclick="_rptCleanupAllLegacy()" title="清掉所有舊版 base64 / chunks 殘留，只需執行一次">清理舊版緩存（一次性）</button>
-      </div>` : ''}
 
       <div class="rpt-grid" id="rptGrid">${cardsHtml}</div>
     </div>`;
