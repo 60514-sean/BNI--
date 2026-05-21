@@ -50,6 +50,42 @@ function _rptRevokeImage(id) {
   }
 }
 
+// 缺圖時主動 polling 雲端，圖到了就補入 DOM（不重渲整頁，保留編輯狀態）
+let _rptWaitTimer = null;
+let _rptWaitTries = 0;
+function _rptStopWaitImages() {
+  if (_rptWaitTimer) { clearInterval(_rptWaitTimer); _rptWaitTimer = null; }
+  _rptWaitTries = 0;
+}
+function _rptPatchMissingImages() {
+  const d = getReportData();
+  let patched = 0;
+  let stillMissing = 0;
+  d.slides.forEach(s => {
+    const thumbEl = document.querySelector(`#reportContent .rpt-slide[data-id="${CSS.escape(s.id)}"] .rpt-thumb`);
+    if (!thumbEl) return;
+    if (thumbEl.querySelector('img')) return; // 已有圖
+    const src = _rptGetImageSrc(s.id);
+    if (!src) { stillMissing++; return; }
+    thumbEl.innerHTML = `<img class="rpt-thumb-img" src="${src}" alt="" loading="lazy" decoding="async">`;
+    patched++;
+  });
+  return stillMissing;
+}
+function _rptStartWaitImages() {
+  _rptStopWaitImages();
+  if (typeof _bgRefresh === 'function') _bgRefresh();
+  _rptWaitTimer = setInterval(() => {
+    _rptWaitTries++;
+    if (_activeTab !== 'report') { _rptStopWaitImages(); return; }
+    const stillMissing = _rptPatchMissingImages();
+    if (stillMissing === 0) { _rptStopWaitImages(); return; }
+    if (_rptWaitTries >= 30) { _rptStopWaitImages(); return; }
+    // 每 3 次再觸發一次背景同步，加速拉到圖
+    if (_rptWaitTries % 3 === 0 && typeof _bgRefresh === 'function') _bgRefresh();
+  }, 1000);
+}
+
 function _rptResize(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -82,6 +118,11 @@ function renderReport() {
          <div class="rpt-empty-title">尚未新增任何簡報圖</div>
          <div class="rpt-empty-desc">點下方「新增圖片」開始建立你的講義</div>
        </div>`;
+
+  // 進入分頁時若有缺圖，啟動等待補入機制
+  const hasMissing = d.slides.some(s => !_rptGetImageSrc(s.id));
+  if (hasMissing) _rptStartWaitImages();
+  else _rptStopWaitImages();
 
   document.getElementById('reportContent').innerHTML = `
     <div class="rpt-wrap">
