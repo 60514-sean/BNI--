@@ -2927,6 +2927,79 @@ body.sc-print-mode #sanchangPrintArea .sc-sheet-page { box-shadow:none; margin-t
 .rpt-btn-primary input[type="file"] { display:none; }
 
 .rpt-list { display:flex; flex-direction:column; gap:10px; }
+
+/* 圖卡網格（一列 3 格） */
+.rpt-grid {
+  display:grid; grid-template-columns:repeat(3, 1fr); gap:12px;
+}
+.rpt-card {
+  position:relative; background:white; border-radius:12px;
+  box-shadow:var(--shadow); overflow:hidden;
+  cursor:pointer; user-select:none;
+  transition:transform .15s ease, box-shadow .15s ease;
+  display:flex; flex-direction:column;
+  -webkit-tap-highlight-color:transparent;
+}
+.rpt-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-lg); }
+.rpt-card-thumb {
+  width:100%; aspect-ratio:16/9; background:#f0f2f5;
+  position:relative; overflow:hidden;
+}
+.rpt-card-thumb img {
+  width:100%; height:100%; object-fit:cover; display:block;
+}
+.rpt-card-thumb .rpt-thumb-empty {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  color:#aaa; font-size:12px;
+}
+.rpt-card-no {
+  position:absolute; top:6px; left:6px;
+  background:var(--red); color:white;
+  min-width:24px; height:24px; padding:0 7px; border-radius:12px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:900;
+  font-family:'DM Mono', monospace;
+  box-shadow:0 1px 4px rgba(0,0,0,.25);
+  z-index:2; pointer-events:none;
+}
+.rpt-card-note {
+  padding:8px 10px 10px;
+  font-size:12px; line-height:1.5; color:var(--text);
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden; min-height:38px; word-break:break-all;
+}
+.rpt-card-note.is-empty { color:#bbb; }
+
+/* Sortable 拖曳狀態 */
+.rpt-card-ghost { opacity:.3; }
+.rpt-card-chosen { box-shadow:0 8px 28px rgba(0,0,0,.28); transform:scale(1.03); }
+
+/* 編輯 modal 內部 */
+.rpt-editor-thumb {
+  width:100%; aspect-ratio:16/9;
+  background:#f0f2f5; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden; margin-bottom:12px; border:1px solid #e5e7eb;
+}
+.rpt-editor-thumb img { width:100%; height:100%; object-fit:contain; background:#fff; }
+.rpt-editor-empty { color:#aaa; font-size:13px; }
+.rpt-editor-actions { display:flex; gap:10px; margin-bottom:14px; }
+.rpt-editor-actions .rpt-btn { flex:1 1 0; }
+.rpt-btn-danger { background:white; color:#c0392b; border:1.5px solid #c0392b; }
+.rpt-btn-danger:hover { background:#fde8e6; }
+.rpt-editor-note-label {
+  font-size:12px; color:var(--text-soft); font-weight:600; margin-bottom:6px;
+}
+.rpt-editor-note {
+  width:100%; min-height:140px; resize:vertical;
+  padding:12px; border:1.5px solid #e5e7eb; border-radius:10px;
+  font-family:inherit; font-size:14px; line-height:1.65;
+  color:var(--text); background:#fbfbfc; outline:none;
+  box-sizing:border-box;
+}
+.rpt-editor-note:focus { border-color:var(--red); background:#fff; }
+
 .rpt-empty {
   background:white; border-radius:14px; box-shadow:var(--shadow);
   padding:48px 20px; text-align:center;
@@ -3058,20 +3131,9 @@ body.rpt-print-mode #rptPrintArea {
   .rpt-btn { flex:1 1 0; min-width:0; padding:11px 8px; font-size:14px; }
   .rpt-btn-full { display:none; }
   .rpt-btn-short { display:inline; }
-  .rpt-slide {
-    grid-template-columns:32px 1fr;
-    gap:8px; padding:10px;
-  }
-  .rpt-slide-no { grid-row:1; grid-column:1; }
-  .rpt-thumb {
-    grid-row:1; grid-column:2;
-    width:100%; height:auto; aspect-ratio:16/9;
-  }
-  .rpt-note-col { grid-row:2; grid-column:1 / -1; }
-  .rpt-actions {
-    grid-row:3; grid-column:1 / -1;
-    flex-direction:row; justify-content:flex-end;
-  }
-  .rpt-mini { width:36px; height:36px; }
+  .rpt-grid { gap:6px; }
+  .rpt-card-note { padding:6px 7px 8px; font-size:11px; min-height:32px; -webkit-line-clamp:2; }
+  .rpt-card-no { min-width:20px; height:20px; padding:0 5px; font-size:11px; top:4px; left:4px; border-radius:10px; }
+  .rpt-editor-actions { flex-wrap:wrap; }
 }
 

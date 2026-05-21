@@ -118,16 +118,17 @@ function _rptStopWaitImages() {
 }
 function _rptPatchMissingImages() {
   const d = getReportData();
-  let patched = 0;
   let stillMissing = 0;
   d.slides.forEach(s => {
-    const thumbEl = document.querySelector(`#reportContent .rpt-slide[data-id="${CSS.escape(s.id)}"] .rpt-thumb`);
+    const thumbEl = document.querySelector(`#reportContent .rpt-card[data-id="${CSS.escape(s.id)}"] .rpt-card-thumb`);
     if (!thumbEl) return;
     if (thumbEl.querySelector('img')) return; // 已有圖
     const src = _rptGetImageSrc(s.id);
     if (!src) { stillMissing++; return; }
-    thumbEl.innerHTML = `<img class="rpt-thumb-img" src="${src}" alt="" loading="lazy" decoding="async">`;
-    patched++;
+    thumbEl.querySelector('.rpt-thumb-empty')?.remove();
+    const img = document.createElement('img');
+    img.src = src; img.alt = ''; img.loading = 'lazy'; img.decoding = 'async';
+    thumbEl.appendChild(img);
   });
   return stillMissing;
 }
@@ -173,17 +174,17 @@ function renderReport() {
   const d = getReportData();
   const canEdit = _canEditTab('report');
 
-  const slidesHtml = d.slides.length
-    ? d.slides.map((s, i) => _rptSlideRow(s, i, d.slides.length, canEdit)).join('')
-    : `<div class="rpt-empty">
-         <div class="rpt-empty-title">尚未新增任何簡報圖</div>
-         <div class="rpt-empty-desc">點下方「新增圖片」開始建立你的講義</div>
-       </div>`;
-
   // 進入分頁時若有缺圖，啟動等待補入機制
   const hasMissing = d.slides.some(s => !_rptGetImageSrc(s.id));
   if (hasMissing) _rptStartWaitImages();
   else _rptStopWaitImages();
+
+  const cardsHtml = d.slides.length
+    ? d.slides.map((s, i) => _rptCardHtml(s, i)).join('')
+    : `<div class="rpt-empty" style="grid-column:1 / -1;">
+         <div class="rpt-empty-title">尚未新增任何簡報圖</div>
+         <div class="rpt-empty-desc">點下方「新增圖片」開始建立你的講義</div>
+       </div>`;
 
   document.getElementById('reportContent').innerHTML = `
     <div class="rpt-wrap">
@@ -217,36 +218,98 @@ function renderReport() {
         </button>
       </div>
 
-      <div class="rpt-list" id="rptList">${slidesHtml}</div>
+      <div class="rpt-grid" id="rptGrid">${cardsHtml}</div>
+    </div>`;
+
+  // 拖曳排序（長按啟動）
+  if (d.slides.length && canEdit) _rptInitSortable();
+}
+
+function _rptCardHtml(s, idx) {
+  const img = _rptGetImageSrc(s.id);
+  const note = (s.note || '').trim();
+  const imgHtml = img
+    ? `<img src="${img}" alt="" loading="lazy" decoding="async">`
+    : `<div class="rpt-thumb-empty">載入中…</div>`;
+  return `
+    <div class="rpt-card" data-id="${_rptEsc(s.id)}" onclick="openReportSlideEditor('${_rptEsc(s.id)}')">
+      <div class="rpt-card-thumb">
+        <div class="rpt-card-no">${idx + 1}</div>
+        ${imgHtml}
+      </div>
+      <div class="rpt-card-note${note ? '' : ' is-empty'}">${_rptEsc(note || '（未填備註）')}</div>
     </div>`;
 }
 
-function _rptSlideRow(s, idx, total, canEdit) {
-  const img = _rptGetImageSrc(s.id);
-  const imgHtml = img
-    ? `<img class="rpt-thumb-img" src="${img}" alt="" loading="lazy" decoding="async">`
-    : `<div class="rpt-thumb-empty">載入中…</div>`;
-  return `
-    <div class="rpt-slide" data-id="${_rptEsc(s.id)}">
-      <div class="rpt-slide-no">${idx + 1}</div>
-      <div class="rpt-thumb">${imgHtml}</div>
-      <div class="rpt-note-col">
-        <div class="rpt-note-label">備註台詞</div>
-        <textarea class="rpt-note" placeholder="輸入這張圖要講的台詞…"
-                  oninput="_rptOnNote('${_rptEsc(s.id)}', this.value)"
+// Sortable.js 拖曳排序（長按 250ms 觸發）
+async function _rptInitSortable() {
+  try {
+    await _rptLoadScript('https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js');
+  } catch { return; }
+  if (!window.Sortable) return;
+  const grid = document.getElementById('rptGrid');
+  if (!grid) return;
+  if (grid._sortable) { try { grid._sortable.destroy(); } catch {} }
+  grid._sortable = Sortable.create(grid, {
+    animation: 180,
+    delay: 250,
+    delayOnTouchOnly: true,
+    touchStartThreshold: 5,
+    ghostClass: 'rpt-card-ghost',
+    chosenClass: 'rpt-card-chosen',
+    onEnd: async (evt) => {
+      const o = evt.oldIndex, n = evt.newIndex;
+      if (o == null || n == null || o === n) return;
+      const d = getReportData();
+      if (o < 0 || n < 0 || o >= d.slides.length || n >= d.slides.length) return;
+      const [moved] = d.slides.splice(o, 1);
+      d.slides.splice(n, 0, moved);
+      await saveReportData(d);
+      renderReport();
+    }
+  });
+}
+
+// 點卡片開啟編輯 modal（換圖、編輯備註、刪除）
+function openReportSlideEditor(id) {
+  const d = getReportData();
+  const idx = d.slides.findIndex(s => s.id === id);
+  if (idx < 0) return;
+  const s = d.slides[idx];
+  const img = _rptGetImageSrc(id);
+  const canEdit = _canEditTab('report');
+
+  const ov = document.createElement('div');
+  ov.className = 'sc-modal-overlay';
+  ov.id = 'rptEditorOverlay';
+  ov.onclick = (e) => { if (e.target === ov) closeReportSlideEditor(); };
+  ov.innerHTML = `
+    <div class="sc-modal sc-modal-wide" onclick="event.stopPropagation()">
+      <div class="sc-modal-head">
+        <span>第 ${idx + 1} 張 · 編輯</span>
+        <button class="sc-icon-btn" onclick="closeReportSlideEditor()">×</button>
+      </div>
+      <div class="sc-modal-body">
+        <div class="rpt-editor-thumb">
+          ${img ? `<img src="${img}" alt="">` : `<div class="rpt-editor-empty">圖片載入中…</div>`}
+        </div>
+        <div class="rpt-editor-actions">
+          <button class="rpt-btn rpt-btn-preview" onclick="replaceReportImage('${_rptEsc(id)}')"
+                  ${canEdit ? '' : 'disabled'}>換圖</button>
+          <button class="rpt-btn rpt-btn-danger" onclick="removeReportSlide('${_rptEsc(id)}')"
+                  ${canEdit ? '' : 'disabled'}>刪除</button>
+        </div>
+        <div class="rpt-editor-note-label">備註台詞</div>
+        <textarea class="rpt-editor-note" placeholder="輸入這張圖要講的台詞…"
+                  oninput="_rptOnNote('${_rptEsc(id)}', this.value)"
                   ${canEdit ? '' : 'readonly'}>${_rptEsc(s.note)}</textarea>
       </div>
-      <div class="rpt-actions">
-        <button class="rpt-mini" title="上移" onclick="moveReportSlide('${_rptEsc(s.id)}', -1)"
-                ${canEdit && idx > 0 ? '' : 'disabled'}>▲</button>
-        <button class="rpt-mini" title="下移" onclick="moveReportSlide('${_rptEsc(s.id)}', 1)"
-                ${canEdit && idx < total - 1 ? '' : 'disabled'}>▼</button>
-        <button class="rpt-mini" title="換圖" onclick="replaceReportImage('${_rptEsc(s.id)}')"
-                ${canEdit ? '' : 'disabled'}>換</button>
-        <button class="rpt-mini rpt-mini-del" title="刪除" onclick="removeReportSlide('${_rptEsc(s.id)}')"
-                ${canEdit ? '' : 'disabled'}>×</button>
-      </div>
     </div>`;
+  document.body.appendChild(ov);
+}
+
+function closeReportSlideEditor() {
+  document.getElementById('rptEditorOverlay')?.remove();
 }
 
 // ===== EDIT =====
@@ -310,6 +373,7 @@ async function removeReportSlide(id) {
   _rptIdbCache.delete(id);
   _rptIdbDelete(id);
   _rptRevokeImage(id);
+  closeReportSlideEditor();
   renderReport();
 }
 
@@ -343,6 +407,7 @@ function replaceReportImage(id) {
     } finally {
       showLoader(false);
       input.value = '';
+      closeReportSlideEditor();
       renderReport();
     }
   };
