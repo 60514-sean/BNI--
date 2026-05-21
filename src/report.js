@@ -9,19 +9,7 @@ const CLOUDINARY_CLOUD_NAME    = 'due8faksv';
 const CLOUDINARY_UPLOAD_PRESET = 'bangqi_unsigned';
 const CLOUDINARY_FOLDER        = 'bni_report';
 
-// ===== 清掉某張 slide 殘留的舊版 base64 / chunks（釋放後端 500KB 整體配額）=====
-function _rptCleanupOldKeysFor(id) {
-  const keys = [`__report_img_${id}__`];
-  for (let i = 0; i < 30; i++) keys.push(`__report_img_${id}__c${i}`);
-  for (const k of keys) {
-    if (cache[k] !== undefined && cache[k] !== '') {
-      apiSave(k, '');                              // 後端設空（last-write-wins）
-      try { delete cache[k]; } catch {}
-    }
-  }
-}
-
-// 全域清理：把全部殘留的舊圖緩存清掉（保留 Cloudinary URL 與 slide note）
+// 全域清理：一次性工具，把殘留的舊版圖片切片緩存全部清掉（拆細版上線後可手動執行一次）
 window._rptCleanupAllLegacy = async function () {
   const keys = Object.keys(cache).filter(k => /^__report_img_/.test(k) && !/^__report_imgurl_/.test(k) && cache[k] !== '');
   if (!keys.length) { showToast('沒有需要清理的舊資料'); return 0; }
@@ -117,15 +105,13 @@ async function _rptMigrateLegacyImages() {
       try {
         const sid = targets[i].slide.id;
         const url = await _rptUploadToCloudinary(targets[i].dataUrl);
-        await saveReportImageUrl(sid, url);
         targets[i].slide.url = url;
-        // 升完就立刻清掉那張的舊版 base64 / chunks 釋放配額
-        _rptCleanupOldKeysFor(sid);
+        await saveReportSlide(targets[i].slide);   // 寫進新結構的 slide key
         ok++;
       } catch (e) { console.warn('[REPORT migrate]', e); }
     }
     if (ok > 0) {
-      await saveReportData(d);
+      // order 不變，但要確保 main 已寫入（新結構 slide key 已個別寫，main 順序不需更動）
       showToast(`已升級 ${ok} 張舊圖到雲端`);
       if (_activeTab === 'report') renderReport();
     }
@@ -371,7 +357,7 @@ function renderReport() {
         </button>
       </div>
       ${canEdit ? `<div class="rpt-cleanup-row">
-        <button class="rpt-cleanup-btn" onclick="_rptCleanupAllLegacy()" title="清掉後端舊版圖片緩存，釋放空間給新的 Cloudinary URL">清理舊版緩存（手機看不到時用）</button>
+        <button class="rpt-cleanup-btn" onclick="_rptCleanupAllLegacy()" title="清掉所有舊版 base64 / chunks 殘留，只需執行一次">清理舊版緩存（一次性）</button>
       </div>` : ''}
 
       <div class="rpt-grid" id="rptGrid">${cardsHtml}</div>
@@ -384,19 +370,14 @@ function renderReport() {
 function _rptCardHtml(s, idx) {
   const img = _rptGetImageSrc(s.id);
   const note = (s.note || '').trim();
-  const altUrl = (typeof getReportImageUrl === 'function') ? getReportImageUrl(s.id) : '';
-  const hasCloudUrl = !!(s.url || altUrl);  // 主檔 url 或獨立備援 key 任一存在即代表雲端有資料
-  const cardClass = 'rpt-card' + (hasCloudUrl ? '' : ' rpt-card-warn');
   const imgHtml = img
     ? `<img src="${img}" alt="" loading="lazy" decoding="async">`
     : `<div class="rpt-thumb-empty">載入中…</div>`;
-  const warnTag = hasCloudUrl ? '' : `<div class="rpt-card-warn-tag">未上傳</div>`;
   return `
-    <div class="${cardClass}" data-id="${_rptEsc(s.id)}" onclick="openReportSlideEditor('${_rptEsc(s.id)}')">
+    <div class="rpt-card" data-id="${_rptEsc(s.id)}" onclick="openReportSlideEditor('${_rptEsc(s.id)}')">
       <div class="rpt-card-thumb">
         <div class="rpt-card-no">${idx + 1}</div>
         ${imgHtml}
-        ${warnTag}
       </div>
       <div class="rpt-card-note${note ? '' : ' is-empty'}">${_rptEsc(note || '（未填備註）')}</div>
     </div>`;
@@ -437,8 +418,7 @@ async function _rptInitSortable() {
       if (o < 0 || n < 0 || o >= d.slides.length || n >= d.slides.length) return;
       const [moved] = d.slides.splice(o, 1);
       d.slides.splice(n, 0, moved);
-      await saveReportData(d);
-      // 不重渲 grid（Sortable 已把 DOM 排好），只更新編號角標即可避免圖片重新載入造成的閃跳
+      await saveReportMain(d.title, d.slides.map(s => s.id));   // 只寫 main 順序
       _rptUpdateCardNumbers();
     }
   });
@@ -464,7 +444,6 @@ function openReportSlideEditor(id) {
         <button class="sc-icon-btn" onclick="closeReportSlideEditor()">×</button>
       </div>
       <div class="sc-modal-body">
-        ${(s.url || (typeof getReportImageUrl === 'function' && getReportImageUrl(id))) ? '' : '<div class="rpt-editor-warn"><b>這張未上傳到雲端</b>，其他裝置（手機、別人電腦）看不到。請點「換圖」重新上傳一次即可修復。</div>'}
         <div class="rpt-editor-thumb">
           ${img ? `<img src="${img}" alt="">` : `<div class="rpt-editor-empty">圖片載入中…</div>`}
         </div>
@@ -491,11 +470,10 @@ function closeReportSlideEditor() {
   if (ta && ta.dataset.id) {
     const id = ta.dataset.id;
     clearTimeout(_rptDebounce['n_' + id]);
-    const d = getReportData();
-    const slide = d.slides.find(s => s.id === id);
+    const slide = getReportSlide(id);
     if (slide && slide.note !== ta.value) {
       slide.note = ta.value;
-      saveReportData(d);
+      saveReportSlide(slide);                       // 只寫該 slide
     }
   }
   ov.remove();
@@ -508,18 +486,16 @@ function _rptOnTitle(v) {
   clearTimeout(_rptDebounce.title);
   _rptDebounce.title = setTimeout(() => {
     const d = getReportData();
-    d.title = v;
-    saveReportData(d);
+    saveReportMain(v, d.slides.map(s => s.id));   // 只寫 main，不動 slides
   }, 500);
 }
 function _rptOnNote(id, v) {
   clearTimeout(_rptDebounce['n_' + id]);
   _rptDebounce['n_' + id] = setTimeout(() => {
-    const d = getReportData();
-    const s = d.slides.find(x => x.id === id);
-    if (!s) return;
-    s.note = v;
-    saveReportData(d);
+    const slide = getReportSlide(id);
+    if (!slide) return;
+    slide.note = v;
+    saveReportSlide(slide);                       // 只寫該 slide，其他不動
   }, 500);
 }
 
@@ -530,6 +506,7 @@ async function addReportImages(fileList) {
   showLoader(true, `上傳圖片 0 / ${files.length}`);
   try {
     const d = getReportData();
+    const newOrder = d.slides.map(s => s.id);
     let ok = 0;
     for (let i = 0; i < files.length; i++) {
       showLoader(true, `上傳圖片 ${i + 1} / ${files.length}`);
@@ -537,15 +514,15 @@ async function addReportImages(fileList) {
         const dataUrl = await _rptResize(files[i]);
         const url = await _rptUploadToCloudinary(dataUrl);
         const id = _rptUid();
-        await saveReportImageUrl(id, url);          // 獨立 key 備援（主檔超大時也能讀回）
-        d.slides.push({ id, note: '', url });
+        await saveReportSlide({ id, note: '', url });  // 細粒度：每張獨立 key
+        newOrder.push(id);
         ok++;
       } catch (e) {
         console.error('[REPORT] 上傳失敗', files[i].name, e);
         showToast('「' + files[i].name + '」上傳失敗：' + (e.message || e));
       }
     }
-    await saveReportData(d);
+    if (ok) await saveReportMain(d.title, newOrder);   // 更新 main 順序
     if (ok) showToast('已新增 ' + ok + ' 張');
   } finally {
     showLoader(false);
@@ -558,10 +535,9 @@ async function addReportImages(fileList) {
 async function removeReportSlide(id) {
   if (!confirm('確定刪除這張？')) return;
   const d = getReportData();
-  d.slides = d.slides.filter(s => s.id !== id);
-  await saveReportData(d);
-  // 舊版本若有寫進 cache/IDB，順手清掉以節省空間（Cloudinary 上檔案不主動刪）
-  try { deleteReportImage(id); } catch {}
+  const newOrder = d.slides.filter(s => s.id !== id).map(s => s.id);
+  await saveReportMain(d.title, newOrder);
+  await deleteReportSlide(id);
   _rptIdbCache.delete(id);
   _rptIdbDelete(id);
   _rptRevokeImage(id);
@@ -588,26 +564,14 @@ function replaceReportImage(id) {
     showLoader(true, '更新圖片中...');
     try {
       const dataUrl = await _rptResize(f);
-      // 先清舊 base64 / chunks 釋放後端配額，避免新 url 寫不進去
-      _rptCleanupOldKeysFor(id);
       const url = await _rptUploadToCloudinary(dataUrl);
-      await saveReportImageUrl(id, url);            // 獨立 key 備援（先寫）
-      const d = getReportData();
-      const slide = d.slides.find(s => s.id === id);
+      const slide = getReportSlide(id);
       if (slide) {
         slide.url = url;
-        await saveReportData(d);                    // 後寫主檔（即使被截斷仍有備援可讀）
+        await saveReportSlide(slide);                // 只寫該 slide
       }
       _rptRevokeImage(id);
-
-      // 驗證雲端真的寫入了（讓 GAS 有 4 秒處理時間）
-      await new Promise(r => setTimeout(r, 4000));
-      const ok = await _rptVerifyCloudKey(`__report_imgurl_${id}__`, url);
-      if (ok === false) {
-        showToast('上傳成功但雲端寫入失敗，請先到 console 跑 _rptCleanupAllLegacy() 清空間再試');
-      } else {
-        showToast('已更新');
-      }
+      showToast('已更新');
     } catch (e) {
       console.error('[REPORT] 更新失敗', e);
       showToast('更新失敗：' + (e.message || e));
@@ -628,7 +592,7 @@ async function moveReportSlide(id, delta) {
   const j = i + delta;
   if (j < 0 || j >= d.slides.length) return;
   [d.slides[i], d.slides[j]] = [d.slides[j], d.slides[i]];
-  await saveReportData(d);
+  await saveReportMain(d.title, d.slides.map(s => s.id));   // 只寫 main 順序
   renderReport();
 }
 

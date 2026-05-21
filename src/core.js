@@ -215,92 +215,104 @@ async function saveProgData(d)  { await apiSave(`__prog_${getWeekKey()}__`, d); 
 function getNoteData()  { return cache[`__notes_${getWeekKey()}__`] || {}; }
 async function saveNoteData(d)  { await apiSave(`__notes_${getWeekKey()}__`, d); }
 
-// ===== REPORT（全員共用一份報告內容；每張圖獨立 key 雲端同步）=====
-// 主檔：__report__ = { title, slides: [{ id, note }] }
-// 圖片：切片儲存避開後端單 key 大小限制（每片 < 8KB）
-//   meta：cache[`__report_img_<id>__`]  = { n: chunkCount }  （新版）
-//        或 string  （舊版相容：未切片的單一 dataURL）
-//   chunks：cache[`__report_img_<id>__c<i>`] = string（每片約 7000 chars）
-const REPORT_KEY = '__report__';
-const REPORT_CHUNK_SIZE = 7000; // 每片大小（chars），預留給 base64 + JSON overhead
-function _reportImgKey(id) { return `__report_img_${id}__`; }
-function _reportImgChunkKey(id, i) { return `__report_img_${id}__c${i}`; }
+// ===== REPORT（拆細版：主檔只記順序，每張 slide 一個獨立 key）=====
+// __report_main__       = { title, order: ["id1","id2",...] }   永遠 < 1KB
+// __report_slide_<id>__ = { id, note, url }                      每張 < 1KB
+// 舊版相容：__report__ 仍可能存在；getReportData 首次讀取時會自動遷移
+const REPORT_MAIN_KEY = '__report_main__';
+const REPORT_LEGACY_KEY = '__report__';
+function _reportSlideKey(id) { return `__report_slide_${id}__`; }
+
+function _normalizeSlide(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = String(raw.id || '');
+  if (!id) return null;
+  return {
+    id,
+    note: typeof raw.note === 'string' ? raw.note : '',
+    url:  typeof raw.url  === 'string' ? raw.url  : ''
+  };
+}
+
+let _reportMigrated = false;
+function _maybeMigrateReportToSplit() {
+  if (_reportMigrated) return;
+  // 已有新主檔就不動
+  if (cache[REPORT_MAIN_KEY] && typeof cache[REPORT_MAIN_KEY] === 'object') { _reportMigrated = true; return; }
+  const legacy = cache[REPORT_LEGACY_KEY];
+  if (!legacy || typeof legacy !== 'object' || !Array.isArray(legacy.slides)) return;
+  // 把每張 slide 寫到獨立 key
+  const order = [];
+  for (const s of legacy.slides) {
+    const n = _normalizeSlide(s);
+    if (!n) continue;
+    order.push(n.id);
+    apiSave(_reportSlideKey(n.id), n);
+  }
+  apiSave(REPORT_MAIN_KEY, { title: typeof legacy.title === 'string' ? legacy.title : '', order });
+  _reportMigrated = true;
+}
 
 function getReportData() {
-  const d = cache[REPORT_KEY];
+  _maybeMigrateReportToSplit();
+  // 優先新結構
+  const main = cache[REPORT_MAIN_KEY];
+  if (main && typeof main === 'object' && Array.isArray(main.order)) {
+    const slides = [];
+    for (const id of main.order) {
+      const raw = cache[_reportSlideKey(id)];
+      const n = _normalizeSlide(raw);
+      if (n) slides.push(n);
+    }
+    return { title: typeof main.title === 'string' ? main.title : '', slides };
+  }
+  // 退舊結構
+  const d = cache[REPORT_LEGACY_KEY];
   if (!d || typeof d !== 'object') return { title: '', slides: [] };
   return {
     title: typeof d.title === 'string' ? d.title : '',
-    slides: Array.isArray(d.slides)
-      ? d.slides.map(s => ({
-          id: String(s.id || ''),
-          note: String(s.note || ''),
-          url: typeof s.url === 'string' ? s.url : ''
-        })).filter(s => s.id)
-      : []
+    slides: Array.isArray(d.slides) ? d.slides.map(_normalizeSlide).filter(Boolean) : []
   };
 }
-async function saveReportData(d) { await apiSave(REPORT_KEY, d); }
 
+// 儲存整份報告：拆寫成 main + 每張 slide（呼叫端通常不直接用，而是用細粒度 API）
+async function saveReportData(d) {
+  const slides = Array.isArray(d.slides) ? d.slides.map(_normalizeSlide).filter(Boolean) : [];
+  const order = slides.map(s => s.id);
+  for (const s of slides) apiSave(_reportSlideKey(s.id), s);
+  await apiSave(REPORT_MAIN_KEY, { title: typeof d.title === 'string' ? d.title : '', order });
+}
+
+// 細粒度 API（推薦呼叫這些）
+function getReportSlide(id) {
+  const raw = cache[_reportSlideKey(id)];
+  return _normalizeSlide(raw);
+}
+async function saveReportSlide(slide) {
+  const n = _normalizeSlide(slide);
+  if (!n) return;
+  await apiSave(_reportSlideKey(n.id), n);
+}
+async function deleteReportSlide(id) {
+  await apiSave(_reportSlideKey(id), '');
+  try { delete cache[_reportSlideKey(id)]; _lsSave(); } catch {}
+}
+async function saveReportMain(title, order) {
+  await apiSave(REPORT_MAIN_KEY, { title: typeof title === 'string' ? title : '', order: Array.isArray(order) ? order : [] });
+}
+
+// 圖片 dataURL 介面（拆細後不再用，但保留 stub 給舊呼叫端不報錯）
 function getReportImage(id) {
-  const meta = cache[_reportImgKey(id)];
-  // 舊版相容：meta 直接是 dataURL string
-  if (typeof meta === 'string') return meta;
-  // 新版：meta = { n: chunkCount }，從 chunks 拼回
-  if (meta && typeof meta === 'object' && typeof meta.n === 'number' && meta.n > 0) {
-    let out = '';
-    for (let i = 0; i < meta.n; i++) {
-      const c = cache[_reportImgChunkKey(id, i)];
-      if (typeof c !== 'string' || !c) return ''; // 任一片缺即無法還原
-      out += c;
-    }
-    return out;
-  }
-  return '';
+  const slide = getReportSlide(id);
+  return (slide && slide.url) || '';
 }
+async function saveReportImage(id, _dataUrl) { /* 新架構不存 dataURL，呼叫端應改用 saveReportSlide */ }
+async function deleteReportImage(id) { /* 同上，舊呼叫端兼容用 */ }
 
-async function saveReportImage(id, dataUrl) {
-  // 先清掉舊 chunks（如果之前是切片版，舊片數可能與新片數不同）
-  const oldMeta = cache[_reportImgKey(id)];
-  if (oldMeta && typeof oldMeta === 'object' && typeof oldMeta.n === 'number') {
-    for (let i = 0; i < oldMeta.n; i++) {
-      const k = _reportImgChunkKey(id, i);
-      apiSave(k, '');
-      try { delete cache[k]; } catch {}
-    }
-  }
-  // 切片
-  const chunks = [];
-  const s = dataUrl || '';
-  for (let i = 0; i < s.length; i += REPORT_CHUNK_SIZE) chunks.push(s.slice(i, i + REPORT_CHUNK_SIZE));
-  // 寫每片 + meta；apiSave 是 fire-and-forget，並行送出
-  for (let i = 0; i < chunks.length; i++) apiSave(_reportImgChunkKey(id, i), chunks[i]);
-  await apiSave(_reportImgKey(id), { n: chunks.length });
-}
-
-async function deleteReportImage(id) {
-  const meta = cache[_reportImgKey(id)];
-  if (meta && typeof meta === 'object' && typeof meta.n === 'number') {
-    for (let i = 0; i < meta.n; i++) {
-      const k = _reportImgChunkKey(id, i);
-      apiSave(k, '');
-      try { delete cache[k]; } catch {}
-    }
-  }
-  await apiSave(_reportImgKey(id), '');
-  try { delete cache[_reportImgKey(id)]; _lsSave(); } catch {}
-}
-
-// ===== REPORT IMAGE URL（Cloudinary URL 獨立存，避免主檔超 9KB 被截斷）=====
-function _reportImgUrlKey(id) { return `__report_imgurl_${id}__`; }
+// 舊的「__report_imgurl_*」獨立 url key 介面 → 改成讀新結構的 slide.url
 function getReportImageUrl(id) {
-  const v = cache[_reportImgUrlKey(id)];
-  return typeof v === 'string' ? v : '';
-}
-async function saveReportImageUrl(id, url) { await apiSave(_reportImgUrlKey(id), url); }
-async function deleteReportImageUrl(id) {
-  await apiSave(_reportImgUrlKey(id), '');
-  try { delete cache[_reportImgUrlKey(id)]; _lsSave(); } catch {}
+  const slide = getReportSlide(id);
+  return (slide && slide.url) || '';
 }
 
 // ===== TODOS（每位使用者一份，雲端同步）=====
