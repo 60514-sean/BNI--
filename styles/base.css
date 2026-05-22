@@ -751,6 +751,46 @@ input.is-locked:focus, textarea.is-locked:focus {
 }
 .signin-subtab:hover { border-color: var(--red); color: var(--red); }
 .signin-subtab.active { border-color: var(--red); background: var(--red); color: white; }
+
+/* LIGHTS (燈號分析) */
+.lights-wrapper { padding: 0; max-width: 1100px; margin: 0 auto; }
+.lights-subtab {
+  padding: 8px 14px; border-radius: 10px;
+  border: 1.5px solid var(--gray-border); background: white; color: var(--text-soft);
+  cursor: pointer; font-size: 13px; font-weight: 700; font-family: inherit;
+  transition: all 0.15s;
+}
+.lights-subtab:hover { border-color: var(--red); color: var(--red); }
+.lights-subtab.active { border-color: var(--red); background: var(--red); color: white; }
+.lights-dropzone {
+  border: 2.5px dashed var(--gray-border); border-radius: 12px;
+  padding: 44px 20px; text-align: center; cursor: pointer;
+  transition: all 0.15s; background: #fafbfc;
+}
+.lights-dropzone:hover, .lights-dropzone.drag-over {
+  border-color: var(--red); background: #fff5f3;
+}
+.lights-preview-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.lights-preview-table th, .lights-preview-table td {
+  padding: 7px 10px; border-bottom: 1px solid var(--gray-border);
+  text-align: center; white-space: nowrap;
+}
+.lights-preview-table th {
+  background: #fafbfc; font-weight: 700; color: var(--text);
+  position: sticky; top: 0; z-index: 1;
+}
+.lights-score-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.lights-score-table th, .lights-score-table td {
+  padding: 8px 10px; border-bottom: 1px solid rgba(0,0,0,0.06);
+  text-align: center; white-space: nowrap;
+}
+.lights-score-table th {
+  background: #1a1a2e; color: white; font-weight: 700;
+}
 .guest-filter-sel {
   flex: 1; min-width: 140px;
   padding: 9px 32px 9px 12px;
