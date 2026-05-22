@@ -131,7 +131,6 @@ const TAB_LIST = [
   { id: 'sanchang',   label: '三長周會', group: '日常' },
   { id: 'leadership', label: '領導月會', group: '日常' },
   { id: 'report',     label: '秘財報告', group: '日常' },
-  { id: 'lights',     label: '燈號分析', group: '日常' },
   { id: 'meeting',    label: '流程表',   group: '例會' },
   { id: 'signin',     label: '出席簽到', group: '例會' },
   { id: 'plate',      label: '車牌登記', group: '例會' },
@@ -144,9 +143,10 @@ const TAB_LIST = [
   { id: 'slogan',     label: '會員口號', group: '會員' },
   { id: 'cardholder', label: '名片盒',   group: '會員' },
   { id: 'nameplate',  label: '名牌',     group: '會員' },
+  { id: 'lights',     label: '燈號分析', group: '委員' },
   { id: 'finance',    label: '財務控管', group: '財務' }
 ];
-const MENU_GROUP_ORDER = ['日常','例會','會員','財務'];
+const MENU_GROUP_ORDER = ['日常','例會','會員','委員','財務'];
 
 function _normalizeUser(u) {
   if (typeof u === 'string') return { names: [u], roles: [], role: '', allowedTabs: [], editableTabs: [] };

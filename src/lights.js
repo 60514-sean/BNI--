@@ -1,64 +1,29 @@
 // ===== LIGHTS (燈號分析) =====
-// 階段 2：前端匯入介面 + PALMS .xls 解析
-// 後端 API 將於階段 2b 補上
-
-const LIGHTS_SHEET_GID = 594862570;
-const LIGHTS_CSV = `https://docs.google.com/spreadsheets/d/1vaunMiu-soVacqsbvRxY1dDQ2ZLBghv0t9rTer3KdP0/export?format=csv&gid=${LIGHTS_SHEET_GID}`;
-// 部署 Apps Script 後填入此 URL（apps-script/lights-backend.gs 的 Web App 部署網址）
 const LIGHTS_API_URL = 'https://script.google.com/macros/s/AKfycbzsOG0E2CHPzdgEV-nmU2g6uSeo3kormxCuNckBnSQxKgpJBWyjnbAiXY9rRYoXCW_TPg/exec';
 
-let _lightsSubTab = 'import';
-let _lightsImport = null;  // { fileName, from, to, chapter, importer, rangeType, rows: [{...}] }
-let _lightsData = null;    // listLightsData 結果（cache）
-let _lightsScoreMonths = 6; // 紅綠燈分析回溯月數（預設 6）
-let _lightsPredictWeeks = 4; // 預測：剩餘週數
-let _lightsConfig = null;   // 評分標準（從後端拉）
+let _lightsSubTab = 'score';
+let _lightsImport = null;
+let _lightsData = null;
+let _lightsScoreMonths = 12;
+let _lightsPredictWeeks = 4;
+let _lightsScoreFilter = '綠燈';
+let _lightsScoreSearch = '';
 
-const DEFAULT_LIGHTS_CONFIG = {
-  refScore:   [1.5, 1.2, 1.0, 0.75],         // 引薦倍率：20/15/10/5 分
-  visScore:   [0.5, 0.25],                    // 來賓倍率：15/10 分
-  oneScore:   [2.0, 1.0, 0.5],                // 121 倍率：15/10/5 分
-  trainScore: [6, 4, 2],                      // 培訓次數：15/10/5 分
-  amtScore:   [2000000, 800000, 400000],      // 金額門檻：15/10/5 分
-  absScore:   [20, 15, 10, 0],                // 缺席 0/1/2/3+ 對應分數
-  lightLevel: [70, 50, 30],                   // 燈號閾值：綠/黃/紅
-  holidayCount: 0                             // 本月休會次數
+// 評分標準（依億展白金分會規則，PALMS 報告以 26 週為單位）
+const LIGHTS_CFG = {
+  refScore:   [1.5, 1.2, 1.0, 0.75],
+  visScore:   [0.5, 0.25],
+  oneScore:   [2.0, 1.0, 0.5],
+  trainScore: [6, 4, 2],
+  amtScore:   [2000000, 800000, 400000],
+  absScore:   [20, 15, 10, 0],
+  lightLevel: [70, 50, 30]
 };
-
-function _getLightsCfg() {
-  return _lightsConfig || DEFAULT_LIGHTS_CONFIG;
-}
-
-const LIGHTS_SUBTABS = [
-  { id: 'import',   label: '匯入' },
-  { id: 'score',    label: '紅綠燈' },
-  { id: 'predict',  label: '預測' },
-  { id: 'announce', label: '公告' },
-  { id: 'config',   label: '設定' }
-];
 
 function renderLights() {
   const el = document.getElementById('lightsContent');
   if (!el) return;
-
-  const subBtn = (id, label) =>
-    `<button class="lights-subtab ${_lightsSubTab===id?'active':''}" onclick="_lightsSwitch('${id}')">${label}</button>`;
-
-  el.innerHTML = `<div class="lights-wrapper">
-    <div class="card" style="margin-bottom:14px;padding:14px 18px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-        <div>
-          <div style="font-size:16px;font-weight:900;color:var(--text);">燈號分析</div>
-          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">PALMS 數據 → 紅綠燈 / 預測 / 副主席報告</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-        ${LIGHTS_SUBTABS.map(t => subBtn(t.id, t.label)).join('')}
-      </div>
-    </div>
-    <div id="lightsContentInner"></div>
-  </div>`;
-
+  el.innerHTML = `<div class="lights-wrapper"><div id="lightsContentInner"></div></div>`;
   _renderLightsCurrentTab();
 }
 
@@ -76,33 +41,25 @@ function _renderLightsCurrentTab() {
       c.innerHTML = '<div class="card" style="padding:48px;text-align:center;color:var(--text-soft);">載入中...</div>';
       _renderLightsScoreTab();
       break;
-    case 'predict':
-      c.innerHTML = '<div class="card" style="padding:48px;text-align:center;color:var(--text-soft);">載入中...</div>';
-      _renderLightsPredictTab();
-      break;
     case 'announce':
       c.innerHTML = '<div class="card" style="padding:48px;text-align:center;color:var(--text-soft);">載入中...</div>';
       _renderLightsAnnounceTab();
       break;
-    case 'config':
-      c.innerHTML = '<div class="card" style="padding:48px;text-align:center;color:var(--text-soft);">載入中...</div>';
-      _renderLightsConfigTab();
-      break;
   }
 }
 
-function _placeholderCard(title, desc) {
-  return `<div class="card" style="padding:40px 24px;text-align:center;">
-    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;">${_escH(title)}</div>
-    <div style="font-size:12px;color:var(--text-soft);">${_escH(desc)}</div>
-    <div style="font-size:11px;color:var(--text-soft);margin-top:10px;">（待後續階段實作）</div>
+// ===== 匯入子分頁 =====
+function _lightsBackBar() {
+  return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+    <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">${_lightsSubTab==='import'?'匯入 PALMS 資料':'副主席報告'}</h2>
+    <button onclick="_lightsSwitch('score')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">← 返回紅綠燈</button>
   </div>`;
 }
 
-// ===== 匯入子分頁 =====
 function _renderLightsImportHtml() {
   if (!_lightsImport) {
     return `
+    ${_lightsBackBar()}
     <div class="card" style="padding:24px;">
       <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:10px;">上傳 BNI Connect PALMS 報告</div>
       <div style="font-size:12px;color:var(--text-soft);line-height:1.6;margin-bottom:14px;">
@@ -134,6 +91,7 @@ function _renderLightsImportHtml() {
   </tr>`).join('');
 
   return `
+  ${_lightsBackBar()}
   <div class="card" style="padding:18px;margin-bottom:14px;">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
       <div style="font-size:14px;font-weight:700;color:var(--text);">預覽 — ${_escH(imp.fileName)}</div>
@@ -422,9 +380,9 @@ function _aggregateMembers(rows) {
   return map;
 }
 
-// 計算單一會員的成績（依 _lightsConfig 設定）
+// 計算單一會員的成績
 function _calcLightScore(d) {
-  const cfg = _getLightsCfg();
+  const cfg = LIGHTS_CFG;
   const w = d.weeks || 0;
   const ref = d.refIn + d.refOut;
   if (w <= 0) {
@@ -478,6 +436,11 @@ async function _renderLightsScoreTab() {
     return;
   }
 
+  // 載入會員資料以取得照片 / 專業別（背景拉取，失敗也不影響卡牌渲染）
+  if (!_memberData) {
+    try { await fetchMembers(); } catch {}
+  }
+
   // 篩選最近 N 個月的 row（依 from 起始日）
   const fromCutoff = _monthsAgoIso(_lightsScoreMonths);
   const recent = _lightsData.filter(r => String(r.from || '') >= fromCutoff);
@@ -506,59 +469,135 @@ async function _renderLightsScoreTab() {
 
   const dateRange = `${fromCutoff} ~ 至今（最近 ${_lightsScoreMonths} 個月）`;
 
-  const statHtml = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
-    ${['綠燈','黃燈','紅燈','灰燈'].map(l => {
-      const bg = _lightBgColor(l);
-      return `<div style="background:${bg};padding:14px 10px;border-radius:10px;text-align:center;">
-        <div style="font-size:11px;font-weight:700;color:var(--text);letter-spacing:0.5px;">${l}</div>
-        <div style="font-size:24px;font-weight:900;color:var(--text);margin-top:4px;">${lightCounts[l]}</div>
-      </div>`;
-    }).join('')}
+  // 統計卡（同時是篩選器：點擊切換顯示）
+  const statCard = (id, label, count, color, bg) => {
+    const active = _lightsScoreFilter === id;
+    const activeStyle = active
+      ? `background:${color};box-shadow:0 4px 12px ${color}55;transform:translateY(-1px);`
+      : `background:${bg};`;
+    const textColor = active ? '#fff' : '#2d3748';
+    return `<div onclick="_lightsScoreSetFilter('${id}')" style="${activeStyle}border-radius:10px;padding:14px 10px;display:flex;flex-direction:column;gap:4px;cursor:pointer;transition:all .15s;user-select:none;">
+      <div style="font-size:11px;color:${textColor};font-weight:700;letter-spacing:1px;">${label}</div>
+      <div style="font-size:24px;color:${textColor};font-weight:900;line-height:1;">${count}</div>
+      <div style="font-size:10px;color:${textColor};opacity:${active ? '.9' : '.7'};">位會員</div>
+    </div>`;
+  };
+
+  const statHtml = `<div class="renewal-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;">
+    ${statCard('綠燈', '綠燈',   lightCounts['綠燈'], '#27ae60', '#d9ead3')}
+    ${statCard('黃燈', '黃燈',   lightCounts['黃燈'], '#d4ac0d', '#fff2cc')}
+    ${statCard('紅燈', '紅燈',   lightCounts['紅燈'], '#c0392b', '#f4cccc')}
+    ${statCard('灰燈', '灰燈',   lightCounts['灰燈'], '#7f8c8d', '#efefef')}
   </div>`;
 
-  const rowsHtml = list.map((s, i) => `<tr style="background:${_lightBgColor(s.light)};">
-    <td>${i+1}</td>
-    <td style="text-align:left;font-weight:700;">${_escH(s.name)}</td>
-    <td>${s.weeks.toFixed(1)}</td>
-    <td>${s.sAbs}<span style="color:#666;font-size:10px;"> (${s.abs})</span></td>
-    <td>${s.sRef}<span style="color:#666;font-size:10px;"> (${s.ref})</span></td>
-    <td>${s.sOne}<span style="color:#666;font-size:10px;"> (${s.one})</span></td>
-    <td>${s.sTrain}<span style="color:#666;font-size:10px;"> (${s.train})</span></td>
-    <td>${s.sAmt}<span style="color:#666;font-size:10px;"> (${(s.amt/10000).toFixed(0)}萬)</span></td>
-    <td>${s.sVis}<span style="color:#666;font-size:10px;"> (${s.vis})</span></td>
-    <td style="font-weight:900;font-size:14px;">${s.total}</td>
-    <td style="font-weight:700;">${s.light}</td>
-  </tr>`).join('');
+  // 依篩選 + 搜尋過濾
+  const q = (_lightsScoreSearch || '').trim().toLowerCase();
+  const filtered = list.filter(s => {
+    if (s.light !== _lightsScoreFilter) return false;
+    if (q && !s.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  const cardsHtml = filtered.map((s, i) => _lightsScoreCard(s, i)).join('');
+  const emptyHtml = filtered.length === 0
+    ? `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">查無符合條件的會員</div>`
+    : '';
 
   c.innerHTML = `
-    <div class="card" style="padding:14px 18px;margin-bottom:14px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-        <div>
-          <div style="font-size:14px;font-weight:700;color:var(--text);">紅綠燈成績</div>
-          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">${dateRange} · ${totalMembers} 位 · 綠黃燈比例 <b style="color:var(--red);">${ratio}%</b></div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          ${_monthsRangePicker()}
-          <button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="_lightsData=null;_renderLightsScoreTab()">重整</button>
-        </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">紅綠燈成績</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        ${_monthsRangePicker()}
+        <button onclick="_lightsSwitch('import')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">匯入</button>
+        <button onclick="_lightsSwitch('announce')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">公告</button>
       </div>
-      ${statHtml}
     </div>
 
-    <div class="card" style="padding:0;overflow:hidden;">
-      <div style="overflow-x:auto;">
-        <table class="lights-score-table">
-          <thead>
-            <tr>
-              <th>#</th><th>會員</th><th>週數</th>
-              <th>出席</th><th>引薦</th><th>121</th><th>培訓</th><th>金額</th><th>來賓</th>
-              <th>總分</th><th>燈號</th>
-            </tr>
-          </thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-      </div>
+    <div style="font-size:12px;color:var(--text-soft);margin-bottom:14px;">${dateRange} · ${totalMembers} 位 · 綠黃燈比例 <b style="color:var(--red);">${ratio}%</b></div>
+
+    ${statHtml}
+
+    <input class="member-search" type="text" placeholder="搜尋會員姓名..." value="${_escH(_lightsScoreSearch)}" oninput="_lightsScoreSearch=this.value;_lightsScoreFilterCards()" autocomplete="off" style="margin-bottom:12px;">
+
+    <div id="lightsScoreList" class="member-grid">
+      ${cardsHtml}
+      ${emptyHtml}
     </div>`;
+}
+
+function _lightsScoreSetFilter(id) {
+  _lightsScoreFilter = id;
+  _renderLightsScoreTab();
+}
+
+function _lightsScoreFilterCards() {
+  // 搜尋只重渲染列表，不重算（避免每打一個字都閃）
+  const q = (_lightsScoreSearch || '').trim().toLowerCase();
+  const cards = document.querySelectorAll('#lightsScoreList .lights-score-card');
+  let shown = 0;
+  cards.forEach(c => {
+    const match = !q || (c.dataset.search || '').includes(q);
+    c.style.display = match ? '' : 'none';
+    if (match) shown++;
+  });
+}
+
+function _lightsScoreCard(s, idx) {
+  // 從 _memberData 比對照片 / 專業別
+  const mem = (_memberData || []).find(m => m.name === s.name);
+  const photo = mem?.photo || '';
+  const specialty = mem?.specialty || '';
+  const lightBg = _lightBgColor(s.light);
+  const lightColor = s.light === '綠燈' ? '#27ae60'
+                    : s.light === '黃燈' ? '#d4ac0d'
+                    : s.light === '紅燈' ? '#c0392b'
+                    : '#7f8c8d';
+  const _ds = [s.name, specialty].filter(Boolean).join(' ').toLowerCase();
+
+  // 六項指標（左：滿分配置；右：實際得分 / 原始值）
+  const items = [
+    { label: '出席', score: s.sAbs,   max: 20, raw: `缺${s.abs}` },
+    { label: '引薦', score: s.sRef,   max: 20, raw: `${s.ref}筆` },
+    { label: '121',  score: s.sOne,   max: 15, raw: `${s.one}次` },
+    { label: '培訓', score: s.sTrain, max: 15, raw: `${s.train}次` },
+    { label: '金額', score: s.sAmt,   max: 15, raw: `${(s.amt/10000).toFixed(0)}萬` },
+    { label: '來賓', score: s.sVis,   max: 15, raw: `${s.vis}位` }
+  ];
+  const itemsHtml = items.map(it => {
+    const pct = it.max > 0 ? Math.round((it.score / it.max) * 100) : 0;
+    const fillColor = pct >= 100 ? '#27ae60' : pct >= 67 ? '#d4ac0d' : pct > 0 ? '#c0392b' : '#cbd5e0';
+    return `<div style="display:flex;flex-direction:column;gap:4px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:11px;">
+        <span style="color:var(--text-soft);font-weight:600;">${it.label}</span>
+        <span style="color:var(--text);font-weight:700;">${it.score}<span style="color:#999;font-size:10px;font-weight:500;">/${it.max}</span></span>
+      </div>
+      <div style="height:5px;background:#edf2f7;border-radius:3px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${fillColor};border-radius:3px;transition:width .3s;"></div>
+      </div>
+      <div style="font-size:10px;color:#999;text-align:right;">${it.raw}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="member-card lights-score-card" data-search="${_escH(_ds)}" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
+    <div style="display:flex;align-items:center;gap:12px;padding:14px 14px 12px;border-left:4px solid ${lightColor};">
+      <div style="font-size:18px;font-weight:900;color:#cbd5e0;width:24px;text-align:center;flex-shrink:0;">${idx+1}</div>
+      ${photo
+        ? `<img src="${_escH(photo)}" loading="lazy" decoding="async" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${lightColor};" onerror="this.style.display='none'">`
+        : `<div style="width:48px;height:48px;border-radius:50%;flex-shrink:0;background:#e8ecf0;border:2px solid ${lightColor};display:flex;align-items:center;justify-content:center;color:#bbb;font-size:18px;font-weight:900;">${_escH((s.name || '?').slice(0,1))}</div>`}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;">${_escH(s.name)}</div>
+        <div style="font-size:12px;color:var(--text-soft);line-height:1.4;">${_escH(specialty || '—')}</div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:3px;">週數 ${s.weeks.toFixed(1)}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;">
+        <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${lightBg};color:${lightColor};white-space:nowrap;">${s.light}</span>
+        <div style="font-size:22px;font-weight:900;color:${lightColor};line-height:1;">${s.total}<span style="font-size:11px;color:var(--text-soft);font-weight:600;"> 分</span></div>
+      </div>
+    </div>
+    <div style="padding:12px 14px 14px;background:#fafbfc;border-top:1px solid var(--gray-border);">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px;">${itemsHtml}</div>
+    </div>
+  </div>`;
 }
 
 function _monthsRangePicker() {
@@ -568,99 +607,6 @@ function _monthsRangePicker() {
     <option value="12" ${_lightsScoreMonths===12?'selected':''}>最近 12 個月</option>
     <option value="999" ${_lightsScoreMonths===999?'selected':''}>全部</option>
   </select>`;
-}
-
-// ===== 期末預測 =====
-async function _renderLightsPredictTab() {
-  const c = document.getElementById('lightsContentInner');
-  if (!c) return;
-
-  if (!_lightsData) {
-    try { await fetchLightsData(); }
-    catch (e) {
-      c.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--red);">載入失敗：${_escH(e.message || e)}</div>`;
-      return;
-    }
-  }
-  if (!_lightsData.length) {
-    c.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">尚無 PALMS 匯入資料，請先到「匯入」分頁上傳。</div>`;
-    return;
-  }
-
-  // 用「全部資料」當作期末已實際的成績（更準確）
-  const grouped = _aggregateMembers(_lightsData);
-  const remainW = _lightsPredictWeeks;
-
-  // 對每位會員：預測 = 假設剩餘 N 週用「目前平均速率」累加
-  const list = Object.values(grouped).map(d => {
-    const cur = _calcLightScore(d);
-    // 預測：用目前速率推到剩餘週數
-    const w = d.weeks || 0;
-    const factor = w > 0 ? (w + remainW) / w : 1;
-    const predict = _calcLightScore({
-      weeks:    w + remainW,
-      att:      d.att,
-      abs:      d.abs,
-      late:     d.late,
-      sick:     d.sick,
-      sub:      d.sub,
-      refIn:    Math.round(d.refIn * factor),
-      refOut:   Math.round(d.refOut * factor),
-      refRcvIn: Math.round(d.refRcvIn * factor),
-      refRcvOut:Math.round(d.refRcvOut * factor),
-      vis:      Math.round(d.vis * factor),
-      one:      Math.round(d.one * factor),
-      amt:      Math.round(d.amt * factor),
-      train:    d.train  // 培訓不外推（手動值）
-    });
-    return { ...d, cur, predict };
-  });
-  list.sort((a, b) => b.predict.total - a.predict.total);
-
-  const rowsHtml = list.map((s, i) => {
-    const gap = s.predict.total < 70 ? `差 ${70 - s.predict.total} 分` : '達綠燈';
-    return `<tr style="background:${_lightBgColor(s.predict.light)};">
-      <td>${i+1}</td>
-      <td style="text-align:left;font-weight:700;">${_escH(s.name)}</td>
-      <td>${s.weeks.toFixed(1)}</td>
-      <td style="font-weight:700;">${s.cur.total}</td>
-      <td>${s.cur.light}</td>
-      <td style="font-weight:900;color:#c0392b;">${s.predict.total}</td>
-      <td style="font-weight:700;">${s.predict.light}</td>
-      <td style="font-size:11px;">${gap}</td>
-    </tr>`;
-  }).join('');
-
-  c.innerHTML = `
-    <div class="card" style="padding:14px 18px;margin-bottom:14px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-        <div>
-          <div style="font-size:14px;font-weight:700;color:var(--text);">期末預測</div>
-          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">依目前速率推算到「剩餘週數」之後的總分</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <label style="font-size:12px;color:var(--text-soft);font-weight:600;">剩餘週數</label>
-          <input type="number" min="0" max="52" value="${_lightsPredictWeeks}" onchange="_lightsPredictWeeks=Math.max(0,+this.value||0);_renderLightsPredictTab()"
-            style="width:70px;padding:6px 10px;border:1.5px solid var(--gray-border);border-radius:8px;font-family:inherit;font-size:13px;outline:none;text-align:center;">
-          <button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="_lightsData=null;_renderLightsPredictTab()">重整</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="card" style="padding:0;overflow:hidden;">
-      <div style="overflow-x:auto;">
-        <table class="lights-score-table">
-          <thead>
-            <tr>
-              <th>#</th><th>會員</th><th>週數</th>
-              <th>目前總分</th><th>目前燈號</th>
-              <th>期末預測</th><th>預測燈號</th><th>距綠燈</th>
-            </tr>
-          </thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-      </div>
-    </div>`;
 }
 
 // ===== 副主席報告 / 公告 =====
@@ -764,18 +710,15 @@ async function _renderLightsAnnounceTab() {
 
   // UI
   c.innerHTML = `
-    <div class="card" style="padding:14px 18px;margin-bottom:14px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-        <div>
-          <div style="font-size:14px;font-weight:700;color:var(--text);">副主席報告</div>
-          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">${totalMembers} 位現役 · 綠黃燈比例 <b style="color:var(--red);">${ratio}%</b> · 衝刺剩餘 ${remainW} 週</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <button class="btn btn-primary" onclick="_lightsCopyReport()">複製報告</button>
-          <button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="_lightsData=null;_renderLightsAnnounceTab()">重整</button>
-        </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">副主席報告</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="_lightsCopyReport()">複製報告</button>
+        <button onclick="_lightsSwitch('score')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">← 返回紅綠燈</button>
       </div>
     </div>
+
+    <div style="font-size:12px;color:var(--text-soft);margin-bottom:14px;">${totalMembers} 位現役 · 綠黃燈比例 <b style="color:var(--red);">${ratio}%</b> · 衝刺剩餘 ${remainW} 週</div>
 
     <div class="card" style="padding:18px;">
       <textarea id="lightsReportText" readonly style="width:100%;height:520px;padding:14px;border:1px solid var(--gray-border);border-radius:8px;font-family:'Noto Sans TC',sans-serif;font-size:14px;line-height:1.7;resize:vertical;outline:none;background:#fafbfc;">${_escH(reportText)}</textarea>
@@ -816,164 +759,6 @@ function _findRecentMonthRows(allRows) {
     chosen = grouped[keys[0]];
   }
   return chosen || [];
-}
-
-// ===== 設定子分頁 =====
-async function _fetchLightsConfig() {
-  if (!LIGHTS_API_URL) throw new Error('LIGHTS_API_URL 尚未設定');
-  const r = await fetch(LIGHTS_API_URL, {
-    method: 'POST', mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action: 'getLightsConfig' })
-  });
-  const j = await r.json();
-  if (!j || !j.ok) throw new Error(j?.error || '取設定失敗');
-  // 合併到 DEFAULT（避免欄位缺失）
-  const merged = { ...DEFAULT_LIGHTS_CONFIG, ...(j.config || {}) };
-  // 對於陣列欄位，若長度不對則 fallback 到 default
-  ['refScore','visScore','oneScore','trainScore','amtScore','absScore','lightLevel'].forEach(k => {
-    if (!Array.isArray(merged[k]) || merged[k].length !== DEFAULT_LIGHTS_CONFIG[k].length) {
-      merged[k] = DEFAULT_LIGHTS_CONFIG[k].slice();
-    }
-  });
-  return merged;
-}
-
-async function _renderLightsConfigTab() {
-  const c = document.getElementById('lightsContentInner');
-  if (!c) return;
-
-  if (!_lightsConfig) {
-    try {
-      _lightsConfig = await _fetchLightsConfig();
-    } catch (e) {
-      _lightsConfig = JSON.parse(JSON.stringify(DEFAULT_LIGHTS_CONFIG));
-      showToast('讀取設定失敗，已套用預設：' + (e.message || e));
-    }
-  }
-  const cfg = _lightsConfig;
-
-  const section = (title, html) => `
-    <div class="card" style="padding:16px 18px;margin-bottom:12px;">
-      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;">${title}</div>
-      ${html}
-    </div>`;
-
-  const field = (id, label, val, step) => `
-    <div class="modal-field" style="margin:0;">
-      <div class="modal-label">${label}</div>
-      <input class="modal-input" type="number" step="${step}" id="${id}" value="${val}">
-    </div>`;
-
-  c.innerHTML = `
-    <div class="card" style="padding:14px 18px;margin-bottom:14px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-        <div>
-          <div style="font-size:14px;font-weight:700;color:var(--text);">系統設定</div>
-          <div style="font-size:12px;color:var(--text-soft);margin-top:3px;">評分標準、燈號閾值、休會次數</div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn" onclick="_lightsConfigReset()" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);">恢復預設</button>
-          <button class="btn btn-primary" onclick="_lightsConfigSave()">儲存</button>
-        </div>
-      </div>
-    </div>
-
-    ${section('引薦分（提內+提外，× 週數）',
-      `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
-        ${field('cfg_ref_0', '20 分 ≥', cfg.refScore[0], '0.05')}
-        ${field('cfg_ref_1', '15 分 ≥', cfg.refScore[1], '0.05')}
-        ${field('cfg_ref_2', '10 分 ≥', cfg.refScore[2], '0.05')}
-        ${field('cfg_ref_3', '5 分 ≥',  cfg.refScore[3], '0.05')}
-      </div>`)}
-
-    ${section('來賓分（× 週數）',
-      `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
-        ${field('cfg_vis_0', '15 分 ≥', cfg.visScore[0], '0.05')}
-        ${field('cfg_vis_1', '10 分 ≥', cfg.visScore[1], '0.05')}
-      </div>`)}
-
-    ${section('一對一分（× 週數）',
-      `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-        ${field('cfg_one_0', '15 分 ≥', cfg.oneScore[0], '0.05')}
-        ${field('cfg_one_1', '10 分 ≥', cfg.oneScore[1], '0.05')}
-        ${field('cfg_one_2', '5 分 ≥',  cfg.oneScore[2], '0.05')}
-      </div>`)}
-
-    ${section('培訓分（次數）',
-      `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-        ${field('cfg_train_0', '15 分 ≥', cfg.trainScore[0], '1')}
-        ${field('cfg_train_1', '10 分 ≥', cfg.trainScore[1], '1')}
-        ${field('cfg_train_2', '5 分 ≥',  cfg.trainScore[2], '1')}
-      </div>`)}
-
-    ${section('金額分（元）',
-      `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-        ${field('cfg_amt_0', '15 分 ≥', cfg.amtScore[0], '100000')}
-        ${field('cfg_amt_1', '10 分 ≥', cfg.amtScore[1], '100000')}
-        ${field('cfg_amt_2', '5 分 ≥',  cfg.amtScore[2], '100000')}
-      </div>`)}
-
-    ${section('出席分（依缺席次數對應的分數）',
-      `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
-        ${field('cfg_abs_0', '缺 0 次', cfg.absScore[0], '1')}
-        ${field('cfg_abs_1', '缺 1 次', cfg.absScore[1], '1')}
-        ${field('cfg_abs_2', '缺 2 次', cfg.absScore[2], '1')}
-        ${field('cfg_abs_3', '缺 3+ 次', cfg.absScore[3], '1')}
-      </div>`)}
-
-    ${section('燈號閾值（總分）',
-      `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-        ${field('cfg_light_0', '綠燈 ≥', cfg.lightLevel[0], '1')}
-        ${field('cfg_light_1', '黃燈 ≥', cfg.lightLevel[1], '1')}
-        ${field('cfg_light_2', '紅燈 ≥', cfg.lightLevel[2], '1')}
-      </div>`)}
-
-    ${section('其他',
-      `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
-        ${field('cfg_holiday', '本月休會次數', cfg.holidayCount || 0, '1')}
-      </div>`)}
-  `;
-}
-
-function _lightsConfigCollect() {
-  const v = id => +document.getElementById(id).value;
-  return {
-    refScore:   [v('cfg_ref_0'), v('cfg_ref_1'), v('cfg_ref_2'), v('cfg_ref_3')],
-    visScore:   [v('cfg_vis_0'), v('cfg_vis_1')],
-    oneScore:   [v('cfg_one_0'), v('cfg_one_1'), v('cfg_one_2')],
-    trainScore: [v('cfg_train_0'), v('cfg_train_1'), v('cfg_train_2')],
-    amtScore:   [v('cfg_amt_0'), v('cfg_amt_1'), v('cfg_amt_2')],
-    absScore:   [v('cfg_abs_0'), v('cfg_abs_1'), v('cfg_abs_2'), v('cfg_abs_3')],
-    lightLevel: [v('cfg_light_0'), v('cfg_light_1'), v('cfg_light_2')],
-    holidayCount: v('cfg_holiday')
-  };
-}
-
-async function _lightsConfigSave() {
-  const cfg = _lightsConfigCollect();
-  showLoader(true, '儲存中...');
-  try {
-    const r = await fetch(LIGHTS_API_URL, {
-      method: 'POST', mode: 'cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'setLightsConfig', config: cfg })
-    });
-    const j = await r.json();
-    if (!j || !j.ok) throw new Error(j?.error || '儲存失敗');
-    _lightsConfig = cfg;
-    showToast('設定已儲存');
-  } catch (e) {
-    showToast('儲存失敗：' + (e.message || e));
-  } finally {
-    showLoader(false);
-  }
-}
-
-function _lightsConfigReset() {
-  if (!confirm('確定要恢復預設值？目前未儲存的變更會清除。\n（按下「儲存」後才會寫入後端）')) return;
-  _lightsConfig = JSON.parse(JSON.stringify(DEFAULT_LIGHTS_CONFIG));
-  _renderLightsConfigTab();
 }
 
 function _calcCrowns(rows) {
