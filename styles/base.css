@@ -754,25 +754,6 @@ input.is-locked:focus, textarea.is-locked:focus {
 
 /* LIGHTS (燈號分析) */
 .lights-wrapper { padding: 0; max-width: 1100px; margin: 0 auto; }
-.lights-dropzone {
-  border: 2.5px dashed var(--gray-border); border-radius: 12px;
-  padding: 44px 20px; text-align: center; cursor: pointer;
-  transition: all 0.15s; background: #fafbfc;
-}
-.lights-dropzone:hover, .lights-dropzone.drag-over {
-  border-color: var(--red); background: #fff5f3;
-}
-.lights-preview-table {
-  width: 100%; border-collapse: collapse; font-size: 12px;
-}
-.lights-preview-table th, .lights-preview-table td {
-  padding: 7px 10px; border-bottom: 1px solid var(--gray-border);
-  text-align: center; white-space: nowrap;
-}
-.lights-preview-table th {
-  background: #fafbfc; font-weight: 700; color: var(--text);
-  position: sticky; top: 0; z-index: 1;
-}
 .guest-filter-sel {
   flex: 1; min-width: 140px;
   padding: 9px 32px 9px 12px;

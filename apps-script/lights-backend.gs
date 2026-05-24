@@ -15,6 +15,7 @@
 
 const SS_ID = '1vaunMiu-soVacqsbvRxY1dDQ2ZLBghv0t9rTer3KdP0';
 const SHEET_LIGHTS = '燈號-週資料';
+const SHEET_TRAINING = '培訓-活動紀錄';
 const SHEET_MEMBERS = '會員';
 
 // 「燈號-週資料」的 21 個欄位順序（與 Sheet 標題列一致）
@@ -24,6 +25,13 @@ const LIGHTS_COLS = [
   'refIn', 'refOut', 'refRcvIn', 'refRcvOut',
   'vis', 'one', 'amt', 'train',
   'importTime', 'importer', 'rangeType'
+];
+
+// 「培訓-活動紀錄」欄位（每列 = 一筆會員出席紀錄）
+const TRAINING_COLS = [
+  'from', 'to', 'surname', 'given', 'name',
+  'activityDate', 'activityType', 'points',
+  'importTime', 'importer'
 ];
 
 // ===== Web App entry =====
@@ -52,6 +60,8 @@ function _handle(e, method) {
       case 'batchUpdateMemberLights':  result = batchUpdateMemberLights(params); break;
       case 'getLightsConfig':          result = getLightsConfig(); break;
       case 'setLightsConfig':          result = setLightsConfig(params); break;
+      case 'listTrainingData':         result = listTrainingData(params); break;
+      case 'addTrainingImport':        result = addTrainingImport(params); break;
       default:
         return _json({ ok: false, error: 'unknown action: ' + action });
     }
@@ -237,4 +247,65 @@ function setLightsConfig(params) {
   if (!cfg) throw new Error('需要 config');
   PropertiesService.getDocumentProperties().setProperty(CONFIG_KEY, JSON.stringify(cfg));
   return { saved: true };
+}
+
+// ===== 培訓資料 =====
+function _shTraining() {
+  let sh = _ss().getSheetByName(SHEET_TRAINING);
+  if (!sh) {
+    sh = _ss().insertSheet(SHEET_TRAINING);
+    sh.getRange(1, 1, 1, TRAINING_COLS.length).setValues([TRAINING_COLS]);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function listTrainingData(params) {
+  const sh = _ss().getSheetByName(SHEET_TRAINING);
+  if (!sh) return { data: [] };
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return { data: [] };
+  const range = sh.getRange(2, 1, lastRow - 1, TRAINING_COLS.length);
+  const values = range.getValues();
+  const rows = values.map((row, i) => {
+    const obj = { sheetRow: i + 2 };
+    TRAINING_COLS.forEach((k, idx) => { obj[k] = row[idx]; });
+    obj.from = _fmtDate(obj.from);
+    obj.to = _fmtDate(obj.to);
+    obj.activityDate = _fmtDate(obj.activityDate);
+    return obj;
+  });
+  return { data: rows };
+}
+
+// 培訓報告是完整累計，每次上傳清空後重寫
+function addTrainingImport(params) {
+  const { from, to, importer, rows } = params;
+  if (!from || !to) throw new Error('需要 from / to');
+  if (!Array.isArray(rows) || !rows.length) throw new Error('rows 為空');
+
+  const sh = _shTraining();
+  const lastRow = sh.getLastRow();
+  const oldCount = lastRow >= 2 ? lastRow - 1 : 0;
+  if (oldCount > 0) {
+    sh.getRange(2, 1, oldCount, TRAINING_COLS.length).clearContent();
+  }
+
+  const importTime = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+  const fromStr = _fmtDate(from);
+  const toStr = _fmtDate(to);
+  const out = rows.map(r => TRAINING_COLS.map(k => {
+    if (k === 'from') return fromStr;
+    if (k === 'to') return toStr;
+    if (k === 'importTime') return importTime;
+    if (k === 'importer') return importer || '';
+    return r[k] != null ? r[k] : '';
+  }));
+  sh.getRange(2, 1, out.length, TRAINING_COLS.length).setValues(out);
+  // 強制 from/to/activityDate 三欄為純文字
+  sh.getRange(2, 1, out.length, 2).setNumberFormat('@'); // from, to
+  const activityDateCol = TRAINING_COLS.indexOf('activityDate') + 1;
+  sh.getRange(2, activityDateCol, out.length, 1).setNumberFormat('@');
+
+  return { added: out.length, replaced: oldCount };
 }

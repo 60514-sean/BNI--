@@ -2,12 +2,14 @@
 const LIGHTS_API_URL = 'https://script.google.com/macros/s/AKfycbzsOG0E2CHPzdgEV-nmU2g6uSeo3kormxCuNckBnSQxKgpJBWyjnbAiXY9rRYoXCW_TPg/exec';
 
 let _lightsSubTab = 'score';
-let _lightsImport = null;
 let _lightsData = null;
-let _lightsScoreMonths = 12;
-let _lightsPredictWeeks = 4;
+let _trainingData = null;       // 培訓資料 cache
+let _trainingMeta = null;       // 培訓最後上傳資訊（importTime / from / to）
 let _lightsScoreFilter = '綠燈';
 let _lightsScoreSearch = '';
+let _lightsPredictFilter = '綠燈';
+let _lightsPredictSearch = '';
+let _lightsImportOpenMonths = null; // 匯入頁展開的月份 set，第一次渲染時自動初始化為「當月」
 
 // 評分標準（依億展白金分會規則，PALMS 報告以 26 週為單位）
 const LIGHTS_CFG = {
@@ -36,10 +38,17 @@ function _renderLightsCurrentTab() {
   const c = document.getElementById('lightsContentInner');
   if (!c) return;
   switch (_lightsSubTab) {
-    case 'import':   c.innerHTML = _renderLightsImportHtml(); break;
+    case 'import':
+      c.innerHTML = '<div class="card" style="padding:48px;text-align:center;color:var(--text-soft);">載入中...</div>';
+      _renderLightsImportTab();
+      break;
     case 'score':
       c.innerHTML = '<div class="card" style="padding:48px;text-align:center;color:var(--text-soft);">載入中...</div>';
       _renderLightsScoreTab();
+      break;
+    case 'predict':
+      c.innerHTML = '<div class="card" style="padding:48px;text-align:center;color:var(--text-soft);">載入中...</div>';
+      _renderLightsPredictTab();
       break;
     case 'announce':
       c.innerHTML = '<div class="card" style="padding:48px;text-align:center;color:var(--text-soft);">載入中...</div>';
@@ -48,173 +57,251 @@ function _renderLightsCurrentTab() {
   }
 }
 
+// ===== 月份視窗工具 =====
+function _isoDate(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function _monthKeyOf(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+function _rowMonthKey(r) {
+  return String(r.to || '').substring(0, 7);
+}
+
+// 過去 6 個完整月（不含當月）— 給上個月燈號用
+function _completedMonthWindow() {
+  const now = new Date();
+  const months = [];
+  for (let i = 6; i >= 1; i--) {
+    months.push(_monthKeyOf(new Date(now.getFullYear(), now.getMonth() - i, 1)));
+  }
+  return months;
+}
+
+// 過去 6 個月含當月 — 給預測燈號用
+function _predictMonthWindow() {
+  const now = new Date();
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    months.push(_monthKeyOf(new Date(now.getFullYear(), now.getMonth() - i, 1)));
+  }
+  return months;
+}
+
+function _rowsInMonths(allRows, monthKeys) {
+  const set = new Set(monthKeys);
+  return (allRows || []).filter(r => set.has(_rowMonthKey(r)));
+}
+
+// 一個月內所有週五的 ISO 日期
+function _fridaysInMonth(year, monthIdx) {
+  const fridays = [];
+  const d = new Date(year, monthIdx, 1);
+  while (d.getMonth() === monthIdx) {
+    if (d.getDay() === 5) fridays.push(_isoDate(d));
+    d.setDate(d.getDate() + 1);
+  }
+  return fridays;
+}
+
+// 算「今天起到當月底還有幾個週五」（含今天若為週五）
+function _remainingFridaysInMonth() {
+  const today = new Date();
+  const fridays = _fridaysInMonth(today.getFullYear(), today.getMonth());
+  const todayIso = _isoDate(today);
+  return fridays.filter(f => f >= todayIso).length;
+}
+
+// 匯入頁要顯示的月份（當月 + 過去 6 個月，新到舊）
+function _getImportMonths() {
+  const now = new Date();
+  const months = [];
+  for (let i = 0; i <= 6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({
+      monthKey: _monthKeyOf(d),
+      monthLabel: `${d.getFullYear()} 年 ${d.getMonth()+1} 月`,
+      isCurrent: i === 0,
+      fridays: _fridaysInMonth(d.getFullYear(), d.getMonth())
+    });
+  }
+  return months;
+}
+
 // ===== 匯入子分頁 =====
 function _lightsBackBar() {
+  const title = _lightsSubTab === 'import' ? '匯入 PALMS 資料' : '副主席報告';
   return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-    <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">${_lightsSubTab==='import'?'匯入 PALMS 資料':'副主席報告'}</h2>
-    <button onclick="_lightsSwitch('score')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">← 返回紅綠燈</button>
+    <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">${title}</h2>
+    <button onclick="_lightsSwitch('score')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">← 返回上個月紅綠燈</button>
   </div>`;
 }
 
-function _renderLightsImportHtml() {
-  if (!_lightsImport) {
-    return `
-    ${_lightsBackBar()}
-    <div class="card" style="padding:24px;">
-      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:10px;">上傳 BNI Connect PALMS 報告</div>
-      <div style="font-size:12px;color:var(--text-soft);line-height:1.6;margin-bottom:14px;">
-        從 BNI Connect 下載「分會 - PALMS 摘要報告」<b>.xls</b> 檔案後拖到下方區域，或點擊選檔。<br>
-        系統會自動辨識區間 from/to、會員資料 15 欄。
-      </div>
-      <div id="lightsDropZone"
-        ondrop="_lightsHandleDrop(event)"
-        ondragover="event.preventDefault();this.classList.add('drag-over');"
-        ondragleave="this.classList.remove('drag-over');"
-        onclick="document.getElementById('lightsFileInput').click();"
-        class="lights-dropzone">
-        <div style="font-size:14px;font-weight:700;color:var(--text);">點擊或拖曳 PALMS .xls 檔案</div>
-        <div style="font-size:11px;color:var(--text-soft);margin-top:4px;">支援 BNI Connect 匯出的 SpreadsheetML 格式</div>
-        <input type="file" id="lightsFileInput" accept=".xls,.xml" style="display:none" onchange="_lightsHandleFile(this.files[0])">
-      </div>
-    </div>`;
+async function _renderLightsImportTab() {
+  const c = document.getElementById('lightsContentInner');
+  if (!c) return;
+
+  if (!_lightsData) {
+    try { await fetchLightsData(); }
+    catch (e) {
+      c.innerHTML = `${_lightsBackBar()}<div class="card" style="padding:40px;text-align:center;color:var(--red);">載入失敗：${_escH(e.message || e)}<br><button class="btn" style="margin-top:14px;" onclick="_renderLightsImportTab()">重試</button></div>`;
+      return;
+    }
+  }
+  if (!_trainingData) {
+    try { await fetchTrainingData(); } catch {}
   }
 
-  const imp = _lightsImport;
-  const rowsHtml = imp.rows.map((r, i) => `<tr>
-    <td>${i+1}</td>
-    <td style="text-align:left;font-weight:600;">${_escH(r.name)}</td>
-    <td>${r.att}</td><td>${r.abs}</td><td>${r.late}</td>
-    <td>${r.refIn}</td><td>${r.refOut}</td><td>${r.refRcvIn}</td><td>${r.refRcvOut}</td>
-    <td>${r.vis}</td><td>${r.one}</td>
-    <td style="text-align:right;">${Number(r.amt).toLocaleString()}</td>
-    <td>${r.train}</td>
-  </tr>`).join('');
+  const todayIso = _isoDate(new Date());
+  const dataByTo = {};
+  (_lightsData || []).forEach(r => {
+    const t = String(r.to || '');
+    if (!t) return;
+    if (!dataByTo[t]) dataByTo[t] = { from: r.from, to: r.to, isHoliday: false, hasReal: false };
+    if (r.name === '__休會__') dataByTo[t].isHoliday = true;
+    else dataByTo[t].hasReal = true;
+  });
 
-  return `
-  ${_lightsBackBar()}
-  <div class="card" style="padding:18px;margin-bottom:14px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-      <div style="font-size:14px;font-weight:700;color:var(--text);">預覽 — ${_escH(imp.fileName)}</div>
-      <button class="btn" style="padding:6px 12px;font-size:12px;background:white;border:1px solid var(--gray-border);color:var(--text-soft);" onclick="_lightsClearImport()">重選檔案</button>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:10px;margin-top:14px;">
-      <div class="modal-field">
-        <div class="modal-label">區間起 (from)</div>
-        <input class="modal-input" type="date" id="lightsFromInput" value="${_escH(imp.from)}">
-      </div>
-      <div class="modal-field">
-        <div class="modal-label">區間迄 (to)</div>
-        <input class="modal-input" type="date" id="lightsToInput" value="${_escH(imp.to)}">
-      </div>
-      <div class="modal-field">
-        <div class="modal-label">區間類型</div>
-        <select class="modal-input" id="lightsRangeType" style="appearance:auto;background:white;">
-          <option value="week"   ${imp.rangeType==='week'?'selected':''}>單週 (7 天)</option>
-          <option value="month"  ${imp.rangeType==='month'?'selected':''}>單月 (~30 天)</option>
-          <option value="period" ${imp.rangeType==='period'?'selected':''}>整期 (>80 天)</option>
-          <option value="custom" ${imp.rangeType==='custom'?'selected':''}>自訂</option>
-        </select>
-      </div>
-      <div class="modal-field">
-        <div class="modal-label">匯入者</div>
-        <input class="modal-input" type="text" id="lightsImporter" value="${_escH(imp.importer)}">
-      </div>
-    </div>
-    <div style="margin-top:12px;font-size:13px;color:var(--text-soft);">
-      共解析到 <b style="color:var(--text);">${imp.rows.length}</b> 位會員${imp.chapter ? ` · 分會：${_escH(imp.chapter)}` : ''}
-    </div>
-  </div>
+  const months = _getImportMonths();
 
-  <div class="card" style="padding:0;overflow:hidden;">
-    <div style="overflow-x:auto;max-height:520px;">
-      <table class="lights-preview-table">
-        <thead>
-          <tr>
-            <th>#</th><th>姓名</th>
-            <th>出席</th><th>缺席</th><th>遲到</th>
-            <th>提內引</th><th>提外引</th><th>收內引</th><th>收外引</th>
-            <th>來賓</th><th>121</th><th>交易價值</th><th>教育</th>
-          </tr>
-        </thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>
-    </div>
-  </div>
+  // 第一次渲染時自動展開「當月」
+  if (_lightsImportOpenMonths === null) {
+    _lightsImportOpenMonths = new Set([months[0].monthKey]);
+  }
 
-  <div class="card" style="padding:14px 18px;margin-top:14px;display:flex;justify-content:flex-end;gap:8px;">
-    <button class="btn" onclick="_lightsClearImport()" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);">取消</button>
-    <button class="btn btn-primary" onclick="_lightsConfirmImport()">確認匯入</button>
-  </div>`;
+  let totalSlots = 0, uploadedSlots = 0;
+
+  // 先把每月的統計算好（用於 header 顯示）
+  const monthsHtml = months.map(m => {
+    const isOpen = _lightsImportOpenMonths.has(m.monthKey);
+    let monthUploaded = 0, monthTotal = 0, monthFuture = 0;
+    m.fridays.forEach(friday => {
+      monthTotal++;
+      if (friday > todayIso) monthFuture++;
+      else if (dataByTo[friday]) monthUploaded++;
+    });
+    const monthDue = monthTotal - monthFuture;
+    totalSlots += monthTotal;
+    uploadedSlots += monthUploaded;
+
+    const slotsHtml = !isOpen ? '' : m.fridays.map(friday => {
+      const future = friday > todayIso;
+      const info = dataByTo[friday];
+      const uploaded = !!info;
+
+      let statusText, statusColor, borderColor, btnHtml;
+      if (future) {
+        statusText = '尚未到期';
+        statusColor = '#a0aec0';
+        borderColor = '#edf2f7';
+        btnHtml = `<span style="padding:6px 14px;background:#edf2f7;border-radius:7px;font-size:12px;color:#a0aec0;flex-shrink:0;">尚未到期</span>`;
+      } else if (uploaded) {
+        if (info.isHoliday && !info.hasReal) {
+          statusText = '✓ 已標記為休會週（無資料）';
+          statusColor = '#8e44ad';
+          borderColor = '#8e44ad';
+        } else {
+          statusText = `✓ 已上傳 (${info.from} ~ ${info.to})`;
+          statusColor = '#27ae60';
+          borderColor = '#27ae60';
+        }
+        btnHtml = `<button onclick="document.getElementById('lightsFile_${friday}').click()" style="padding:6px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;color:var(--text-soft);flex-shrink:0;">重新上傳</button>`;
+      } else {
+        statusText = '尚未上傳';
+        statusColor = 'var(--text-soft)';
+        borderColor = 'var(--gray-border)';
+        btnHtml = `<button onclick="document.getElementById('lightsFile_${friday}').click()" style="padding:6px 14px;background:var(--red);border:1.5px solid var(--red);border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;color:white;flex-shrink:0;">上傳</button>`;
+      }
+
+      const [, monthNum, dayNum] = friday.split('-');
+      const label = `${parseInt(monthNum)}/${parseInt(dayNum)}（週五）`;
+
+      return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:white;border:1.5px solid ${borderColor};border-left:4px solid ${borderColor};border-radius:8px;">
+        <div style="font-size:14px;font-weight:700;color:var(--text);width:120px;flex-shrink:0;">${label}</div>
+        <div style="flex:1;min-width:0;font-size:12px;color:${statusColor};">${statusText}</div>
+        ${btnHtml}
+        ${future ? '' : `<input type="file" id="lightsFile_${friday}" accept=".xls,.xml" style="display:none" onchange="_lightsHandleWeekFile(this.files[0], '${friday}')">`}
+      </div>`;
+    }).join('');
+
+    const monthTag = m.isCurrent
+      ? `<span style="font-size:11px;color:#d4ac0d;background:#fef9e7;padding:2px 8px;border-radius:12px;font-weight:700;margin-left:8px;">本月</span>`
+      : '';
+
+    // 月份摘要：已上傳 X / 應上傳 Y（應上傳 = 已過週五數）
+    const allDone = monthDue > 0 && monthUploaded === monthDue;
+    const summaryColor = allDone ? '#27ae60' : monthUploaded > 0 ? '#d4ac0d' : 'var(--text-soft)';
+    const summary = `<span style="font-size:12px;color:${summaryColor};font-weight:600;">${allDone ? '✓ ' : ''}${monthUploaded} / ${monthDue} 週已上傳${monthFuture > 0 ? `（${monthFuture} 週未到期）` : ''}</span>`;
+    const arrow = isOpen ? '▾' : '▸';
+
+    return `<div style="margin-bottom:12px;border:1.5px solid var(--gray-border);border-radius:10px;overflow:hidden;background:white;">
+      <div onclick="_lightsToggleImportMonth('${m.monthKey}')" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fafbfc;cursor:pointer;user-select:none;border-bottom:${isOpen ? '1px solid var(--gray-border)' : '0'};">
+        <span style="font-size:14px;color:var(--text-soft);width:14px;">${arrow}</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);">${m.monthLabel}</span>
+        ${monthTag}
+        <span style="flex:1;"></span>
+        ${summary}
+      </div>
+      ${isOpen ? `<div style="display:flex;flex-direction:column;gap:6px;padding:12px;">${slotsHtml}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  // 培訓區塊
+  const trainCount = (_trainingData || []).length;
+  const trainBorder = trainCount > 0 ? '#8e44ad' : 'var(--gray-border)';
+  const trainStatus = trainCount > 0
+    ? `<span style="font-size:12px;color:#8e44ad;font-weight:600;">✓ ${trainCount} 筆紀錄${_trainingMeta ? `（資料區間 ${_trainingMeta.from} ~ ${_trainingMeta.to}，上次更新 ${_trainingMeta.importTime}）` : ''}</span>`
+    : `<span style="font-size:12px;color:var(--text-soft);">尚未上傳</span>`;
+  const trainBtn = trainCount > 0
+    ? `<button onclick="document.getElementById('lightsFile_training').click()" style="padding:8px 16px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;color:var(--text-soft);flex-shrink:0;">重新上傳</button>`
+    : `<button onclick="document.getElementById('lightsFile_training').click()" style="padding:8px 16px;background:#8e44ad;border:1.5px solid #8e44ad;border-radius:7px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;color:white;flex-shrink:0;">上傳培訓</button>`;
+  const trainingBlock = `
+    <div style="margin-bottom:18px;border:1.5px solid ${trainBorder};border-left:4px solid ${trainBorder};border-radius:10px;padding:14px 16px;background:white;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:15px;font-weight:700;color:var(--text);">培訓紀錄（會員培訓報告，整份累計）</div>
+          <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">每次上傳會覆蓋整份。培訓分數依活動類型自動換算（MSP 2 分／其他工作坊 4 分）</div>
+          <div style="margin-top:6px;">${trainStatus}</div>
+        </div>
+        ${trainBtn}
+        <input type="file" id="lightsFile_training" accept=".xls,.xml" style="display:none" onchange="_lightsHandleTrainingFile(this.files[0])">
+      </div>
+    </div>`;
+
+  c.innerHTML = `
+    ${_lightsBackBar()}
+    <div style="font-size:12px;color:var(--text-soft);margin-bottom:14px;line-height:1.6;">
+      每週五從 BNI Connect 下載當週的 PALMS，展開月份後點對應週五的「上傳」按鈕匯入。系統會自動依檔案 <code>to</code> 日期歸位，與槽位不符時會跳出確認。
+      <br>累計已上傳 <b style="color:var(--text);">${uploadedSlots} / ${totalSlots}</b> 週。
+    </div>
+    ${trainingBlock}
+    ${monthsHtml}`;
 }
 
-function _lightsHandleDrop(ev) {
-  ev.preventDefault();
-  ev.currentTarget.classList.remove('drag-over');
-  const file = ev.dataTransfer.files[0];
-  if (file) _lightsHandleFile(file);
-}
-
-async function _lightsHandleFile(file) {
+// 上傳培訓報告（整份覆蓋）
+async function _lightsHandleTrainingFile(file) {
   if (!file) return;
   if (!/\.(xls|xml)$/i.test(file.name)) {
     showToast('請選擇 .xls 或 .xml 檔案');
     return;
   }
   showLoader(true, '解析中...');
+  let parsed;
   try {
     const text = await file.text();
-    const parsed = _parsePalmsXml(text);
-    if (!parsed.rows.length) throw new Error('找不到會員資料列');
-    _lightsImport = {
-      fileName: file.name,
-      from: parsed.from,
-      to: parsed.to,
-      chapter: parsed.chapter,
-      rows: parsed.rows,
-      importer: (typeof CU !== 'undefined' && CU) ? CU : '',
-      rangeType: _guessRangeType(parsed.from, parsed.to)
-    };
-    _renderLightsCurrentTab();
-    showToast(`解析成功，共 ${parsed.rows.length} 位會員`);
+    parsed = _parseTrainingXml(text);
+    if (!parsed.rows.length) throw new Error('找不到任何活動紀錄');
+    if (!parsed.from || !parsed.to) throw new Error('無法辨識日期區間');
   } catch (e) {
-    showToast('解析失敗：' + (e.message || e));
-  } finally {
     showLoader(false);
-  }
-}
-
-function _guessRangeType(fromIso, toIso) {
-  if (!fromIso || !toIso) return 'custom';
-  const f = new Date(fromIso);
-  const t = new Date(toIso);
-  if (isNaN(f) || isNaN(t)) return 'custom';
-  const days = Math.round((t - f) / 86400000);
-  if (days >= 5 && days <= 9) return 'week';
-  if (days >= 25 && days <= 35) return 'month';
-  if (days >= 80) return 'period';
-  return 'custom';
-}
-
-function _lightsClearImport() {
-  _lightsImport = null;
-  _renderLightsCurrentTab();
-}
-
-async function _lightsConfirmImport() {
-  const from = document.getElementById('lightsFromInput')?.value || _lightsImport.from;
-  const to = document.getElementById('lightsToInput')?.value || _lightsImport.to;
-  const rangeType = document.getElementById('lightsRangeType')?.value || _lightsImport.rangeType;
-  const importer = document.getElementById('lightsImporter')?.value || _lightsImport.importer;
-  const rows = _lightsImport.rows;
-
-  if (!from || !to) { showToast('請填寫 from / to'); return; }
-
-  // 後端尚未部署 → console.log
-  if (!LIGHTS_API_URL) {
-    console.log('[Lights] 將匯入（後端尚未部署）：', { from, to, rangeType, importer, rowCount: rows.length });
-    console.log('[Lights] 前 3 筆資料：', rows.slice(0, 3));
-    showToast('後端 API 尚未填入 LIGHTS_API_URL，請見 console。');
+    showToast('解析失敗：' + (e.message || e));
     return;
+  }
+  showLoader(false);
+
+  // 覆蓋確認
+  if ((_trainingData || []).length > 0) {
+    if (!confirm(`雲端目前有 ${_trainingData.length} 筆培訓紀錄（${_trainingMeta?.from || '?'} ~ ${_trainingMeta?.to || '?'}）。\n\n確定要覆蓋為新上傳的 ${parsed.rows.length} 筆嗎？\n（培訓報告是累計，新版會完整取代舊版）`)) return;
   }
 
   showLoader(true, '寫入中...');
@@ -223,15 +310,125 @@ async function _lightsConfirmImport() {
       method: 'POST',
       mode: 'cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'addPalmsImport', from, to, rangeType, importer, rows })
+      body: JSON.stringify({
+        action: 'addTrainingImport',
+        from: parsed.from,
+        to: parsed.to,
+        importer: (typeof CU !== 'undefined' && CU) ? CU : '',
+        rows: parsed.rows
+      })
     });
     const json = await res.json();
     if (!json || !json.ok) throw new Error(json?.error || 'API 失敗');
-    showToast(`匯入成功：新增 ${json.added} 筆${json.replaced ? `，覆蓋 ${json.replaced} 筆舊資料` : ''}`);
-    _lightsImport = null;
-    _renderLightsCurrentTab();
+    showToast(`培訓上傳成功（${parsed.rows.length} 筆${json.replaced ? `，覆蓋舊 ${json.replaced} 筆` : ''}）`);
+    _trainingData = null;
+    _renderLightsImportTab();
   } catch (e) {
-    showToast('匯入失敗：' + (e.message || e));
+    showToast('上傳失敗：' + (e.message || e));
+  } finally {
+    showLoader(false);
+  }
+}
+
+function _lightsToggleImportMonth(monthKey) {
+  if (!_lightsImportOpenMonths) _lightsImportOpenMonths = new Set();
+  if (_lightsImportOpenMonths.has(monthKey)) _lightsImportOpenMonths.delete(monthKey);
+  else _lightsImportOpenMonths.add(monthKey);
+  _renderLightsImportTab();
+}
+
+// 點選某週槽 → 解析檔案 → 驗證 to 是否符合 → 上傳
+async function _lightsHandleWeekFile(file, expectedFridayIso) {
+  if (!file) return;
+  if (!/\.(xls|xml)$/i.test(file.name)) {
+    showToast('請選擇 .xls 或 .xml 檔案');
+    return;
+  }
+  showLoader(true, '解析中...');
+  let parsed;
+  try {
+    const text = await file.text();
+    parsed = _parsePalmsXml(text);
+    if (!parsed.from || !parsed.to) throw new Error('無法辨識檔案的日期區間');
+  } catch (e) {
+    showLoader(false);
+    showToast('解析失敗：' + (e.message || e));
+    return;
+  }
+  showLoader(false); // 解析完先關，下面要顯示 confirm
+
+  const isHoliday = !parsed.rows.length;
+  const parseIsoDate = (iso) => { const [y,m,d] = iso.split('-').map(Number); return new Date(y, m-1, d); };
+  const dayNames = ['日','一','二','三','四','五','六'];
+
+  // 空檔案 → 休會週確認
+  if (isHoliday) {
+    if (!confirm(`此檔案沒有任何會員資料（可能是休會週）。\n\n仍要標記 ${expectedFridayIso} 為「已匯入」嗎？\n（不會貢獻任何分數計算）`)) return;
+    parsed.rows = [{
+      name: '__休會__', surname: '__', given: '休會',
+      att: 0, abs: 0, late: 0, sick: 0, sub: 0,
+      refIn: 0, refOut: 0, refRcvIn: 0, refRcvOut: 0,
+      vis: 0, one: 0, amt: 0, train: 0
+    }];
+  } else {
+    // 防呆 1：區間長度太長（>14 天像累計報告）
+    const fromD = parseIsoDate(parsed.from);
+    const toD = parseIsoDate(parsed.to);
+    const days = Math.round((toD - fromD) / 86400000) + 1;
+    if (days > 14) {
+      if (!confirm(`此檔案區間是 ${parsed.from} ~ ${parsed.to}（${days} 天），看起來像「累計報告」而非單週。\n\n仍要上傳到 ${expectedFridayIso} 嗎？\n⚠️ 會把 ${days} 天的累計數字當成一週存入，導致該週分數爆量。`)) return;
+    }
+
+    // 防呆 2：to 不是週五
+    const toDay = toD.getDay();
+    if (toDay !== 5) {
+      if (!confirm(`檔案截止日 ${parsed.to} 是「週${dayNames[toDay]}」，不是週五。\n\n仍要上傳嗎？`)) return;
+    }
+
+    // 既有檢查：to ≠ 槽位週五
+    if (parsed.to !== expectedFridayIso) {
+      if (!confirm(`檔案截止日是 ${parsed.to}，跟所選的 ${expectedFridayIso} 週五不符。\n\n仍要強制上傳到 ${expectedFridayIso} 嗎？\n（建議檔案 to 設成週五，避免日後對位混亂）`)) return;
+    }
+  }
+
+  // 防呆 3：覆蓋現有資料前確認
+  const existingRows = (_lightsData || []).filter(r => String(r.to || '') === expectedFridayIso);
+  if (existingRows.length) {
+    const wasHoliday = existingRows.every(r => r.name === '__休會__');
+    const desc = wasHoliday
+      ? '已標記為休會週'
+      : `已有上傳資料（${existingRows[0].from} ~ ${existingRows[0].to}，${existingRows.length} 位會員）`;
+    if (!confirm(`${expectedFridayIso} 槽${desc}。\n\n確定要覆蓋為新內容嗎？`)) return;
+  }
+
+  showLoader(true, '寫入中...');
+
+  // 把 from 補成週五前 6 天，讓雲端資料區間合理（BNI Connect 常給 from=to=週五 單日）
+  const fridayDate = new Date(expectedFridayIso + 'T00:00:00');
+  const fromAuto = new Date(fridayDate.getTime() - 6 * 86400000);
+  const fromAutoIso = _isoDate(fromAuto);
+
+  try {
+    const res = await fetch(LIGHTS_API_URL, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'addPalmsImport',
+        from: fromAutoIso,        // 強制為週五 - 6 天
+        to: expectedFridayIso,    // 統一以週五日期為 to
+        rangeType: 'week',
+        importer: (typeof CU !== 'undefined' && CU) ? CU : '',
+        rows: parsed.rows
+      })
+    });
+    const json = await res.json();
+    if (!json || !json.ok) throw new Error(json?.error || 'API 失敗');
+    showToast(`${expectedFridayIso} 上傳成功（${parsed.rows.length} 位${json.replaced ? '，覆蓋舊資料' : ''}）`);
+    _lightsData = null;
+    _renderLightsImportTab();
+  } catch (e) {
+    showToast('上傳失敗：' + (e.message || e));
   } finally {
     showLoader(false);
   }
@@ -274,15 +471,42 @@ function _parsePalmsXml(text) {
     grid.push(row);
   }
 
-  // 從前 10 列找 from / to / 分會
+  // 偵測檔案格式（前 15 列找標籤）
+  // 舊版（分會 - PALMS 摘要報告）：「從:」「至:」「姓氏 名字 出席 缺席 ...」共 15 欄
+  // 新版（副主席報告）：「月/年:」+ DateTime；標題含「姓氏 名字 續期日期」+ 每週欄位 + 總計欄位（總計在 col 37-45 / 陣列 36-44）
+  // 注意：標籤後面的日期 cell 因 MergeAcross 可能不在隔壁，要往後掃直到找到日期格式
+  const findNextDate = (row, fromCol) => {
+    for (let k = fromCol; k < row.length; k++) {
+      const d = String(row[k] || '').slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    }
+    return '';
+  };
+  const findNextNonEmpty = (row, fromCol) => {
+    for (let k = fromCol; k < row.length; k++) {
+      const v = String(row[k] || '').trim();
+      if (v) return v;
+    }
+    return '';
+  };
+
   let from = '', to = '', chapter = '';
-  for (let r = 0; r < Math.min(grid.length, 10); r++) {
+  for (let r = 0; r < Math.min(grid.length, 15); r++) {
     const row = grid[r];
     for (let c = 0; c < row.length; c++) {
       const v = String(row[c] || '').trim();
-      if (v === '從:' || v === '從：') from = String(row[c+1] || '').slice(0, 10);
-      else if (v === '至:' || v === '至：') to = String(row[c+1] || '').slice(0, 10);
-      else if (v === '分會:' || v === '分會：') chapter = String(row[c+1] || '').trim();
+      if (v === '從:' || v === '從：') from = findNextDate(row, c + 1);
+      else if (v === '至:' || v === '至：') to = findNextDate(row, c + 1);
+      else if (v === '分會:' || v === '分會：') chapter = findNextNonEmpty(row, c + 1);
+      else if (v === '月/年:' || v === '月/年：') {
+        const dStr = findNextDate(row, c + 1);
+        if (dStr) {
+          from = dStr;
+          const [y, mo] = dStr.split('-');
+          const last = new Date(parseInt(y), parseInt(mo), 0).getDate();
+          to = `${y}-${mo}-${String(last).padStart(2, '0')}`;
+        }
+      }
     }
   }
 
@@ -293,31 +517,49 @@ function _parsePalmsXml(text) {
   }
   if (headerRow < 0) throw new Error('找不到「姓氏」標題列');
 
-  // 從標題列下一列開始抓資料，遇到 來賓 / BNI / 總數 結束
+  // 依「標題名稱 → 陣列索引」做欄位映射，避免 BNI Connect 欄位跳號的問題
+  const headerArr = grid[headerRow] || [];
+  const colMap = {};
+  for (let i = 0; i < headerArr.length; i++) {
+    const h = String(headerArr[i] || '').trim();
+    if (h && colMap[h] === undefined) colMap[h] = i;  // 只取第一次出現（避免新版有多週重複欄位）
+  }
+  const col = (name) => {
+    const i = colMap[name];
+    return (i === undefined) ? -1 : i;
+  };
+  const getNum = (row, name) => {
+    const i = col(name);
+    return i < 0 ? 0 : _num(row[i]);
+  };
+  // 不同 PALMS 格式對「金額」「培訓」欄位的命名不一樣，做相容
+  const amtName   = col('交易價值') >= 0 ? '交易價值' : '價值';
+  const trainName = col('分會教育單位') >= 0 ? '分會教育單位' : '教育';
+
   const rows = [];
   for (let r = headerRow + 1; r < grid.length; r++) {
     const row = grid[r];
     const surname = (row[0] || '').trim();
     const given = (row[1] || '').trim();
     if (!surname) continue;
-    if (surname === '來賓' || surname === 'BNI' || surname === '總數') break;
+    if (surname === '來賓' || surname === 'BNI' || surname === '總數' || surname === '價值' || surname === '營運使用者' || surname === '會員') break;
     if (!given) continue;
     rows.push({
       surname, given,
       name:      surname + given,
-      att:       _num(row[2]),
-      abs:       _num(row[3]),
-      late:      _num(row[4]),
-      sick:      _num(row[5]),
-      sub:       _num(row[6]),
-      refIn:     _num(row[7]),
-      refOut:    _num(row[8]),
-      refRcvIn:  _num(row[9]),
-      refRcvOut: _num(row[10]),
-      vis:       _num(row[11]),
-      one:       _num(row[12]),
-      amt:       _num(row[13]),
-      train:     _num(row[14])
+      att:       getNum(row, '出席'),
+      abs:       getNum(row, '缺席'),
+      late:      getNum(row, '遲到'),
+      sick:      getNum(row, '病假'),
+      sub:       getNum(row, '替代人'),
+      refIn:     getNum(row, '提供內部引薦'),
+      refOut:    getNum(row, '提供外部引薦'),
+      refRcvIn:  getNum(row, '收到內部引薦'),
+      refRcvOut: getNum(row, '收到外部引薦'),
+      vis:       getNum(row, '來賓'),
+      one:       getNum(row, '一對一會面'),
+      amt:       getNum(row, amtName),
+      train:     getNum(row, trainName)
     });
   }
 
@@ -330,6 +572,106 @@ function _num(v) {
   return isNaN(n) ? 0 : n;
 }
 
+// ===== 培訓檔案解析 =====
+// 「會員培訓報告」格式：欄位 姓氏(idx3), 名字(idx5), 活動日期(idx6), 活動類型(idx8)
+function _parseTrainingXml(text) {
+  const ns = 'urn:schemas-microsoft-com:office:spreadsheet';
+  let doc;
+  try { doc = new DOMParser().parseFromString(text, 'application/xml'); }
+  catch (e) { throw new Error('檔案不是有效的 XML'); }
+  if (doc.getElementsByTagName('parsererror').length > 0) throw new Error('XML 格式錯誤');
+
+  const worksheets = doc.getElementsByTagNameNS(ns, 'Worksheet');
+  if (!worksheets.length) throw new Error('找不到 Worksheet');
+  const table = worksheets[0].getElementsByTagNameNS(ns, 'Table')[0];
+  if (!table) throw new Error('找不到 Table');
+
+  const xmlRows = table.getElementsByTagNameNS(ns, 'Row');
+  const grid = [];
+  for (let r = 0; r < xmlRows.length; r++) {
+    const cells = xmlRows[r].getElementsByTagNameNS(ns, 'Cell');
+    const row = [];
+    let colIdx = 0;
+    for (let c = 0; c < cells.length; c++) {
+      const cell = cells[c];
+      const idxAttr = cell.getAttributeNS(ns, 'Index');
+      if (idxAttr) {
+        const target = parseInt(idxAttr, 10) - 1;
+        while (colIdx < target) { row.push(''); colIdx++; }
+      }
+      const data = cell.getElementsByTagNameNS(ns, 'Data')[0];
+      row.push(data ? data.textContent : '');
+      colIdx++;
+    }
+    grid.push(row);
+  }
+
+  // 找 from / to（與 PALMS 同樣支援 從:/至:、月/年:）
+  const findNextDate = (row, fromCol) => {
+    for (let k = fromCol; k < row.length; k++) {
+      const d = String(row[k] || '').slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    }
+    return '';
+  };
+  let from = '', to = '';
+  for (let r = 0; r < Math.min(grid.length, 15); r++) {
+    const row = grid[r];
+    for (let c = 0; c < row.length; c++) {
+      const v = String(row[c] || '').trim();
+      if (v === '從:' || v === '從：') from = findNextDate(row, c + 1);
+      else if (v === '至:' || v === '至：') to = findNextDate(row, c + 1);
+    }
+  }
+
+  // 找標題列
+  let headerRow = -1;
+  for (let r = 0; r < grid.length; r++) {
+    if ((grid[r] || []).some(c => String(c || '').trim() === '姓氏')) { headerRow = r; break; }
+  }
+  if (headerRow < 0) throw new Error('找不到「姓氏」標題列');
+
+  // 依標題名稱建欄位索引
+  const colMap = {};
+  (grid[headerRow] || []).forEach((h, i) => {
+    const s = String(h || '').trim();
+    if (s && colMap[s] === undefined) colMap[s] = i;
+  });
+  const cSurname = colMap['姓氏'], cGiven = colMap['名字'];
+  const cActDate = colMap['活動日期'], cActType = colMap['活動類型'];
+  if (cSurname == null || cGiven == null || cActDate == null || cActType == null) {
+    throw new Error('培訓報告缺少必要欄位（姓氏 / 名字 / 活動日期 / 活動類型）');
+  }
+
+  const rows = [];
+  for (let r = headerRow + 1; r < grid.length; r++) {
+    const row = grid[r];
+    const surname = String(row[cSurname] || '').trim();
+    const given = String(row[cGiven] || '').trim();
+    const activityDate = String(row[cActDate] || '').slice(0, 10);
+    const activityType = String(row[cActType] || '').trim();
+    if (!surname || !given || !activityDate || !activityType) continue;
+    const points = _calcTrainingPoints(activityDate, activityType);
+    rows.push({
+      surname, given,
+      name: surname + given,
+      activityDate, activityType, points
+    });
+  }
+
+  return { from, to, rows };
+}
+
+// 套使用者定義的培訓計分規則
+function _calcTrainingPoints(activityDate, activityType) {
+  if (activityType === '會員成功專案') {
+    const day = parseInt((activityDate || '').split('-')[2], 10) || 0;
+    return day <= 7 ? 2 : 4; // 第一週(1-7號) = MSP 2分；其他週 = 工作坊 4分
+  }
+  // 領導團隊培訓 / BNI台灣會員大會 / 董事培訓 - Taiwan
+  return 4;
+}
+
 // ===== API：拉資料 =====
 async function fetchLightsData() {
   if (!LIGHTS_API_URL) throw new Error('LIGHTS_API_URL 尚未設定');
@@ -340,6 +682,38 @@ async function fetchLightsData() {
   return _lightsData;
 }
 
+async function fetchTrainingData() {
+  if (!LIGHTS_API_URL) throw new Error('LIGHTS_API_URL 尚未設定');
+  const r = await fetch(LIGHTS_API_URL + '?action=listTrainingData&t=' + Date.now());
+  const j = await r.json();
+  if (!j || !j.ok) throw new Error(j?.error || '載入失敗');
+  _trainingData = j.data || [];
+  // 取最近一次匯入的元資料（任一列的 importTime/from/to 即可，因為整份是同一次寫入）
+  if (_trainingData.length) {
+    const r0 = _trainingData[0];
+    _trainingMeta = { importTime: r0.importTime || '', from: r0.from, to: r0.to };
+  } else {
+    _trainingMeta = null;
+  }
+  return _trainingData;
+}
+
+// 把培訓資料聚合成「每位會員的 train 分數 + 堂數」，依日期窗口篩選
+function _aggregateTraining(trainingRows, monthKeys) {
+  const set = new Set(monthKeys);
+  const map = {};
+  (trainingRows || []).forEach(t => {
+    const monthKey = String(t.activityDate || '').substring(0, 7);
+    if (!set.has(monthKey)) return;
+    const name = String(t.name || '').trim();
+    if (!name) return;
+    if (!map[name]) map[name] = { points: 0, count: 0 };
+    map[name].points += (Number(t.points) || 0);
+    map[name].count += 1;
+  });
+  return map;
+}
+
 // ===== 紅綠燈計算 =====
 // 把多筆 row（同一段期間）按 name 加總，weeks 用區間長度算
 function _aggregateMembers(rows) {
@@ -347,6 +721,7 @@ function _aggregateMembers(rows) {
   rows.forEach(r => {
     const key = (r.name || '').trim();
     if (!key) return;
+    if (key === '__休會__') return; // 休會週 marker，不在這層加總
     if (!map[key]) {
       map[key] = {
         name: key, weeks: 0,
@@ -355,11 +730,16 @@ function _aggregateMembers(rows) {
         vis: 0, one: 0, amt: 0, train: 0
       };
     }
-    const f = new Date(r.from), t = new Date(r.to);
     let w = 0;
-    if (!isNaN(f.getTime()) && !isNaN(t.getTime())) {
-      w = ((t - f) / 86400000 + 1) / 7;
-      if (w < 0) w = 0;
+    if (r.rangeType === 'week') {
+      // 單週上傳一律算 1 週（BNI Connect 給的單週檔常 from=to 為週五單日，硬算 days/7 會變 0.14）
+      w = 1;
+    } else {
+      const f = new Date(r.from), t = new Date(r.to);
+      if (!isNaN(f.getTime()) && !isNaN(t.getTime())) {
+        w = ((t - f) / 86400000 + 1) / 7;
+        if (w < 0) w = 0;
+      }
     }
     const m = map[key];
     m.weeks    += w;
@@ -377,16 +757,37 @@ function _aggregateMembers(rows) {
     m.amt      += _num(r.amt);
     m.train    += _num(r.train);
   });
+
   return map;
 }
 
 // 計算單一會員的成績
+// 排序比較函式（對齊 BNI 官方規則）：
+// 1. 總分 DESC
+// 2. 來賓「人數」DESC
+// 3. 缺席 ASC（越少越前）
+// 4. 遲到 ASC
+// 5. 替代人 ASC
+// 6. 培訓累計 DESC
+// 7. 金額 DESC
+// 8. 姓名拼音 ASC（fallback）
+function _lightsCompare(a, b, skipTotal) {
+  if (!skipTotal && b.total !== a.total) return b.total - a.total;
+  if ((b.vis || 0) !== (a.vis || 0)) return (b.vis || 0) - (a.vis || 0);
+  if ((a.abs || 0) !== (b.abs || 0)) return (a.abs || 0) - (b.abs || 0);
+  if ((a.late || 0) !== (b.late || 0)) return (a.late || 0) - (b.late || 0);
+  if ((a.sub || 0) !== (b.sub || 0)) return (a.sub || 0) - (b.sub || 0);
+  if ((b.train || 0) !== (a.train || 0)) return (b.train || 0) - (a.train || 0);
+  if ((b.amt || 0) !== (a.amt || 0)) return (b.amt || 0) - (a.amt || 0);
+  return String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hans-u-co-pinyin');
+}
+
 function _calcLightScore(d) {
   const cfg = LIGHTS_CFG;
   const w = d.weeks || 0;
   const ref = d.refIn + d.refOut;
   if (w <= 0) {
-    return { total: 0, light: '灰燈', sRef: 0, sVis: 0, sOne: 0, sTrain: 0, sAmt: 0, sAbs: 0, ref: ref };
+    return { total: 0, light: '黑燈', sRef: 0, sVis: 0, sOne: 0, sTrain: 0, sAmt: 0, sAbs: 0, ref: ref };
   }
   const rt = cfg.refScore;   // 4 個門檻 → 20/15/10/5
   const sRef   = ref >= Math.ceil(rt[0]*w) ? 20 : ref >= Math.ceil(rt[1]*w) ? 15 : ref >= Math.ceil(rt[2]*w) ? 10 : ref >= Math.ceil(rt[3]*w) ? 5 : 0;
@@ -402,7 +803,7 @@ function _calcLightScore(d) {
   const sAbs   = d.abs >= 3 ? ab[3] : d.abs === 2 ? ab[2] : d.abs === 1 ? ab[1] : ab[0];
   const total  = sRef + sVis + sOne + sTrain + sAmt + sAbs;
   const ll = cfg.lightLevel; // [綠, 黃, 紅]
-  const light  = total >= ll[0] ? '綠燈' : total >= ll[1] ? '黃燈' : total >= ll[2] ? '紅燈' : '灰燈';
+  const light  = total >= ll[0] ? '綠燈' : total >= ll[1] ? '黃燈' : total >= ll[2] ? '紅燈' : '黑燈';
   return { sRef, sVis, sOne, sTrain, sAmt, sAbs, total, light, ref };
 }
 
@@ -410,14 +811,7 @@ function _lightBgColor(light) {
   return light === '綠燈' ? '#d9ead3'
        : light === '黃燈' ? '#fff2cc'
        : light === '紅燈' ? '#f4cccc'
-       :                    '#efefef';
-}
-
-// 算「現在往回 N 個月」的起始日（取月初）
-function _monthsAgoIso(n) {
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth() - n + 1, 1); // 含本月共 N 個月
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+       :                    '#d6dbe0'; // 黑燈背景
 }
 
 async function _renderLightsScoreTab() {
@@ -431,9 +825,8 @@ async function _renderLightsScoreTab() {
       return;
     }
   }
-  if (!_lightsData.length) {
-    c.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">尚無 PALMS 匯入資料，請先到「匯入」分頁上傳。</div>`;
-    return;
+  if (!_trainingData) {
+    try { await fetchTrainingData(); } catch {}
   }
 
   // 載入會員資料以取得照片 / 專業別（背景拉取，失敗也不影響卡牌渲染）
@@ -441,33 +834,46 @@ async function _renderLightsScoreTab() {
     try { await fetchMembers(); } catch {}
   }
 
-  // 篩選最近 N 個月的 row（依 from 起始日）
-  const fromCutoff = _monthsAgoIso(_lightsScoreMonths);
-  const recent = _lightsData.filter(r => String(r.from || '') >= fromCutoff);
-
+  // 取「過去 6 個完整月」內所有週的 rows，聚合
+  const months = _completedMonthWindow();
+  const recent = _rowsInMonths(_lightsData, months);
   if (!recent.length) {
-    const earliest = _lightsData.map(r => r.from).sort()[0];
-    c.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">
-      最近 ${_lightsScoreMonths} 個月內沒有資料（cutoff: ${fromCutoff}）。<br>
-      最早的資料在 ${earliest}。<br>
-      ${_monthsRangePicker()}
-    </div>`;
+    c.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">上個月紅綠燈</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button onclick="_lightsSwitch('predict')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">預測</button>
+          <button onclick="_lightsSwitch('import')" style="padding:7px 14px;background:var(--red);border:1.5px solid var(--red);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:white;font-weight:700;">匯入</button>
+          <button onclick="_lightsSwitch('announce')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">公告</button>
+        </div>
+      </div>
+      <div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">
+        ${months[0]} ~ ${months[months.length-1]} 範圍內尚無匯入資料。<br>請點擊上方「匯入」按鈕上傳對應週的 PALMS。
+      </div>`;
     return;
   }
 
   const grouped = _aggregateMembers(recent);
+  // 培訓分數用 PALMS「分會教育單位」算（跟官方對齊）；培訓報告資料保留供卡牌參考
+  const trainByName = _aggregateTraining(_trainingData, months);
   const list = Object.values(grouped).map(d => {
+    const t = trainByName[d.name] || { points: 0, count: 0 };
+    d.trainReportPoints = t.points;
+    d.trainReportCount = t.count;
+    // d.train 保持 PALMS 分會教育單位累計值
     const s = _calcLightScore(d);
     return { ...d, ...s };
   });
-  list.sort((a, b) => b.total - a.total);
+  list.sort((a, b) => _lightsCompare(a, b));
 
-  const lightCounts = { '綠燈': 0, '黃燈': 0, '紅燈': 0, '灰燈': 0 };
+  const lightCounts = { '綠燈': 0, '黃燈': 0, '紅燈': 0, '黑燈': 0 };
   list.forEach(x => lightCounts[x.light]++);
   const totalMembers = list.length;
   const ratio = totalMembers > 0 ? Math.round(((lightCounts['綠燈'] + lightCounts['黃燈']) / totalMembers) * 100) : 0;
 
-  const dateRange = `${fromCutoff} ~ 至今（最近 ${_lightsScoreMonths} 個月）`;
+  const uniqueWeeks = [...new Set(recent.map(r => r.to))];
+  const dataWeeks = list[0]?.weeks?.toFixed(1) || '0';
+  const dateRange = `${months[0]} ~ ${months[months.length-1]} · 已匯入 ${uniqueWeeks.length} 週 · ${dataWeeks} 週累計`;
 
   // 統計卡（同時是篩選器：點擊切換顯示）
   const statCard = (id, label, count, color, bg) => {
@@ -487,7 +893,7 @@ async function _renderLightsScoreTab() {
     ${statCard('綠燈', '綠燈',   lightCounts['綠燈'], '#27ae60', '#d9ead3')}
     ${statCard('黃燈', '黃燈',   lightCounts['黃燈'], '#d4ac0d', '#fff2cc')}
     ${statCard('紅燈', '紅燈',   lightCounts['紅燈'], '#c0392b', '#f4cccc')}
-    ${statCard('灰燈', '灰燈',   lightCounts['灰燈'], '#7f8c8d', '#efefef')}
+    ${statCard('黑燈', '黑燈',   lightCounts['黑燈'], '#2c3e50', '#d6dbe0')}
   </div>`;
 
   // 依篩選 + 搜尋過濾
@@ -505,9 +911,9 @@ async function _renderLightsScoreTab() {
 
   c.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-      <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">紅綠燈成績</h2>
+      <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">上個月紅綠燈</h2>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        ${_monthsRangePicker()}
+        <button onclick="_lightsSwitch('predict')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">預測</button>
         <button onclick="_lightsSwitch('import')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">匯入</button>
         <button onclick="_lightsSwitch('announce')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">公告</button>
       </div>
@@ -551,7 +957,7 @@ function _lightsScoreCard(s, idx) {
   const lightColor = s.light === '綠燈' ? '#27ae60'
                     : s.light === '黃燈' ? '#d4ac0d'
                     : s.light === '紅燈' ? '#c0392b'
-                    : '#7f8c8d';
+                    : '#2c3e50';
   const _ds = [s.name, specialty].filter(Boolean).join(' ').toLowerCase();
 
   // 六項指標（左：滿分配置；右：實際得分 / 原始值）
@@ -559,7 +965,7 @@ function _lightsScoreCard(s, idx) {
     { label: '出席', score: s.sAbs,   max: 20, raw: `缺${s.abs}` },
     { label: '引薦', score: s.sRef,   max: 20, raw: `${s.ref}筆` },
     { label: '121',  score: s.sOne,   max: 15, raw: `${s.one}次` },
-    { label: '培訓', score: s.sTrain, max: 15, raw: `${s.train}次` },
+    { label: '培訓', score: s.sTrain, max: 15, raw: `${s.train}` },
     { label: '金額', score: s.sAmt,   max: 15, raw: `${(s.amt/10000).toFixed(0)}萬` },
     { label: '來賓', score: s.sVis,   max: 15, raw: `${s.vis}位` }
   ];
@@ -587,7 +993,7 @@ function _lightsScoreCard(s, idx) {
       <div style="flex:1;min-width:0;">
         <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;">${_escH(s.name)}</div>
         <div style="font-size:12px;color:var(--text-soft);line-height:1.4;">${_escH(specialty || '—')}</div>
-        <div style="font-size:11px;color:var(--text-soft);margin-top:3px;">週數 ${s.weeks.toFixed(1)}</div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:3px;">週數 ${s.weeks.toFixed(1)} · 培訓報告 ${s.trainReportCount || 0} 堂 / ${s.trainReportPoints || 0} 分</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;">
         <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${lightBg};color:${lightColor};white-space:nowrap;">${s.light}</span>
@@ -600,13 +1006,213 @@ function _lightsScoreCard(s, idx) {
   </div>`;
 }
 
-function _monthsRangePicker() {
-  return `<select onchange="_lightsScoreMonths=+this.value;_renderLightsScoreTab()" class="guest-filter-sel" style="min-width:120px;flex:0;">
-    <option value="3"  ${_lightsScoreMonths===3?'selected':''}>最近 3 個月</option>
-    <option value="6"  ${_lightsScoreMonths===6?'selected':''}>最近 6 個月</option>
-    <option value="12" ${_lightsScoreMonths===12?'selected':''}>最近 12 個月</option>
-    <option value="999" ${_lightsScoreMonths===999?'selected':''}>全部</option>
-  </select>`;
+// ===== 預測紅綠燈 =====
+async function _renderLightsPredictTab() {
+  const c = document.getElementById('lightsContentInner');
+  if (!c) return;
+
+  if (!_lightsData) {
+    try { await fetchLightsData(); }
+    catch (e) {
+      c.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--red);">載入失敗：${_escH(e.message || e)}<br><button class="btn" style="margin-top:14px;" onclick="_lightsData=null;_renderLightsPredictTab()">重試</button></div>`;
+      return;
+    }
+  }
+  if (!_trainingData) { try { await fetchTrainingData(); } catch {} }
+  if (!_memberData) { try { await fetchMembers(); } catch {} }
+
+  // 「左邊上個月」用 6 個完整月窗口；「右邊預測」用滾動 6 個月含當月 + 自動剩餘週數
+  const lastMonths = _completedMonthWindow();
+  const predictMonths = _predictMonthWindow();
+  const lastRows = _rowsInMonths(_lightsData, lastMonths);
+  const predictRows = _rowsInMonths(_lightsData, predictMonths);
+  if (!predictRows.length) {
+    c.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">預測紅綠燈</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button onclick="_lightsSwitch('import')" style="padding:7px 14px;background:var(--red);border:1.5px solid var(--red);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:white;font-weight:700;">匯入</button>
+          <button onclick="_lightsSwitch('score')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">← 返回上個月</button>
+        </div>
+      </div>
+      <div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">${predictMonths[0]} ~ ${predictMonths[predictMonths.length-1]} 範圍內尚無匯入資料。<br>請點擊上方「匯入」按鈕上傳對應週的 PALMS。</div>`;
+    return;
+  }
+
+  const remainW = _remainingFridaysInMonth(); // 自動算本月剩餘週五
+  const lastGrouped = _aggregateMembers(lastRows);
+  const predictGrouped = _aggregateMembers(predictRows);
+  // 培訓資料雙窗口聚合
+  const lastTrainByName = _aggregateTraining(_trainingData, lastMonths);
+  const predTrainByName = _aggregateTraining(_trainingData, predictMonths);
+
+  // 整理所有會員（以「預測窗口」為主，因為含當月）
+  const list = Object.values(predictGrouped).map(d => {
+    const lt = lastTrainByName[d.name] || { points: 0, count: 0 };
+    const pt = predTrainByName[d.name] || { points: 0, count: 0 };
+    d.trainReportPoints = pt.points;
+    d.trainReportCount = pt.count;
+
+    // 上個月燈號：從 lastGrouped 取，計算分數
+    const lastD = lastGrouped[d.name];
+    const last = lastD
+      ? (function() {
+          lastD.train = lastD.train || 0; // 已經是 PALMS 累計
+          return _calcLightScore(lastD);
+        })()
+      : { total: 0, light: '黑燈', sRef: 0, sVis: 0, sOne: 0, sTrain: 0, sAmt: 0, sAbs: 0, ref: 0 };
+
+    // 預測燈號：滾動窗口 + 剩餘週數外推
+    const futureWeeks = (d.weeks || 0) + remainW;
+    const factor = (d.weeks || 0) > 0 ? futureWeeks / d.weeks : 1;
+    const pred = _calcLightScore({
+      weeks:  futureWeeks,
+      refIn:  Math.round(d.refIn * factor),
+      refOut: Math.round(d.refOut * factor),
+      vis:    Math.round(d.vis * factor),
+      one:    Math.round(d.one * factor),
+      amt:    Math.round(d.amt * factor),
+      train:  d.train,  // 培訓不外推
+      abs:    d.abs
+    });
+    return { ...d, last, pred, futureWeeks, lastWeeks: lastD?.weeks || 0 };
+  });
+  // 預測頁先比 pred.total，再用相同 tiebreaker 規則比 raw 數值
+  list.sort((a, b) => {
+    if (b.pred.total !== a.pred.total) return b.pred.total - a.pred.total;
+    return _lightsCompare(a, b, true);
+  });
+
+  const lightCounts = { '綠燈': 0, '黃燈': 0, '紅燈': 0, '黑燈': 0 };
+  list.forEach(x => lightCounts[x.pred.light]++);
+  const totalMembers = list.length;
+  const ratio = totalMembers > 0 ? Math.round(((lightCounts['綠燈'] + lightCounts['黃燈']) / totalMembers) * 100) : 0;
+  const uniqueWeeks = [...new Set(predictRows.map(r => r.to))];
+
+  const statCard = (id, label, count, color, bg) => {
+    const active = _lightsPredictFilter === id;
+    const activeStyle = active ? `background:${color};box-shadow:0 4px 12px ${color}55;transform:translateY(-1px);` : `background:${bg};`;
+    const textColor = active ? '#fff' : '#2d3748';
+    return `<div onclick="_lightsPredictFilter='${id}';_renderLightsPredictTab()" style="${activeStyle}border-radius:10px;padding:14px 10px;display:flex;flex-direction:column;gap:4px;cursor:pointer;transition:all .15s;user-select:none;">
+      <div style="font-size:11px;color:${textColor};font-weight:700;letter-spacing:1px;">${label}</div>
+      <div style="font-size:24px;color:${textColor};font-weight:900;line-height:1;">${count}</div>
+      <div style="font-size:10px;color:${textColor};opacity:${active ? '.9' : '.7'};">位會員</div>
+    </div>`;
+  };
+
+  const statHtml = `<div class="renewal-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;">
+    ${statCard('綠燈', '綠燈', lightCounts['綠燈'], '#27ae60', '#d9ead3')}
+    ${statCard('黃燈', '黃燈', lightCounts['黃燈'], '#d4ac0d', '#fff2cc')}
+    ${statCard('紅燈', '紅燈', lightCounts['紅燈'], '#c0392b', '#f4cccc')}
+    ${statCard('黑燈', '黑燈', lightCounts['黑燈'], '#2c3e50', '#d6dbe0')}
+  </div>`;
+
+  const q = (_lightsPredictSearch || '').trim().toLowerCase();
+  const filtered = list.filter(s => {
+    if (s.pred.light !== _lightsPredictFilter) return false;
+    if (q && !s.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const cardsHtml = filtered.map((s, i) => _lightsPredictCard(s, i)).join('');
+  const emptyHtml = filtered.length === 0
+    ? `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">查無符合條件的會員</div>`
+    : '';
+
+  c.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">預測紅綠燈</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button onclick="_lightsSwitch('import')" style="padding:7px 14px;background:var(--red);border:1.5px solid var(--red);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:white;font-weight:700;">匯入</button>
+        <button onclick="_lightsSwitch('score')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">← 返回上個月</button>
+      </div>
+    </div>
+
+    <div style="font-size:12px;color:var(--text-soft);margin-bottom:14px;">${predictMonths[0]} ~ ${predictMonths[predictMonths.length-1]} · 已匯入 ${uniqueWeeks.length} 週 · 本月剩餘 <b>${remainW}</b> 週（自動算）· 預測到月底約 ${(list[0]?.futureWeeks || 0).toFixed(1)} 週 · ${totalMembers} 位 · 預測綠黃燈比例 <b style="color:var(--red);">${ratio}%</b></div>
+
+    ${statHtml}
+
+    <input class="member-search" type="text" placeholder="搜尋會員姓名..." value="${_escH(_lightsPredictSearch)}" oninput="_lightsPredictSearch=this.value;_lightsPredictFilterCards()" autocomplete="off" style="margin-bottom:12px;">
+
+    <div id="lightsPredictList" class="member-grid">
+      ${cardsHtml}
+      ${emptyHtml}
+    </div>`;
+}
+
+function _lightsPredictFilterCards() {
+  const q = (_lightsPredictSearch || '').trim().toLowerCase();
+  document.querySelectorAll('#lightsPredictList .lights-predict-card').forEach(c => {
+    const match = !q || (c.dataset.search || '').includes(q);
+    c.style.display = match ? '' : 'none';
+  });
+}
+
+// 預測卡：顯示「目前 → 預測」+「達綠燈還需多少」
+function _lightsPredictCard(s, idx) {
+  const mem = (_memberData || []).find(m => m.name === s.name);
+  const photo = mem?.photo || '';
+  const specialty = mem?.specialty || '';
+  const lightColorOf = l => l === '綠燈' ? '#27ae60' : l === '黃燈' ? '#d4ac0d' : l === '紅燈' ? '#c0392b' : '#2c3e50';
+  const lastColor = lightColorOf(s.last.light);
+  const predColor = lightColorOf(s.pred.light);
+  const predBg = _lightBgColor(s.pred.light);
+  const _ds = [s.name, specialty].filter(Boolean).join(' ').toLowerCase();
+
+  // 達綠燈門檻 (用預測週數計算，數據用「滾動窗口」目前累計)
+  const fw = s.futureWeeks;
+  const needRefGreen   = Math.max(0, Math.ceil(LIGHTS_CFG.refScore[0] * fw) - s.ref);
+  const needVisGreen   = Math.max(0, Math.ceil(LIGHTS_CFG.visScore[0] * fw) - s.vis);
+  const needOneGreen   = Math.max(0, Math.ceil(LIGHTS_CFG.oneScore[0] * fw) - s.one);
+  const needTrainGreen = Math.max(0, LIGHTS_CFG.trainScore[0] - s.train);
+  const needAmtGreen   = Math.max(0, LIGHTS_CFG.amtScore[0] - s.amt);
+
+  const items = [
+    { label: '引薦', cur: s.ref,   need: needRefGreen,   unit: '筆' },
+    { label: '來賓', cur: s.vis,   need: needVisGreen,   unit: '位' },
+    { label: '121',  cur: s.one,   need: needOneGreen,   unit: '次' },
+    { label: '培訓', cur: s.train, need: needTrainGreen, unit: '分' },
+    { label: '金額', cur: `${(s.amt/10000).toFixed(0)}萬`, need: needAmtGreen ? `${(needAmtGreen/10000).toFixed(0)}萬` : 0, unit: '' },
+    { label: '出席', cur: `缺${s.abs}`, need: 0, unit: '' }
+  ];
+  const itemsHtml = items.map(it => {
+    const done = !it.need || it.need === 0;
+    const tagBg = done ? '#d9ead3' : '#fef9e7';
+    const tagColor = done ? '#27ae60' : '#d4ac0d';
+    const tagText = done ? '已達綠燈' : `還需 ${it.need}${it.unit}`;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:white;border:1px solid var(--gray-border);border-radius:6px;font-size:12px;">
+      <span style="color:var(--text);font-weight:700;">${it.label}</span>
+      <span style="color:var(--text-soft);font-weight:600;">${it.cur}</span>
+      <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:${tagBg};color:${tagColor};">${tagText}</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="member-card lights-predict-card" data-search="${_escH(_ds)}" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
+    <div style="display:flex;align-items:center;gap:12px;padding:14px 14px 12px;border-left:4px solid ${predColor};">
+      <div style="font-size:18px;font-weight:900;color:#cbd5e0;width:24px;text-align:center;flex-shrink:0;">${idx+1}</div>
+      ${photo
+        ? `<img src="${_escH(photo)}" loading="lazy" decoding="async" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${predColor};" onerror="this.style.display='none'">`
+        : `<div style="width:48px;height:48px;border-radius:50%;flex-shrink:0;background:#e8ecf0;border:2px solid ${predColor};display:flex;align-items:center;justify-content:center;color:#bbb;font-size:18px;font-weight:900;">${_escH((s.name || '?').slice(0,1))}</div>`}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;">${_escH(s.name)}</div>
+        <div style="font-size:12px;color:var(--text-soft);line-height:1.4;">${_escH(specialty || '—')}</div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:3px;">上個月 ${s.lastWeeks.toFixed(1)} 週 → 預測到月底 ${s.futureWeeks.toFixed(1)} 週 · 培訓報告 ${s.trainReportCount || 0} 堂 / ${s.trainReportPoints || 0} 分</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;">
+        <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${predBg};color:${predColor};white-space:nowrap;">
+          <span style="color:${lastColor};">${s.last.light}</span> <span style="color:#999;">→</span> <span style="color:${predColor};">${s.pred.light}</span>
+        </span>
+        <div style="display:flex;align-items:baseline;gap:6px;line-height:1;">
+          <div style="font-size:18px;font-weight:900;color:${lastColor};">${s.last.total}</div>
+          <span style="font-size:12px;color:#999;font-weight:700;">→</span>
+          <div style="font-size:20px;font-weight:900;color:${predColor};">${s.pred.total}</div>
+        </div>
+        <div style="font-size:10px;color:var(--text-soft);">上個月 → 預測</div>
+      </div>
+    </div>
+    <div style="padding:10px 14px 14px;background:#fafbfc;border-top:1px solid var(--gray-border);">
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;">${itemsHtml}</div>
+    </div>
+  </div>`;
 }
 
 // ===== 副主席報告 / 公告 =====
@@ -621,22 +1227,23 @@ async function _renderLightsAnnounceTab() {
       return;
     }
   }
-  if (!_lightsData.length) {
-    c.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">尚無 PALMS 匯入資料，請先到「匯入」分頁上傳。</div>`;
+
+  // 用「過去 6 個月含當月」滾動視窗算燈號
+  const recent = _rowsInMonths(_lightsData, _predictMonthWindow());
+  if (!recent.length) {
+    c.innerHTML = `${_lightsBackBar()}<div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">尚無匯入資料。<br>請到「匯入」分頁上傳對應週的 PALMS。</div>`;
     return;
   }
-
-  // 主體：用「全部資料」算燈號
-  const grouped = _aggregateMembers(_lightsData);
+  const grouped = _aggregateMembers(recent);
   const list = Object.values(grouped).map(d => ({ ...d, ...(_calcLightScore(d)) }));
 
-  const lightCounts = { '綠燈': 0, '黃燈': 0, '紅燈': 0, '灰燈': 0 };
+  const lightCounts = { '綠燈': 0, '黃燈': 0, '紅燈': 0, '黑燈': 0 };
   list.forEach(x => lightCounts[x.light]++);
   const totalMembers = list.length;
   const ratio = totalMembers > 0 ? Math.round(((lightCounts['綠燈'] + lightCounts['黃燈']) / totalMembers) * 100) : 0;
 
   // 期末衝刺預警
-  const remainW = _lightsPredictWeeks || 4;
+  const remainW = _remainingFridaysInMonth();
   const needTrain = [], needRef = [], need121 = [], nearGuest = [], nearAmt = [];
   list.forEach(s => {
     const w = (s.weeks || 0) + remainW;
@@ -672,7 +1279,7 @@ async function _renderLightsAnnounceTab() {
   lines.push(`綠燈：${lightCounts['綠燈']} 位`);
   lines.push(`黃燈：${lightCounts['黃燈']} 位`);
   lines.push(`紅燈：${lightCounts['紅燈']} 位`);
-  lines.push(`灰燈：${lightCounts['灰燈']} 位`);
+  lines.push(`黑燈：${lightCounts['黑燈']} 位`);
   lines.push(`綠黃燈比例：${ratio}%`);
   lines.push('');
   lines.push('=========================');
