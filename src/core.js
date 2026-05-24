@@ -144,6 +144,8 @@ const TAB_LIST = [
   { id: 'cardholder', label: '名片盒',   group: '會員' },
   { id: 'nameplate',  label: '名牌',     group: '會員' },
   { id: 'lights',     label: '燈號分析', group: '委員' },
+  { id: 'momentum',   label: '動能觀測', group: '委員' },
+  { id: 'announce',   label: '公告',     group: '委員' },
   { id: 'finance',    label: '財務控管', group: '財務' }
 ];
 const MENU_GROUP_ORDER = ['日常','例會','會員','委員','財務'];

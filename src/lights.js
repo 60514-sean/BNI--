@@ -10,6 +10,9 @@ let _lightsScoreSearch = '';
 let _lightsPredictFilter = '綠燈';
 let _lightsPredictSearch = '';
 let _lightsImportOpenMonths = null; // 匯入頁展開的月份 set，第一次渲染時自動初始化為「當月」
+let _lightsScoreExpanded = new Set();   // 上個月紅綠燈：展開的會員卡牌
+let _lightsPredictExpanded = new Set(); // 預測紅綠燈：展開的會員卡牌
+let _momentumFilter = null;             // 動能觀測：當前篩選狀態（null = 自動選首個有資料的）
 
 // 評分標準（依億展白金分會規則，PALMS 報告以 26 週為單位）
 const LIGHTS_CFG = {
@@ -37,23 +40,12 @@ function _lightsSwitch(id) {
 function _renderLightsCurrentTab() {
   const c = document.getElementById('lightsContentInner');
   if (!c) return;
+  const spinner = `<div style="min-height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;"><div class="loader-spinner"></div><div style="font-size:13px;color:var(--text-soft);">載入中...</div></div>`;
+  c.innerHTML = spinner;
   switch (_lightsSubTab) {
-    case 'import':
-      c.innerHTML = '<div class="card" style="padding:48px;text-align:center;color:var(--text-soft);">載入中...</div>';
-      _renderLightsImportTab();
-      break;
-    case 'score':
-      c.innerHTML = '<div class="card" style="padding:48px;text-align:center;color:var(--text-soft);">載入中...</div>';
-      _renderLightsScoreTab();
-      break;
-    case 'predict':
-      c.innerHTML = '<div class="card" style="padding:48px;text-align:center;color:var(--text-soft);">載入中...</div>';
-      _renderLightsPredictTab();
-      break;
-    case 'announce':
-      c.innerHTML = '<div class="card" style="padding:48px;text-align:center;color:var(--text-soft);">載入中...</div>';
-      _renderLightsAnnounceTab();
-      break;
+    case 'import':   _renderLightsImportTab(); break;
+    case 'score':    _renderLightsScoreTab(); break;
+    case 'predict':  _renderLightsPredictTab(); break;
   }
 }
 
@@ -130,9 +122,8 @@ function _getImportMonths() {
 
 // ===== 匯入子分頁 =====
 function _lightsBackBar() {
-  const title = _lightsSubTab === 'import' ? '匯入 PALMS 資料' : '副主席報告';
   return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-    <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">${title}</h2>
+    <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">匯入 PALMS 資料</h2>
     <button onclick="_lightsSwitch('score')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">← 返回上個月紅綠燈</button>
   </div>`;
 }
@@ -141,15 +132,15 @@ async function _renderLightsImportTab() {
   const c = document.getElementById('lightsContentInner');
   if (!c) return;
 
-  if (!_lightsData) {
-    try { await fetchLightsData(); }
-    catch (e) {
-      c.innerHTML = `${_lightsBackBar()}<div class="card" style="padding:40px;text-align:center;color:var(--red);">載入失敗：${_escH(e.message || e)}<br><button class="btn" style="margin-top:14px;" onclick="_renderLightsImportTab()">重試</button></div>`;
-      return;
-    }
-  }
-  if (!_trainingData) {
-    try { await fetchTrainingData(); } catch {}
+  // 並行抓兩個 API
+  let lightsErr = null;
+  const tasks = [];
+  if (!_lightsData) tasks.push(fetchLightsData().catch(e => { lightsErr = e; }));
+  if (!_trainingData) tasks.push(fetchTrainingData().catch(() => {}));
+  if (tasks.length) await Promise.all(tasks);
+  if (lightsErr) {
+    c.innerHTML = `${_lightsBackBar()}<div class="card" style="padding:40px;text-align:center;color:var(--red);">載入失敗：${_escH(lightsErr.message || lightsErr)}<br><button class="btn" style="margin-top:14px;" onclick="_renderLightsImportTab()">重試</button></div>`;
+    return;
   }
 
   const todayIso = _isoDate(new Date());
@@ -771,6 +762,57 @@ function _aggregateMembers(rows) {
 // 6. 培訓累計 DESC
 // 7. 金額 DESC
 // 8. 姓名拼音 ASC（fallback）
+// 切換卡牌展開狀態
+function _lightsScoreToggleCard(name) {
+  if (_lightsScoreExpanded.has(name)) _lightsScoreExpanded.delete(name);
+  else _lightsScoreExpanded.add(name);
+  _renderLightsScoreTab();
+}
+function _lightsPredictToggleCard(name) {
+  if (_lightsPredictExpanded.has(name)) _lightsPredictExpanded.delete(name);
+  else _lightsPredictExpanded.add(name);
+  _renderLightsPredictTab();
+}
+
+// 判斷會員培訓紀錄是否超過 2 個月沒更新（含完全沒紀錄）
+function _isTrainingStale(memberName) {
+  if (!_trainingData || !_trainingData.length) return false; // 沒匯入培訓報告就不警示
+  const dates = _trainingData
+    .filter(t => t.name === memberName)
+    .map(t => String(t.activityDate || ''))
+    .filter(d => d);
+  if (!dates.length) return true; // 完全沒紀錄
+  const latest = dates.sort().pop();
+  const [y, m, d] = latest.split('-').map(Number);
+  const lastD = new Date(y, m - 1, d);
+  const today = new Date();
+  const days = (today - lastD) / 86400000;
+  return days > 60;
+}
+
+// 列出某會員在指定月份窗口內的培訓活動紀錄
+function _trainingRecordsHtml(memberName, monthKeys) {
+  if (!_trainingData || !_trainingData.length) {
+    return `<div style="margin-top:10px;font-size:11px;color:var(--text-soft);text-align:center;">尚未匯入培訓報告</div>`;
+  }
+  const set = new Set(monthKeys);
+  const rows = _trainingData
+    .filter(t => t.name === memberName && set.has(String(t.activityDate || '').substring(0, 7)))
+    .sort((a, b) => String(b.activityDate).localeCompare(String(a.activityDate)));
+  if (!rows.length) {
+    return `<div style="margin-top:10px;font-size:11px;color:var(--text-soft);text-align:center;">本期間無培訓紀錄</div>`;
+  }
+  const totalPts = rows.reduce((s, r) => s + (Number(r.points) || 0), 0);
+  return `<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--gray-border);">
+    <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:8px;">培訓報告紀錄（${rows.length} 堂 / ${totalPts} 分）</div>
+    ${rows.map(r => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 8px;background:white;border-radius:4px;margin-bottom:3px;">
+      <span style="color:var(--text);font-weight:600;width:90px;">${_escH(r.activityDate)}</span>
+      <span style="flex:1;color:var(--text-soft);">${_escH(r.activityType)}</span>
+      <span style="color:#27ae60;font-weight:700;">+${r.points} 分</span>
+    </div>`).join('')}
+  </div>`;
+}
+
 function _lightsCompare(a, b, skipTotal) {
   if (!skipTotal && b.total !== a.total) return b.total - a.total;
   if ((b.vis || 0) !== (a.vis || 0)) return (b.vis || 0) - (a.vis || 0);
@@ -818,20 +860,16 @@ async function _renderLightsScoreTab() {
   const c = document.getElementById('lightsContentInner');
   if (!c) return;
 
-  if (!_lightsData) {
-    try { await fetchLightsData(); }
-    catch (e) {
-      c.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--red);">載入失敗：${_escH(e.message || e)}<br><button class="btn" style="margin-top:14px;" onclick="_lightsData=null;_renderLightsScoreTab()">重試</button></div>`;
-      return;
-    }
-  }
-  if (!_trainingData) {
-    try { await fetchTrainingData(); } catch {}
-  }
-
-  // 載入會員資料以取得照片 / 專業別（背景拉取，失敗也不影響卡牌渲染）
-  if (!_memberData) {
-    try { await fetchMembers(); } catch {}
+  // 三個 API 並行抓
+  let lightsErr = null;
+  const tasks = [];
+  if (!_lightsData) tasks.push(fetchLightsData().catch(e => { lightsErr = e; }));
+  if (!_trainingData) tasks.push(fetchTrainingData().catch(() => {}));
+  if (!_memberData) tasks.push(fetchMembers().catch(() => {}));
+  if (tasks.length) await Promise.all(tasks);
+  if (lightsErr) {
+    c.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--red);">載入失敗：${_escH(lightsErr.message || lightsErr)}<br><button class="btn" style="margin-top:14px;" onclick="_lightsData=null;_renderLightsScoreTab()">重試</button></div>`;
+    return;
   }
 
   // 取「過去 6 個完整月」內所有週的 rows，聚合
@@ -844,7 +882,6 @@ async function _renderLightsScoreTab() {
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <button onclick="_lightsSwitch('predict')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">預測</button>
           <button onclick="_lightsSwitch('import')" style="padding:7px 14px;background:var(--red);border:1.5px solid var(--red);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:white;font-weight:700;">匯入</button>
-          <button onclick="_lightsSwitch('announce')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">公告</button>
         </div>
       </div>
       <div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">
@@ -864,6 +901,9 @@ async function _renderLightsScoreTab() {
     const s = _calcLightScore(d);
     return { ...d, ...s };
   });
+  // 標記新會員（週數 < 該窗口最大週數 = 未滿 6 個月）
+  const maxWeeks = Math.max(0, ...list.map(x => x.weeks || 0));
+  list.forEach(x => { x.isNew = (x.weeks || 0) < maxWeeks; });
   list.sort((a, b) => _lightsCompare(a, b));
 
   const lightCounts = { '綠燈': 0, '黃燈': 0, '紅燈': 0, '黑燈': 0 };
@@ -915,7 +955,6 @@ async function _renderLightsScoreTab() {
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <button onclick="_lightsSwitch('predict')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">預測</button>
         <button onclick="_lightsSwitch('import')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">匯入</button>
-        <button onclick="_lightsSwitch('announce')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">公告</button>
       </div>
     </div>
 
@@ -984,25 +1023,36 @@ function _lightsScoreCard(s, idx) {
     </div>`;
   }).join('');
 
+  const isExpanded = _lightsScoreExpanded.has(s.name);
+  const arrow = isExpanded ? '▾' : '▸';
+  const trainingHtml = isExpanded ? _trainingRecordsHtml(s.name, _completedMonthWindow()) : '';
+  const bodyHtml = isExpanded ? `<div style="padding:12px 14px 14px;background:#fafbfc;border-top:1px solid var(--gray-border);">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px;">${itemsHtml}</div>
+      ${trainingHtml}
+    </div>` : '';
+  const warnings = [];
+  if (s.isNew) warnings.push('未滿 6 個月');
+  if (_isTrainingStale(s.name)) warnings.push('培訓 2 月未更新');
+  const warningsInline = warnings.length
+    ? `<span style="font-size:11px;color:var(--text-soft);font-weight:400;margin-left:4px;">· ${warnings.join(' · ')}</span>`
+    : '';
+
   return `<div class="member-card lights-score-card" data-search="${_escH(_ds)}" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
-    <div style="display:flex;align-items:center;gap:12px;padding:14px 14px 12px;border-left:4px solid ${lightColor};">
+    <div onclick="_lightsScoreToggleCard('${_escH(s.name)}')" style="display:flex;align-items:center;gap:12px;padding:14px 14px 12px;border-left:4px solid ${lightColor};cursor:pointer;user-select:none;">
       <div style="font-size:18px;font-weight:900;color:#cbd5e0;width:24px;text-align:center;flex-shrink:0;">${idx+1}</div>
       ${photo
         ? `<img src="${_escH(photo)}" loading="lazy" decoding="async" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${lightColor};" onerror="this.style.display='none'">`
         : `<div style="width:48px;height:48px;border-radius:50%;flex-shrink:0;background:#e8ecf0;border:2px solid ${lightColor};display:flex;align-items:center;justify-content:center;color:#bbb;font-size:18px;font-weight:900;">${_escH((s.name || '?').slice(0,1))}</div>`}
       <div style="flex:1;min-width:0;">
-        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;">${_escH(s.name)}</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;">${_escH(s.name)} <span style="color:var(--text-soft);font-size:13px;font-weight:400;">${arrow}</span>${warningsInline}</div>
         <div style="font-size:12px;color:var(--text-soft);line-height:1.4;">${_escH(specialty || '—')}</div>
-        <div style="font-size:11px;color:var(--text-soft);margin-top:3px;">週數 ${s.weeks.toFixed(1)} · 培訓報告 ${s.trainReportCount || 0} 堂 / ${s.trainReportPoints || 0} 分</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;">
         <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${lightBg};color:${lightColor};white-space:nowrap;">${s.light}</span>
         <div style="font-size:22px;font-weight:900;color:${lightColor};line-height:1;">${s.total}<span style="font-size:11px;color:var(--text-soft);font-weight:600;"> 分</span></div>
       </div>
     </div>
-    <div style="padding:12px 14px 14px;background:#fafbfc;border-top:1px solid var(--gray-border);">
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px;">${itemsHtml}</div>
-    </div>
+    ${bodyHtml}
   </div>`;
 }
 
@@ -1011,15 +1061,17 @@ async function _renderLightsPredictTab() {
   const c = document.getElementById('lightsContentInner');
   if (!c) return;
 
-  if (!_lightsData) {
-    try { await fetchLightsData(); }
-    catch (e) {
-      c.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--red);">載入失敗：${_escH(e.message || e)}<br><button class="btn" style="margin-top:14px;" onclick="_lightsData=null;_renderLightsPredictTab()">重試</button></div>`;
-      return;
-    }
+  // 三個 API 並行抓
+  let lightsErr = null;
+  const tasks = [];
+  if (!_lightsData) tasks.push(fetchLightsData().catch(e => { lightsErr = e; }));
+  if (!_trainingData) tasks.push(fetchTrainingData().catch(() => {}));
+  if (!_memberData) tasks.push(fetchMembers().catch(() => {}));
+  if (tasks.length) await Promise.all(tasks);
+  if (lightsErr) {
+    c.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--red);">載入失敗：${_escH(lightsErr.message || lightsErr)}<br><button class="btn" style="margin-top:14px;" onclick="_lightsData=null;_renderLightsPredictTab()">重試</button></div>`;
+    return;
   }
-  if (!_trainingData) { try { await fetchTrainingData(); } catch {} }
-  if (!_memberData) { try { await fetchMembers(); } catch {} }
 
   // 「左邊上個月」用 6 個完整月窗口；「右邊預測」用滾動 6 個月含當月 + 自動剩餘週數
   const lastMonths = _completedMonthWindow();
@@ -1077,6 +1129,9 @@ async function _renderLightsPredictTab() {
     });
     return { ...d, last, pred, futureWeeks, lastWeeks: lastD?.weeks || 0 };
   });
+  // 標記新會員：用「上個月窗口」週數判定（< 該窗口最大週數）
+  const maxLastWeeks = Math.max(0, ...list.map(x => x.lastWeeks || 0));
+  list.forEach(x => { x.isNew = (x.lastWeeks || 0) < maxLastWeeks; });
   // 預測頁先比 pred.total，再用相同 tiebreaker 規則比 raw 數值
   list.sort((a, b) => {
     if (b.pred.total !== a.pred.total) return b.pred.total - a.pred.total;
@@ -1121,10 +1176,7 @@ async function _renderLightsPredictTab() {
   c.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
       <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">預測紅綠燈</h2>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <button onclick="_lightsSwitch('import')" style="padding:7px 14px;background:var(--red);border:1.5px solid var(--red);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:white;font-weight:700;">匯入</button>
-        <button onclick="_lightsSwitch('score')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">← 返回上個月</button>
-      </div>
+      <button onclick="_lightsSwitch('score')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">← 返回上個月</button>
     </div>
 
     <div style="font-size:12px;color:var(--text-soft);margin-bottom:14px;">${predictMonths[0]} ~ ${predictMonths[predictMonths.length-1]} · 已匯入 ${uniqueWeeks.length} 週 · 本月剩餘 <b>${remainW}</b> 週（自動算）· 預測到月底約 ${(list[0]?.futureWeeks || 0).toFixed(1)} 週 · ${totalMembers} 位 · 預測綠黃燈比例 <b style="color:var(--red);">${ratio}%</b></div>
@@ -1186,16 +1238,29 @@ function _lightsPredictCard(s, idx) {
     </div>`;
   }).join('');
 
+  const isExpanded = _lightsPredictExpanded.has(s.name);
+  const arrow = isExpanded ? '▾' : '▸';
+  const trainingHtml = isExpanded ? _trainingRecordsHtml(s.name, _predictMonthWindow()) : '';
+  const bodyHtml = isExpanded ? `<div style="padding:10px 14px 14px;background:#fafbfc;border-top:1px solid var(--gray-border);">
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;">${itemsHtml}</div>
+      ${trainingHtml}
+    </div>` : '';
+  const warnings = [];
+  if (s.isNew) warnings.push('未滿 6 個月');
+  if (_isTrainingStale(s.name)) warnings.push('培訓 2 月未更新');
+  const warningsInline = warnings.length
+    ? `<span style="font-size:11px;color:var(--text-soft);font-weight:400;margin-left:4px;">· ${warnings.join(' · ')}</span>`
+    : '';
+
   return `<div class="member-card lights-predict-card" data-search="${_escH(_ds)}" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
-    <div style="display:flex;align-items:center;gap:12px;padding:14px 14px 12px;border-left:4px solid ${predColor};">
+    <div onclick="_lightsPredictToggleCard('${_escH(s.name)}')" style="display:flex;align-items:center;gap:12px;padding:14px 14px 12px;border-left:4px solid ${predColor};cursor:pointer;user-select:none;">
       <div style="font-size:18px;font-weight:900;color:#cbd5e0;width:24px;text-align:center;flex-shrink:0;">${idx+1}</div>
       ${photo
         ? `<img src="${_escH(photo)}" loading="lazy" decoding="async" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${predColor};" onerror="this.style.display='none'">`
         : `<div style="width:48px;height:48px;border-radius:50%;flex-shrink:0;background:#e8ecf0;border:2px solid ${predColor};display:flex;align-items:center;justify-content:center;color:#bbb;font-size:18px;font-weight:900;">${_escH((s.name || '?').slice(0,1))}</div>`}
       <div style="flex:1;min-width:0;">
-        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;">${_escH(s.name)}</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;">${_escH(s.name)} <span style="color:var(--text-soft);font-size:13px;font-weight:400;">${arrow}</span>${warningsInline}</div>
         <div style="font-size:12px;color:var(--text-soft);line-height:1.4;">${_escH(specialty || '—')}</div>
-        <div style="font-size:11px;color:var(--text-soft);margin-top:3px;">上個月 ${s.lastWeeks.toFixed(1)} 週 → 預測到月底 ${s.futureWeeks.toFixed(1)} 週 · 培訓報告 ${s.trainReportCount || 0} 堂 / ${s.trainReportPoints || 0} 分</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;">
         <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${predBg};color:${predColor};white-space:nowrap;">
@@ -1209,16 +1274,212 @@ function _lightsPredictCard(s, idx) {
         <div style="font-size:10px;color:var(--text-soft);">上個月 → 預測</div>
       </div>
     </div>
-    <div style="padding:10px 14px 14px;background:#fafbfc;border-top:1px solid var(--gray-border);">
-      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;">${itemsHtml}</div>
-    </div>
+    ${bodyHtml}
   </div>`;
 }
 
-// ===== 副主席報告 / 公告 =====
-async function _renderLightsAnnounceTab() {
-  const c = document.getElementById('lightsContentInner');
+// ===== 動能觀測（獨立分頁）=====
+// 簡易 SVG sparkline
+function _sparkSvg(data, color) {
+  if (!data || !data.length) return '';
+  const w = 200, h = 32;
+  const max = Math.max(1, ...data);
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1 || 1)) * w;
+    const y = h - (v / max) * (h - 2) - 1;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+async function renderMomentum() {
+  const c = document.getElementById('momentumContent');
   if (!c) return;
+  c.innerHTML = `<div style="min-height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;"><div class="loader-spinner"></div><div style="font-size:13px;color:var(--text-soft);">載入中...</div></div>`;
+
+  let lightsErr = null;
+  const tasks = [];
+  if (!_lightsData) tasks.push(fetchLightsData().catch(e => { lightsErr = e; }));
+  if (!_memberData) tasks.push(fetchMembers().catch(() => {}));
+  if (tasks.length) await Promise.all(tasks);
+  if (lightsErr) {
+    c.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--red);">載入失敗：${_escH(lightsErr.message || lightsErr)}</div>`;
+    return;
+  }
+
+  // 取所有「single week」資料（rangeType='week' 且排除休會 marker）的 to 日期，取最近 24 個
+  const weekRows = (_lightsData || []).filter(r => r.rangeType === 'week' && r.name !== '__休會__');
+  const allTos = [...new Set(weekRows.map(r => r.to))].sort();
+  if (allTos.length === 0) {
+    c.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">尚無單週匯入資料。</div>`;
+    return;
+  }
+  const last24 = allTos.slice(-24);
+  const recent4 = last24.slice(-4);
+  const history20 = last24.slice(0, last24.length - 4);
+
+  // 建立每位會員每週的活動值（加權公式）
+  // total = 來賓×4 + 外引×3 + 內引×2 + 121×1 + 培訓×1 + 金額/10萬 − 缺席×3 − 遲到×1
+  const mapAct = {};
+  weekRows.forEach(r => {
+    if (!last24.includes(r.to)) return;
+    const name = (r.name || '').trim();
+    if (!name) return;
+    if (!mapAct[name]) mapAct[name] = { dates: {} };
+    const refIn  = Number(r.refIn)  || 0;
+    const refOut = Number(r.refOut) || 0;
+    const refG   = refIn + refOut;
+    const vis    = Number(r.vis)    || 0;
+    const one    = Number(r.one)    || 0;
+    const train  = Number(r.train)  || 0;
+    const amt    = Number(r.amt)    || 0;
+    const abs    = Number(r.abs)    || 0;
+    const late   = Number(r.late)   || 0;
+    const att    = Number(r.att)    || 0;
+    const total  = vis*4 + refOut*3 + refIn*2 + one + train + amt/100000 - abs*3 - late;
+    mapAct[name].dates[r.to] = { total, refG, vis, one, train, att };
+  });
+
+  // chapterAvg = 所有 member-week 的 total 平均值（滾動）
+  const allTotals = [];
+  Object.values(mapAct).forEach(act => {
+    Object.values(act.dates).forEach(d => allTotals.push(d.total));
+  });
+  const chapterAvg = allTotals.length ? allTotals.reduce((a,b) => a+b, 0) / allTotals.length : 0;
+
+  // 每位會員的動能分析
+  const list = Object.keys(mapAct).map(name => {
+    const act = mapAct[name];
+    let rSum=0, hSum=0;
+    let rRef=0, rOne=0, rTrain=0, rVis=0, rAtt=0;
+    let hRef=0, hOne=0, hTrain=0, hVis=0, hAtt=0;
+    let rW=0, hW=0;
+    recent4.forEach(t => {
+      const d = act.dates[t]; if (!d) return;
+      rSum += d.total; rRef += d.refG; rOne += d.one; rTrain += d.train; rVis += d.vis; rAtt += d.att; rW++;
+    });
+    history20.forEach(t => {
+      const d = act.dates[t]; if (!d) return;
+      hSum += d.total; hRef += d.refG; hOne += d.one; hTrain += d.train; hVis += d.vis; hAtt += d.att; hW++;
+    });
+    const rAvg = rW ? rSum / rW : 0;
+    const hAvg = hW ? hSum / hW : 0;
+
+    // 狀態判斷（順序很關鍵：嚴重衰退要比動能下滑先判，否則永遠 reach 不到）
+    let status = '穩定', color = '#7f8c8d';
+    if (rAvg >= hAvg * 1.5 && rAvg > chapterAvg) {
+      status = '動能爆發'; color = '#27ae60';
+    } else if (rAvg <= hAvg * 0.4 && rAvg < chapterAvg) {
+      status = '嚴重衰退'; color = '#c0392b';
+    } else if (rAvg <= hAvg * 0.7 && rAvg < chapterAvg) {
+      status = '動能下滑'; color = '#e67e22';
+    } else if (rAvg <= hAvg * 0.7 && rAvg >= chapterAvg) {
+      status = '回到正常值'; color = '#3498db';
+    }
+
+    const diffs = {
+      att:   (rW ? rAtt/rW : 0)   - (hW ? hAtt/hW : 0),
+      train: (rW ? rTrain/rW : 0) - (hW ? hTrain/hW : 0),
+      one:   (rW ? rOne/rW : 0)   - (hW ? hOne/hW : 0),
+      vis:   (rW ? rVis/rW : 0)   - (hW ? hVis/hW : 0),
+      ref:   (rW ? rRef/rW : 0)   - (hW ? hRef/hW : 0)
+    };
+    const sparkData = last24.map(t => act.dates[t] ? act.dates[t].total : 0);
+    return { name, status, color, rAvg, hAvg, diffs, sparkData };
+  });
+
+  // 排序：近4週均高 → 前
+  list.sort((a, b) => b.rAvg - a.rAvg);
+
+  // 渲染
+  const fmtDiff = n => {
+    const s = (n >= 0 ? '+' : '') + n.toFixed(1);
+    const col = n > 0.01 ? '#27ae60' : n < -0.01 ? '#c0392b' : '#999';
+    return `<span style="color:${col};font-weight:700;">${s}</span>`;
+  };
+  // 統計
+  const counts = { '動能爆發': 0, '回到正常值': 0, '動能下滑': 0, '嚴重衰退': 0, '穩定': 0 };
+  list.forEach(m => { counts[m.status] = (counts[m.status] || 0) + 1; });
+
+  // 第一次進來自動選首個有資料的狀態（優先序：爆發→下滑→衰退→回正→穩定）
+  if (_momentumFilter === null) {
+    const order = ['動能爆發', '動能下滑', '嚴重衰退', '回到正常值', '穩定'];
+    _momentumFilter = order.find(s => counts[s] > 0) || '穩定';
+  }
+
+  // 依當前篩選過濾卡牌
+  const filtered = list.filter(m => m.status === _momentumFilter);
+  const filteredCardsHtml = filtered.length
+    ? filtered.map((m, idx) => {
+        // 重新依 filtered 計算 idx
+        const mem = (_memberData || []).find(x => x.name === m.name);
+        const photo = mem?.photo || '';
+        const specialty = mem?.specialty || '';
+        return `<div class="member-card" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;border-left:4px solid ${m.color};">
+          <div style="display:flex;align-items:center;gap:12px;padding:14px 14px 10px;">
+            <div style="font-size:18px;font-weight:900;color:#cbd5e0;width:24px;text-align:center;flex-shrink:0;">${idx+1}</div>
+            ${photo
+              ? `<img src="${_escH(photo)}" loading="lazy" decoding="async" style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${m.color};" onerror="this.style.display='none'">`
+              : `<div style="width:42px;height:42px;border-radius:50%;flex-shrink:0;background:#e8ecf0;border:2px solid ${m.color};display:flex;align-items:center;justify-content:center;color:#bbb;font-weight:900;">${_escH((m.name || '?').slice(0,1))}</div>`}
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:15px;font-weight:700;color:var(--text);">${_escH(m.name)}</div>
+              <div style="font-size:11px;color:var(--text-soft);">${_escH(specialty || '—')}</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;padding:0 14px 10px;">
+            <div style="flex:1;">${_sparkSvg(m.sparkData, m.color)}</div>
+            <div style="font-size:11px;color:var(--text-soft);white-space:nowrap;">歷史均 <b style="color:var(--text);">${m.hAvg.toFixed(1)}</b> → 近4週 <b style="color:${m.color};">${m.rAvg.toFixed(1)}</b></div>
+          </div>
+          <div style="padding:8px 14px 12px;background:#fafbfc;border-top:1px solid var(--gray-border);display:grid;grid-template-columns:repeat(5,1fr);gap:6px;font-size:11px;">
+            <div style="text-align:center;"><div style="color:var(--text-soft);margin-bottom:2px;">出席</div>${fmtDiff(m.diffs.att)}</div>
+            <div style="text-align:center;"><div style="color:var(--text-soft);margin-bottom:2px;">培訓</div>${fmtDiff(m.diffs.train)}</div>
+            <div style="text-align:center;"><div style="color:var(--text-soft);margin-bottom:2px;">121</div>${fmtDiff(m.diffs.one)}</div>
+            <div style="text-align:center;"><div style="color:var(--text-soft);margin-bottom:2px;">來賓</div>${fmtDiff(m.diffs.vis)}</div>
+            <div style="text-align:center;"><div style="color:var(--text-soft);margin-bottom:2px;">引薦</div>${fmtDiff(m.diffs.ref)}</div>
+          </div>
+        </div>`;
+      }).join('')
+    : `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">沒有「${_momentumFilter}」狀態的會員</div>`;
+
+  const statBox = (label, key, color, bg) => {
+    const active = _momentumFilter === key;
+    const activeBg = active ? color : bg;
+    const activeColor = active ? '#fff' : color;
+    return `<div onclick="_momentumSetFilter('${key}')" style="background:${activeBg};border-radius:8px;padding:10px;text-align:center;cursor:pointer;transition:all .15s;user-select:none;${active ? `box-shadow:0 4px 12px ${color}55;transform:translateY(-1px);` : ''}">
+      <div style="font-size:11px;color:${activeColor};font-weight:700;">${label}</div>
+      <div style="font-size:20px;font-weight:900;color:${activeColor};">${counts[key]}</div>
+    </div>`;
+  };
+
+  c.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">動能觀測</h2>
+    </div>
+    <div style="font-size:12px;color:var(--text-soft);margin-bottom:14px;">過去 ${last24.length} 週 · 比較近 4 週 vs 前 ${history20.length} 週均值 · 分會均值 ${chapterAvg.toFixed(1)} · ${list.length} 位會員</div>
+
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:18px;">
+      ${statBox('動能爆發', '動能爆發', '#27ae60', '#d4f1d4')}
+      ${statBox('回到正常', '回到正常值', '#3498db', '#d6eaf8')}
+      ${statBox('穩定',     '穩定',     '#7f8c8d', '#ececec')}
+      ${statBox('動能下滑', '動能下滑', '#e67e22', '#fcebd5')}
+      ${statBox('嚴重衰退', '嚴重衰退', '#c0392b', '#f4cccc')}
+    </div>
+
+    <div class="member-grid">${filteredCardsHtml}</div>`;
+}
+
+function _momentumSetFilter(status) {
+  _momentumFilter = status;
+  renderMomentum();
+}
+
+// ===== 副主席報告 / 公告（獨立分頁）=====
+async function renderAnnounce() {
+  const c = document.getElementById('announceContent');
+  if (!c) return;
+  c.innerHTML = `<div style="min-height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;"><div class="loader-spinner"></div><div style="font-size:13px;color:var(--text-soft);">載入中...</div></div>`;
 
   if (!_lightsData) {
     try { await fetchLightsData(); }
@@ -1231,7 +1492,7 @@ async function _renderLightsAnnounceTab() {
   // 用「過去 6 個月含當月」滾動視窗算燈號
   const recent = _rowsInMonths(_lightsData, _predictMonthWindow());
   if (!recent.length) {
-    c.innerHTML = `${_lightsBackBar()}<div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">尚無匯入資料。<br>請到「匯入」分頁上傳對應週的 PALMS。</div>`;
+    c.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">尚無匯入資料。<br>請到「燈號分析 → 匯入」上傳對應週的 PALMS。</div>`;
     return;
   }
   const grouped = _aggregateMembers(recent);
@@ -1319,10 +1580,7 @@ async function _renderLightsAnnounceTab() {
   c.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
       <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">副主席報告</h2>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="_lightsCopyReport()">複製報告</button>
-        <button onclick="_lightsSwitch('score')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">← 返回紅綠燈</button>
-      </div>
+      <button class="btn btn-primary" onclick="_lightsCopyReport()">複製報告</button>
     </div>
 
     <div style="font-size:12px;color:var(--text-soft);margin-bottom:14px;">${totalMembers} 位現役 · 綠黃燈比例 <b style="color:var(--red);">${ratio}%</b> · 衝刺剩餘 ${remainW} 週</div>
