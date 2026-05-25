@@ -5,6 +5,7 @@ function openSettings() {
   const cfg = getConfig();
   cfgUsers = cfg.users.map(u => ({ names: [...(u.names || [])], roles: [...(u.roles || (u.role ? [u.role] : []))], allowedTabs: [...(u.allowedTabs || [])], editableTabs: [...(u.editableTabs || [])] }));
   cfgTasks = (cfg.tasks || []).map(t => ({ ...t, owners: [...(t.owners || [])] }));
+  cfgCustomRoles = [...(cfg.customRoles || [])];
   cfgMeetingStaff = Object.assign(
     { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 委員會:'', 入會:'', 續約:'', 出村:'', 導師:'', 導生:'', 會員1:'', 會員2:'' },
     cfg.meetingStaff || {}
@@ -15,6 +16,52 @@ function openSettings() {
 }
 
 let cfgMeetingStaff = { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 委員會:'', 入會:'', 續約:'', 出村:'', 導師:'', 導生:'', 會員1:'', 會員2:'' };
+let cfgCustomRoles = [];
+
+// 使用者可指派的角色＝內建(GUEST_ROLES)＋自訂(cfgCustomRoles)，去重
+function _allUserRoles() {
+  const seen = new Set(); const out = [];
+  [...GUEST_ROLES, ...(cfgCustomRoles || [])].forEach(r => {
+    r = (r || '').trim();
+    if (r && !seen.has(r)) { seen.add(r); out.push(r); }
+  });
+  return out;
+}
+
+// 角色清單管理 UI（內建唯讀、自訂可刪）
+function _renderCustomRolesChips() {
+  const base = GUEST_ROLES.map(r => `<span style="display:inline-flex;align-items:center;font-size:12px;font-weight:600;color:var(--text-soft);background:#eef1f4;border:1px solid var(--gray-border);border-radius:20px;padding:4px 10px;">${_escH(r)}<span style="font-size:10px;margin-left:5px;opacity:.7;">內建</span></span>`).join('');
+  const custom = (cfgCustomRoles || []).map(r => `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#1a5fb4;background:#e8f0fe;border:1px solid #b9d2fb;border-radius:20px;padding:4px 6px 4px 10px;">${_escH(r)}<button type="button" onclick="_removeCustomRole('${_escH(r).replace(/'/g,"\\'")}')" style="border:none;background:#c0392b;color:white;width:16px;height:16px;border-radius:50%;cursor:pointer;font-size:11px;line-height:1;padding:0;">×</button></span>`).join('');
+  return base + custom;
+}
+
+function _addCustomRole() {
+  const inp = document.getElementById('newRoleInput');
+  if (!inp) return;
+  const name = (inp.value || '').trim();
+  if (!name) { showToast('請輸入角色名稱'); return; }
+  if (name.length > 12) { showToast('角色名稱請在 12 字以內'); return; }
+  if (/['"<>&\\]/.test(name)) { showToast('角色名稱不可含 \' " < > & \\ 等符號'); return; }
+  if (_allUserRoles().includes(name)) { showToast('角色已存在'); return; }
+  _captureUserInputsToCfg();
+  cfgCustomRoles.push(name);
+  inp.value = '';
+  _refreshRolesAndUsers();
+}
+
+function _removeCustomRole(role) {
+  _captureUserInputsToCfg();
+  cfgCustomRoles = cfgCustomRoles.filter(r => r !== role);
+  // 同步把該角色從各使用者移除
+  cfgUsers.forEach(u => { if (Array.isArray(u.roles)) u.roles = u.roles.filter(r => r !== role); });
+  _refreshRolesAndUsers();
+}
+
+function _refreshRolesAndUsers() {
+  const box = document.getElementById('customRolesBox');
+  if (box) box.innerHTML = _renderCustomRolesChips();
+  _refreshUsersContainer();
+}
 
 // 即時把 cfgMeetingStaff 同步到 cache.__config__.meetingStaff（不 push GAS，僅更新本地）
 // 同時觸發例會預覽 debounce 重渲染（讓「主題簡報」等預覽即時看到姓名替換）
@@ -165,20 +212,10 @@ document.addEventListener('click', (e) => {
 
 function showSettings() {
   const ml = document.getElementById('menuLabel'); if (ml) ml.textContent = '系統設定';
-  document.getElementById('todoContent').style.display       = 'none';
+  // 先隱藏所有分頁內容區，再只顯示 mainContent（設定畫面渲染於此）
+  // 用通用選取避免遺漏（例如動能觀測 momentumContent、燈號 lightsContent 等）
+  document.querySelectorAll('.content').forEach(el => { el.style.display = 'none'; });
   document.getElementById('mainContent').style.display       = '';
-  document.getElementById('memberContent').style.display     = 'none';
-  document.getElementById('dmContent').style.display         = 'none';
-  document.getElementById('sloganContent').style.display     = 'none';
-  document.getElementById('plateContent').style.display      = 'none';
-  document.getElementById('signinContent').style.display     = 'none';
-  document.getElementById('guestTrackContent').style.display = 'none';
-  document.getElementById('placardContent').style.display    = 'none';
-  document.getElementById('scheduleContent').style.display   = 'none';
-  document.getElementById('financeContent').style.display    = 'none';
-  document.getElementById('meetingContent').style.display    = 'none';
-  document.getElementById('sanchangContent').style.display   = 'none';
-  document.getElementById('leadershipContent').style.display = 'none';
   _activeTab = 'settings';
   _updateMenuActive('settings');
   const cfg = getConfig();
@@ -235,6 +272,15 @@ function showSettings() {
         <span class="acc-arrow" id="acc1-arrow">&#9654;</span>
       </div>
       <div class="acc-body" id="acc1" style="display:none;">
+        <div style="background:#fafbfc;border:1px solid var(--gray-border);border-radius:8px;padding:12px;margin-bottom:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">角色清單</div>
+          <p class="hint" style="margin:0 0 10px;">內建角色固定；自訂角色可自由增刪，會出現在每位使用者的「角色（可複選）」選單。</p>
+          <div id="customRolesBox" style="display:flex;flex-wrap:wrap;gap:8px;">${_renderCustomRolesChips()}</div>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <input id="newRoleInput" type="text" placeholder="輸入新角色名稱" onkeydown="if(event.key==='Enter'){event.preventDefault();_addCustomRole();}" style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+            <button class="add-btn" style="white-space:nowrap;" onclick="_addCustomRole()">+ 新增角色</button>
+          </div>
+        </div>
         <p class="hint" style="margin-bottom:12px;">名稱即為登入密碼</p>
         <div id="usersContainer">${usersHtml}</div>
         <button class="add-btn" onclick="addUser()">+ 新增使用者</button>
@@ -351,10 +397,10 @@ function _renderUserRowHtml(u, i) {
   const roleBtnText = roles.length
     ? `已選 ${roles.length} 個（${roles.slice(0,3).join('、')}${roles.length>3?'…':''}）`
     : '尚未選擇任何角色';
-  const roleItems = GUEST_ROLES.map(r => `
+  const roleItems = _allUserRoles().map(r => `
         <label class="msel-item">
-          <input type="checkbox" ${roles.includes(r)?'checked':''} onchange="_toggleUserRole(${i},'${r}',this.checked)">
-          <span>${r}</span>
+          <input type="checkbox" ${roles.includes(r)?'checked':''} onchange="_toggleUserRole(${i},'${_escH(r).replace(/'/g,"\\'")}',this.checked)">
+          <span>${_escH(r)}</span>
         </label>`).join('');
 
   // 可見頁面（多選 + 每項 ON/OFF 切換可編輯）
@@ -551,7 +597,7 @@ async function saveSettings() {
   });
   // spread 現有 cfg 以保留 sitePasswordHash 等其他欄位（避免被覆寫掉）
   const baseCfg = getConfig();
-  await saveConfigData({ ...baseCfg, adminPassword: adminPw, users, tasks: cfgTasks, meetingStaff: cfgMeetingStaff, messages });
+  await saveConfigData({ ...baseCfg, adminPassword: adminPw, users, tasks: cfgTasks, meetingStaff: cfgMeetingStaff, customRoles: cfgCustomRoles, messages });
   await _bgRefresh();
   showToast('設定已儲存');
   setTimeout(() => exitSettings(), 600);
