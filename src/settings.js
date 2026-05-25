@@ -6,6 +6,7 @@ function openSettings() {
   cfgUsers = cfg.users.map(u => ({ names: [...(u.names || [])], roles: [...(u.roles || (u.role ? [u.role] : []))], allowedTabs: [...(u.allowedTabs || [])], editableTabs: [...(u.editableTabs || [])] }));
   cfgTasks = (cfg.tasks || []).map(t => ({ ...t, owners: [...(t.owners || [])] }));
   cfgCustomRoles = [...(cfg.customRoles || [])];
+  cfgLightsImportEnabled = (cfg.lightsImportEnabled !== false);
   cfgMeetingStaff = Object.assign(
     { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 委員會:'', 入會:'', 續約:'', 出村:'', 導師:'', 導生:'', 會員1:'', 會員2:'' },
     cfg.meetingStaff || {}
@@ -17,6 +18,22 @@ function openSettings() {
 
 let cfgMeetingStaff = { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 委員會:'', 入會:'', 續約:'', 出村:'', 導師:'', 導生:'', 會員1:'', 會員2:'' };
 let cfgCustomRoles = [];
+let cfgLightsImportEnabled = true;
+
+// 燈號分析匯入功能開關（系統設定主控，存 config.lightsImportEnabled）
+function _settingsLightsImportBtnInner() {
+  return '匯入功能：' + (cfgLightsImportEnabled ? 'ON' : 'OFF');
+}
+function _settingsLightsImportBtnStyle() {
+  return cfgLightsImportEnabled
+    ? 'padding:9px 16px;background:#eaf7ee;border:1.5px solid #27ae60;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit;color:#27ae60;font-weight:700;'
+    : 'padding:9px 16px;background:#fdecea;border:1.5px solid #c0392b;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit;color:#c0392b;font-weight:700;';
+}
+function _settingsToggleLightsImport() {
+  cfgLightsImportEnabled = !cfgLightsImportEnabled;
+  const b = document.getElementById('lightsImportToggleBtn');
+  if (b) { b.textContent = _settingsLightsImportBtnInner(); b.setAttribute('style', _settingsLightsImportBtnStyle()); }
+}
 
 // 使用者可指派的角色＝內建(GUEST_ROLES)＋自訂(cfgCustomRoles)，去重
 function _allUserRoles() {
@@ -265,6 +282,11 @@ function showSettings() {
         <button class="add-btn" onclick="changeSitePassword()" style="margin-top:8px;">變更密碼</button>
         <div id="sitePwMsg" style="margin-top:10px;font-size:13px;font-weight:700;"></div>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-title">燈號分析－匯入功能</div>
+      <p class="hint" style="margin-bottom:10px;">關閉後，所有人在「燈號分析」都看不到匯入按鈕，也無法匯入 PALMS 資料。</p>
+      <button id="lightsImportToggleBtn" onclick="_settingsToggleLightsImport()" style="${_settingsLightsImportBtnStyle()}">${_settingsLightsImportBtnInner()}</button>
     </div>
     <div class="card">
       <div class="acc-header" onclick="toggleAcc('acc1')">
@@ -586,7 +608,7 @@ async function saveSettings() {
   });
   // spread 現有 cfg 以保留 sitePasswordHash 等其他欄位（避免被覆寫掉）
   const baseCfg = getConfig();
-  await saveConfigData({ ...baseCfg, adminPassword: adminPw, users, tasks: cfgTasks, meetingStaff: cfgMeetingStaff, customRoles: cfgCustomRoles, messages });
+  await saveConfigData({ ...baseCfg, adminPassword: adminPw, users, tasks: cfgTasks, meetingStaff: cfgMeetingStaff, customRoles: cfgCustomRoles, lightsImportEnabled: cfgLightsImportEnabled, messages });
   await _bgRefresh();
   showToast('設定已儲存');
   setTimeout(() => exitSettings(), 600);

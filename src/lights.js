@@ -37,36 +37,24 @@ function _lightsSwitch(id) {
   renderLights();
 }
 
-// ===== 匯入功能總開關（管理員可切，存 config.lightsImportEnabled，預設開） =====
+// ===== 匯入功能總開關（系統設定可切，存 config.lightsImportEnabled，預設開） =====
 function _lightsImportEnabled() {
   try { return getConfig().lightsImportEnabled !== false; } catch { return true; }
 }
+// 匯入是否對「目前使用者」可見：管理者不受開關影響、一律可見；其餘看開關
+function _lightsImportVisible() {
+  if (typeof CR !== 'undefined' && CR === 'admin') return true;
+  return _lightsImportEnabled();
+}
 // 匯入按鈕（開關關閉時不顯示）；primary=true 為紅底主按鈕
 function _lightsImportBtn(primary) {
-  if (!_lightsImportEnabled()) return '';
+  if (!_lightsImportVisible()) return '';
   const style = primary
     ? 'padding:7px 14px;background:var(--red);border:1.5px solid var(--red);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:white;font-weight:700;'
     : 'padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);';
   return `<button onclick="_lightsSwitch('import')" style="${style}">匯入</button>`;
 }
-// 匯入功能 ON/OFF 開關（僅管理員看得到、可切；關閉後所有人都看不到匯入）
-function _lightsImportToggleBtn() {
-  if (typeof CR === 'undefined' || CR !== 'admin') return '';
-  const on = _lightsImportEnabled();
-  const style = on
-    ? 'padding:7px 12px;background:#eaf7ee;border:1.5px solid #27ae60;border-radius:7px;cursor:pointer;font-size:12px;font-family:inherit;color:#27ae60;font-weight:700;'
-    : 'padding:7px 12px;background:#fdecea;border:1.5px solid #c0392b;border-radius:7px;cursor:pointer;font-size:12px;font-family:inherit;color:#c0392b;font-weight:700;';
-  return `<button onclick="_lightsToggleImport()" style="${style}" title="切換匯入功能開關，關閉後所有人都無法匯入">匯入功能：${on ? 'ON' : 'OFF'}</button>`;
-}
-function _lightsToggleImport() {
-  if (typeof CR === 'undefined' || CR !== 'admin') { showToast('無權限'); return; }
-  const cur = cache['__config__'] || {};
-  const next = !(cur.lightsImportEnabled !== false); // 反轉目前狀態
-  saveConfigData({ ...cur, lightsImportEnabled: next });
-  showToast(next ? '已開啟匯入功能' : '已關閉匯入功能');
-  if (!next && _lightsSubTab === 'import') _lightsSubTab = 'score'; // 關閉時離開匯入頁
-  renderLights();
-}
+// 匯入功能開關改由「系統設定」控制（config.lightsImportEnabled）
 
 function _renderLightsCurrentTab() {
   const c = document.getElementById('lightsContentInner');
@@ -74,7 +62,7 @@ function _renderLightsCurrentTab() {
   const spinner = `<div style="min-height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;"><div class="loader-spinner"></div><div style="font-size:13px;color:var(--text-soft);">載入中...</div></div>`;
   c.innerHTML = spinner;
   // 匯入功能關閉時，禁止進入匯入頁
-  if (_lightsSubTab === 'import' && !_lightsImportEnabled()) _lightsSubTab = 'score';
+  if (_lightsSubTab === 'import' && !_lightsImportVisible()) _lightsSubTab = 'score';
   switch (_lightsSubTab) {
     case 'import':   _renderLightsImportTab(); break;
     case 'score':    _renderLightsScoreTab(); break;
@@ -165,8 +153,8 @@ async function _renderLightsImportTab() {
   const c = document.getElementById('lightsContentInner');
   if (!c) return;
   // 匯入功能已關閉 → 不顯示匯入介面
-  if (!_lightsImportEnabled()) {
-    c.innerHTML = `${_lightsBackBar()}<div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">匯入功能目前為關閉狀態。<br>請由管理員在「上個月紅綠燈」頁開啟「匯入功能」。</div>`;
+  if (!_lightsImportVisible()) {
+    c.innerHTML = `${_lightsBackBar()}<div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">匯入功能目前為關閉狀態。<br>請由管理員至「系統設定」開啟「匯入功能」。</div>`;
     return;
   }
 
@@ -309,7 +297,7 @@ async function _renderLightsImportTab() {
 
 // 上傳培訓報告（整份覆蓋）
 async function _lightsHandleTrainingFile(file) {
-  if (!_lightsImportEnabled()) { showToast('匯入功能已關閉'); return; }
+  if (!_lightsImportVisible()) { showToast('匯入功能已關閉'); return; }
   if (!file) return;
   if (!/\.(xls|xml)$/i.test(file.name)) {
     showToast('請選擇 .xls 或 .xml 檔案');
@@ -369,7 +357,7 @@ function _lightsToggleImportMonth(monthKey) {
 
 // 點選某週槽 → 解析檔案 → 驗證 to 是否符合 → 上傳
 async function _lightsHandleWeekFile(file, expectedFridayIso) {
-  if (!_lightsImportEnabled()) { showToast('匯入功能已關閉'); return; }
+  if (!_lightsImportVisible()) { showToast('匯入功能已關閉'); return; }
   if (!file) return;
   if (!/\.(xls|xml)$/i.test(file.name)) {
     showToast('請選擇 .xls 或 .xml 檔案');
@@ -922,7 +910,6 @@ async function _renderLightsScoreTab() {
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <button onclick="_lightsSwitch('predict')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">預測</button>
           ${_lightsImportBtn(true)}
-          ${_lightsImportToggleBtn()}
         </div>
       </div>
       <div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">
@@ -996,7 +983,6 @@ async function _renderLightsScoreTab() {
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <button onclick="_lightsSwitch('predict')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">預測</button>
         ${_lightsImportBtn(false)}
-        ${_lightsImportToggleBtn()}
       </div>
     </div>
 
@@ -1126,7 +1112,6 @@ async function _renderLightsPredictTab() {
         <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">預測紅綠燈</h2>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           ${_lightsImportBtn(true)}
-          ${_lightsImportToggleBtn()}
           <button onclick="_lightsSwitch('score')" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text-soft);">← 返回上個月</button>
         </div>
       </div>
