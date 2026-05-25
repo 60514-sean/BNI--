@@ -158,7 +158,7 @@ const _MEET_BOD_BASE = [
   { topic:'What is BNI?', presenter:'主席', minutes:4, note:'□計時 4:30按●，5:00按●●' },
   { topic:'會員25秒專業呈現', presenter:'主持', minutes:23, auto:{ by:'member', sec:25, ring:{ a:-10, b:0 } }, note:'□計時 0:15按●，0:25按●●' },
   { topic:'來賓10秒自我介紹', presenter:'主持', minutes:8.5, auto:{ by:'guest', sec:10, ring:{ a:0, b:5 } }, note:'□計時 0:10按●，0:15按●●' },
-  { topic:'搶答活動', presenter:'活動', minutes:6.5, note:'□計時 0:15按●，0:30按●●\n□計時 1:00按●，1:30按●●' },
+  { topic:'搶答活動', presenter:'活動', minutes:6.5, editableTopic:true, note:'□計時 0:15按●，0:30按●●\n□計時 1:00按●，1:30按●●' },
   { topic:'BNI:How it works?', presenter:'分享1', minutes:5, note:'□計時 4:30按●，5:00按●●' },
   { topic:'分會的願景', presenter:'副主席', minutes:3, note:'□計時 2:30按●，3:00按●●' },
   { topic:'會員收穫分享', presenter:'分享2', minutes:5, note:'□計時 4:30按●，5:00按●●' },
@@ -300,10 +300,13 @@ function _meetLoadDraft() {
         }
       });
     }
-    // 遷移：BOD 搶答活動報告人預設由「主持」改為「活動」（活動負責）
+    // 遷移：BOD 搶答活動報告人預設由「主持」改為「活動」（活動負責）、議程文字可編輯
     if (d && d.templateId === 'bod' && Array.isArray(d.items)) {
       d.items.forEach(it => {
-        if (it.topic === '搶答活動' && it.presenter === '主持') it.presenter = '活動';
+        if (it.topic === '搶答活動') {
+          if (it.presenter === '主持') it.presenter = '活動';
+          if (!it.editableTopic) it.editableTopic = true;
+        }
       });
     }
     // 遷移：三個全選時合併入會/續約感言
@@ -802,12 +805,15 @@ function _meetOpenRowEditor(idx) {
       </div>
       <div class="modal-field">
         <div class="modal-label">議程</div>
-        <div id="mr_topicLabel" style="${labelStyle}">${_escH(it.topic||'')}</div>
+        ${it.editableTopic
+          ? `<textarea class="modal-input" id="mr_topic" rows="${Math.max(2, String(it.topic||'').split('\n').length)}" style="resize:vertical;line-height:1.4">${_escH(it.topic||'')}</textarea>`
+          : `<div id="mr_topicLabel" style="${labelStyle}">${_escH(it.topic||'')}</div>`}
         ${it.titleHighlight ? '<div style="font-size:11px;color:var(--text-soft);font-weight:500;margin-top:6px;">＊紅字標題項目</div>' : ''}
       </div>
       <div class="modal-field">
         <div class="modal-label">報告人</div>
-        <div style="${labelStyle}">${_escH(_resolveMeetingPresenter(it.presenter||''))}</div>
+        <textarea class="modal-input" id="mr_presenter" rows="${Math.max(1, String(_resolveMeetingPresenter(it.presenter||'')).split('\n').length)}" style="resize:vertical;line-height:1.4">${_escH(_resolveMeetingPresenter(it.presenter||''))}</textarea>
+        <div style="font-size:11px;color:var(--text-soft);font-weight:500;margin-top:6px;">可直接改姓名；未改則沿用職務自動帶入。</div>
       </div>
       <div class="modal-field">
         <div class="modal-label">
@@ -855,6 +861,12 @@ function _meetCommitRowModal() {
   const it = _meetState.items[idx];
   if (!it) return -1;
   const v = id => document.getElementById(id);
+  if (it.editableTopic && v('mr_topic')) it.topic = v('mr_topic').value;
+  if (v('mr_presenter')) {
+    const origResolved = _resolveMeetingPresenter(it.presenter || '');
+    const cur = v('mr_presenter').value;
+    if (cur !== origResolved) it.presenter = cur; // 改過才覆寫該列；未改則保留職務自動帶入
+  }
   if (v('mr_minutes')) it.minutes = _meetParseDuration(v('mr_minutes').value);
   if (v('mr_note')) it.note = v('mr_note').value;
   const sec = v('mr_autoSec');
@@ -902,6 +914,10 @@ function _meetModalSyncLock(locked) {
   const note = document.getElementById('mr_note');
   const autoSec = document.getElementById('mr_autoSec');
   const revertBtn = document.getElementById('mr_revertBtn');
+  const topic = document.getElementById('mr_topic');
+  const presenter = document.getElementById('mr_presenter');
+  setReadonly(topic, locked);                   // 可編輯議程：鎖定時唯讀
+  setReadonly(presenter, locked);               // 可編輯報告人：鎖定時唯讀
   setReadonly(minutes, locked || isAuto);       // auto 項目時長一律鎖定，改由每人秒數×人數換算
   setReadonly(note, locked || isAutoNote);      // 計時備註自動帶入的項目，備註欄鎖定
   setReadonly(autoSec, locked);
