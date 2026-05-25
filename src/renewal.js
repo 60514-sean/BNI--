@@ -195,7 +195,7 @@ function _renewalCard(m, canEdit) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;">
         <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${chipBg};color:${chipColor};white-space:nowrap;">${chipText}</span>
-        ${m.renewDays && status !== 'done' ? `<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:${daysBg};color:${daysColor};">${_escH(m.renewDays)} 天</span>` : ''}
+        ${m.renewDays ? `<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:${daysBg};color:${daysColor};">${_escH(m.renewDays)} 天</span>` : ''}
       </div>
     </div>
     <div style="padding:10px 14px 12px;background:#fafbfc;border-top:1px solid var(--gray-border);">
