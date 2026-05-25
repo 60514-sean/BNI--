@@ -158,7 +158,7 @@ const _MEET_BOD_BASE = [
   { topic:'What is BNI?', presenter:'主席', minutes:4, note:'□計時 4:30按●，5:00按●●' },
   { topic:'會員25秒專業呈現', presenter:'主持', minutes:23, auto:{ by:'member', sec:25, ring:{ a:-10, b:0 } }, note:'□計時 0:15按●，0:25按●●' },
   { topic:'來賓10秒自我介紹', presenter:'主持', minutes:8.5, auto:{ by:'guest', sec:10, ring:{ a:0, b:5 } }, note:'□計時 0:10按●，0:15按●●' },
-  { topic:'搶答活動', presenter:'主持', minutes:6.5, note:'□計時 0:15按●，0:30按●●\n□計時 1:00按●，1:30按●●' },
+  { topic:'搶答活動', presenter:'活動', minutes:6.5, note:'□計時 0:15按●，0:30按●●\n□計時 1:00按●，1:30按●●' },
   { topic:'BNI:How it works?', presenter:'分享1', minutes:5, note:'□計時 4:30按●，5:00按●●' },
   { topic:'分會的願景', presenter:'副主席', minutes:3, note:'□計時 2:30按●，3:00按●●' },
   { topic:'會員收穫分享', presenter:'分享2', minutes:5, note:'□計時 4:30按●，5:00按●●' },
@@ -298,6 +298,12 @@ function _meetLoadDraft() {
             it.topic = '宣布新人入會、續約，宣讀BNI道德規範';
           }
         }
+      });
+    }
+    // 遷移：BOD 搶答活動報告人預設由「主持」改為「活動」（活動負責）
+    if (d && d.templateId === 'bod' && Array.isArray(d.items)) {
+      d.items.forEach(it => {
+        if (it.topic === '搶答活動' && it.presenter === '主持') it.presenter = '活動';
       });
     }
     // 遷移：三個全選時合併入會/續約感言
