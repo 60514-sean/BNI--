@@ -39,8 +39,20 @@ function _renderMeetingStaffBlock() {
       <input type="text" value="${_escH(cfgMeetingStaff[key]||'')}" oninput="_meetStaffOnInput('${key}',this.value)" placeholder="${ph}" style="flex:1;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
     </div>`;
   const roles = MEETING_ROLES.map(r => row(r, r, '姓名')).join('');
-  const memberSep = `<div style="font-size:11px;color:var(--text-soft);font-weight:600;margin:14px 0 8px;">本週會員（每週調整）</div>`;
   const inputStyle = 'flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;';
+
+  // BOD 來賓日：拿掉委員會/本週會員，主題簡報分享者改為 BOD 分享者，大使改為董顧
+  const isBod = (typeof _meetState !== 'undefined' && _meetState && _meetState.templateId === 'bod');
+  if (isBod) {
+    const shareSep = `<div style="font-size:11px;color:var(--text-soft);font-weight:600;margin:14px 0 8px;">BOD 分享者（每次調整）</div>`;
+    const sharePh = { 分享1:'How it works 分享者', 分享2:'會員收穫分享者', 分享3:'會員產業合作分享者' };
+    const shareRows = MEETING_BOD_SHARE_ROLES.map(k => row(k, k, sharePh[k] || 'BOD分享者姓名')).join('');
+    const bodSep = `<div style="font-size:11px;color:var(--text-soft);font-weight:600;margin:14px 0 8px;">BOD 主持/董顧（每次調整）</div>`;
+    const bodRows = MEETING_BOD_ROLES.map(r => row(r, r, r === '主持' ? 'BOD主持人姓名' : '董顧姓名')).join('');
+    return roles + shareSep + shareRows + bodSep + bodRows;
+  }
+
+  const memberSep = `<div style="font-size:11px;color:var(--text-soft);font-weight:600;margin:14px 0 8px;">本週會員（每週調整）</div>`;
   const committeeRow = MEETING_COMMITTEE_ROLES.map(r => row(r, r, '本週委員會姓名')).join('');
   const members = MEETING_MEMBERS.map(e => {
     if (e === '出村') {

@@ -3,6 +3,7 @@
 # 含個資（會員/來賓姓名、電話、備註）— 切勿 commit 到 public repo
 guests.json
 members.csv
+cfg.json
 *.local.json
 *.local.csv
 
