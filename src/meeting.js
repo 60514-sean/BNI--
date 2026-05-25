@@ -522,7 +522,7 @@ function _meetOpenSettings() {
   const tplOptions = Object.entries(_MEET_TEMPLATES)
     .map(([id,t]) => `<option value="${id}" ${_meetState.templateId===id?'selected':''}>${_escH(t.name)}</option>`)
     .join('');
-  const versions = _meetLoadVersions();
+  const versions = _meetSortVersions(_meetLoadVersions());
   const verOptions = versions.length
     ? versions.map(v => `<option value="${_escH(v.id)}">${_escH(v.dateStr||'')}${v.seqNum?` 第${_escH(v.seqNum)}次`:''}</option>`).join('')
     : '';
@@ -1135,12 +1135,22 @@ function _meetLoadVersion(id) {
   showToast('已載入版本');
 }
 
+// 版本排序：例會次數（seqNum）數字大→小；同次數時新存的在上；非數字次數排最後
+function _meetSortVersions(arr) {
+  return [...(arr || [])].sort((a, b) => {
+    const av = parseInt(a.seqNum, 10), bv = parseInt(b.seqNum, 10);
+    const an = isNaN(av) ? -Infinity : av, bn = isNaN(bv) ? -Infinity : bv;
+    if (bn !== an) return bn - an;
+    return (b.savedAt || '').localeCompare(a.savedAt || '');
+  });
+}
+
 async function _meetManageVersions() {
   const body = document.getElementById('meetBody');
   if (!body) return;
   body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-soft)">載入雲端版本中...</div>';
   const remote = await _meetFetchVersionsRemote();
-  const versions = remote || _meetLoadVersions();
+  const versions = _meetSortVersions(remote || _meetLoadVersions());
   if (!versions.length) {
     body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-soft)">尚無歷史紀錄<div style="margin-top:12px"><button class="meet-tb-btn" onclick="_meetRenderBody()">返回</button></div></div>';
     return;
