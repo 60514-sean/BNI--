@@ -37,14 +37,10 @@ function _lightsSwitch(id) {
   renderLights();
 }
 
-// ===== 匯入功能總開關（系統設定可切，存 config.lightsImportEnabled，預設開） =====
-function _lightsImportEnabled() {
-  try { return getConfig().lightsImportEnabled !== false; } catch { return true; }
-}
-// 匯入是否對「目前使用者」可見：管理者不受開關影響、一律可見；其餘看開關
+// 匯入是否對「目前使用者」可見：用「可見頁面」裡『燈號分析』的 ON/OFF（可編輯）控管
+// 管理者一律可見；一般使用者需在系統設定把「燈號分析」設為 ON（可編輯）
 function _lightsImportVisible() {
-  if (typeof CR !== 'undefined' && CR === 'admin') return true;
-  return _lightsImportEnabled();
+  return (typeof _canEditTab === 'function') ? _canEditTab('lights') : true;
 }
 // 匯入按鈕（開關關閉時不顯示）；primary=true 為紅底主按鈕
 function _lightsImportBtn(primary) {
@@ -154,7 +150,7 @@ async function _renderLightsImportTab() {
   if (!c) return;
   // 匯入功能已關閉 → 不顯示匯入介面
   if (!_lightsImportVisible()) {
-    c.innerHTML = `${_lightsBackBar()}<div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">匯入功能目前為關閉狀態。<br>請由管理員至「系統設定」開啟「匯入功能」。</div>`;
+    c.innerHTML = `${_lightsBackBar()}<div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">您沒有匯入權限。<br>請管理員至「系統設定 → 使用者名單 → 可見頁面」把「燈號分析」設為 ON（可編輯）。</div>`;
     return;
   }
 
