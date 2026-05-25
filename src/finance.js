@@ -372,94 +372,6 @@ function _financeRenderSpecial(term) {
   `;
 }
 
-function _financeRenderBudget(budget) {
-  if (!budget) return '';
-  const tables = [];
-  let cur = null;
-  for (const row of budget.rows) {
-    const a = String(row[1] || '').trim();
-    const b = String(row[2] || '').trim();
-    const c = String(row[3] || '').trim();
-    const d = String(row[4] || '').trim();
-    const e = String(row[5] || '').trim();
-    if (/項目|金額/.test(a) || /項目|金額/.test(d)) {
-      // header → 開新表
-      if (a) { cur = { title: a, items: [] }; tables.push(cur); }
-      if (d && d !== a) { tables.push({ title: d, items: [] }); }
-      continue;
-    }
-    if (cur && a) cur.items.push({ name: a, amount: b });
-    if (d) {
-      const last = tables[tables.length - 1];
-      if (last && last.title.indexOf(d) < 0 && last !== cur) last.items.push({ name: d, amount: e });
-      else if (cur && last === cur && tables.length >= 2) {
-        const second = tables[tables.length - 2];
-        if (second && second !== cur) second.items.push({ name: d, amount: e });
-      }
-    }
-  }
-  // 簡化：直接平鋪所有非空白的(name, amount)對
-  const flat = [];
-  let group = null;
-  for (const row of budget.rows) {
-    for (let col = 0; col < row.length; col++) {
-      const cell = String(row[col] || '').trim();
-      if (/每月變動收入|每月固定收入|每月變動支出|每月固定支出|會期金額/.test(cell)) {
-        group = { title: cell, items: [] };
-        flat.push(group);
-      }
-    }
-    if (!group) continue;
-    // 嘗試抓 name + amount 對：第2,3 欄 / 第5,6 欄
-    const pairs = [[1, 2], [4, 5]];
-    for (const [ni, ai] of pairs) {
-      const nm = String(row[ni] || '').trim();
-      const am = row[ai];
-      if (nm && nm !== group.title && !/項目|金額/.test(nm) && (am !== '' && am !== null && am !== undefined)) {
-        flat.push({ inline: true, name: nm, amount: am });
-      }
-    }
-  }
-  // 整理：依 title 分組
-  const groups = [];
-  let g = null;
-  for (const row of budget.rows) {
-    let openedTitleThisRow = false;
-    for (let col = 0; col < row.length; col++) {
-      const cell = String(row[col] || '').trim();
-      if (/每月變動收入|每月固定收入|每月變動支出|每月固定支出|會期金額/.test(cell)) {
-        g = { title: cell, items: [] };
-        groups.push(g);
-        openedTitleThisRow = true;
-      }
-    }
-    if (!g || openedTitleThisRow) continue;
-    const pairs = [[1, 2], [4, 5]];
-    for (const [ni, ai] of pairs) {
-      const nm = String(row[ni] || '').trim();
-      const am = row[ai];
-      if (nm && !/項目|金額/.test(nm) && (am !== '' && am !== null && am !== undefined)) {
-        g.items.push({ name: nm, amount: am });
-      }
-    }
-  }
-  const cards = groups.filter(x => x.items.length).map(grp => {
-    const rowsHtml = grp.items.map(it => `
-      <div class="row"><span class="lbl">${_escH(it.name)}</span><span class="amt">${_escH(String(it.amount))}</span></div>
-    `).join('');
-    return `<div class="fin-budget-card"><h4>${_escH(grp.title)}</h4>${rowsHtml}</div>`;
-  }).join('');
-  return `
-    <div class="fin-section-title">預算參考</div>
-    <div class="fin-budget-grid">${cards || '<div class="fin-empty">無預算資料</div>'}</div>
-  `;
-}
-
-function toggleFinanceMonth(ym) {
-  _financeMonthsOpen[ym] = !_financeMonthsOpen[ym];
-  renderFinance();
-}
-
 function switchFinanceTerm(name) {
   _financeTermTab = name;
   _financeMonthsOpen = {};
@@ -605,58 +517,6 @@ function _financeRenderTermOverview(sum) {
 }
 
 // （保留舊函式以防其他地方引用，但已不被 renderFinance 呼叫）
-function _renderMonthlySummary(term, sum) {
-  if (!sum.months.length) return '<div class="fin-empty">無資料</div>';
-  const budgetMonthly = _calcBudgetMonthlyExpense();
-  let totIn = 0, totOut = 0;
-  const rows = sum.months.map(m => {
-    totIn += m.inc;
-    totOut += m.exp;
-    const diff = m.exp - budgetMonthly;
-    const diffCls = diff > 0 ? 'out' : 'in';
-    const diffSign = diff > 0 ? '超支' : '節省';
-    const [yy, mm] = m.ym.split('-');
-    return `<tr>
-      <td>${parseInt(mm)} 月</td>
-      <td class="in">+${_finFmt(m.inc)}</td>
-      <td class="out">-${_finFmt(m.exp)}</td>
-      <td class="bal">${_finFmt(m.lastBal)}</td>
-      <td class="${diffCls}" title="預期月支出 ${_finFmt(budgetMonthly)}">${budgetMonthly ? `${diffSign} ${_finFmt(Math.abs(diff))}` : '—'}</td>
-    </tr>`;
-  }).join('');
-  return `
-    <table class="fin-monthly-table">
-      <thead><tr>
-        <th>月份</th><th>收入</th><th>支出</th><th>月底結餘</th><th>預算對照</th>
-      </tr></thead>
-      <tbody>
-        ${rows}
-        <tr>
-          <td>合計</td>
-          <td class="in">+${_finFmt(totIn)}</td>
-          <td class="out">-${_finFmt(totOut)}</td>
-          <td class="bal">${_finFmt(sum.currentBalance)}</td>
-          <td>—</td>
-        </tr>
-      </tbody>
-    </table>
-  `;
-}
-
-function _calcBudgetMonthlyExpense() {
-  // 從預算參考表計算「每月預期支出」（固定 + 變動）
-  if (!_financeParsed || !_financeParsed.budget) return 0;
-  let total = 0;
-  for (const row of _financeParsed.budget.rows) {
-    for (let col = 0; col < row.length; col++) {
-      const cell = String(row[col] || '').trim();
-      // 只挑「金額」欄位的數字
-      const numMatch = cell.match(/^-(\d+)$/);
-      if (numMatch) total += parseInt(numMatch[1]);
-    }
-  }
-  return total;
-}
 
 function _financeRenderReceivables() {
   const list = (_financeParsed && _financeParsed.receivables) || [];
@@ -720,73 +580,6 @@ function _financeRenderReceivables() {
 function setReceivableFilter(f) {
   _receivableFilter = f;
   renderFinance();
-}
-
-let _chartJsLoaded = null;
-function _ensureChartJs() {
-  if (_chartJsLoaded) return _chartJsLoaded;
-  _chartJsLoaded = new Promise((resolve, reject) => {
-    if (window.Chart) return resolve();
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('chart.js load failed'));
-    document.head.appendChild(s);
-  });
-  return _chartJsLoaded;
-}
-
-let _financeTrendChart = null;
-function _drawFinanceTrend(term) {
-  const canvas = document.getElementById('finTrendChart');
-  if (!canvas || !window.Chart) return;
-  if (_financeTrendChart) { _financeTrendChart.destroy(); _financeTrendChart = null; }
-
-  const points = [];
-  if (term.initial) points.push({ x: term.initialDate || term.records[0]?.date || '', y: term.initial });
-  for (const r of term.records) {
-    if (r.finalBalance) points.push({ x: r.date, y: r.finalBalance });
-  }
-  if (!points.length) return;
-
-  _financeTrendChart = new Chart(canvas.getContext('2d'), {
-    type: 'line',
-    data: {
-      labels: points.map(p => p.x),
-      datasets: [{
-        label: '結餘',
-        data: points.map(p => p.y),
-        borderColor: '#c0392b',
-        backgroundColor: 'rgba(192,57,43,0.08)',
-        fill: true,
-        tension: 0.25,
-        pointRadius: 2,
-        pointHoverRadius: 5,
-        borderWidth: 2,
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: ctx => `結餘 ${ctx.parsed.y.toLocaleString()}`,
-          }
-        }
-      },
-      scales: {
-        x: { ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 45 } },
-        y: {
-          ticks: {
-            font: { size: 10 },
-            callback: v => v.toLocaleString()
-          }
-        }
-      }
-    }
-  });
 }
 
 async function refreshFinance() {
@@ -1267,7 +1060,6 @@ function openFinanceEdit(rowIndex) {
     return;
   }
 
-
   // 第六屆+ 用 V6 介面（與新增完全一致：類型 toggle + 可切換子類型下拉 + 4 子區塊）
   const mode = _detectV6EditMode(r);
   const editKind = (mode === 'hotel' || mode === 'expenseOther') ? 'expense' : 'income';
@@ -1558,7 +1350,6 @@ async function _doFinanceDelete(sheet, rowIndex) {
     showToast('刪除失敗：' + (err.message || err));
   }
 }
-
 
 // ===== 應收追蹤 =====
 function openReceivableAdd() {

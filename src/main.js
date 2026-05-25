@@ -177,15 +177,6 @@ function renderCatGroups(tasks, prog, notes, dayKey) {
   return html;
 }
 
-function toggleCat(id) {
-  const el  = document.getElementById(id);
-  const arr = document.getElementById('arr_' + id);
-  if (!el) return;
-  const isOpen = el.style.display !== 'none';
-  el.style.display = isOpen ? 'none' : '';
-  if (arr) arr.textContent = isOpen ? '▾' : '▲';
-}
-
 function filterDay(day) { currentDay = day; renderMain(); }
 
 function toggleExpand(idx) {

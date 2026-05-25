@@ -257,28 +257,6 @@ async function renderSchedule() {
   </div>`;
 }
 
-function _schedHeaderHtml() {
-  const canEdit = _canEditTab('schedule');
-  const editTag = canEdit
-    ? `<span style="background:#27ae60;color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;">可編輯</span>`
-    : `<span style="background:#bdc3c7;color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;">唯讀</span>`;
-  return `<div class="sched-card">
-    <div class="sched-card-head no-cursor">
-      <div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div class="sched-card-title">簡報排程</div>
-          ${editTag}
-        </div>
-        <div class="sched-card-sub">資料來源：Google Sheet · 共 ${_scheduleData.length} 筆</div>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="sched-jump-btn" onclick="_schedExportCsv()" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);">匯出 CSV</button>
-        <button class="sched-jump-btn" onclick="_scheduleData=null;renderSchedule()" style="background:white;border:1.5px solid var(--gray-border);color:var(--text-soft);">重整</button>
-      </div>
-    </div>
-  </div>`;
-}
-
 // ===== Hero：本週 / 下週 =====
 function _schedHeroHtml() {
   const today = _todayIso();
@@ -941,21 +919,4 @@ function _schedJumpToThisWeek() {
     const target = todayCard || upcoming;
     if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, 50);
-}
-function _schedExportCsv() {
-  const list = _schedFiltered();
-  const rows = [['屆別','日期','類型','簡報者','次數','顧問','截稿日','主題']];
-  list.forEach(x => rows.push([
-    x.term, `${x.year}-${x.dateMd}`, _displayType(x.type),
-    x.presenters.map(_resolvedName).join('、'), x.count,
-    _splitNames(x.mentor).map(_resolvedName).join('、'),
-    x.deadline, x.topic
-  ]));
-  const csv = rows.map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `簡報排程_${_todayIso()}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
 }

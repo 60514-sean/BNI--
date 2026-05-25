@@ -279,12 +279,6 @@ function getReportData() {
 }
 
 // 儲存整份報告：拆寫成 main + 每張 slide（呼叫端通常不直接用，而是用細粒度 API）
-async function saveReportData(d) {
-  const slides = Array.isArray(d.slides) ? d.slides.map(_normalizeSlide).filter(Boolean) : [];
-  const order = slides.map(s => s.id);
-  for (const s of slides) apiSave(_reportSlideKey(s.id), s);
-  await apiSave(REPORT_MAIN_KEY, { title: typeof d.title === 'string' ? d.title : '', order });
-}
 
 // 細粒度 API（推薦呼叫這些）
 function getReportSlide(id) {
@@ -309,8 +303,6 @@ function getReportImage(id) {
   const slide = getReportSlide(id);
   return (slide && slide.url) || '';
 }
-async function saveReportImage(id, _dataUrl) { /* 新架構不存 dataURL，呼叫端應改用 saveReportSlide */ }
-async function deleteReportImage(id) { /* 同上，舊呼叫端兼容用 */ }
 
 // 舊的「__report_imgurl_*」獨立 url key 介面 → 改成讀新結構的 slide.url
 function getReportImageUrl(id) {
@@ -370,8 +362,6 @@ const TASK_DATA = [
   { id:37, day:'週日', owner:'K',    task:'跟新會員要照片、名片放相簿',                           cat:'會員',    freq:'視需要' },
   { id:38, day:'週一', owner:'K',    task:'導生畢業確認通知 ➔ 導師群組',                         cat:'會員',    freq:'視需要' },
 ];
-
-const TASK_IDX = new Map(TASK_DATA.map(t => [t, t.id]));
 
 function getAllTasks() { return getConfig().tasks || []; }
 

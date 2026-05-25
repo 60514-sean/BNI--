@@ -456,17 +456,6 @@ function _renderUserRowHtml(u, i) {
 }
 
 // 設定頁：只更新單一使用者列（避免 toggle 一個 chip 就重繪整個設定畫面）
-function _refreshUserRow(i) {
-  const el = document.getElementById('ur_' + i);
-  if (!el) return;
-  const u = cfgUsers[i];
-  if (!u) { el.remove(); return; }
-  // 替換前先把現場 input 的值同步進 cfgUsers，避免名稱被舊值覆寫
-  _captureUserInputsToCfg();
-  const tmp = document.createElement('div');
-  tmp.innerHTML = _renderUserRowHtml(cfgUsers[i], i);
-  el.replaceWith(tmp.firstElementChild);
-}
 
 function renderCtDay(day) {
   const list = cfgTasks.map((t, idx) => ({ ...t, _idx: idx })).filter(t => t.day === day);

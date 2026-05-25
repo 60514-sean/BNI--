@@ -120,36 +120,6 @@ function _scaleSlogan() {
 window.addEventListener('resize', () => { if (_activeTab === 'slogan') _scaleSlogan(); });
 
 // 量測表格高度，反推合適 --ss 使表格剛好填滿可用高度（不溢出）
-function _autoFitSlogan() {
-  const sheet = document.getElementById('sloganSheet');
-  if (!sheet) return;
-  const table = sheet.querySelector('.slogan-table');
-  if (!table) return;
-
-  sheet.style.setProperty('--ss', '1');
-  void sheet.offsetHeight;
-
-  const avail = sheet.clientHeight
-    - parseFloat(getComputedStyle(sheet).paddingTop)
-    - parseFloat(getComputedStyle(sheet).paddingBottom);
-  if (avail <= 0) return;
-
-  // 量測自然高
-  let natural = table.scrollHeight;
-  if (natural <= 0) return;
-  let scale = (avail * 0.97) / natural;
-  scale = Math.max(0.4, Math.min(3.0, scale));
-  sheet.style.setProperty('--ss', scale.toFixed(3));
-
-  // 文字換行造成的非線性：迭代修正
-  for (let pass = 0; pass < 3; pass++) {
-    void sheet.offsetHeight;
-    const cur = parseFloat(getComputedStyle(sheet).getPropertyValue('--ss')) || 1;
-    const h = table.scrollHeight;
-    if (h <= avail * 0.99) break;
-    sheet.style.setProperty('--ss', (cur * (avail / h) * 0.96).toFixed(3));
-  }
-}
 
 async function _renderOneSloganCanvas(sheetEl) {
   const wrap = document.createElement('div');

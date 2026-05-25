@@ -1,29 +1,10 @@
 // ===== GUEST TRACK =====
-const GUEST_STATUSES = ['待追蹤','持續追蹤','已填單待繳費','審核中','已入會','親友團','轉別分會','工作夥伴','行業別衝突','婉拒/停止追蹤'];
-const GUEST_STATUS_COLORS = {
-  '待追蹤':         { bg:'#f4f6f8', fg:'#666' },
-  '持續追蹤':       { bg:'#fef3c7', fg:'#92400e' },
-  '已填單待繳費':   { bg:'#fde68a', fg:'#78350f' },
-  '審核中':         { bg:'#e0f2fe', fg:'#075985' },
-  '已入會':         { bg:'#dcfce7', fg:'#166534' },
-  '親友團':         { bg:'#fce7f3', fg:'#9d174d' },
-  '轉別分會':       { bg:'#ede9fe', fg:'#5b21b6' },
-  '工作夥伴':       { bg:'#e0e7ff', fg:'#3730a3' },
-  '行業別衝突':     { bg:'#fef3c7', fg:'#92400e' },
-  '婉拒/停止追蹤':  { bg:'#fee2e2', fg:'#991b1b' }
-};
 const JOIN_PROBABILITIES = ['未評估','高','中','低'];
-const JOIN_PROB_COLORS = {
-  '未評估': { bg:'#f4f6f8', fg:'#999' },
-  '高':     { bg:'#fee2e2', fg:'#991b1b' },
-  '中':     { bg:'#fed7aa', fg:'#9a3412' },
-  '低':     { bg:'#dbeafe', fg:'#1e40af' }
-};
 let _guestData = null;
 let _guestSubTab = 'week';   // 'week' | 'all'
 let _guestSearch = '';
-let _guestStatusFilter = ''; // '' = 全部，否則為特定狀態
-let _guestTermFilter = 0;    // 0 = 全部，否則為特定屆數（1, 2, 3, ...）
+// '' = 全部，否則為特定狀態
+// 0 = 全部，否則為特定屆數（1, 2, 3, ...）
 let _guestProbFilter = new Set(); // tracking 分頁多選篩選：'低' / '中' / '未評估' / 'QR自助'（OR）
 
 function _parseDateStr(s) {
@@ -277,12 +258,6 @@ function _guestLatestDate(g) {
   return valid.length ? new Date(Math.max(...valid.map(d => d.getTime()))) : null;
 }
 
-const HIGH_POTENTIAL_KEY = '__highPotential__';
-const HIGH_POTENTIAL_LABEL = '高機率入會';
-function _isHighPotentialGuest(g) {
-  return g.joinProb === '高';
-}
-
 // ===== 新版來賓追蹤 UI helpers =====
 let _expandedGuests = new Set(); // 已展開的卡片 key
 
@@ -348,114 +323,8 @@ function _guestProgressDots(g) {
 }
 
 // 打開進度編輯彈窗（仿續約管理的編輯流程）
-function openGuestProgressModal(year, sheetRow) {
-  if (!_canEditTab('guesttrack')) { showToast('無編輯權限'); return; }
-  if (!_guestData) return;
-  const g = _guestData.find(x => x.year === year && x.sheetRow === sheetRow);
-  if (!g) { showToast('找不到該來賓'); return; }
-  const applied = _isApplied(g);
-  const paid    = _isPaid(g);
-  const closed  = _isClosed(g);
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.id = 'guestProgressModal';
-  overlay.innerHTML = `
-    <div class="modal-box" onclick="event.stopPropagation()" style="max-width:380px;">
-      <div class="modal-title">編輯進度 — ${_escH(g.name)}</div>
-      <div style="font-size:11px;color:var(--text-soft);margin-bottom:8px;">
-        填單 / 繳費 依序勾選，取消前一步會自動清除後一步。<br>
-        勾「結案」會自動移到「暫停追蹤」分頁。
-      </div>
-      <div style="display:flex;flex-direction:column;gap:10px;background:#fafbfc;padding:12px 14px;border-radius:8px;border:1px solid var(--gray-border);margin-bottom:14px;">
-        <label class="gp-step" style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
-          <input type="checkbox" id="gp_applied" ${applied?'checked':''} onchange="_gpStepChange()">
-          1. 填申請表
-        </label>
-        <label class="gp-step" id="gp_lbl_paid" style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
-          <input type="checkbox" id="gp_paid" ${paid?'checked':''} onchange="_gpStepChange()">
-          2. 繳費
-        </label>
-        <label class="gp-step" style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;border-top:1px dashed var(--gray-border);padding-top:10px;margin-top:4px;">
-          <input type="checkbox" id="gp_closed" ${closed?'checked':''}>
-          3. 結案（流程結束 / 婉拒，移到暫停追蹤）
-        </label>
-      </div>
-      <div class="modal-btns">
-        <button class="modal-cancel" onclick="closeGuestProgressModal()">取消</button>
-        <button class="modal-save" onclick="saveGuestProgress(${year},${sheetRow})">儲存</button>
-      </div>
-    </div>`;
-  overlay.onclick = closeGuestProgressModal;
-  document.body.appendChild(overlay);
-  _gpStepChange(); // 初始化 disabled 狀態
-}
-
-function closeGuestProgressModal() {
-  document.getElementById('guestProgressModal')?.remove();
-}
 
 // 依序鎖定：「繳費」要等「填單」勾起；取消「填單」級聯取消「繳費」
-function _gpStepChange() {
-  const ap = document.getElementById('gp_applied');
-  const pa = document.getElementById('gp_paid');
-  const lblPa = document.getElementById('gp_lbl_paid');
-  if (!ap || !pa || !lblPa) return;
-  if (!ap.checked) {
-    pa.checked = false;
-    pa.disabled = true;
-    lblPa.style.opacity = '.4';
-    lblPa.style.cursor = 'not-allowed';
-  } else {
-    pa.disabled = false;
-    lblPa.style.opacity = '1';
-    lblPa.style.cursor = 'pointer';
-  }
-}
-
-async function saveGuestProgress(year, sheetRow) {
-  if (!_canEditTab('guesttrack')) { showToast('無編輯權限'); return; }
-  const g = _guestData?.find(x => x.year === year && x.sheetRow === sheetRow);
-  if (!g) return;
-  const applied = document.getElementById('gp_applied')?.checked || false;
-  const paid    = document.getElementById('gp_paid')?.checked    || false;
-  const closedNew = document.getElementById('gp_closed')?.checked || false;
-  const closedOld = _isClosed(g);
-
-  // 樂觀更新
-  g.applied = applied;
-  g.paid    = paid;
-  const payload = { action: 'updateGuestStatus', year, sheetRow, applied, paid };
-
-  // 結案有特殊邏輯：開啟→存 prevStatus；取消→還原 prevStatus
-  if (closedNew !== closedOld) {
-    if (closedNew) {
-      const prev = g.status || '持續追蹤';
-      g.prevStatus = prev;
-      g.closed = true;
-      payload.closed = true;
-      payload.prevStatus = prev;
-    } else {
-      const restoreStatus = g.prevStatus || '持續追蹤';
-      g.status = restoreStatus;
-      g.prevStatus = '';
-      g.closed = false;
-      payload.closed = false;
-      payload.status = restoreStatus;
-      payload.prevStatus = '';
-    }
-  } else {
-    g.closed = closedNew;
-  }
-  _saveGuestsToLS(_guestData);
-  closeGuestProgressModal();
-  _renderOnlyList();
-  try {
-    await _apiPost(payload);
-    showToast('已儲存進度');
-  } catch (e) {
-    showToast('同步失敗，請重新整理');
-  }
-}
 
 // 保留 _toggleProgress 為相容備援（目前 UI 不使用）
 async function _toggleProgress(year, sheetRow, step) {
@@ -729,164 +598,13 @@ function _probFilterChipsHtml() {
   </div>`;
 }
 
-function _filterGuestsScope(tab, applyYear = true) {
-  // 做 tab / 搜尋 / (可選)年份，不做狀態過濾
-  if (!_guestData) return [];
-  // 先按手機合併（同手機不同 row 變成一筆「合併視圖」，附帶 _allRows）
-  let list = _groupGuestsByPhone(_guestData);
-  if (tab === 'all' && _guestSearch) {
-    const q = _guestSearch.toLowerCase();
-    list = list.filter(g => {
-      // 搜尋兩訪的內容
-      const rows = g._allRows || [g];
-      return rows.some(r =>
-        (r.name||'').toLowerCase().includes(q) ||
-        (r.industry||'').toLowerCase().includes(q) ||
-        (r.inviter||'').toLowerCase().includes(q) ||
-        (r.company||'').toLowerCase().includes(q)
-      );
-    });
-  }
-  if (tab === 'all' && applyYear && _guestTermFilter) {
-    list = list.filter(g => {
-      const rows = g._allRows || [g];
-      return rows.some(r => _getTermFromDate(r.firstVisit) === _guestTermFilter);
-    });
-  }
-  if (tab === 'week') {
-    const { mon, sun } = _weekRange();
-    list = list.filter(g => {
-      const candidates = [];
-      (g._allRows || [g]).forEach(r => {
-        candidates.push(_parseDateStr(r.firstVisit));
-        _parseTracks(r.tracks).forEach(t => candidates.push(_parseDateStr(t.date)));
-      });
-      return candidates.some(d => d && d >= mon && d <= sun);
-    });
-  }
-  list.sort((a,b) => {
-    const da = _guestLatestDate(a); const db = _guestLatestDate(b);
-    return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
-  });
-  return list;
-}
-
 // 屆數規則：第 1 屆 2024/2~2024/3（特例 2 個月），之後每 6 個月一屆，第 2 屆從 2024/4 開始
-function _getTermFromDate(dateStr) {
-  const d = dateStr instanceof Date ? dateStr : _parseDateStr(dateStr);
-  if (!d) return null;
-  const ym = d.getFullYear() * 12 + d.getMonth(); // 月份 0-based
-  const term1Start = 2024 * 12 + 1; // 2024/02
-  const term1End   = 2024 * 12 + 2; // 2024/03
-  const term2Start = 2024 * 12 + 3; // 2024/04
-  if (ym < term1Start) return null;
-  if (ym <= term1End) return 1;
-  return Math.floor((ym - term2Start) / 6) + 2;
-}
-
-function _getTermDateRange(term) {
-  if (term === 1) {
-    return { start: new Date(2024, 1, 1), end: new Date(2024, 2, 31, 23, 59, 59, 999) };
-  }
-  const startYM = 2024 * 12 + 3 + (term - 2) * 6;
-  const endYM = startYM + 5;
-  const startYear = Math.floor(startYM / 12);
-  const startMonth = startYM % 12;
-  const endYear = Math.floor(endYM / 12);
-  const endMonth = endYM % 12;
-  const endDay = new Date(endYear, endMonth + 1, 0).getDate();
-  return {
-    start: new Date(startYear, startMonth, 1),
-    end:   new Date(endYear, endMonth, endDay, 23, 59, 59, 999)
-  };
-}
-
-function _termLabel(term) {
-  const r = _getTermDateRange(term);
-  const fmt = d => `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`;
-  return `第${term}屆（${fmt(r.start)}~${fmt(r.end)}）`;
-}
-
-function _countByTerm(list) {
-  const c = {};
-  list.forEach(g => {
-    const t = _getTermFromDate(g.firstVisit);
-    if (t) c[t] = (c[t] || 0) + 1;
-  });
-  return c;
-}
-
-function _availableTerms() {
-  if (!_guestData) return [];
-  const set = new Set();
-  _guestData.forEach(g => {
-    const t = _getTermFromDate(g.firstVisit);
-    if (t) set.add(t);
-  });
-  return [...set].sort((a,b) => b - a);
-}
-
-function _setTermFilter(t) {
-  _guestTermFilter = (_guestTermFilter === t) ? 0 : t;
-  renderGuestTrack();
-}
-
-function _countByStatus(list) {
-  const c = {};
-  list.forEach(g => {
-    const s = g.status || '待追蹤';
-    c[s] = (c[s] || 0) + 1;
-  });
-  return c;
-}
-
-function _statusSelectHtml() {
-  // 狀態篩選的「每個選項計數」以「目前 tab + 搜尋 + 年份」為 scope，不套狀態本身
-  const scope = _filterGuestsScope(_guestSubTab);
-  const counts = _countByStatus(scope);
-  const highCount = scope.filter(_isHighPotentialGuest).length;
-  return `<select onchange="_setStatusFilter(this.value)" class="guest-filter-sel">
-    <option value="" ${!_guestStatusFilter?'selected':''}>全部狀態・${scope.length} 筆</option>
-    <option value="${HIGH_POTENTIAL_KEY}" ${_guestStatusFilter===HIGH_POTENTIAL_KEY?'selected':''}>${HIGH_POTENTIAL_LABEL}・${highCount} 筆</option>
-    ${GUEST_STATUSES.filter(s => !['已入會','轉別分會','親友團','工作夥伴','行業別衝突'].includes(s)).map(s => `<option value="${s}" ${_guestStatusFilter===s?'selected':''}>${_escH(s)}・${counts[s]||0} 筆</option>`).join('')}
-  </select>`;
-}
-
-function _termSelectHtml() {
-  const scopeNoTerm = _filterGuestsScope(_guestSubTab, false);
-  const tCounts = _countByTerm(scopeNoTerm);
-  const terms = _availableTerms();
-  return `<select onchange="_setTermFilter(+this.value)" class="guest-filter-sel">
-    <option value="0" ${_guestTermFilter===0?'selected':''}>全部屆數・${scopeNoTerm.length} 筆</option>
-    ${terms.map(t => `<option value="${t}" ${_guestTermFilter===t?'selected':''}>${_termLabel(t)}・${tCounts[t]||0} 筆</option>`).join('')}
-  </select>`;
-}
-
-function _setStatusFilter(v) {
-  _guestStatusFilter = v;
-  renderGuestTrack();
-}
 
 function _renderGuestListOnly() {
   // 搜尋輸入時：只重渲染列表區塊，stats / tabs / 搜尋框保持原狀（避免焦點丟失）
   _renderOnlyList();
 }
 const _debouncedRenderGuestList = _debounce(_renderGuestListOnly, 150);
-
-function _guestSubSwitch(v) { _guestSubTab = v; _guestSearch = ''; _guestStatusFilter = ''; _guestTermFilter = 0; renderGuestTrack(); }
-
-function _guestStatusBadge(status) {
-  const s = status || '待追蹤';
-  const c = GUEST_STATUS_COLORS[s] || GUEST_STATUS_COLORS['待追蹤'];
-  return `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${c.bg};color:${c.fg};font-size:11px;font-weight:700;white-space:nowrap;">${_escH(s)}</span>`;
-}
-
-function _joinProbBadge(joinProb) {
-  const p = joinProb || '未評估';
-  if (p === '未評估') return '';
-  const c = JOIN_PROB_COLORS[p] || JOIN_PROB_COLORS['未評估'];
-  return `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${c.bg};color:${c.fg};font-size:11px;font-weight:700;white-space:nowrap;">入會機率：${_escH(p)}</span>`;
-}
 
 function _guestCardHtml(g) {
   const key = _guestKey(g);
@@ -1652,33 +1370,6 @@ async function saveGuest(gKey) {
   }
 }
 
-function deleteGuestConfirm(gKey) {
-  if (!_canEditTab('guesttrack')) { showToast('無編輯權限'); return; }
-  const [year, row] = gKey.split('-').map(Number);
-  const g = _guestData.find(x => x.year === year && x.sheetRow === row);
-  if (!g) return;
-  if (!confirm(`確定要刪除「${g.name}」？此動作無法還原。`)) return;
-  _deleteGuest(year, row);
-}
-
-async function _deleteGuest(year, row) {
-  // 樂觀刪除：先從本地移除 + 立即重渲染 + 立即提示，API 在背景同步
-  if (Array.isArray(_guestData)) {
-    _guestData = _guestData.filter(x => !(x.year === year && x.sheetRow === row));
-    renderGuestTrack();
-    showToast('已刪除');
-  } else {
-    showToast('刪除中...');
-  }
-  try {
-    await _apiPost({ action: 'deleteGuest', year, sheetRow: row });
-  } catch {
-    showToast('同步失敗，請重新整理');
-    _guestData = null;
-    renderGuestTrack();
-  }
-}
-
 // ===== 匯入 Excel =====
 const SHEETJS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 let _importParsedGuests = []; // 暫存解析後的待匯入清單
@@ -1898,7 +1589,6 @@ async function _doImport() {
     showToast('匯入失敗，請重試');
   }
 }
-
 
 // ===== 列印本周來賓資訊（A4 直印，10 人/頁，自動分頁）=====
 async function openWeekPrintPreview() {

@@ -119,34 +119,6 @@ function _getIndustryOptions(selected) {
     merged.map(ind => `<option value="${_escH(ind)}"${ind===selected?' selected':''}>${_escH(ind)}</option>`).join('');
 }
 
-function openManageIndustries() {
-  if (cache['__industries__'] && cache['__industries__'].length) _industries = cache['__industries__'];
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.id = 'industryModal';
-  overlay.innerHTML = `
-    <div class="modal-box" style="max-width:340px;">
-      <div class="modal-title">產業鏈管理</div>
-      <div id="industryList" style="margin-bottom:14px;max-height:280px;overflow-y:auto;"></div>
-      <div style="display:flex;gap:8px;">
-        <input class="modal-input" id="industryNewInput" placeholder="輸入新產業鏈名稱" style="margin-bottom:0;flex:1;" onkeydown="if(event.key==='Enter')addIndustry()">
-        <button onclick="addIndustry()" style="padding:10px 16px;background:var(--red);color:white;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">新增</button>
-      </div>
-      <div class="modal-btns" style="margin-top:16px;">
-        <button class="modal-cancel" style="width:100%;" onclick="document.getElementById('industryModal').remove()">關閉</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-  _renderIndustryList();
-  // 背景取得最新伺服器資料，如有更新則重新渲染清單
-  _bgRefresh().then(() => {
-    if (cache['__industries__'] && cache['__industries__'].length) {
-      _industries = cache['__industries__'];
-      _renderIndustryList();
-    }
-  });
-}
-
 function _renderIndustryList() {
   const el = document.getElementById('industryList');
   if (!el) return;
@@ -199,16 +171,6 @@ function _renderIndustryListSettings() {
       }
     }
   });
-}
-
-function addIndustry() {
-  const val = document.getElementById('industryNewInput')?.value.trim();
-  if (!val || _industries.includes(val)) return;
-  _industries.push(val);
-  _saveIndustries();
-  document.getElementById('industryNewInput').value = '';
-  _renderIndustryList();
-  _renderIndustryListSettings();
 }
 
 function addIndustryFromSettings() {
@@ -506,34 +468,6 @@ async function addMember() {
     if (_activeTab === 'member') renderMembers();
     if (_activeTab === 'dm') renderDM();
   } catch { showToast('新增失敗，請重試'); }
-}
-
-function confirmDeleteMember(btn) {
-  const sheetRow = parseInt(btn.dataset.row);
-  const name = btn.dataset.name;
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.id = 'memberModal';
-  overlay.dataset.delRow = sheetRow;
-  overlay.dataset.delName = name;
-  overlay.innerHTML = `
-    <div class="modal-box">
-      <div class="modal-title" style="color:#e74c3c;">確認刪除</div>
-      <p style="font-size:15px;margin-bottom:8px;">確定要刪除 <strong>${_escH(name)}</strong> 的資料嗎？</p>
-      <p style="font-size:13px;color:var(--text-soft);">刪除後雲端試算表中的該筆資料也會一併移除，無法復原。</p>
-      <div class="modal-btns" style="margin-top:24px;">
-        <button class="modal-save" style="background:#e74c3c;" onclick="deleteMemberFromModal()">確認刪除</button>
-        <button class="modal-cancel" onclick="closeEditMember()">取消</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-}
-
-function deleteMemberFromModal() {
-  const overlay = document.getElementById('memberModal');
-  const sheetRow = parseInt(overlay.dataset.delRow);
-  const memberName = overlay.dataset.delName;
-  deleteMember(sheetRow, memberName);
 }
 
 async function deleteMember(sheetRow, memberName) {

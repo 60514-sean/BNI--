@@ -9,7 +9,6 @@ const CLOUDINARY_CLOUD_NAME    = 'due8faksv';
 const CLOUDINARY_UPLOAD_PRESET = 'bangqi_unsigned';
 const CLOUDINARY_FOLDER        = 'bni_report';
 
-
 // 把本機殘留的舊 dataURL（cache/IDB）升級成 Cloudinary URL，補進主檔 slide.url
 let _rptMigrating = false;
 async function _rptMigrateLegacyImages() {
@@ -81,16 +80,6 @@ function _rptIdbOpen() {
     req.onsuccess = () => { _rptIdbDb = req.result; resolve(_rptIdbDb); };
     req.onerror = () => reject(req.error);
   });
-}
-async function _rptIdbPut(id, dataUrl) {
-  try {
-    const db = await _rptIdbOpen();
-    await new Promise((res, rej) => {
-      const tx = db.transaction(_RPT_IDB_STORE, 'readwrite');
-      tx.objectStore(_RPT_IDB_STORE).put(dataUrl, id);
-      tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error);
-    });
-  } catch (e) { console.warn('[REPORT IDB put]', e); }
 }
 async function _rptIdbDelete(id) {
   try {
@@ -509,17 +498,6 @@ function replaceReportImage(id) {
     }
   };
   input.click();
-}
-
-async function moveReportSlide(id, delta) {
-  const d = getReportData();
-  const i = d.slides.findIndex(s => s.id === id);
-  if (i < 0) return;
-  const j = i + delta;
-  if (j < 0 || j >= d.slides.length) return;
-  [d.slides[i], d.slides[j]] = [d.slides[j], d.slides[i]];
-  await saveReportMain(d.title, d.slides.map(s => s.id));   // 只寫 main 順序
-  renderReport();
 }
 
 // ===== 預覽（modal 內縮放呈現 A4 排版）=====

@@ -26,8 +26,8 @@ window.addEventListener('scroll', () => {
 });
 
 const DM_CAT_COLORS = ['#c0392b','#7b6914','#2e6e8e','#7b3f6a','#2e7d52','#b5631a','#5a4a8a','#4a7a5a','#8e3a3a','#3a6a7a'];
-const DM_PANEL_W  = 225;   // px，每面板寬度（900px / 4）
-const DM_PANEL_H  = 636;   // px，畫布高度
+// px，每面板寬度（900px / 4）
+// px，畫布高度
 const DM_RED_MM   = 21.8;  // mm，P1-P2 底部禁區
 const PX2MM = 297 / 636;   // px→mm 換算（面板高 297mm / 畫布高 636px）
 

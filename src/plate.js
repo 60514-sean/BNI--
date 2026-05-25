@@ -171,34 +171,6 @@ function _scalePlate() {
 window.addEventListener('resize', () => { if (_activeTab === 'plate') _scalePlate(); });
 
 // 量測表格列高並反推「自動縮放係數」，使表格剛好填滿可用空間
-function _autoFitPlate() {
-  const sheet = document.getElementById('plateSheet');
-  if (!sheet) return;
-  const cols = sheet.querySelector('.plate-cols');
-  if (!cols) return;
-  // 重設縮放後量自然高度
-  sheet.style.setProperty('--ps', '1');
-  void sheet.offsetHeight;
-
-  const tables = sheet.querySelectorAll('.plate-table');
-  let maxScroll = 0;
-  tables.forEach(t => { maxScroll = Math.max(maxScroll, t.scrollHeight); });
-  if (maxScroll <= 0) return;
-  const avail = cols.clientHeight;
-  let scale = (avail * 0.95) / maxScroll;
-  scale = Math.max(0.5, Math.min(2.5, scale));
-  sheet.style.setProperty('--ps', scale.toFixed(3));
-
-  // 文字換行造成的非線性誤差：迭代修正
-  for (let pass = 0; pass < 3; pass++) {
-    void sheet.offsetHeight;
-    let curMax = 0;
-    tables.forEach(t => { curMax = Math.max(curMax, t.scrollHeight); });
-    if (curMax <= avail * 0.99) break;
-    const cur = parseFloat(getComputedStyle(sheet).getPropertyValue('--ps')) || 1;
-    sheet.style.setProperty('--ps', (cur * (avail / curMax) * 0.95).toFixed(3));
-  }
-}
 
 async function _renderOneSheetCanvas(sheetEl) {
   const wrap = document.createElement('div');

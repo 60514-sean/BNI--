@@ -973,15 +973,6 @@ function _scUpdateAction(mid, idx, field, val) {
   }
 }
 
-async function _scDeleteMeeting(id) {
-  if (!confirm('確定要刪除這場會議紀錄？此操作無法復原。')) return;
-  const all = _scGetMeetings().filter(m => m.id !== id);
-  await _scSaveMeetings(all);
-  showToast('已刪除');
-  _scState.histDetailId = null;
-  _scRenderActive();
-}
-
 // ===== 上週追蹤 =====
 function _scRenderTrack() {
   const m = _scLastMeeting();
@@ -1471,129 +1462,6 @@ function _scBuildLeadershipBlocks(m) {
 }
 
 // === 舊版領導月會固定 2 頁分頁（已停用，保留參考） ===
-function _scBuildLeadershipSheetHtml_OLD(m, barHtml, headlineHtml, footHtml) {
-  const mod = _scMod();
-  const headerHtml = barHtml + headlineHtml;
-
-  // 議題（領導月會 hasTopics=false，但保險起見）
-  const topicsBlock = mod.hasTopics !== false ? (() => {
-    const roleSections = (mod.owners || []).map(role => {
-      const items = _scTopicsForRole(m, role);
-      if (!items.length) return '';
-      const inner = items.map(({ t }, i) => `
-        <div class="sc-sheet-topic">
-          <div class="sc-sheet-topic-title">
-            <span class="sc-sheet-topic-num">議題 ${i + 1}</span>
-            <span>${_scEsc(t.title || '(未填標題)')}</span>
-          </div>
-          ${t.content ? `<div class="sc-sheet-topic-content">${_scEsc(t.content)}</div>` : ''}
-          ${t.decision ? `<div class="sc-sheet-topic-decision"><span class="sc-sheet-tag">決議</span>${_scEsc(t.decision)}</div>` : ''}
-        </div>
-      `).join('');
-      return `<div class="sc-sheet-role-group"><div class="sc-sheet-role-h">${role}</div>${inner}</div>`;
-    }).join('');
-    const topicsHtml = roleSections || `<div class="sc-sheet-empty-block">本次無議題</div>`;
-    return `<div class="sc-sheet-section">
-      <div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>議題與決議</div>
-      ${topicsHtml}
-    </div>`;
-  })() : '';
-
-  const reportsBlock = _scBuildSheetReports(m);
-
-  // 待辦
-  const actsHtml = (m.actions || []).length
-    ? `<table class="sc-sheet-table">
-        <thead><tr>
-          <th style="width:8mm;">#</th>
-          <th>待辦內容</th>
-          <th style="width:22mm;">負責人</th>
-          <th style="width:22mm;">期限</th>
-          <th style="width:18mm;">狀態</th>
-        </tr></thead>
-        <tbody>
-          ${m.actions.map((a, i) => `
-            <tr>
-              <td class="sc-sheet-td-num">${i + 1}</td>
-              <td class="sc-sheet-td-text">${_scEsc(a.text || '')}${a.trackNote ? `<div class="sc-sheet-tracknote">追蹤：${_scEsc(a.trackNote)}</div>` : ''}</td>
-              <td>${_scEsc(a.owner || '')}</td>
-              <td>${_scEsc(a.due || '')}</td>
-              <td><span class="sc-sheet-status sc-sheet-status-${a.status || 'pending'}">${_SC_STATUS_LABELS[a.status || 'pending']}</span></td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>`
-    : `<div class="sc-sheet-empty-block">本次無待辦事項</div>`;
-  const actionsBlock = `<div class="sc-sheet-section">
-    <div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>待辦事項追蹤</div>
-    ${actsHtml}
-  </div>`;
-
-  // 動議
-  const motionsHtml = (m.motions || []).length
-    ? m.motions.map((mo, i) => `
-        <div class="sc-sheet-topic">
-          <div class="sc-sheet-topic-title">
-            <span class="sc-sheet-topic-num sc-sheet-topic-num-alt">動議 ${i + 1}</span>
-            <span>${_scEsc(mo.title || '(未填內容)')}</span>
-          </div>
-          ${mo.decision ? `<div class="sc-sheet-topic-decision"><span class="sc-sheet-tag">決議</span>${_scEsc(mo.decision)}</div>` : ''}
-        </div>
-      `).join('')
-    : `<div class="sc-sheet-empty-block">本次無臨時動議</div>`;
-  const motionsBlock = mod.hasMotions === true ? `<div class="sc-sheet-section">
-    <div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>臨時動議</div>
-    ${motionsHtml}
-  </div>` : '';
-
-  const summaryBlock = mod.hasSummary !== false && m.summary ? `<div class="sc-sheet-section">
-    <div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>結論摘要</div>
-    <div class="sc-sheet-summary">${_scEsc(m.summary).replace(/\n/g, '<br>')}</div>
-  </div>` : '';
-
-  const pages = [
-    headerHtml + topicsBlock + reportsBlock,
-    barHtml + actionsBlock + motionsBlock + summaryBlock + footHtml
-  ];
-  return pages.map((p, i) => `<div class="sc-sheet-page" data-page="${i + 1}">${p}<div class="sc-sheet-page-no">- ${i + 1} -</div></div>`).join('');
-}
-
-function _scBuildSheetReports(m) {
-  const mod = _scMod();
-  if (!mod.hasReports) return '';
-  const roles = mod.reportRoles || mod.owners || [];
-  const reports = m.reports || {};
-  const committee = (Array.isArray(m.committee) ? m.committee : [])
-    .filter(c => (c.name || '').trim() && (c.report || '').trim());
-
-  const parts = [];
-  roles.forEach(r => {
-    if ((reports[r] || '').trim()) {
-      parts.push(`
-        <div class="sc-sheet-report">
-          <div class="sc-sheet-report-role">${r}</div>
-          <div class="sc-sheet-report-text">${_scEsc(reports[r]).replace(/\n/g, '<br>')}</div>
-        </div>
-      `);
-    }
-    if (r === '副主席') {
-      committee.forEach(c => {
-        parts.push(`
-          <div class="sc-sheet-report">
-            <div class="sc-sheet-report-role sc-sheet-report-role-com">${_scEsc(c.name)}<div class="sc-sheet-report-role-tag">委員</div></div>
-            <div class="sc-sheet-report-text">${_scEsc(c.report).replace(/\n/g, '<br>')}</div>
-          </div>
-        `);
-      });
-    }
-  });
-  return `
-    <div class="sc-sheet-section">
-      <div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>各領導人報告事項</div>
-      ${parts.join('') || `<div class="sc-sheet-empty-block">本次無報告事項</div>`}
-    </div>
-  `;
-}
 
 function _scEnsureSheetEl() {
   let wrap = document.getElementById('sanchangPrintArea');
@@ -1724,18 +1592,6 @@ async function _scExportJPG(mid) {
     showLoader(false);
     _resumeEditLock();
   }
-}
-
-function _scPrint(mid) {
-  const m = _scFindMeeting(mid);
-  if (!m) return;
-  const sheet = _scEnsureSheetEl();
-  sheet.innerHTML = _scBuildSheetHtml(m);
-  document.body.classList.add('sc-print-mode');
-  setTimeout(() => {
-    window.print();
-    setTimeout(() => document.body.classList.remove('sc-print-mode'), 500);
-  }, 120);
 }
 
 // ===== LINE 文字 =====
