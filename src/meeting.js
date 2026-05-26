@@ -427,8 +427,8 @@ function renderMeeting() {
         <button class="meet-tb-btn" onclick="_meetManageVersions()">版本管理</button>
         <button class="meet-tb-btn" onclick="_meetOpenAddItem()">新增項目</button>
         <span style="flex:1"></span>
-        <button class="meet-tb-btn primary" onclick="_meetExportPDF()">輸出 PDF</button>
-        <button class="meet-tb-btn primary" onclick="_meetExportJPG()">輸出 JPG</button>
+        <button class="meet-tb-btn primary" onclick="_meetExportPDF()">PDF</button>
+        <button class="meet-tb-btn primary" onclick="_meetExportJPG()">JPG</button>
       </div>
       <div id="meetBody"></div>
     </div>

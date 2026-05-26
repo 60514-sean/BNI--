@@ -1223,7 +1223,7 @@ function _lightsPredictFilterCards() {
   });
 }
 
-// 預測卡：顯示「目前 → 預測」+「達綠燈還需多少」
+// 預測卡：顯示「目前 → 預測」+ 每項「到下一個級距的目標與差額」
 function _lightsPredictCard(s, idx) {
   const mem = (_memberData || []).find(m => m.name === s.name);
   const photo = mem?.photo || '';
@@ -1234,31 +1234,48 @@ function _lightsPredictCard(s, idx) {
   const predBg = _lightBgColor(s.pred.light);
   const _ds = [s.name, specialty].filter(Boolean).join(' ').toLowerCase();
 
-  // 達綠燈門檻 (用預測週數計算，數據用「滾動窗口」目前累計)
+  // 分級提醒：對每個指標算「到下一個更高級距」的目標與差額（用預測週數 fw，數據用滾動窗口累計）
   const fw = s.futureWeeks;
-  const needRefGreen   = Math.max(0, Math.ceil(LIGHTS_CFG.refScore[0] * fw) - s.ref);
-  const needVisGreen   = Math.max(0, Math.ceil(LIGHTS_CFG.visScore[0] * fw) - s.vis);
-  const needOneGreen   = Math.max(0, Math.ceil(LIGHTS_CFG.oneScore[0] * fw) - s.one);
-  const needTrainGreen = Math.max(0, LIGHTS_CFG.trainScore[0] - s.train);
-  const needAmtGreen   = Math.max(0, LIGHTS_CFG.amtScore[0] - s.amt);
+  const C = LIGHTS_CFG;
+  const tRef   = [{th:Math.ceil(C.refScore[3]*fw),sc:5},{th:Math.ceil(C.refScore[2]*fw),sc:10},{th:Math.ceil(C.refScore[1]*fw),sc:15},{th:Math.ceil(C.refScore[0]*fw),sc:20}];
+  const tVis   = [{th:Math.ceil(C.visScore[1]*fw),sc:10},{th:Math.ceil(C.visScore[0]*fw),sc:15}];
+  const tOne   = [{th:Math.ceil(C.oneScore[2]*fw),sc:5},{th:Math.ceil(C.oneScore[1]*fw),sc:10},{th:Math.ceil(C.oneScore[0]*fw),sc:15}];
+  const tTrain = [{th:C.trainScore[2],sc:5},{th:C.trainScore[1],sc:10},{th:C.trainScore[0],sc:15}];
+  const tAmt   = [{th:C.amtScore[2],sc:5},{th:C.amtScore[1],sc:10},{th:C.amtScore[0],sc:15}];
+  // 找「目前值還沒達到的最近一級」= 下一個要衝的級距
+  const nextTier = (cur, tiers) => {
+    for (const t of tiers) if (cur < t.th) return { target:t.th, need:t.th-cur, sc:t.sc };
+    return null; // 已達頂標
+  };
 
   const items = [
-    { label: '引薦', cur: s.ref,   need: needRefGreen,   unit: '筆' },
-    { label: '來賓', cur: s.vis,   need: needVisGreen,   unit: '位' },
-    { label: '121',  cur: s.one,   need: needOneGreen,   unit: '次' },
-    { label: '培訓', cur: s.train, need: needTrainGreen, unit: '分' },
-    { label: '金額', cur: `${(s.amt/10000).toFixed(0)}萬`, need: needAmtGreen ? `${(needAmtGreen/10000).toFixed(0)}萬` : 0, unit: '' },
-    { label: '出席', cur: `缺${s.abs}`, need: 0, unit: '' }
+    { label: '引薦', raw: (s.refIn||0)+(s.refOut||0), tiers: tRef, unit: '筆', disp: v => v },
+    { label: '來賓', raw: s.vis,   tiers: tVis,   unit: '位', disp: v => v },
+    { label: '121',  raw: s.one,   tiers: tOne,   unit: '次', disp: v => v },
+    { label: '培訓', raw: s.train, tiers: tTrain, unit: '分', disp: v => v },
+    { label: '金額', raw: s.amt,   tiers: tAmt,   unit: '萬', disp: v => (v/10000).toFixed(0) },
+    { label: '出席', raw: s.abs,   tiers: null,   unit: '',   disp: v => v }
   ];
   const itemsHtml = items.map(it => {
-    const done = !it.need || it.need === 0;
+    let curText, tagText, done;
+    if (it.label === '出席') {
+      done = (s.abs === 0);
+      curText = `缺 ${s.abs}`;
+      tagText = done ? '全勤' : '缺席無法回補';   // 缺席已發生，不提目標
+    } else {
+      curText = `${it.disp(it.raw)}${it.unit}`;
+      const nt = nextTier(it.raw, it.tiers);
+      if (!nt) { done = true; tagText = '已達頂標'; }
+      else { done = false; tagText = `目標 ${it.disp(nt.target)}${it.unit}・差 ${it.disp(nt.need)}・${nt.sc}分`; }
+    }
     const tagBg = done ? '#d9ead3' : '#fef9e7';
     const tagColor = done ? '#27ae60' : '#d4ac0d';
-    const tagText = done ? '已達綠燈' : `還需 ${it.need}${it.unit}`;
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:white;border:1px solid var(--gray-border);border-radius:6px;font-size:12px;">
-      <span style="color:var(--text);font-weight:700;">${it.label}</span>
-      <span style="color:var(--text-soft);font-weight:600;">${it.cur}</span>
-      <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:${tagBg};color:${tagColor};">${tagText}</span>
+    return `<div style="display:flex;flex-direction:column;gap:4px;padding:7px 10px;background:white;border:1px solid var(--gray-border);border-radius:6px;font-size:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;">
+        <span style="color:var(--text);font-weight:700;white-space:nowrap;">${it.label}</span>
+        <span style="color:var(--text-soft);font-weight:600;white-space:nowrap;">${curText}</span>
+      </div>
+      <span style="font-size:11px;font-weight:700;padding:3px 6px;border-radius:5px;background:${tagBg};color:${tagColor};text-align:center;line-height:1.3;">${tagText}</span>
     </div>`;
   }).join('');
 

@@ -1579,9 +1579,9 @@ input.is-locked:focus, textarea.is-locked:focus {
 
 /* ===== 例會流程 ===== */
 .meet-wrapper { padding:0; max-width:980px; margin:0 auto; }
-.meet-toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+.meet-toolbar { display:flex; flex-wrap:nowrap; gap:6px; align-items:center; margin-bottom:12px; }
 .meet-tb-btn {
-  padding:9px 14px; font-size:13px; font-weight:700;
+  padding:8px 10px; font-size:12px; font-weight:700;
   border-radius:10px; border:1.5px solid var(--gray-border);
   background:white; color:var(--text); cursor:pointer;
   font-family:inherit; white-space:nowrap;
