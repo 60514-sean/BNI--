@@ -942,9 +942,13 @@ function _scCarryOverHtml(canEdit) {
            ${_SC_STATUS_ORDER.map(k => `<option value="${k}" ${status === k ? 'selected' : ''}>${_SC_STATUS_LABELS[k]}</option>`).join('')}
          </select>`
       : `<span class="sc-status-dot sc-status-${status}"></span>${_SC_STATUS_LABELS[status]}`;
+    const reasonCtl = canEdit
+      ? `<input type="text" class="sc-input sc-input-sm sc-carry-reason" placeholder="本周原因／說明（為何尚未結案）" value="${_scEsc(a.carryReason || '')}" oninput="_scUpdateCarryReason('${last.id}',${idx},this.value)">`
+      : (a.carryReason ? `<div class="sc-carry-reason-text">原因：${_scEsc(a.carryReason)}</div>` : '');
     return `<div class="sc-carry-row">
       <div class="sc-carry-main">${owner}<span class="sc-carry-text">${_scEsc(a.text || '(未填待辦)')}</span></div>
       <div class="sc-carry-meta">${due}${statusCtl}</div>
+      ${reasonCtl}
     </div>`;
   }).join('');
   const collapsed = _scState.carryCollapsed === true;
@@ -964,6 +968,14 @@ function _scToggleCarry() {
   _scState.carryCollapsed = !_scState.carryCollapsed;
   const sec = document.querySelector(`#${_scMod().contentEl} .sc-carry`);
   if (sec) sec.classList.toggle('is-collapsed', _scState.carryCollapsed);
+}
+
+// 本周為上週未結案項目填寫原因／說明（存在上週該待辦上，debounced 不重渲染避免失焦）
+function _scUpdateCarryReason(lastId, idx, val) {
+  const last = _scFindMeeting(lastId);
+  if (!last || !last.actions || !last.actions[idx]) return;
+  last.actions[idx].carryReason = val;
+  _scDebouncedSave(last);
 }
 
 function _scUpdateCarryStatus(lastId, idx, val) {
@@ -1683,7 +1695,10 @@ function _scBuildSanchangBlocks(m) {
           ${items.map(({ a }, i) => `
             <tr>
               <td class="d-col-num">${i + 1}</td>
-              <td><div class="d-title">${_scEsc(a.text || '(未填內容)')}</div></td>
+              <td>
+                <div class="d-title">${_scEsc(a.text || '(未填內容)')}</div>
+                ${a.carryReason ? `<div class="d-desc">原因：${_scEsc(a.carryReason).replace(/\n/g, '<br>')}</div>` : ''}
+              </td>
               <td class="d-col-end">${a.owner ? _scEsc(a.owner) : '<span class="d-muted">—</span>'}</td>
               <td class="d-col-end">${a.due ? _scEsc(a.due) : '<span class="d-muted">—</span>'}</td>
               <td class="d-col-end"><span class="sc-sheet-status sc-sheet-status-${a.status || 'pending'}">${_SC_STATUS_LABELS[a.status || 'pending']}</span></td>

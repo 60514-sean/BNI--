@@ -2843,10 +2843,12 @@ input.sc-input-sm, select.sc-input-sm { min-height:34px; }
 .sc-carry.is-collapsed .sc-card-chevron { transform:rotate(-90deg); }
 .sc-carry.is-collapsed .sc-carry-body { display:none; }
 .sc-carry-body { padding:2px 2px 12px 18px; display:flex; flex-direction:column; }
-.sc-carry-row { display:flex; align-items:center; gap:8px; padding:8px 6px; }
+.sc-carry-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 6px; }
 .sc-carry-row + .sc-carry-row { border-top:1px solid #eef1f4; }
 .sc-carry-main { flex:1; min-width:0; display:flex; align-items:center; gap:8px; }
 .sc-carry-text { font-size:14px; color:var(--text); }
+.sc-carry-reason { flex-basis:100%; width:100%; }
+.sc-carry-reason-text { flex-basis:100%; width:100%; font-size:13px; color:var(--text-soft); padding-left:2px; }
 .sc-carry-owner {
   flex-shrink:0; font-size:11px; font-weight:800;
   background:#fdebd8; color:#b9651a; border-radius:5px; padding:1px 7px;
