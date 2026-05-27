@@ -1664,9 +1664,9 @@ function _scBuildSanchangBlocks(m) {
     const { last, items } = _scCarryOverActions();
     if (last && items.length) {
       blocks.push({
+        // 不強制換頁：若與「待辦事項追蹤」放得下同一頁就接著排，放不下才換頁
         html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>上週未結案<span class="sc-sheet-h2-sub">（${_scEsc(last.meetingDate || '')}）</span></div>`,
-        keepWithNext: true,
-        pageBreakBefore: true
+        keepWithNext: true
       });
       const carryTable = `<table class="sc-doc-table">
         <colgroup>
@@ -1907,18 +1907,6 @@ function _scLoadScript(url) {
   });
 }
 
-async function _scRenderSheetToCanvas(m) {
-  const sheet = _scEnsureSheetEl();
-  sheet.innerHTML = _scBuildSheetHtml(m);
-  document.body.classList.add('sc-print-mode');
-  await new Promise(r => setTimeout(r, 120));
-  try {
-    return await html2canvas(sheet, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
-  } finally {
-    document.body.classList.remove('sc-print-mode');
-  }
-}
-
 function _scSafeName(m, ext) {
   const d = (m.meetingDate || '').replace(/[\\/:*?"<>|]/g, '_');
   return `${_scMod().filePrefix}_${d}.${ext}`;
@@ -1963,6 +1951,7 @@ async function _scExportPDF(mid) {
   }
 }
 
+// JPG：逐頁輸出，每張 A4 各下載一個檔（不再合成一整條長圖）
 async function _scExportJPG(mid) {
   const m = _scFindMeeting(mid);
   if (!m) return;
@@ -1970,13 +1959,30 @@ async function _scExportJPG(mid) {
   showLoader(true, 'JPG 產生中...');
   try {
     await _scLoadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-    const canvas = await _scRenderSheetToCanvas(m);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.93);
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = _scSafeName(m, 'jpg');
-    document.body.appendChild(a); a.click(); a.remove();
-    showToast('JPG 已下載');
+    const sheet = _scEnsureSheetEl();
+    sheet.innerHTML = _scBuildSheetHtml(m);
+    document.body.classList.add('sc-print-mode');
+    await new Promise(r => setTimeout(r, 150));
+    const pages = sheet.querySelectorAll('.sc-sheet-page');
+    const total = pages.length;
+    const baseDate = (m.meetingDate || '').replace(/[\\/:*?"<>|]/g, '_');
+    try {
+      for (let i = 0; i < total; i++) {
+        showLoader(true, `JPG 產生中... (${i + 1}/${total})`);
+        const canvas = await html2canvas(pages[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.93);
+        const suffix = total > 1 ? `_第${i + 1}頁` : '';
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `${_scMod().filePrefix}_${baseDate}${suffix}.jpg`;
+        document.body.appendChild(a); a.click(); a.remove();
+        // 多檔下載：間隔避免瀏覽器擋下後續下載
+        if (i < total - 1) await new Promise(r => setTimeout(r, 450));
+      }
+    } finally {
+      document.body.classList.remove('sc-print-mode');
+    }
+    showToast(total > 1 ? `已下載 ${total} 張 JPG` : 'JPG 已下載');
   } catch (e) {
     console.error('[SC JPG]', e);
     showToast('JPG 匯出失敗');
