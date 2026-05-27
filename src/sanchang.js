@@ -413,7 +413,7 @@ async function _scCreateThisWeek() {
 function _scRenderEditor(m) {
   const canEdit = _canEditTab(_scMod().id);
   const mod = _scMod();
-  if (mod.id === 'leadership') _scMigrateLeadershipReports(m);
+  if (mod.id === 'leadership') { _scMigrateLeadershipReports(m); _scMigrateCommitteeItems(m); }
   const showTopics       = mod.hasTopics !== false;
   const showMotions      = mod.hasMotions === true;
   const showSummary      = mod.hasSummary !== false;
@@ -644,6 +644,87 @@ function _scUpdateCommitteeAnnouncement(mid, cidx, aidx, val) {
   _scDebouncedSave(m);
 }
 
+// === 委員議題 CRUD（索引綁定，與姓名脫鉤）===
+function _scExpandCommittee(cidx, name) {
+  _scExpandRole('items', (name || '').trim() ? `_com_${name.trim()}` : `_com_idx_${cidx}`);
+}
+async function _scAddCommitteeTopic(mid, cidx) {
+  const m = _scFindMeeting(mid);
+  if (!m || !m.committee || !m.committee[cidx]) return;
+  if (!Array.isArray(m.committee[cidx].topics)) m.committee[cidx].topics = [];
+  m.committee[cidx].topics.push({ title: '', content: '', decision: '' });
+  _scExpandCommittee(cidx, m.committee[cidx].name);
+  await _scUpsertMeeting(m);
+  _scRenderActive();
+}
+async function _scDelCommitteeTopic(mid, cidx, tidx) {
+  if (!confirm('刪除這個議題？')) return;
+  const m = _scFindMeeting(mid);
+  if (!m || !m.committee || !m.committee[cidx] || !m.committee[cidx].topics) return;
+  m.committee[cidx].topics.splice(tidx, 1);
+  await _scUpsertMeeting(m);
+  _scRenderActive();
+}
+function _scUpdateCommitteeTopic(mid, cidx, tidx, field, val) {
+  const m = _scFindMeeting(mid);
+  if (!m || !m.committee || !m.committee[cidx] || !m.committee[cidx].topics || !m.committee[cidx].topics[tidx]) return;
+  m.committee[cidx].topics[tidx][field] = val;
+  _scDebouncedSave(m);
+}
+
+// === 委員待辦 CRUD（索引綁定）===
+async function _scAddCommitteeAction(mid, cidx) {
+  const m = _scFindMeeting(mid);
+  if (!m || !m.committee || !m.committee[cidx]) return;
+  if (!Array.isArray(m.committee[cidx].actions)) m.committee[cidx].actions = [];
+  m.committee[cidx].actions.push({ text: '', due: '', status: 'pending' });
+  _scExpandCommittee(cidx, m.committee[cidx].name);
+  await _scUpsertMeeting(m);
+  _scRenderActive();
+}
+async function _scDelCommitteeAction(mid, cidx, aidx) {
+  if (!confirm('刪除這個待辦？')) return;
+  const m = _scFindMeeting(mid);
+  if (!m || !m.committee || !m.committee[cidx] || !m.committee[cidx].actions) return;
+  m.committee[cidx].actions.splice(aidx, 1);
+  await _scUpsertMeeting(m);
+  _scRenderActive();
+}
+function _scUpdateCommitteeAction(mid, cidx, aidx, field, val) {
+  const m = _scFindMeeting(mid);
+  if (!m || !m.committee || !m.committee[cidx] || !m.committee[cidx].actions || !m.committee[cidx].actions[aidx]) return;
+  m.committee[cidx].actions[aidx][field] = val;
+  if (field === 'status') { _scUpsertMeeting(m).then(() => _scRenderActive()); }
+  else _scDebouncedSave(m);
+}
+function _scUpdateCommitteeActionDate(mid, cidx, aidx, val) {
+  const m = _scFindMeeting(mid);
+  if (!m || !m.committee || !m.committee[cidx] || !m.committee[cidx].actions || !m.committee[cidx].actions[aidx]) return;
+  m.committee[cidx].actions[aidx].due = _scDateFromInput(val);
+  _scDebouncedSave(m);
+}
+
+// 一次性遷移：把以委員姓名為 key 的舊資料（m.topics.role / m.actions.owner == 委員名）
+// 收回各委員的索引綁定陣列（c.topics / c.actions），讓未命名委員也能運作
+function _scMigrateCommitteeItems(m) {
+  if (m._committeeItemsMigrated) return;
+  const committee = Array.isArray(m.committee) ? m.committee : [];
+  committee.forEach(c => {
+    if (!Array.isArray(c.topics)) c.topics = [];
+    if (!Array.isArray(c.actions)) c.actions = [];
+    const name = (c.name || '').trim();
+    if (!name) return;
+    (m.topics || []).forEach(t => { if ((t.role || '') === name) c.topics.push({ title: t.title || '', content: t.content || '', decision: t.decision || '' }); });
+    (m.actions || []).forEach(a => { if ((a.owner || '') === name) c.actions.push({ text: a.text || '', due: a.due || '', status: a.status || 'pending', trackNote: a.trackNote || '' }); });
+  });
+  const comNames = new Set(committee.map(c => (c.name || '').trim()).filter(Boolean));
+  if (comNames.size) {
+    m.topics = (m.topics || []).filter(t => !comNames.has(t.role || ''));
+    m.actions = (m.actions || []).filter(a => !comNames.has(a.owner || ''));
+  }
+  m._committeeItemsMigrated = true;
+}
+
 async function _scAddAnnouncement(mid, role) {
   const m = _scFindMeeting(mid);
   if (!m) return;
@@ -758,6 +839,29 @@ function _scToggleBasic() {
   if (fbody) fbody.classList.toggle('is-collapsed', !_scState.basicOpen);
 }
 
+// 快速新增列的職掌選項：固定職掌 +（領導月會）副主席後插入「委員」(通用) 與各已命名委員
+function _scQuickRoleEntries(m) {
+  const mod = _scMod();
+  const entries = [];
+  (mod.owners || []).forEach(r => {
+    entries.push({ v: r, label: r });
+    if (mod.hasReports === true && r === '副主席') {
+      entries.push({ v: '__committee__', label: '委員' });
+      (Array.isArray(m.committee) ? m.committee : []).forEach((c, i) => {
+        const nm = (c.name || '').trim();
+        if (nm) entries.push({ v: `__com_${i}`, label: nm });
+      });
+    }
+  });
+  return entries;
+}
+function _scQuickRoleValues(m) { return _scQuickRoleEntries(m).map(e => e.v); }
+function _scQuickRoleOptionsHtml(m, sel) {
+  return _scQuickRoleEntries(m).map(e =>
+    `<option value="${_scEsc(e.v)}" ${sel === e.v ? 'selected' : ''}>${_scEsc(e.label)}</option>`
+  ).join('');
+}
+
 // 頂部快速新增列：選類型 + 職掌 + 內容，送出後自動歸到下方對應職掌卡
 function _scQuickAddBarHtml(m) {
   const st = _scState;
@@ -767,14 +871,12 @@ function _scQuickAddBarHtml(m) {
   if (mod.hasTopics !== false)       types.push({ id: 'topics',   label: '議題' });
   types.push({ id: 'actions', label: '待辦' });
   if (!types.some(t => t.id === st.quickType)) st.quickType = types[0].id;
-  const roles = _scComputedOwners(m);
-  if (!roles.includes(st.quickRole)) st.quickRole = roles[0] || '主席';
+  const roleVals = _scQuickRoleValues(m);
+  if (!roleVals.includes(st.quickRole)) st.quickRole = roleVals[0] || '主席';
   const typeBtns = types.map(t =>
     `<button type="button" class="sc-qa-type sc-qa-type-${t.id}${st.quickType === t.id ? ' active' : ''}" data-qatype="${t.id}" onclick="_scQuickSetType('${t.id}')">${t.label}</button>`
   ).join('');
-  const roleOpts = roles.map(r =>
-    `<option value="${_scEsc(r)}" ${st.quickRole === r ? 'selected' : ''}>${_scEsc(r)}</option>`
-  ).join('');
+  const roleOpts = _scQuickRoleOptionsHtml(m, st.quickRole);
   return `
     <div class="sc-quickadd">
       <div class="sc-qa-types">${typeBtns}</div>
@@ -803,7 +905,12 @@ function _scQuickSetType(t) {
   if (inp) { inp.placeholder = _scQuickPlaceholder(t); inp.focus(); }
 }
 
-function _scQuickSetRole(r) { _scState.quickRole = r; }
+function _scQuickSetRole(r) {
+  _scState.quickRole = r;
+  // 委員只有議題：選到委員時自動切到「議題」類型
+  const isCommittee = (r === '__committee__' || /^__com_\d+$/.test(r));
+  if (isCommittee && _scState.quickType !== 'topics') _scQuickSetType('topics');
+}
 
 async function _scQuickSubmit(mid) {
   const inp = document.getElementById('scQuickInput');
@@ -813,22 +920,34 @@ async function _scQuickSubmit(mid) {
   const m = _scFindMeeting(mid);
   if (!m) return;
   const type = _scState.quickType || 'announce';
-  const roles = _scComputedOwners(m);
-  const role = roles.includes(_scState.quickRole) ? _scState.quickRole : (roles[0] || '主席');
-  // 委員（領導月會）：布達寫進該委員的 announcements，而非 m.announcements
-  const comIdx = (_scMod().hasReports === true && Array.isArray(m.committee))
-    ? m.committee.findIndex(c => (c.name || '').trim() === role)
-    : -1;
-  if (type === 'announce' && comIdx >= 0) {
-    if (!Array.isArray(m.committee[comIdx].announcements)) m.committee[comIdx].announcements = [];
-    m.committee[comIdx].announcements.push({ content: val });
-    _scExpandRole('items', `_com_${role}`);
+  const sel = _scState.quickRole;
+  const refocus = () => { const i2 = document.getElementById('scQuickInput'); if (i2) { i2.value = ''; i2.focus(); } };
+
+  // 委員（領導月會）：通用「委員」沿用最近一個未命名委員、否則新建；指定委員以 __com_<i>
+  let ci = -1;
+  if (sel === '__committee__') {
+    m.committee = Array.isArray(m.committee) ? m.committee : [];
+    ci = m.committee.findIndex(c => !(c.name || '').trim());
+    if (ci < 0) { m.committee.push({ name: '', announcements: [], topics: [], actions: [] }); ci = m.committee.length - 1; }
+  } else if (/^__com_\d+$/.test(sel)) {
+    const i = parseInt(sel.slice(6), 10);
+    if (m.committee && m.committee[i]) ci = i;
+  }
+  if (ci >= 0) {
+    // 委員只有議題：不論選哪個類型，一律歸入該委員的議題
+    const c = m.committee[ci];
+    if (!Array.isArray(c.topics)) c.topics = [];
+    c.topics.push({ title: val, content: '', decision: '' });
+    _scExpandCommittee(ci, c.name);
     await _scUpsertMeeting(m);
     _scRenderActive();
-    const inpc = document.getElementById('scQuickInput');
-    if (inpc) { inpc.value = ''; inpc.focus(); }
+    refocus();
     return;
   }
+
+  // 固定職掌
+  const fixed = _scMod().owners || [];
+  const role = fixed.includes(sel) ? sel : (fixed[0] || '主席');
   if (type === 'announce') {
     (m.announcements = m.announcements || []).push({ role, content: val });
   } else if (type === 'topics') {
@@ -839,9 +958,7 @@ async function _scQuickSubmit(mid) {
   _scExpandRole('items', role);
   await _scUpsertMeeting(m);
   _scRenderActive();
-  // 重新渲染後把焦點移回輸入框，方便連續輸入
-  const inp2 = document.getElementById('scQuickInput');
-  if (inp2) { inp2.value = ''; inp2.focus(); }
+  refocus();
 }
 
 // 摘要列展開/收合：點摘要列 → 切換下方編輯框；收合時把編輯內容寫回摘要文字
@@ -1008,10 +1125,9 @@ function _scUnifiedItemsHtml(m, canEdit) {
       out.push(_scUnifiedCommitteeCardsHtml(m, canEdit));
     }
   });
-  // 對不到任何職掌/委員的事項（owner 為空或委員已刪除）→ 收進「未指派」卡，避免被隱藏
-  const committeeNames = (Array.isArray(m.committee) ? m.committee : [])
-    .map(c => (c.name || '').trim()).filter(Boolean);
-  const shownOwners = new Set([...roles, ...committeeNames]);
+  // 對不到固定職掌的事項（owner 為空等）→ 收進「未指派」卡，避免被隱藏
+  // 委員事項已獨立存於委員物件，不會出現在 m.actions / m.topics
+  const shownOwners = new Set(roles);
   const leftoverActs = (m.actions || []).map((a, idx) => ({ a, idx })).filter(({ a }) => !shownOwners.has(a.owner));
   const leftoverTops = (m.topics || []).map((t, idx) => ({ t, idx })).filter(({ t }) => !shownOwners.has(t.role || '主席'));
   if (leftoverActs.length || leftoverTops.length) out.push(_scUnifiedUnassignedCardHtml(m, leftoverActs, leftoverTops, canEdit));
@@ -1041,52 +1157,43 @@ function _scUnifiedUnassignedCardHtml(m, acts, tops, canEdit) {
   </section>`;
 }
 
-// 委員卡片（領導月會）：每位委員一張卡，布達來自 committee[i].announcements、
-// 待辦來自 actions(owner==委員姓名)；卡頭可命名/刪除，最後附「新增委員」
+// 委員卡片（領導月會）：委員只有「議題」一項，存在該委員物件內（索引綁定，與姓名脫鉤）
+// → 未命名也能新增、改名也不會跑掉。卡頭可命名/刪除，卡內可直接新增議題。
 function _scUnifiedCommitteeCardsHtml(m, canEdit) {
   const committee = Array.isArray(m.committee) ? m.committee : [];
   const cards = committee.map((c, ci) => {
+    const tops = Array.isArray(c.topics) ? c.topics : [];
+    const total = tops.length;
     const name = (c.name || '').trim();
-    const anns = Array.isArray(c.announcements) ? c.announcements : [];
-    const tops = name ? _scTopicsForRole(m, name) : [];
-    const acts = name ? _scActionsForRole(m, name) : [];
-    const total = anns.length + tops.length + acts.length;
     const collapseKey = name ? `_com_${name}` : `_com_idx_${ci}`;
     const jsKey = String(collapseKey).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const collapsed = _scIsRoleCollapsed('items', collapseKey, total);
 
-    const annInner = anns.map((a, di) => _scUnifiedCommitteeAnnounceItem(m.id, ci, a, di, canEdit)).join('');
-    const topInner = tops.map(({ t, idx }, di) => _scUnifiedTopicItem(m.id, t, idx, di, canEdit)).join('');
-    const actInner = acts.map(({ a, idx }) => _scUnifiedActionItem(m, a, idx, canEdit)).join('');
-    const annList = anns.length
-      ? `<div class="sc-type sc-type-announce">
-           <div class="sc-type-label"><span class="sc-type-name">布達</span><span class="sc-type-rule"></span></div>
-           <div class="sc-item-list"${canEdit && anns.length > 1 ? ` data-sc-sortable data-sc-type="announce" data-sc-committee="${ci}" data-sc-mid="${m.id}"` : ''}>${annInner}</div>
-         </div>` : '';
+    const topInner = tops.map((t, di) => _scUnifiedCommitteeTopicItem(m.id, ci, t, di, canEdit)).join('');
     const topList = tops.length
       ? `<div class="sc-type sc-type-topic">
            <div class="sc-type-label"><span class="sc-type-name">議題</span><span class="sc-type-rule"></span></div>
-           <div class="sc-item-list"${canEdit && tops.length > 1 ? ` data-sc-sortable data-sc-type="topic" data-sc-role="${_scEsc(name)}" data-sc-mid="${m.id}"` : ''}>${topInner}</div>
+           <div class="sc-item-list"${canEdit && tops.length > 1 ? ` data-sc-sortable data-sc-type="topic" data-sc-committee="${ci}" data-sc-mid="${m.id}"` : ''}>${topInner}</div>
          </div>` : '';
-    const actList = acts.length
-      ? `<div class="sc-type sc-type-action">
-           <div class="sc-type-label"><span class="sc-type-name">待辦</span><span class="sc-type-rule"></span></div>
-           <div class="sc-item-list"${canEdit && acts.length > 1 ? ` data-sc-sortable data-sc-type="action" data-sc-role="${_scEsc(name)}" data-sc-mid="${m.id}"` : ''}>${actInner}</div>
-         </div>` : '';
+    const addRow = canEdit
+      ? `<div class="sc-committee-itembar">
+           <button class="sc-btn sc-btn-sm" onclick="_scAddCommitteeTopic('${m.id}',${ci})">+ 議題</button>
+         </div>`
+      : '';
 
     return `<section class="sc-docsec sc-card-role${collapsed ? ' is-collapsed' : ''}" id="sc-role-card-items-${_scRoleSlug(collapseKey)}" data-sec="items" data-role-key="${_scEsc(collapseKey)}">
       <div class="sc-docsec-head sc-card-head-toggle" onclick="_scToggleRoleCollapsed('items','${jsKey}',event)">
         <span class="sc-docsec-bar"></span>
         <span class="sc-docsec-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <span class="sc-role-tag">委員</span>
-          <input type="text" class="sc-input sc-input-sm" placeholder="委員姓名" value="${_scEsc(c.name || '')}" oninput="_scUpdateCommittee('${m.id}',${ci},'name',this.value)" onclick="event.stopPropagation();" style="width:auto;min-width:110px;">
+          <input type="text" class="sc-input sc-input-sm" placeholder="委員姓名（可稍後再補）" value="${_scEsc(c.name || '')}" oninput="_scUpdateCommittee('${m.id}',${ci},'name',this.value)" onclick="event.stopPropagation();" style="width:auto;min-width:130px;">
           ${canEdit ? `<button class="sc-icon-btn" onclick="event.stopPropagation();_scDelCommittee('${m.id}',${ci})" title="刪除委員">×</button>` : ''}
         </span>
-        ${total ? '' : `<span class="sc-docsec-empty">尚無事項</span>`}
+        ${total ? '' : `<span class="sc-docsec-empty">尚無議題</span>`}
         <span class="sc-card-chevron">▾</span>
       </div>
       <div class="sc-card-body${collapsed ? ' is-collapsed' : ''}">
-        ${annList}${topList}${actList}
+        ${topList}${addRow}
       </div>
     </section>`;
   }).join('');
@@ -1094,6 +1201,54 @@ function _scUnifiedCommitteeCardsHtml(m, canEdit) {
     ? `<div class="sc-committee-add"><button class="sc-btn sc-btn-sm sc-btn-ghost" onclick="_scAddCommittee('${m.id}')">+ 新增委員</button></div>`
     : '';
   return cards + addBtn;
+}
+
+// 委員議題單筆摘要列（資料在 committee[ci].topics）
+function _scUnifiedCommitteeTopicItem(mid, ci, t, displayIdx, canEdit) {
+  const summary = (t.title || '').trim() || '(未填標題)';
+  const decided = (t.decision || '').trim();
+  return `<div class="sc-item is-collapsed" data-tidx="${displayIdx}">
+    <div class="sc-item-bar" onclick="_scToggleItem(this)">
+      ${canEdit ? `<span class="sc-drag-handle" onclick="event.stopPropagation()" title="拖曳排序">⠿</span>` : ''}
+      <span class="sc-item-chev">▸</span>
+      <span class="sc-item-no">${displayIdx + 1}</span>
+      <span class="sc-item-text" data-empty="(未填標題)">${_scEsc(summary)}</span>
+      ${decided ? `<span class="sc-item-badge sc-item-badge-ok">已決議</span>` : ''}
+      ${canEdit ? `<button class="sc-icon-btn sc-item-del" onclick="event.stopPropagation();_scDelCommitteeTopic('${mid}',${ci},${displayIdx})" title="刪除">×</button>` : ''}
+    </div>
+    <div class="sc-item-edit">
+      <input type="text" class="sc-input" data-summary-src placeholder="議題標題" value="${_scEsc(t.title || '')}" oninput="_scUpdateCommitteeTopic('${mid}',${ci},${displayIdx},'title',this.value)">
+      <textarea class="sc-textarea" rows="2" placeholder="討論內容" oninput="_scUpdateCommitteeTopic('${mid}',${ci},${displayIdx},'content',this.value)">${_scEsc(t.content || '')}</textarea>
+      <textarea class="sc-textarea sc-textarea-decision" rows="2" placeholder="決議" oninput="_scUpdateCommitteeTopic('${mid}',${ci},${displayIdx},'decision',this.value)">${_scEsc(t.decision || '')}</textarea>
+    </div>
+  </div>`;
+}
+
+// 委員待辦單筆摘要列（資料在 committee[ci].actions）
+function _scUnifiedCommitteeActionItem(mid, ci, a, displayIdx, canEdit) {
+  const status = a.status || 'pending';
+  const summary = (a.text || '').trim() || '(未填待辦)';
+  const metaBits = [];
+  if (a.due) metaBits.push(`<span class="sc-item-due">${_scEsc(a.due)}</span>`);
+  metaBits.push(`<span class="sc-status-dot sc-status-${status}"></span>${_SC_STATUS_LABELS[status]}`);
+  return `<div class="sc-item is-collapsed" data-aidx="${displayIdx}">
+    <div class="sc-item-bar" onclick="_scToggleItem(this)">
+      ${canEdit ? `<span class="sc-drag-handle" onclick="event.stopPropagation()" title="拖曳排序">⠿</span>` : ''}
+      <span class="sc-item-chev">▸</span>
+      <span class="sc-item-text" data-empty="(未填待辦)">${_scEsc(summary)}</span>
+      <span class="sc-item-meta">${metaBits.join(' ')}</span>
+      ${canEdit ? `<button class="sc-icon-btn sc-item-del" onclick="event.stopPropagation();_scDelCommitteeAction('${mid}',${ci},${displayIdx})" title="刪除">×</button>` : ''}
+    </div>
+    <div class="sc-item-edit">
+      <input type="text" class="sc-input" data-summary-src placeholder="待辦內容" value="${_scEsc(a.text || '')}" oninput="_scUpdateCommitteeAction('${mid}',${ci},${displayIdx},'text',this.value)">
+      <div class="sc-action-meta">
+        <input type="date" class="sc-input sc-input-sm" value="${_scDueToInput(a.due, '')}" onchange="_scUpdateCommitteeActionDate('${mid}',${ci},${displayIdx},this.value)">
+        <select class="sc-select sc-input-sm sc-status sc-status-${status}" onchange="_scUpdateCommitteeAction('${mid}',${ci},${displayIdx},'status',this.value)">
+          ${_SC_STATUS_ORDER.map(k => `<option value="${k}" ${status === k ? 'selected' : ''}>${_SC_STATUS_LABELS[k]}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  </div>`;
 }
 
 // 委員布達單筆摘要列（資料在 committee[ci].announcements）
@@ -1232,12 +1387,14 @@ async function _scInitUnifiedSortable() {
 function _scReorderUnified(mid, type, role, oldIdx, newIdx, committeeIdx) {
   const m = _scFindMeeting(mid);
   if (!m) return;
-  // 委員布達：重排該委員的 announcements
-  if (type === 'announce' && committeeIdx != null) {
+  // 委員事項（布達/議題/待辦）：重排該委員物件內對應陣列
+  if (committeeIdx != null) {
     const c = (m.committee || [])[committeeIdx];
-    if (!c || !Array.isArray(c.announcements)) return;
-    const arr = c.announcements;
-    if (oldIdx < 0 || newIdx < 0 || oldIdx >= arr.length || newIdx >= arr.length) return;
+    if (!c) return;
+    const arr = type === 'announce' ? c.announcements
+              : type === 'topic'   ? c.topics
+              : type === 'action'  ? c.actions : null;
+    if (!Array.isArray(arr) || oldIdx < 0 || newIdx < 0 || oldIdx >= arr.length || newIdx >= arr.length) return;
     const [moved] = arr.splice(oldIdx, 1);
     arr.splice(newIdx, 0, moved);
     _scUpsertMeeting(m).then(() => _scRenderActive());
@@ -1455,6 +1612,9 @@ function _scUpdateCommittee(mid, idx, field, val) {
   if (field === 'name') {
     const disp = document.getElementById('scAttendeesDisplay');
     if (disp) disp.textContent = _scComputedAttendees(m);
+    // 單頁式：同步刷新快速新增的職掌下拉，讓新委員姓名可立即被選取
+    const sel = document.querySelector(`#${_scMod().contentEl} .sc-qa-role`);
+    if (sel) sel.innerHTML = _scQuickRoleOptionsHtml(m, sel.value);
   }
 }
 
@@ -1927,15 +2087,13 @@ function _scMigrateLeadershipReports(m) {
 function _scBuildLeadershipBlocks(m) {
   const mod = _scMod();
   _scMigrateLeadershipReports(m);
+  _scMigrateCommitteeItems(m);
   const blocks = [];
 
-  // === 本周布達事項（11 領導角色 + 委員，已合併原本的「報告」，總是顯示）===
+  // === 本周布達事項（11 領導角色；委員只有議題，不在此） ===
   if (mod.hasAnnouncements === true) {
     const roles = mod.owners || [];
-    const committee = (Array.isArray(m.committee) ? m.committee : [])
-      .filter(c => (c.name || '').trim() && Array.isArray(c.announcements) && c.announcements.length);
-    const fixedHasAny = roles.some(r => _scAnnouncementsForRole(m, r).length);
-    const hasAny = fixedHasAny || committee.length > 0;
+    const hasAny = roles.some(r => _scAnnouncementsForRole(m, r).length);
 
     blocks.push({
       html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>本周布達事項</div>`,
@@ -1947,37 +2105,16 @@ function _scBuildLeadershipBlocks(m) {
     } else {
       roles.forEach(role => {
         const items = _scAnnouncementsForRole(m, role);
-        if (items.length) {
+        if (!items.length) return;
+        blocks.push({ html: `<div class="sc-sheet-role-h">${role}</div>`, keepWithNext: true });
+        items.forEach(({ a }, i) => {
           blocks.push({
-            html: `<div class="sc-sheet-role-h">${role}</div>`,
-            keepWithNext: true
+            html: `<div class="sc-sheet-announce-item">
+              <span class="sc-sheet-announce-num">${i + 1}</span>
+              <span class="sc-sheet-announce-text">${_scEsc(a.content || '').replace(/\n/g, '<br>')}</span>
+            </div>`
           });
-          items.forEach(({ a }, i) => {
-            blocks.push({
-              html: `<div class="sc-sheet-announce-item">
-                <span class="sc-sheet-announce-num">${i + 1}</span>
-                <span class="sc-sheet-announce-text">${_scEsc(a.content || '').replace(/\n/g, '<br>')}</span>
-              </div>`
-            });
-          });
-        }
-        // 副主席之後：穿插委員的布達
-        if (role === '副主席') {
-          committee.forEach(c => {
-            blocks.push({
-              html: `<div class="sc-sheet-role-h">${_scEsc(c.name)}</div>`,
-              keepWithNext: true
-            });
-            c.announcements.forEach((a, i) => {
-              blocks.push({
-                html: `<div class="sc-sheet-announce-item">
-                  <span class="sc-sheet-announce-num">${i + 1}</span>
-                  <span class="sc-sheet-announce-text">${_scEsc(a.content || '').replace(/\n/g, '<br>')}</span>
-                </div>`
-              });
-            });
-          });
-        }
+        });
       });
     }
   }
@@ -1985,9 +2122,9 @@ function _scBuildLeadershipBlocks(m) {
   // === 議題與決議（比照三長：依職掌＋委員分組）===
   if (mod.hasTopics === true) {
     const tRoles = mod.owners || [];
-    const tCommittee = (Array.isArray(m.committee) ? m.committee : []).filter(c => (c.name || '').trim());
+    const tCommittee = Array.isArray(m.committee) ? m.committee : [];
     const hasAnyTopic = tRoles.some(r => _scTopicsForRole(m, r).length)
-      || tCommittee.some(c => _scTopicsForRole(m, c.name.trim()).length);
+      || tCommittee.some(c => (Array.isArray(c.topics) ? c.topics : []).length);
     blocks.push({
       html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>議題與決議</div>`,
       keepWithNext: true,
@@ -2019,7 +2156,10 @@ function _scBuildLeadershipBlocks(m) {
       };
       tRoles.forEach(role => {
         emitRoleTopics(role, _scTopicsForRole(m, role));
-        if (role === '副主席') tCommittee.forEach(c => emitRoleTopics(c.name.trim(), _scTopicsForRole(m, c.name.trim())));
+        if (role === '副主席') tCommittee.forEach(c => {
+          const items = (Array.isArray(c.topics) ? c.topics : []).map(t => ({ t }));
+          emitRoleTopics((c.name || '').trim() || '委員', items);
+        });
       });
     }
   }
@@ -2030,7 +2170,8 @@ function _scBuildLeadershipBlocks(m) {
     keepWithNext: true,
     pageBreakBefore: true
   });
-  if ((m.actions || []).length) {
+  const allActs = (m.actions || []).map(a => ({ a, owner: a.owner || '' }));
+  if (allActs.length) {
     const actsHtml = `<table class="sc-doc-table">
       <colgroup>
         <col style="width:7mm"><col><col style="width:24mm"><col style="width:22mm"><col style="width:22mm">
@@ -2043,14 +2184,14 @@ function _scBuildLeadershipBlocks(m) {
         <th class="d-col-end">狀態</th>
       </tr></thead>
       <tbody>
-        ${m.actions.map((a, i) => `
+        ${allActs.map(({ a, owner }, i) => `
           <tr>
             <td class="d-col-num">${i + 1}</td>
             <td>
               <div class="d-title">${_scEsc(a.text || '(未填內容)')}</div>
               ${a.trackNote ? `<div class="d-desc">追蹤：${_scEsc(a.trackNote).replace(/\n/g, '<br>')}</div>` : ''}
             </td>
-            <td class="d-col-end">${a.owner ? _scEsc(a.owner) : '<span class="d-muted">—</span>'}</td>
+            <td class="d-col-end">${owner ? _scEsc(owner) : '<span class="d-muted">—</span>'}</td>
             <td class="d-col-end">${a.due ? _scEsc(a.due) : '<span class="d-muted">—</span>'}</td>
             <td class="d-col-end"><span class="sc-sheet-status sc-sheet-status-${a.status || 'pending'}">${_SC_STATUS_LABELS[a.status || 'pending']}</span></td>
           </tr>
@@ -2286,51 +2427,41 @@ function _scBuildLineText(m) {
   if (_scMod().hasAnnouncements === true) {
     const _amod = _scMod();
     const roles = _amod.owners || [];
-    const committee = (Array.isArray(m.committee) ? m.committee : [])
-      .filter(c => (c.name || '').trim() && Array.isArray(c.announcements) && c.announcements.length);
-    const fixedHasAny = roles.some(r => _scAnnouncementsForRole(m, r).length);
-    const hasAny = fixedHasAny || committee.length > 0;
+    const hasAny = roles.some(r => _scAnnouncementsForRole(m, r).length);
     lines.push('━━ 本周布達事項 ━━');
     if (!hasAny) {
       lines.push('  本次無布達事項');
     } else {
       roles.forEach(role => {
         const items = _scAnnouncementsForRole(m, role);
-        if (items.length) {
-          lines.push(`【${role}】`);
-          items.forEach(({ a }, i) => {
-            lines.push(`  ${i + 1}. ${a.content || ''}`);
-          });
-        }
-        if (role === '副主席') {
-          committee.forEach(c => {
-            lines.push(`【${c.name}】`);
-            c.announcements.forEach((a, i) => {
-              lines.push(`  ${i + 1}. ${a.content || ''}`);
-            });
-          });
-        }
+        if (!items.length) return;
+        lines.push(`【${role}】`);
+        items.forEach(({ a }, i) => {
+          lines.push(`  ${i + 1}. ${a.content || ''}`);
+        });
       });
     }
     lines.push('');
   }
 
-  if (_scMod().hasTopics !== false && (m.topics || []).length) {
+  if (_scMod().hasTopics !== false) {
     const _tmod = _scMod();
     const roles = _tmod.owners || [];
-    const hasAny = roles.some(r => _scTopicsForRole(m, r).length);
+    const comTops = (Array.isArray(m.committee) ? m.committee : []).filter(c => (c.topics || []).length);
+    const hasAny = roles.some(r => _scTopicsForRole(m, r).length) || comTops.length;
     if (hasAny) {
       lines.push('━━ 議題與決議 ━━');
-      roles.forEach(role => {
-        const items = _scTopicsForRole(m, role);
+      const dumpTopics = (label, items) => {
         if (!items.length) return;
-        lines.push(`【${role}】`);
-        items.forEach(({ t }, i) => {
+        lines.push(`【${label}】`);
+        items.forEach((t, i) => {
           lines.push(`  [議題${i + 1}] ${t.title || ''}`);
           if (t.content) lines.push(`    內容：${t.content}`);
           if (t.decision) lines.push(`    決議：${t.decision}`);
         });
-      });
+      };
+      roles.forEach(role => dumpTopics(role, _scTopicsForRole(m, role).map(({ t }) => t)));
+      comTops.forEach(c => dumpTopics((c.name || '').trim() || '委員', c.topics));
       lines.push('');
     }
   }
