@@ -22,12 +22,7 @@ const _SC_MODULES = {
     hasSummary: true,
     hasAnnouncements: true,
     groupActionsByRole: true,
-    sectionTabs: [
-      { id: 'basic', label: '基本' },
-      { id: 'announce', label: '布達' },
-      { id: 'topics', label: '議題' },
-      { id: 'actions', label: '待辦' }
-    ]
+    unifiedRoleView: true,   // 單一頁：頂部基本資訊折疊條 + 快速新增列，下方依職掌分組
   },
   leadership: {
     id: 'leadership',
@@ -53,7 +48,7 @@ const _SC_MODULES = {
 };
 
 const _scStates = {
-  sanchang:   { view: 'current', histDetailId: null, section: 'topics',   roleCollapsed: {} },
+  sanchang:   { view: 'current', histDetailId: null, section: 'items',    roleCollapsed: {}, quickType: 'announce', quickRole: '主席', basicOpen: false, carryCollapsed: false },
   leadership: { view: 'current', histDetailId: null, section: 'announce', roleCollapsed: {} }
 };
 
@@ -143,6 +138,12 @@ function _scRoleCounts(m, section) {
     roles.forEach(r => { out[r] = _scTopicsForRole(m, r).length; });
   } else if (section === 'actions') {
     roles.forEach(r => { out[r] = _scActionsForRole(m, r).length; });
+  } else if (section === 'items') {
+    roles.forEach(r => {
+      out[r] = _scAnnouncementsForRole(m, r).length
+             + _scTopicsForRole(m, r).length
+             + _scActionsForRole(m, r).length;
+    });
   }
   return out;
 }
@@ -385,6 +386,7 @@ function _scSectionCounts(m) {
     reports:  filledReports,
     actions:  (m.actions  || []).length,
     motions:  (m.motions  || []).length,
+    items:    (m.announcements || []).length + (m.topics || []).length + (m.actions || []).length,
   };
 }
 
@@ -464,11 +466,19 @@ function _scRenderEditor(m) {
       </div>
       ${(m.motions || []).map((mo, i) => _scMotionCardHtml(m.id, mo, i, canEdit)).join('') || `<div class="sc-empty-mini">本次無臨時動議</div>`}
     </div>` : '',
+    items: mod.unifiedRoleView ? _scUnifiedItemsHtml(m, canEdit) : '',
   };
 
   // 區段分頁模式：只渲染當前 section；否則全部渲染
   let body;
-  if (mod.sectionTabs && mod.sectionTabs.length) {
+  if (mod.unifiedRoleView) {
+    // 單一頁：基本資訊折疊條 + 快速新增列（皆固定頂部），下方職掌章節
+    const quickAddHtml = canEdit ? _scQuickAddBarHtml(m) : '';
+    const basicFold = _scBasicFoldHtml(m, sectionMap.basic);
+    // 上週未結案提醒：僅本週會議顯示
+    const carryHtml = (m.weekKey === getWeekKey()) ? _scCarryOverHtml(canEdit) : '';
+    body = `<div class="sc-sticky-head sc-sticky-unified">${basicFold}${quickAddHtml}</div>${carryHtml}${sectionMap.items}`;
+  } else if (mod.sectionTabs && mod.sectionTabs.length) {
     const active = _scState.section || mod.sectionTabs[0].id;
     const counts = _scSectionCounts(m);
     const tabs = mod.sectionTabs.map(s => {
@@ -483,26 +493,29 @@ function _scRenderEditor(m) {
     else if (active === 'reports')  secHtml = sectionMap.reports;
     else if (active === 'actions')  secHtml = sectionMap.actions;
     else if (active === 'motions')  secHtml = sectionMap.motions;
+    else if (active === 'items')    secHtml = sectionMap.items;
     // 職掌分組區段：在 sticky 區頭加上職掌跳轉列
     const roleGrouped =
       (active === 'announce' && mod.hasAnnouncements === true) ||
       (active === 'topics'   && mod.hasTopics !== false) ||
       (active === 'actions'  && mod.groupActionsByRole === true);
     const roleNavHtml = roleGrouped ? _scRoleNavBarHtml(m, active) : '';
-    body = `<div class="sc-sticky-head"><div class="sc-sec-tabs">${tabs}</div>${roleNavHtml}</div>${secHtml}`;
+    // 統一事項頁：頂部固定快速新增列
+    const quickAddHtml = (active === 'items' && mod.unifiedRoleView === true && canEdit)
+      ? _scQuickAddBarHtml(m) : '';
+    body = `<div class="sc-sticky-head"><div class="sc-sec-tabs">${tabs}</div>${quickAddHtml}${roleNavHtml}</div>${secHtml}`;
   } else {
     body = sectionMap.basic + sectionMap.topics + sectionMap.reports + sectionMap.actions + sectionMap.motions;
   }
 
   return `
     ${body}
-
-    <div class="sc-toolbar">
+    ${mod.unifiedRoleView ? '' : `<div class="sc-toolbar">
       <button class="sc-btn sc-btn-ghost" onclick="_scPreview('${m.id}')">預覽</button>
       <button class="sc-btn sc-btn-primary" onclick="_scExportPDF('${m.id}')">PDF</button>
       <button class="sc-btn sc-btn-primary" onclick="_scExportJPG('${m.id}')">JPG</button>
       <button class="sc-btn sc-btn-primary" onclick="_scCopyLineText('${m.id}')">複製文字</button>
-    </div>
+    </div>`}
   `;
 }
 
@@ -715,6 +728,287 @@ function _scActionsEditorHtml(m, canEdit, isTrack) {
       </div>`
     : '';
   return groups + unassignedHtml;
+}
+
+// ===== 統一事項頁（三長周會專用）=====
+// 基本資訊折疊條：標題列常駐，內容預設收合，點擊展開
+function _scBasicFoldHtml(m, basicInnerHtml) {
+  const open = _scState.basicOpen === true;
+  return `<div class="sc-basic-fold${open ? ' is-open' : ''}">
+    <div class="sc-basic-fold-head" onclick="_scToggleBasic()">
+      <span class="sc-card-chevron">▾</span>
+      <span class="sc-basic-fold-title">基本資訊</span>
+      <span class="sc-basic-fold-tools">
+        <button type="button" class="sc-mini-btn" onclick="event.stopPropagation();_scPreview('${m.id}')">預覽</button>
+        <button type="button" class="sc-mini-btn" onclick="event.stopPropagation();_scExportPDF('${m.id}')">PDF</button>
+        <button type="button" class="sc-mini-btn" onclick="event.stopPropagation();_scExportJPG('${m.id}')">JPG</button>
+      </span>
+    </div>
+    <div class="sc-basic-fold-body${open ? '' : ' is-collapsed'}">
+      ${basicInnerHtml}
+    </div>
+  </div>`;
+}
+
+function _scToggleBasic() {
+  _scState.basicOpen = !_scState.basicOpen;
+  const fold = document.querySelector(`#${_scMod().contentEl} .sc-basic-fold`);
+  if (!fold) return;
+  fold.classList.toggle('is-open', _scState.basicOpen);
+  const fbody = fold.querySelector('.sc-basic-fold-body');
+  if (fbody) fbody.classList.toggle('is-collapsed', !_scState.basicOpen);
+}
+
+// 頂部快速新增列：選類型 + 職掌 + 內容，送出後自動歸到下方對應職掌卡
+function _scQuickAddBarHtml(m) {
+  const st = _scState;
+  const types = [
+    { id: 'announce', label: '布達' },
+    { id: 'topics',   label: '議題' },
+    { id: 'actions',  label: '待辦' }
+  ];
+  if (!types.some(t => t.id === st.quickType)) st.quickType = 'announce';
+  const roles = _scComputedOwners(m);
+  if (!roles.includes(st.quickRole)) st.quickRole = roles[0] || '主席';
+  const typeBtns = types.map(t =>
+    `<button type="button" class="sc-qa-type sc-qa-type-${t.id}${st.quickType === t.id ? ' active' : ''}" data-qatype="${t.id}" onclick="_scQuickSetType('${t.id}')">${t.label}</button>`
+  ).join('');
+  const roleOpts = roles.map(r =>
+    `<option value="${_scEsc(r)}" ${st.quickRole === r ? 'selected' : ''}>${_scEsc(r)}</option>`
+  ).join('');
+  return `
+    <div class="sc-quickadd">
+      <div class="sc-qa-types">${typeBtns}</div>
+      <div class="sc-qa-entry">
+        <select class="sc-select sc-input-sm sc-qa-role" onchange="_scQuickSetRole(this.value)">${roleOpts}</select>
+        <input type="text" class="sc-input sc-qa-input" id="scQuickInput" autocomplete="off" placeholder="${_scQuickPlaceholder(st.quickType)}"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();_scQuickSubmit('${m.id}');}">
+        <button type="button" class="sc-btn sc-btn-primary sc-qa-submit" onclick="_scQuickSubmit('${m.id}')">送入</button>
+      </div>
+    </div>
+  `;
+}
+
+function _scQuickPlaceholder(t) {
+  return t === 'topics'  ? '輸入議題標題，按 Enter 或送入…'
+       : t === 'actions' ? '輸入待辦內容，按 Enter 或送入…'
+       :                   '輸入布達內容，按 Enter 或送入…';
+}
+
+function _scQuickSetType(t) {
+  _scState.quickType = t;
+  document.querySelectorAll('.sc-qa-type').forEach(b =>
+    b.classList.toggle('active', b.dataset.qatype === t)
+  );
+  const inp = document.getElementById('scQuickInput');
+  if (inp) { inp.placeholder = _scQuickPlaceholder(t); inp.focus(); }
+}
+
+function _scQuickSetRole(r) { _scState.quickRole = r; }
+
+async function _scQuickSubmit(mid) {
+  const inp = document.getElementById('scQuickInput');
+  if (!inp) return;
+  const val = inp.value.trim();
+  if (!val) { inp.focus(); return; }
+  const m = _scFindMeeting(mid);
+  if (!m) return;
+  const type = _scState.quickType || 'announce';
+  const roles = _scComputedOwners(m);
+  const role = roles.includes(_scState.quickRole) ? _scState.quickRole : (roles[0] || '主席');
+  if (type === 'announce') {
+    (m.announcements = m.announcements || []).push({ role, content: val });
+  } else if (type === 'topics') {
+    (m.topics = m.topics || []).push({ role, title: val, content: '', decision: '' });
+  } else if (type === 'actions') {
+    (m.actions = m.actions || []).push({ owner: role, text: val, due: '', status: 'pending' });
+  }
+  _scExpandRole('items', role);
+  await _scUpsertMeeting(m);
+  _scRenderActive();
+  // 重新渲染後把焦點移回輸入框，方便連續輸入
+  const inp2 = document.getElementById('scQuickInput');
+  if (inp2) { inp2.value = ''; inp2.focus(); }
+}
+
+// 摘要列展開/收合：點摘要列 → 切換下方編輯框；收合時把編輯內容寫回摘要文字
+function _scToggleItem(barEl) {
+  const item = barEl.closest('.sc-item');
+  if (!item) return;
+  const willCollapse = !item.classList.contains('is-collapsed');
+  item.classList.toggle('is-collapsed');
+  if (willCollapse) {
+    const src = item.querySelector('[data-summary-src]');
+    const txt = item.querySelector('.sc-item-text');
+    if (src && txt) {
+      const v = (src.value || '').trim();
+      txt.textContent = v || (txt.dataset.empty || '(空白)');
+    }
+  }
+}
+
+// 單筆摘要列：布達
+function _scUnifiedAnnounceItem(mid, a, idx, displayIdx, canEdit) {
+  const summary = (a.content || '').trim() || '(空白布達)';
+  return `<div class="sc-item is-collapsed" data-aidx="${idx}">
+    <div class="sc-item-bar" onclick="_scToggleItem(this)">
+      <span class="sc-item-chev">▸</span>
+      <span class="sc-item-no">${displayIdx + 1}</span>
+      <span class="sc-item-text" data-empty="(空白布達)">${_scEsc(summary)}</span>
+      ${canEdit ? `<button class="sc-icon-btn sc-item-del" onclick="event.stopPropagation();_scDelAnnouncement('${mid}',${idx})" title="刪除">×</button>` : ''}
+    </div>
+    <div class="sc-item-edit">
+      <textarea class="sc-textarea" data-summary-src rows="2" placeholder="布達內容（資訊共識，無須討論）" oninput="_scUpdateAnnouncement('${mid}',${idx},'content',this.value)">${_scEsc(a.content || '')}</textarea>
+    </div>
+  </div>`;
+}
+
+// 單筆摘要列：議題（有決議時顯示「已決議」標記）
+function _scUnifiedTopicItem(mid, t, idx, displayIdx, canEdit) {
+  const summary = (t.title || '').trim() || '(未填標題)';
+  const decided = (t.decision || '').trim();
+  return `<div class="sc-item is-collapsed" data-tidx="${idx}">
+    <div class="sc-item-bar" onclick="_scToggleItem(this)">
+      <span class="sc-item-chev">▸</span>
+      <span class="sc-item-no">${displayIdx + 1}</span>
+      <span class="sc-item-text" data-empty="(未填標題)">${_scEsc(summary)}</span>
+      ${decided ? `<span class="sc-item-badge sc-item-badge-ok">已決議</span>` : ''}
+      ${canEdit ? `<button class="sc-icon-btn sc-item-del" onclick="event.stopPropagation();_scDelTopic('${mid}',${idx})" title="刪除">×</button>` : ''}
+    </div>
+    <div class="sc-item-edit">
+      <input type="text" class="sc-input" data-summary-src placeholder="議題標題" value="${_scEsc(t.title || '')}" oninput="_scUpdateTopic('${mid}',${idx},'title',this.value)">
+      <textarea class="sc-textarea" rows="2" placeholder="討論內容" oninput="_scUpdateTopic('${mid}',${idx},'content',this.value)">${_scEsc(t.content || '')}</textarea>
+      <textarea class="sc-textarea sc-textarea-decision" rows="2" placeholder="決議" oninput="_scUpdateTopic('${mid}',${idx},'decision',this.value)">${_scEsc(t.decision || '')}</textarea>
+    </div>
+  </div>`;
+}
+
+// 單筆摘要列：待辦（摘要顯示期限 + 狀態）
+function _scUnifiedActionItem(m, a, idx, canEdit) {
+  const mid = m.id;
+  const status = a.status || 'pending';
+  const summary = (a.text || '').trim() || '(未填待辦)';
+  const metaBits = [];
+  if (a.due) metaBits.push(`<span class="sc-item-due">${_scEsc(a.due)}</span>`);
+  metaBits.push(`<span class="sc-status-dot sc-status-${status}"></span>${_SC_STATUS_LABELS[status]}`);
+  return `<div class="sc-item is-collapsed" data-aidx="${idx}">
+    <div class="sc-item-bar" onclick="_scToggleItem(this)">
+      <span class="sc-item-chev">▸</span>
+      <span class="sc-item-text" data-empty="(未填待辦)">${_scEsc(summary)}</span>
+      <span class="sc-item-meta">${metaBits.join(' ')}</span>
+      ${canEdit ? `<button class="sc-icon-btn sc-item-del" onclick="event.stopPropagation();_scDelAction('${mid}',${idx})" title="刪除">×</button>` : ''}
+    </div>
+    <div class="sc-item-edit">
+      <input type="text" class="sc-input" data-summary-src placeholder="待辦內容" value="${_scEsc(a.text || '')}" oninput="_scUpdateAction('${mid}',${idx},'text',this.value)">
+      <div class="sc-action-meta">
+        <input type="date" class="sc-input sc-input-sm" value="${_scDueToInput(a.due, (m.meetingDate || '').slice(0, 4))}" onchange="_scUpdateActionDate('${mid}',${idx},'due',this.value)">
+        <select class="sc-select sc-input-sm sc-status sc-status-${status}" onchange="_scUpdateAction('${mid}',${idx},'status',this.value)">
+          ${_SC_STATUS_ORDER.map(k => `<option value="${k}" ${status === k ? 'selected' : ''}>${_SC_STATUS_LABELS[k]}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ===== 上週未結案（延續追蹤）=====
+// 取上一場會議中尚未結案（待處理 / 延期）的待辦
+function _scCarryOverActions() {
+  const last = _scLastMeeting();
+  if (!last) return { last: null, items: [] };
+  const items = (last.actions || [])
+    .map((a, idx) => ({ a, idx }))
+    .filter(({ a }) => {
+      const s = a.status || 'pending';
+      return s === 'pending' || s === 'delay';
+    });
+  return { last, items };
+}
+
+// 本週會議頂部的「上週未結案」提醒區（可直接更新狀態，標完成/取消後消失）
+function _scCarryOverHtml(canEdit) {
+  const { last, items } = _scCarryOverActions();
+  if (!last || !items.length) return '';
+  const rows = items.map(({ a, idx }) => {
+    const status = a.status || 'pending';
+    const owner = a.owner ? `<span class="sc-carry-owner">${_scEsc(a.owner)}</span>` : '';
+    const due = a.due ? `<span class="sc-item-due">${_scEsc(a.due)}</span>` : '';
+    const statusCtl = canEdit
+      ? `<select class="sc-select sc-input-sm sc-status sc-status-${status}" onchange="_scUpdateCarryStatus('${last.id}',${idx},this.value)">
+           ${_SC_STATUS_ORDER.map(k => `<option value="${k}" ${status === k ? 'selected' : ''}>${_SC_STATUS_LABELS[k]}</option>`).join('')}
+         </select>`
+      : `<span class="sc-status-dot sc-status-${status}"></span>${_SC_STATUS_LABELS[status]}`;
+    return `<div class="sc-carry-row">
+      <div class="sc-carry-main">${owner}<span class="sc-carry-text">${_scEsc(a.text || '(未填待辦)')}</span></div>
+      <div class="sc-carry-meta">${due}${statusCtl}</div>
+    </div>`;
+  }).join('');
+  const collapsed = _scState.carryCollapsed === true;
+  return `<section class="sc-docsec sc-carry${collapsed ? ' is-collapsed' : ''}">
+    <div class="sc-docsec-head sc-carry-head" onclick="_scToggleCarry()">
+      <span class="sc-docsec-bar sc-carry-bar"></span>
+      <span class="sc-docsec-name">上週未結案</span>
+      <span class="sc-carry-from">${_scEsc(last.meetingDate || '')}</span>
+      <span class="sc-carry-count">${items.length}</span>
+      <span class="sc-card-chevron">▾</span>
+    </div>
+    <div class="sc-carry-body">${rows}</div>
+  </section>`;
+}
+
+function _scToggleCarry() {
+  _scState.carryCollapsed = !_scState.carryCollapsed;
+  const sec = document.querySelector(`#${_scMod().contentEl} .sc-carry`);
+  if (sec) sec.classList.toggle('is-collapsed', _scState.carryCollapsed);
+}
+
+function _scUpdateCarryStatus(lastId, idx, val) {
+  const last = _scFindMeeting(lastId);
+  if (!last || !last.actions || !last.actions[idx]) return;
+  last.actions[idx].status = val;
+  _scUpsertMeeting(last).then(() => _scRenderActive());
+}
+
+// 職掌混合卡：一張卡內依「布達 / 議題 / 待辦」分區呈現該職掌的所有事項
+function _scUnifiedItemsHtml(m, canEdit) {
+  const roles = _scMod().owners || [];
+  return roles.map(role => _scUnifiedRoleCardHtml(m, role, canEdit)).join('');
+}
+
+function _scUnifiedRoleCardHtml(m, role, canEdit) {
+  const anns = _scAnnouncementsForRole(m, role);
+  const tops = _scTopicsForRole(m, role);
+  const acts = _scActionsForRole(m, role);
+  const total = anns.length + tops.length + acts.length;
+  const collapsed = _scIsRoleCollapsed('items', role, total);
+
+  const typeBlock = (label, cls, items, inner) => items.length
+    ? `<div class="sc-type sc-type-${cls}">
+         <div class="sc-type-label"><span class="sc-type-name">${label}</span><span class="sc-type-rule"></span></div>
+         <div class="sc-item-list">${inner}</div>
+       </div>`
+    : '';
+
+  const annInner = anns.map(({ a, idx }, di) => _scUnifiedAnnounceItem(m.id, a, idx, di, canEdit)).join('');
+  const topInner = tops.map(({ t, idx }, di) => _scUnifiedTopicItem(m.id, t, idx, di, canEdit)).join('');
+  const actInner = acts.map(({ a, idx }) => _scUnifiedActionItem(m, a, idx, canEdit)).join('');
+
+  const body = total
+    ? typeBlock('布達', 'announce', anns, annInner)
+      + typeBlock('議題', 'topic', tops, topInner)
+      + typeBlock('待辦', 'action', acts, actInner)
+    : '';
+
+  return `<section class="sc-docsec sc-card-role${collapsed ? ' is-collapsed' : ''}" id="sc-role-card-items-${_scRoleSlug(role)}" data-sec="items" data-role-key="${role}">
+    <div class="sc-docsec-head sc-card-head-toggle" onclick="_scToggleRoleCollapsed('items','${role}',event)">
+      <span class="sc-docsec-bar"></span>
+      <span class="sc-docsec-name">${_scEsc(role)}</span>
+      ${total ? '' : `<span class="sc-docsec-empty">尚無事項</span>`}
+      <span class="sc-card-chevron">▾</span>
+    </div>
+    <div class="sc-card-body${collapsed ? ' is-collapsed' : ''}">
+      ${body}
+    </div>
+  </section>`;
 }
 
 function _scMotionCardHtml(mid, mo, idx, canEdit) {
@@ -1009,7 +1303,7 @@ function _scRenderTrack() {
     ${trackBody}
     <div class="sc-toolbar">
       <button class="sc-btn sc-btn-ghost" onclick="_scPreview('${m.id}')">預覽</button>
-      <button class="sc-btn sc-btn-primary" onclick="_scCopyLineText('${m.id}')">複製文字</button>
+      ${mod.id === 'sanchang' ? '' : `<button class="sc-btn sc-btn-primary" onclick="_scCopyLineText('${m.id}')">複製文字</button>`}
     </div>
   `;
 }
@@ -1301,6 +1595,42 @@ function _scBuildSanchangBlocks(m) {
   }
   if (!hasAnyAction) {
     blocks.push({ html: `<div class="sc-sheet-empty-block">本次無待辦事項</div>` });
+  }
+
+  // === 上週未結案（僅本週會議的紀錄顯示）===
+  if (m.weekKey === getWeekKey()) {
+    const { last, items } = _scCarryOverActions();
+    if (last && items.length) {
+      blocks.push({
+        html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>上週未結案<span class="sc-sheet-h2-sub">（${_scEsc(last.meetingDate || '')}）</span></div>`,
+        keepWithNext: true,
+        pageBreakBefore: true
+      });
+      const carryTable = `<table class="sc-doc-table">
+        <colgroup>
+          <col style="width:7mm"><col><col style="width:22mm"><col style="width:22mm"><col style="width:22mm">
+        </colgroup>
+        <thead><tr>
+          <th class="d-col-num">#</th>
+          <th>待辦事項</th>
+          <th class="d-col-end">負責</th>
+          <th class="d-col-end">期限</th>
+          <th class="d-col-end">狀態</th>
+        </tr></thead>
+        <tbody>
+          ${items.map(({ a }, i) => `
+            <tr>
+              <td class="d-col-num">${i + 1}</td>
+              <td><div class="d-title">${_scEsc(a.text || '(未填內容)')}</div></td>
+              <td class="d-col-end">${a.owner ? _scEsc(a.owner) : '<span class="d-muted">—</span>'}</td>
+              <td class="d-col-end">${a.due ? _scEsc(a.due) : '<span class="d-muted">—</span>'}</td>
+              <td class="d-col-end"><span class="sc-sheet-status sc-sheet-status-${a.status || 'pending'}">${_SC_STATUS_LABELS[a.status || 'pending']}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+      blocks.push({ html: carryTable });
+    }
   }
 
   return blocks;

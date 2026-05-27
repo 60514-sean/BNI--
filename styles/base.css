@@ -2482,6 +2482,7 @@ input.sc-input-sm, select.sc-input-sm { min-height:34px; }
 }
 /* 舊版的小色塊已不需要 — h2 本身就是色塊 */
 .sc-sheet-h2-bar { display:none; }
+.sc-sheet-h2-sub { font-size:9pt; font-weight:500; letter-spacing:1px; opacity:0.85; }
 
 .sc-sheet-topic {
   border:0.4mm solid var(--gray-border); border-radius:2mm;
@@ -2662,6 +2663,206 @@ input.sc-input-sm, select.sc-input-sm { min-height:34px; }
   margin-left:6px;
   min-width:18px; text-align:center;
 }
+
+/* ===== 統一事項頁：基本資訊折疊條 ===== */
+.sc-basic-fold {
+  background:white;
+  border:1.5px solid var(--gray-border);
+  border-radius:12px;
+  margin-bottom:8px;
+  overflow:hidden;
+}
+.sc-basic-fold-head {
+  display:flex; align-items:center; gap:8px;
+  padding:11px 12px;
+  cursor:pointer; user-select:none;
+}
+.sc-basic-fold-head:hover { background:var(--gray-light); }
+.sc-basic-fold-title { font-size:14px; font-weight:800; color:var(--text); }
+.sc-basic-fold-tools { margin-left:auto; display:inline-flex; gap:5px; }
+.sc-mini-btn {
+  padding:5px 11px;
+  border:1.5px solid var(--gray-border);
+  background:white; color:var(--text-soft);
+  border-radius:7px;
+  font-size:12px; font-weight:700;
+  cursor:pointer; font-family:inherit; white-space:nowrap;
+}
+.sc-mini-btn:hover { border-color:var(--red); color:var(--red); }
+.sc-basic-fold .sc-card-chevron { transform:rotate(-90deg); }
+.sc-basic-fold.is-open .sc-card-chevron { transform:rotate(0deg); }
+.sc-basic-fold-body { padding:2px 12px 12px; }
+.sc-basic-fold-body.is-collapsed { display:none; }
+/* 折疊條內的基本資訊卡：去掉重複的外框與標題 */
+.sc-basic-fold-body > .sc-card {
+  border:none; box-shadow:none; background:transparent;
+  padding:0; margin:0;
+}
+.sc-basic-fold-body > .sc-card > .sc-card-head { display:none; }
+
+/* ===== 統一事項頁：頂部快速新增列 ===== */
+.sc-quickadd {
+  background:white;
+  border:1.5px solid var(--gray-border);
+  border-radius:12px;
+  padding:10px;
+  margin-bottom:8px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.05);
+}
+.sc-qa-types {
+  display:flex; margin-bottom:8px;
+  border:1.5px solid var(--gray-border);
+  border-radius:9px;
+  overflow:hidden;
+}
+.sc-qa-type {
+  flex:1;
+  padding:9px 0;
+  border:none;
+  border-left:1.5px solid var(--gray-border);
+  background:white; color:var(--text-soft);
+  font-size:14px; font-weight:800;
+  cursor:pointer; font-family:inherit;
+  transition:background .12s, color .12s;
+}
+.sc-qa-type:first-child { border-left:none; }
+.sc-qa-type:hover { background:var(--gray-light); }
+.sc-qa-type.active + .sc-qa-type { border-left-color:transparent; }
+.sc-qa-type.active.sc-qa-type-announce { background:#2980b9; color:white; }
+.sc-qa-type.active.sc-qa-type-topics   { background:#8e44ad; color:white; }
+.sc-qa-type.active.sc-qa-type-actions  { background:#27ae60; color:white; }
+.sc-qa-entry {
+  display:flex; gap:6px; align-items:stretch;
+}
+.sc-qa-role { flex-shrink:0; width:auto; min-width:84px; }
+.sc-qa-input { flex:1; min-width:0; }
+.sc-qa-submit { flex-shrink:0; white-space:nowrap; }
+
+/* ===== 統一事項頁：職掌章節（文件式扁平排版）===== */
+.sc-docsec { background:transparent; box-shadow:none; border:none; padding:0; margin:0; }
+.sc-docsec + .sc-docsec { border-top:2px solid var(--gray-border); margin-top:6px; padding-top:2px; }
+.sc-docsec-head {
+  display:flex; align-items:center; gap:10px;
+  padding:13px 4px; cursor:pointer; user-select:none;
+}
+.sc-docsec-bar {
+  flex-shrink:0; width:4px; height:19px; border-radius:2px;
+  background:var(--red);
+}
+.sc-docsec-name { font-size:17px; font-weight:900; color:var(--text); letter-spacing:0.5px; }
+.sc-docsec-count {
+  font-size:12px; font-weight:800; color:var(--text-soft);
+  background:var(--gray-light); border-radius:99px;
+  padding:1px 9px; min-width:18px; text-align:center;
+}
+.sc-docsec-empty { font-size:12px; color:#9aa3ad; }
+.sc-docsec-head .sc-card-chevron { margin-left:auto; }
+.sc-docsec > .sc-card-body { padding:0 2px 12px 18px; }
+
+/* 類型分段：淡色小標 + 延伸細線 */
+.sc-type { margin-top:16px; }
+.sc-type:first-child { margin-top:2px; }
+.sc-type-label { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.sc-type-name { font-size:12px; font-weight:800; letter-spacing:3px; }
+.sc-type-count {
+  font-size:11px; font-weight:800;
+  border-radius:99px; padding:0 7px; min-width:16px; text-align:center;
+}
+.sc-type-rule { flex:1; height:0; border-top:1.5px solid; }
+.sc-type-announce .sc-type-name  { color:#2980b9; }
+.sc-type-announce .sc-type-count { background:#eaf3fb; color:#2980b9; }
+.sc-type-announce .sc-type-rule  { border-top-color:#d3e6f5; }
+.sc-type-topic .sc-type-name  { color:#8e44ad; }
+.sc-type-topic .sc-type-count { background:#f3e9f9; color:#8e44ad; }
+.sc-type-topic .sc-type-rule  { border-top-color:#e4d3ef; }
+.sc-type-action .sc-type-name  { color:#1e8449; }
+.sc-type-action .sc-type-count { background:#e8f8ef; color:#1e8449; }
+.sc-type-action .sc-type-rule  { border-top-color:#cdeede; }
+
+/* 上週未結案提醒區 */
+.sc-carry { margin-top:8px; }
+.sc-carry-head { cursor:pointer; user-select:none; }
+.sc-carry-head:hover { background:rgba(230,126,34,0.05); }
+.sc-carry-bar { background:#e67e22; }
+.sc-carry-from { margin-left:6px; font-size:12px; color:var(--text-soft); }
+.sc-carry-count {
+  margin-left:auto;
+  font-size:11px; font-weight:800;
+  background:#fdebd8; color:#b9651a;
+  border-radius:99px; padding:1px 8px; min-width:18px; text-align:center;
+}
+.sc-carry-head .sc-card-chevron { margin-left:6px; }
+.sc-carry.is-collapsed .sc-card-chevron { transform:rotate(-90deg); }
+.sc-carry.is-collapsed .sc-carry-body { display:none; }
+.sc-carry-body { padding:2px 2px 12px 18px; display:flex; flex-direction:column; }
+.sc-carry-row { display:flex; align-items:center; gap:8px; padding:8px 6px; }
+.sc-carry-row + .sc-carry-row { border-top:1px solid #eef1f4; }
+.sc-carry-main { flex:1; min-width:0; display:flex; align-items:center; gap:8px; }
+.sc-carry-text { font-size:14px; color:var(--text); }
+.sc-carry-owner {
+  flex-shrink:0; font-size:11px; font-weight:800;
+  background:#fdebd8; color:#b9651a; border-radius:5px; padding:1px 7px;
+}
+.sc-carry-meta { flex-shrink:0; display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-soft); }
+
+/* ===== 統一事項頁：摘要列（點擊展開編輯）===== */
+.sc-item-list { display:flex; flex-direction:column; }
+.sc-item { background:transparent; }
+.sc-item + .sc-item { border-top:1px solid #eef1f4; }
+.sc-item-bar {
+  display:flex; align-items:center; gap:8px;
+  padding:8px 6px;
+  cursor:pointer;
+  user-select:none;
+  border-radius:6px;
+}
+.sc-item-bar:hover { background:var(--gray-light); }
+.sc-item-chev {
+  flex-shrink:0; color:var(--text-soft); font-size:11px;
+  transition:transform .15s; width:10px; text-align:center;
+}
+.sc-item:not(.is-collapsed) .sc-item-chev { transform:rotate(90deg); }
+.sc-item-no {
+  flex-shrink:0;
+  font-size:11px; font-weight:800; color:var(--red);
+  min-width:14px;
+}
+.sc-item-text {
+  flex:1; min-width:0;
+  font-size:14px; color:var(--text);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.sc-item:not(.is-collapsed) .sc-item-text { white-space:normal; font-weight:700; }
+.sc-item-meta {
+  flex-shrink:0; font-size:12px; color:var(--text-soft);
+  display:inline-flex; align-items:center; gap:5px;
+}
+.sc-item-due {
+  background:var(--gray-light); border-radius:5px;
+  padding:1px 7px; font-weight:600;
+}
+.sc-status-dot {
+  display:inline-block; width:8px; height:8px; border-radius:50%;
+  background:#bbb; flex-shrink:0;
+}
+.sc-status-dot.sc-status-pending { background:#f39c12; }
+.sc-status-dot.sc-status-done    { background:#27ae60; }
+.sc-status-dot.sc-status-delay   { background:#e67e22; }
+.sc-status-dot.sc-status-cancel  { background:#95a5a6; }
+.sc-item-badge {
+  flex-shrink:0; font-size:10px; font-weight:800;
+  padding:1px 7px; border-radius:99px;
+}
+.sc-item-badge-ok { background:#eafaf0; color:#1e8449; }
+.sc-item-del { flex-shrink:0; }
+.sc-item-edit {
+  margin:2px 2px 10px;
+  padding:12px;
+  display:flex; flex-direction:column; gap:8px;
+  background:var(--gray-light);
+  border-radius:8px;
+}
+.sc-item.is-collapsed .sc-item-edit { display:none; }
 
 /* A4 預覽：本周布達事項條目 */
 .sc-sheet-announce-item {
