@@ -1505,15 +1505,18 @@ function _scBuildSheetHtml(m) {
     }
   }
 
+  // 移除被 keepWithNext 搬空、或頁尾預留產生的空白頁（只剩頁首/頁碼的空殼）
+  const renderPages = pages.filter(p => p.blocks.length > 0);
+
   // ===== 組裝最終 HTML =====
-  return pages.map((page, idx) => {
+  return renderPages.map((page, idx) => {
     const isFirst = idx === 0;
-    const isLast  = idx === pages.length - 1;
+    const isLast  = idx === renderPages.length - 1;
     const top = isFirst ? headlineHtml : barHtml;
     const bottom = isLast ? footHtml : '';
     const content = page.blocks.map(b => b.html).join('');
-    const pageNo = pages.length > 1
-      ? `<div class="sc-sheet-page-no">- ${idx + 1} / ${pages.length} -</div>`
+    const pageNo = renderPages.length > 1
+      ? `<div class="sc-sheet-page-no">- ${idx + 1} / ${renderPages.length} -</div>`
       : '';
     return `<div class="sc-sheet-page" data-page="${idx + 1}">${top}${content}${bottom}${pageNo}</div>`;
   }).join('');
