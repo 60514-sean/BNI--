@@ -32,7 +32,7 @@ const _SC_MODULES = {
     attendees: '主席、副主席、秘書財務、活動協調員、教育協調員、成長協調員、導師協調員、來賓接待員、網站管理員、董顧、支持成長董顧',
     owners: ['主席', '副主席', '秘書財務', '活動協調員', '教育協調員', '成長協調員', '導師協調員', '來賓接待員', '網站管理員', '董顧', '支持成長董顧'],
     filePrefix: '領導月會',
-    hasTopics: false,
+    hasTopics: true,
     hasReports: true,
     hasMotions: true,
     hasSummary: true,
@@ -1008,28 +1008,35 @@ function _scUnifiedItemsHtml(m, canEdit) {
       out.push(_scUnifiedCommitteeCardsHtml(m, canEdit));
     }
   });
-  // 對不到任何職掌/委員的待辦（owner 為空或委員已刪除）→ 收進「未指派」卡，避免被隱藏
+  // 對不到任何職掌/委員的事項（owner 為空或委員已刪除）→ 收進「未指派」卡，避免被隱藏
   const committeeNames = (Array.isArray(m.committee) ? m.committee : [])
     .map(c => (c.name || '').trim()).filter(Boolean);
   const shownOwners = new Set([...roles, ...committeeNames]);
-  const leftover = (m.actions || []).map((a, idx) => ({ a, idx })).filter(({ a }) => !shownOwners.has(a.owner));
-  if (leftover.length) out.push(_scUnifiedUnassignedCardHtml(m, leftover, canEdit));
+  const leftoverActs = (m.actions || []).map((a, idx) => ({ a, idx })).filter(({ a }) => !shownOwners.has(a.owner));
+  const leftoverTops = (m.topics || []).map((t, idx) => ({ t, idx })).filter(({ t }) => !shownOwners.has(t.role || '主席'));
+  if (leftoverActs.length || leftoverTops.length) out.push(_scUnifiedUnassignedCardHtml(m, leftoverActs, leftoverTops, canEdit));
   if (mod.hasMotions === true) out.push(_scUnifiedMotionsHtml(m, canEdit));
   return out.join('');
 }
 
-// 未指派待辦卡（單頁式）：收容對不到職掌/委員的待辦
-function _scUnifiedUnassignedCardHtml(m, items, canEdit) {
-  const collapsed = _scIsRoleCollapsed('items', '_unassigned', items.length);
-  const actInner = items.map(({ a, idx }) => _scUnifiedActionItem(m, a, idx, canEdit)).join('');
+// 未指派卡（單頁式）：收容對不到職掌/委員的議題與待辦
+function _scUnifiedUnassignedCardHtml(m, acts, tops, canEdit) {
+  const total = acts.length + tops.length;
+  const collapsed = _scIsRoleCollapsed('items', '_unassigned', total);
+  const topInner = tops.map(({ t, idx }, di) => _scUnifiedTopicItem(m.id, t, idx, di, canEdit)).join('');
+  const actInner = acts.map(({ a, idx }) => _scUnifiedActionItem(m, a, idx, canEdit)).join('');
+  const topList = tops.length
+    ? `<div class="sc-type sc-type-topic"><div class="sc-type-label"><span class="sc-type-name">議題</span><span class="sc-type-rule"></span></div><div class="sc-item-list">${topInner}</div></div>` : '';
+  const actList = acts.length
+    ? `<div class="sc-type sc-type-action"><div class="sc-type-label"><span class="sc-type-name">待辦</span><span class="sc-type-rule"></span></div><div class="sc-item-list">${actInner}</div></div>` : '';
   return `<section class="sc-docsec sc-card-role${collapsed ? ' is-collapsed' : ''}" id="sc-role-card-items-_unassigned" data-sec="items" data-role-key="_unassigned">
     <div class="sc-docsec-head sc-card-head-toggle" onclick="_scToggleRoleCollapsed('items','_unassigned',event)">
       <span class="sc-docsec-bar"></span>
-      <span class="sc-docsec-name"><span class="sc-role-tag sc-role-tag-muted">未指派</span>待辦</span>
+      <span class="sc-docsec-name"><span class="sc-role-tag sc-role-tag-muted">未指派</span>事項</span>
       <span class="sc-card-chevron">▾</span>
     </div>
     <div class="sc-card-body${collapsed ? ' is-collapsed' : ''}">
-      <div class="sc-type sc-type-action"><div class="sc-item-list">${actInner}</div></div>
+      ${topList}${actList}
     </div>
   </section>`;
 }
@@ -1041,18 +1048,25 @@ function _scUnifiedCommitteeCardsHtml(m, canEdit) {
   const cards = committee.map((c, ci) => {
     const name = (c.name || '').trim();
     const anns = Array.isArray(c.announcements) ? c.announcements : [];
+    const tops = name ? _scTopicsForRole(m, name) : [];
     const acts = name ? _scActionsForRole(m, name) : [];
-    const total = anns.length + acts.length;
+    const total = anns.length + tops.length + acts.length;
     const collapseKey = name ? `_com_${name}` : `_com_idx_${ci}`;
     const jsKey = String(collapseKey).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const collapsed = _scIsRoleCollapsed('items', collapseKey, total);
 
     const annInner = anns.map((a, di) => _scUnifiedCommitteeAnnounceItem(m.id, ci, a, di, canEdit)).join('');
+    const topInner = tops.map(({ t, idx }, di) => _scUnifiedTopicItem(m.id, t, idx, di, canEdit)).join('');
     const actInner = acts.map(({ a, idx }) => _scUnifiedActionItem(m, a, idx, canEdit)).join('');
     const annList = anns.length
       ? `<div class="sc-type sc-type-announce">
            <div class="sc-type-label"><span class="sc-type-name">布達</span><span class="sc-type-rule"></span></div>
            <div class="sc-item-list"${canEdit && anns.length > 1 ? ` data-sc-sortable data-sc-type="announce" data-sc-committee="${ci}" data-sc-mid="${m.id}"` : ''}>${annInner}</div>
+         </div>` : '';
+    const topList = tops.length
+      ? `<div class="sc-type sc-type-topic">
+           <div class="sc-type-label"><span class="sc-type-name">議題</span><span class="sc-type-rule"></span></div>
+           <div class="sc-item-list"${canEdit && tops.length > 1 ? ` data-sc-sortable data-sc-type="topic" data-sc-role="${_scEsc(name)}" data-sc-mid="${m.id}"` : ''}>${topInner}</div>
          </div>` : '';
     const actList = acts.length
       ? `<div class="sc-type sc-type-action">
@@ -1072,7 +1086,7 @@ function _scUnifiedCommitteeCardsHtml(m, canEdit) {
         <span class="sc-card-chevron">▾</span>
       </div>
       <div class="sc-card-body${collapsed ? ' is-collapsed' : ''}">
-        ${annList}${actList}
+        ${annList}${topList}${actList}
       </div>
     </section>`;
   }).join('');
@@ -1964,6 +1978,48 @@ function _scBuildLeadershipBlocks(m) {
             });
           });
         }
+      });
+    }
+  }
+
+  // === 議題與決議（比照三長：依職掌＋委員分組）===
+  if (mod.hasTopics === true) {
+    const tRoles = mod.owners || [];
+    const tCommittee = (Array.isArray(m.committee) ? m.committee : []).filter(c => (c.name || '').trim());
+    const hasAnyTopic = tRoles.some(r => _scTopicsForRole(m, r).length)
+      || tCommittee.some(c => _scTopicsForRole(m, c.name.trim()).length);
+    blocks.push({
+      html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>議題與決議</div>`,
+      keepWithNext: true,
+      pageBreakBefore: true
+    });
+    if (!hasAnyTopic) {
+      blocks.push({ html: `<div class="sc-sheet-empty-block">本次無議題</div>` });
+    } else {
+      const buildTopicsDocTable = (items) => `<table class="sc-doc-table">
+        <colgroup><col style="width:7mm"><col><col style="width:38%"></colgroup>
+        <thead><tr><th class="d-col-num">#</th><th>議題 / 內容</th><th>決議</th></tr></thead>
+        <tbody>
+          ${items.map(({ t }, i) => `
+            <tr>
+              <td class="d-col-num">${i + 1}</td>
+              <td>
+                <div class="d-title">${_scEsc(t.title || '(未填標題)')}</div>
+                ${t.content ? `<div class="d-desc">${_scEsc(t.content).replace(/\n/g, '<br>')}</div>` : ''}
+              </td>
+              <td>${t.decision ? _scEsc(t.decision).replace(/\n/g, '<br>') : '<span class="d-muted">—</span>'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+      const emitRoleTopics = (label, items) => {
+        if (!items.length) return;
+        blocks.push({ html: `<div class="sc-sheet-role-h">${_scEsc(label)}</div>`, keepWithNext: true });
+        blocks.push({ html: buildTopicsDocTable(items) });
+      };
+      tRoles.forEach(role => {
+        emitRoleTopics(role, _scTopicsForRole(m, role));
+        if (role === '副主席') tCommittee.forEach(c => emitRoleTopics(c.name.trim(), _scTopicsForRole(m, c.name.trim())));
       });
     }
   }
