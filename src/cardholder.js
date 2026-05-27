@@ -119,7 +119,7 @@ function _cardholderBodyHtml(members) {
 
 function _cardholderSheetHtml(m) {
   const name = _escH(m.name || '');
-  const industry = _escH(m.industry || m.specialty || '');
+  const industry = _escH(m.specialty || m.industry || '');  // 顯示專業別（優先），無則退回產業鏈
   return `<div class="cardholder-sheet" style="background-image:url('cardholder_bg/cardholder.jpg');">
     <div class="cardholder-industry">${industry}</div>
     <div class="cardholder-name">${name}</div>

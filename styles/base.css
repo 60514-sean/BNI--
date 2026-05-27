@@ -63,7 +63,7 @@ body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(
 .user-chip { background: rgba(255,255,255,0.2); border-radius: 20px; padding: 5px 14px; font-size: 13px; font-weight: 500; }
 .hbtn { background: rgba(255,255,255,0.18); border: none; color: white; padding: 6px 13px; border-radius: 7px; cursor: pointer; font-size: 13px; font-family: inherit; }
 .hbtn:hover { background: rgba(255,255,255,0.28); }
-.content { padding: 18px; max-width: 900px; margin: 0 auto; width: 100%; }
+.content { padding: 18px; max-width: 1280px; margin: 0 auto; width: 100%; }
 
 /* 設定頁 — 使用者列 */
 .user-row {
@@ -667,6 +667,54 @@ input.is-locked:focus, textarea.is-locked:focus {
   .menu-dropdown { left: 12px; right: 12px; min-width: auto; max-width: none; }
 }
 
+/* ===== 桌機：經典後台佈局（手機維持漢堡下拉，全包在此斷點內）===== */
+@media(min-width: 1024px) {
+  body { background: #f4f6fa; }
+  .app { padding-left: 240px; }
+
+  /* 頂列：白底細列，取代紅色 header */
+  .header {
+    background: #fff; color: var(--text);
+    border-bottom: 1px solid var(--gray-border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    padding: 14px 28px;
+  }
+  .menu-btn { background: transparent !important; padding: 0 !important; cursor: default; }
+  .menu-icon, .menu-arrow { display: none !important; }
+  .menu-btn .menu-label { color: var(--text); font-size: 18px; font-weight: 900; }
+  .user-chip { background: var(--gray-light); color: var(--text); }
+
+  /* 左側欄：淺色 */
+  .menu-dropdown {
+    display: block !important;
+    position: fixed; top: 0; left: 0; bottom: 0;
+    width: 240px; min-width: 240px; max-width: 240px;
+    background: #fbfcfe;
+    border: none; border-right: 1px solid var(--gray-border);
+    border-radius: 0; box-shadow: none;
+    padding: 0 0 24px;
+    max-height: none; z-index: 150;
+  }
+  .menu-dropdown::before {
+    content: 'BNI 秘書財務';
+    display: block; padding: 18px 18px 16px;
+    font-size: 16px; font-weight: 900; color: var(--red); letter-spacing: 1px;
+    border-bottom: 1px solid var(--gray-border); margin-bottom: 8px;
+  }
+  /* 側欄內：每組改單欄清單 */
+  .menu-dropdown .menu-grid { grid-template-columns: 1fr; gap: 2px; padding: 2px 12px 8px; }
+  .menu-dropdown .menu-tile {
+    text-align: left; padding: 10px 12px; font-size: 14px;
+    background: transparent; border-radius: 8px; color: var(--text);
+  }
+  .menu-dropdown .menu-tile:hover { background: var(--red-light); color: var(--red); }
+  .menu-dropdown .menu-tile.active { background: var(--red); color: #fff; box-shadow: none; }
+  .menu-dropdown .menu-group-title { padding: 14px 16px 4px; }
+
+  /* 內容區：留白加大 */
+  .content { padding: 28px 32px 48px; }
+}
+
 /* WELCOME OVERLAY */
 .welcome-overlay {
   position: fixed; inset: 0; z-index: 9999;
@@ -742,7 +790,7 @@ input.is-locked:focus, textarea.is-locked:focus {
 .ptab-icon { font-size: 20px; }
 
 /* SIGNIN SHEET */
-.signin-wrapper { padding: 0; max-width: 980px; margin: 0 auto; }
+.signin-wrapper { padding: 0; max-width: 1280px; margin: 0 auto; }
 .signin-subtab {
   flex: 1; padding: 11px 14px; border-radius: 10px;
   border: 1.5px solid var(--gray-border); background: white; color: var(--text-soft);
@@ -753,7 +801,7 @@ input.is-locked:focus, textarea.is-locked:focus {
 .signin-subtab.active { border-color: var(--red); background: var(--red); color: white; }
 
 /* LIGHTS (燈號分析) */
-.lights-wrapper { padding: 0; max-width: 1100px; margin: 0 auto; }
+.lights-wrapper { padding: 0; max-width: 1440px; margin: 0 auto; }
 .guest-filter-sel {
   flex: 1; min-width: 140px;
   padding: 9px 32px 9px 12px;
@@ -1578,7 +1626,7 @@ input.is-locked:focus, textarea.is-locked:focus {
 }
 
 /* ===== 例會流程 ===== */
-.meet-wrapper { padding:0; max-width:980px; margin:0 auto; }
+.meet-wrapper { padding:0; max-width:1280px; margin:0 auto; }
 .meet-toolbar { display:flex; flex-wrap:nowrap; gap:6px; align-items:center; margin-bottom:12px; }
 .meet-tb-btn {
   padding:8px 10px; font-size:12px; font-weight:700;
