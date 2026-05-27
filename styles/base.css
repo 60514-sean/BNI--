@@ -2912,6 +2912,19 @@ input.sc-input-sm, select.sc-input-sm { min-height:34px; }
 }
 .sc-item.is-collapsed .sc-item-edit { display:none; }
 
+/* 統一事項頁：拖拉排序把手與拖曳狀態 */
+.sc-drag-handle {
+  flex-shrink:0; cursor:grab; color:var(--text-soft);
+  font-size:14px; line-height:1; padding:0 2px;
+  touch-action:none; -webkit-user-select:none; user-select:none;
+}
+.sc-drag-handle:active { cursor:grabbing; }
+/* 單筆項目（清單未啟用排序）不顯示把手 */
+.sc-item-list:not([data-sc-sortable]) .sc-drag-handle { display:none; }
+.sc-item-ghost  { opacity:.35; background:var(--gray-light); }
+.sc-item-chosen { background:#fff; box-shadow:0 6px 20px rgba(0,0,0,.18); border-radius:8px; }
+.sc-item-drag   { box-shadow:0 10px 26px rgba(0,0,0,.24); border-radius:8px; }
+
 /* A4 預覽：本周布達事項條目 */
 .sc-sheet-announce-item {
   display:flex; gap:3mm; align-items:flex-start;

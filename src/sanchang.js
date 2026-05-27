@@ -369,6 +369,8 @@ function _scRenderActive() {
       ${body}
     </div>
   `;
+  // 統一事項頁（三長周會）：初始化拖拉排序
+  if (_scMod().unifiedRoleView && _canEditTab(_scMod().id)) _scInitUnifiedSortable();
 }
 function _scSwitchView(v) { _scState.view = v; _scState.histDetailId = null; _scRenderActive(); }
 function _scSetSection(s) { _scState.section = s; _scRenderActive(); }
@@ -852,6 +854,7 @@ function _scUnifiedAnnounceItem(mid, a, idx, displayIdx, canEdit) {
   const summary = (a.content || '').trim() || '(空白布達)';
   return `<div class="sc-item is-collapsed" data-aidx="${idx}">
     <div class="sc-item-bar" onclick="_scToggleItem(this)">
+      ${canEdit ? `<span class="sc-drag-handle" onclick="event.stopPropagation()" title="拖曳排序">⠿</span>` : ''}
       <span class="sc-item-chev">▸</span>
       <span class="sc-item-no">${displayIdx + 1}</span>
       <span class="sc-item-text" data-empty="(空白布達)">${_scEsc(summary)}</span>
@@ -869,6 +872,7 @@ function _scUnifiedTopicItem(mid, t, idx, displayIdx, canEdit) {
   const decided = (t.decision || '').trim();
   return `<div class="sc-item is-collapsed" data-tidx="${idx}">
     <div class="sc-item-bar" onclick="_scToggleItem(this)">
+      ${canEdit ? `<span class="sc-drag-handle" onclick="event.stopPropagation()" title="拖曳排序">⠿</span>` : ''}
       <span class="sc-item-chev">▸</span>
       <span class="sc-item-no">${displayIdx + 1}</span>
       <span class="sc-item-text" data-empty="(未填標題)">${_scEsc(summary)}</span>
@@ -893,6 +897,7 @@ function _scUnifiedActionItem(m, a, idx, canEdit) {
   metaBits.push(`<span class="sc-status-dot sc-status-${status}"></span>${_SC_STATUS_LABELS[status]}`);
   return `<div class="sc-item is-collapsed" data-aidx="${idx}">
     <div class="sc-item-bar" onclick="_scToggleItem(this)">
+      ${canEdit ? `<span class="sc-drag-handle" onclick="event.stopPropagation()" title="拖曳排序">⠿</span>` : ''}
       <span class="sc-item-chev">▸</span>
       <span class="sc-item-text" data-empty="(未填待辦)">${_scEsc(summary)}</span>
       <span class="sc-item-meta">${metaBits.join(' ')}</span>
@@ -981,10 +986,11 @@ function _scUnifiedRoleCardHtml(m, role, canEdit) {
   const total = anns.length + tops.length + acts.length;
   const collapsed = _scIsRoleCollapsed('items', role, total);
 
+  const roleAttr = _scEsc(role);
   const typeBlock = (label, cls, items, inner) => items.length
     ? `<div class="sc-type sc-type-${cls}">
          <div class="sc-type-label"><span class="sc-type-name">${label}</span><span class="sc-type-rule"></span></div>
-         <div class="sc-item-list">${inner}</div>
+         <div class="sc-item-list"${canEdit && items.length > 1 ? ` data-sc-sortable data-sc-type="${cls}" data-sc-role="${roleAttr}" data-sc-mid="${m.id}"` : ''}>${inner}</div>
        </div>`
     : '';
 
@@ -1009,6 +1015,59 @@ function _scUnifiedRoleCardHtml(m, role, canEdit) {
       ${body}
     </div>
   </section>`;
+}
+
+// 統一事項頁：拖拉排序（每個「職掌＋類型」清單各自可重排，長按 200ms 觸發）
+async function _scInitUnifiedSortable() {
+  try { await _scLoadScript('https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js'); }
+  catch { return; }
+  if (!window.Sortable) return;
+  const container = document.getElementById(_scMod().contentEl);
+  if (!container) return;
+  container.querySelectorAll('.sc-item-list[data-sc-sortable]').forEach(list => {
+    if (list._scSortable) { try { list._scSortable.destroy(); } catch {} }
+    list._scSortable = Sortable.create(list, {
+      animation: 160,
+      handle: '.sc-drag-handle',
+      delay: 200,
+      delayOnTouchOnly: true,
+      touchStartThreshold: 5,
+      // iOS Safari 對 HTML5 drag API 支援差 → 走 Sortable 內建觸控/滑鼠實作
+      forceFallback: true,
+      fallbackOnBody: true,
+      fallbackTolerance: 4,
+      ghostClass: 'sc-item-ghost',
+      chosenClass: 'sc-item-chosen',
+      dragClass: 'sc-item-drag',
+      onEnd: (evt) => {
+        const o = evt.oldIndex, n = evt.newIndex;
+        if (o == null || n == null || o === n) return;
+        _scReorderUnified(list.dataset.scMid, list.dataset.scType, list.dataset.scRole, o, n);
+      }
+    });
+  });
+}
+
+// 重排：只動「同一職掌、同一類型」的子集，其他職掌的位置保持不變
+function _scReorderUnified(mid, type, role, oldIdx, newIdx) {
+  const m = _scFindMeeting(mid);
+  if (!m) return;
+  let arr, roleOf;
+  if (type === 'announce')    { arr = m.announcements; roleOf = it => (it.role  || '主席'); }
+  else if (type === 'topic')  { arr = m.topics;        roleOf = it => (it.role  || '主席'); }
+  else if (type === 'action') { arr = m.actions;       roleOf = it => (it.owner || ''); }
+  else return;
+  if (!Array.isArray(arr)) return;
+  // 蒐集屬於此職掌的原始索引（依目前陣列順序）
+  const idxs = [];
+  arr.forEach((it, i) => { if (roleOf(it) === role) idxs.push(i); });
+  if (oldIdx < 0 || newIdx < 0 || oldIdx >= idxs.length || newIdx >= idxs.length) return;
+  // 取出子集 → 依新順序重排 → 寫回原本占用的位置
+  const elems = idxs.map(i => arr[i]);
+  const [moved] = elems.splice(oldIdx, 1);
+  elems.splice(newIdx, 0, moved);
+  idxs.forEach((origIdx, k) => { arr[origIdx] = elems[k]; });
+  _scUpsertMeeting(m).then(() => _scRenderActive());
 }
 
 function _scMotionCardHtml(mid, mo, idx, canEdit) {
