@@ -274,14 +274,11 @@ function _toggleGuestExpand(key) {
 }
 
 function _isInWeekGuest(g) {
-  const r = _weekRange();
-  const mon = r.mon, sun = r.sun;
-  const candidates = [];
-  (g._allRows || [g]).forEach(row => {
-    candidates.push(_parseDateStr(row.firstVisit));
-    _parseTracks(row.tracks).forEach(t => candidates.push(_parseDateStr(t.date)));
+  const { mon, sun } = _weekRange();
+  return (g._allRows || [g]).some(row => {
+    const d = _parseDateStr(row.firstVisit);
+    return d && d >= mon && d <= sun;
   });
-  return candidates.some(d => d && d >= mon && d <= sun);
 }
 
 // 「高潛力」分頁僅顯示秘書手動標「入會機率=高」的來賓。
@@ -1757,7 +1754,7 @@ function _buildWeekPrintRow(g, num) {
     g.interestedIndustry ? `<div style="display:flex;"><span style="${lblStyle}">想認識行業</span><span style="color:#c0392b;font-weight:600;">${_escH(g.interestedIndustry)}</span></div>` : ''
   ].filter(Boolean).join('');
   const rField = g.extraNote
-    ? `<div style="display:flex;"><span style="color:#999;font-size:7.5pt;flex-shrink:0;">補充　</span><span>${_escH(g.extraNote)}</span></div>`
+    ? `<div style="display:flex;min-width:0;"><span style="color:#999;font-size:7.5pt;flex-shrink:0;">補充　</span><span style="min-width:0;overflow-wrap:anywhere;word-break:break-word;">${_escH(g.extraNote)}</span></div>`
     : '';
   const hasNotes = lFields || rField;
   // 變動高度：每筆依內容自動撐開（min-height 確保最小高度，內容多可往下長）
@@ -1779,8 +1776,8 @@ function _buildWeekPrintRow(g, num) {
       </div>
       ${hasNotes ? `
       <div style="display:grid;grid-template-columns:1.3fr 1.3fr 1.3fr 0.6fr;column-gap:14px;align-items:start;font-size:8.5pt;line-height:1.45;color:#444;">
-        ${lFields ? `<div style="grid-column:1/span 2;display:flex;flex-direction:column;gap:2px;">${lFields}</div>` : '<div style="grid-column:1/span 2;"></div>'}
-        ${rField ? `<div style="grid-column:3/span 2;">${rField}</div>` : ''}
+        ${lFields ? `<div style="grid-column:1/span 2;display:flex;flex-direction:column;gap:2px;min-width:0;">${lFields}</div>` : '<div style="grid-column:1/span 2;"></div>'}
+        ${rField ? `<div style="grid-column:3/span 2;min-width:0;">${rField}</div>` : ''}
       </div>` : ''}
     </div>
   `;

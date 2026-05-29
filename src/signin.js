@@ -4,7 +4,11 @@ const SIGNIN_GUEST_PER_PAGE = 10;    // 來賓每頁人數
 const SIGNIN_GUEST_TOTAL    = 10;    // 來賓總人數
 const SIGNIN_VISITOR_PER_PAGE = 15;  // 外賓每頁人數（比照會員）
 let _signinSubTab = 'member';       // 'member' | 'guest' | 'visitor'
+let _signinGuestGender = 'all';     // 'all' | 'male' | 'female'（只影響來賓子分頁）
 let _signinDate = '';                // 'YYYY-MM-DD'，預設今天
+
+function _isMaleGuest(g) { return g && g.title === '先生'; }
+function _isFemaleGuest(g) { return g && (g.title === '小姐' || g.title === '女士'); }
 
 function _rocDateText(isoDate) {
   const d = isoDate ? new Date(isoDate + 'T00:00:00') : new Date();
@@ -37,11 +41,19 @@ async function renderSignin() {
                    : tab === 'guest'  ? _buildGuestSheets(dateText)
                    : _buildVisitorSheets(dateText);
   const pageCount = (sheetsHtml.match(/class="signin-sheet"/g) || []).length;
-  const weekGuestCount = tab === 'guest' ? _getWeekGuestsForSignin().length : 0;
+  const allWeekGuests = tab === 'guest' ? _getWeekGuestsForSignin('all') : [];
+  const maleCount   = allWeekGuests.filter(_isMaleGuest).length;
+  const femaleCount = allWeekGuests.filter(_isFemaleGuest).length;
+  const filteredGuestCount = tab === 'guest' ? _getWeekGuestsForSignin(_signinGuestGender).length : 0;
   const visitorCount   = tab === 'visitor' ? getVisitors().length : 0;
+  const guestLabel = _signinGuestGender === 'male' ? '男來賓' : _signinGuestGender === 'female' ? '女來賓' : '本周';
   const desc = tab === 'member' ? `共 ${_memberData.length} 位會員 · ${pageCount} 張 A4（每張 ${SIGNIN_ROWS_PER_PAGE} 人）`
-             : tab === 'guest'  ? `本周 ${weekGuestCount} 位 · 表格 ${SIGNIN_GUEST_TOTAL} 格 · ${pageCount} 張 A4`
+             : tab === 'guest'  ? `${guestLabel} ${filteredGuestCount} 位（全週共 ${allWeekGuests.length}：男 ${maleCount} / 女 ${femaleCount}） · 表格 ${SIGNIN_GUEST_TOTAL} 格 · ${pageCount} 張 A4`
              : `共 ${visitorCount} 位外賓 · ${pageCount} 張 A4（每張 ${SIGNIN_VISITOR_PER_PAGE} 人）`;
+  const guestGBtn = (v, label) => `<button class="signin-subtab ${_signinGuestGender===v?'active':''}" onclick="_signinSwitchGuestGender('${v}')">${label}</button>`;
+  const guestGenderBar = tab === 'guest'
+    ? `<div style="display:flex;gap:8px;margin-top:10px;">${guestGBtn('all','全部')}${guestGBtn('male','男來賓')}${guestGBtn('female','女來賓')}</div>`
+    : '';
 
   el.innerHTML = `<div class="signin-wrapper">
     <div class="card" style="margin-bottom:14px;padding:16px 20px;">
@@ -61,6 +73,7 @@ async function renderSignin() {
         ${subBtn('guest','來賓')}
         ${subBtn('visitor','外賓')}
       </div>
+      ${guestGenderBar}
     </div>
     <div class="signin-preview-outer" id="signinOuter">
       <div class="signin-preview-inner" id="signinInner">
@@ -72,6 +85,7 @@ async function renderSignin() {
 }
 
 function _signinSwitch(v) { _signinSubTab = v; renderSignin(); }
+function _signinSwitchGuestGender(v) { _signinGuestGender = v; renderSignin(); }
 function _signinSetDate(v) { _signinDate = v || _todayIso(); renderSignin(); }
 
 function _buildMemberSheets(dateText) {
@@ -172,7 +186,10 @@ function _memberSheetHtml(dateText, members, startIdx, pageNum, totalPages) {
 function _guestSheetHtml(dateText, startIdx, rowCount, pageNum, totalPages) {
   const rowH = 10; // mm，每個子列；每位來賓佔 2 子列 = 20mm
   const suffix = totalPages > 1 ? `（${pageNum}/${totalPages}）` : '';
-  const weekGuests = _getWeekGuestsForSignin();
+  const weekGuests = _getWeekGuestsForSignin(_signinGuestGender);
+  const sheetTitle = _signinGuestGender === 'male'   ? '男來賓出席簽到'
+                   : _signinGuestGender === 'female' ? '女來賓出席簽到'
+                   : '來賓出席簽到';
   let rows = '';
   for (let i = 1; i <= rowCount; i++) {
     const g = weekGuests[startIdx + i - 1]; // 對應本周來賓（若有）
@@ -193,7 +210,7 @@ function _guestSheetHtml(dateText, startIdx, rowCount, pageNum, totalPages) {
       </tr>`;
   }
   return `<div class="signin-sheet">
-    <div class="ss-title">BNI 億展白金分會　來賓出席簽到${suffix}</div>
+    <div class="ss-title">BNI 億展白金分會　${sheetTitle}${suffix}</div>
     <div class="ss-subtitle">${dateText}</div>
     <table class="ss-table">
       <colgroup>
@@ -205,14 +222,18 @@ function _guestSheetHtml(dateText, startIdx, rowCount, pageNum, totalPages) {
   </div>`;
 }
 
-function _getWeekGuestsForSignin() {
+function _getWeekGuestsForSignin(genderFilter) {
   if (!_guestData) return [];
   const { mon, sun } = _weekRange();
-  return _guestData.filter(g => {
+  const list = _guestData.filter(g => {
     if (_isUnmatchedGuest(g)) return false;
     const d = _parseDateStr(g.firstVisit);
     return d && d >= mon && d <= sun;
   }).sort((a,b) => (a.firstVisit||'').localeCompare(b.firstVisit||''));
+  const f = genderFilter || 'all';
+  if (f === 'male')   return list.filter(_isMaleGuest);
+  if (f === 'female') return list.filter(_isFemaleGuest);
+  return list;
 }
 
 function _scaleSignin() {
@@ -262,8 +283,11 @@ async function printSignin() {
       if (i > 0) doc.addPage();
       doc.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 210, 297);
     }
+    const guestFnLabel = _signinGuestGender === 'male'   ? '男來賓'
+                       : _signinGuestGender === 'female' ? '女來賓'
+                       : '來賓';
     const fn = _signinSubTab === 'member'  ? `BNI-億展分會-會員出席簽到-${_signinDate}.pdf`
-             : _signinSubTab === 'guest'   ? `BNI-億展分會-來賓出席簽到-${_signinDate}.pdf`
+             : _signinSubTab === 'guest'   ? `BNI-億展分會-${guestFnLabel}出席簽到-${_signinDate}.pdf`
              : `BNI-億展分會-外賓出席簽到-${_signinDate}.pdf`;
     _downloadPdfBlob(doc.output('blob'), fn);
     showToast('PDF 已下載');

@@ -2851,6 +2851,8 @@ input.sc-input-sm, select.sc-input-sm { min-height:34px; }
 .sc-carry-reason-text { flex-basis:100%; width:100%; font-size:13px; color:var(--text-soft); padding-left:2px; }
 /* 領導月會：單頁式委員「新增委員」按鈕 */
 .sc-committee-add { padding:6px 2px 14px; }
+/* 委員卡內「+布達 / +議題 / +待辦」按鈕列 */
+.sc-committee-itembar { display:flex; gap:8px; flex-wrap:wrap; padding:8px 2px 4px; }
 .sc-carry-owner {
   flex-shrink:0; font-size:11px; font-weight:800;
   background:#fdebd8; color:#b9651a; border-radius:5px; padding:1px 7px;
