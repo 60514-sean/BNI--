@@ -1,7 +1,7 @@
 // ===== SIGNIN SHEET =====
-const SIGNIN_ROWS_PER_PAGE = 15;     // 會員每頁人數
-const SIGNIN_GUEST_PER_PAGE = 10;    // 來賓每頁人數
-const SIGNIN_GUEST_TOTAL    = 10;    // 來賓總人數
+const SIGNIN_ROWS_PER_PAGE = 18;     // 會員每頁人數
+const SIGNIN_GUEST_PER_PAGE = 13;    // 來賓每頁人數
+const SIGNIN_GUEST_TOTAL    = 13;    // 來賓總人數
 const SIGNIN_VISITOR_PER_PAGE = 15;  // 外賓每頁人數（比照會員）
 let _signinSubTab = 'member';       // 'member' | 'guest' | 'visitor'
 let _signinGuestGender = 'all';     // 'all' | 'male' | 'female'（只影響來賓子分頁）
@@ -48,7 +48,7 @@ async function renderSignin() {
   const visitorCount   = tab === 'visitor' ? getVisitors().length : 0;
   const guestLabel = _signinGuestGender === 'male' ? '男來賓' : _signinGuestGender === 'female' ? '女來賓' : '本周';
   const desc = tab === 'member' ? `共 ${_memberData.length} 位會員 · ${pageCount} 張 A4（每張 ${SIGNIN_ROWS_PER_PAGE} 人）`
-             : tab === 'guest'  ? `${guestLabel} ${filteredGuestCount} 位（全週共 ${allWeekGuests.length}：男 ${maleCount} / 女 ${femaleCount}） · 表格 ${SIGNIN_GUEST_TOTAL} 格 · ${pageCount} 張 A4`
+             : tab === 'guest'  ? `${guestLabel} ${filteredGuestCount} 位（全週共 ${allWeekGuests.length}：男 ${maleCount} / 女 ${femaleCount}） · 表格 ${Math.max(SIGNIN_GUEST_TOTAL, filteredGuestCount)} 格 · ${pageCount} 張 A4`
              : `共 ${visitorCount} 位外賓 · ${pageCount} 張 A4（每張 ${SIGNIN_VISITOR_PER_PAGE} 人）`;
   const guestGBtn = (v, label) => `<button class="signin-subtab ${_signinGuestGender===v?'active':''}" onclick="_signinSwitchGuestGender('${v}')">${label}</button>`;
   const guestGenderBar = tab === 'guest'
@@ -142,8 +142,11 @@ function _visitorSigninSheetHtml(dateText, visitors, startIdx, pageNum, totalPag
 }
 
 function _buildGuestSheets(dateText) {
-  const total   = SIGNIN_GUEST_TOTAL;
+  const weekGuests = _getWeekGuestsForSignin(_signinGuestGender);
   const perPage = SIGNIN_GUEST_PER_PAGE;
+  // 至少 1 頁；來賓超過一頁時依實際人數補滿整數頁，每頁都呈現完整 12 格（不足以空格補齊）
+  const pageNeed = Math.max(1, Math.ceil(weekGuests.length / perPage));
+  const total   = pageNeed * perPage;
   const pages   = Math.max(1, Math.ceil(total / perPage));
   let html = '';
   for (let p = 0; p < pages; p++) {
@@ -155,7 +158,7 @@ function _buildGuestSheets(dateText) {
 }
 
 function _memberSheetHtml(dateText, members, startIdx, pageNum, totalPages) {
-  const rowH = 14; // mm，每列 14mm 以容納 26pt 姓名
+  const rowH = 13; // mm，每列 13mm（17 人 = 221mm，含標題表頭可容於 A4）
   const suffix = totalPages > 1 ? `（${pageNum}/${totalPages}）` : '';
   let rows = '';
   for (let i = 0; i < SIGNIN_ROWS_PER_PAGE; i++) {
@@ -184,7 +187,7 @@ function _memberSheetHtml(dateText, members, startIdx, pageNum, totalPages) {
 }
 
 function _guestSheetHtml(dateText, startIdx, rowCount, pageNum, totalPages) {
-  const rowH = 10; // mm，每個子列；每位來賓佔 2 子列 = 20mm
+  const rowH = 9; // mm，每個子列；每位來賓佔 2 子列 = 18mm（12 位 = 216mm，含標題表頭可容於 A4）
   const suffix = totalPages > 1 ? `（${pageNum}/${totalPages}）` : '';
   const weekGuests = _getWeekGuestsForSignin(_signinGuestGender);
   const sheetTitle = _signinGuestGender === 'male'   ? '男來賓出席簽到'
