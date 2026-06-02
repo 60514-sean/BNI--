@@ -1043,38 +1043,48 @@ function _scUnifiedActionItem(m, a, idx, canEdit) {
   </div>`;
 }
 
-// ===== 上週未結案（延續追蹤）=====
-// 取上一場會議中尚未結案（待處理 / 延期）的待辦
+// ===== 未結案（延續追蹤）=====
+// 取「所有」過往會議中尚未結案（待處理 / 延期）的待辦，
+// 直到標記為已完成 / 取消才會從清單移除（不限上週，超過上週的也持續列出）。
+// 每筆帶上來源會議（meeting）以利更新狀態與顯示來源日期。
 function _scCarryOverActions() {
-  const last = _scLastMeeting();
-  if (!last) return { last: null, items: [] };
-  const items = (last.actions || [])
-    .map((a, idx) => ({ a, idx }))
-    .filter(({ a }) => {
+  const wk = getWeekKey();
+  // 非本週的會議，依會議日期由舊到新排序（越久未結案排越前面）
+  const priors = _scGetMeetings()
+    .filter(m => m.weekKey !== wk)
+    .slice()
+    .sort((a, b) => (a.meetingDate || '').localeCompare(b.meetingDate || ''));
+  const items = [];
+  priors.forEach(meeting => {
+    (meeting.actions || []).forEach((a, idx) => {
       const s = a.status || 'pending';
-      return s === 'pending' || s === 'delay';
+      if (s === 'pending' || s === 'delay') items.push({ a, idx, meeting });
     });
+  });
+  // last：最近一場過往會議（保留供標題等向後相容用途）
+  const last = priors.length ? priors[priors.length - 1] : null;
   return { last, items };
 }
 
 // 本週會議頂部的「上週未結案」提醒區（可直接更新狀態，標完成/取消後消失）
 function _scCarryOverHtml(canEdit) {
-  const { last, items } = _scCarryOverActions();
-  if (!last || !items.length) return '';
-  const rows = items.map(({ a, idx }) => {
+  const { items } = _scCarryOverActions();
+  if (!items.length) return '';
+  const rows = items.map(({ a, idx, meeting }) => {
     const status = a.status || 'pending';
     const owner = a.owner ? `<span class="sc-carry-owner">${_scEsc(a.owner)}</span>` : '';
+    const from = meeting.meetingDate ? `<span class="sc-carry-from">${_scEsc(meeting.meetingDate)}</span>` : '';
     const due = a.due ? `<span class="sc-item-due">${_scEsc(a.due)}</span>` : '';
     const statusCtl = canEdit
-      ? `<select class="sc-select sc-input-sm sc-status sc-status-${status}" onchange="_scUpdateCarryStatus('${last.id}',${idx},this.value)">
+      ? `<select class="sc-select sc-input-sm sc-status sc-status-${status}" onchange="_scUpdateCarryStatus('${meeting.id}',${idx},this.value)">
            ${_SC_STATUS_ORDER.map(k => `<option value="${k}" ${status === k ? 'selected' : ''}>${_SC_STATUS_LABELS[k]}</option>`).join('')}
          </select>`
       : `<span class="sc-status-dot sc-status-${status}"></span>${_SC_STATUS_LABELS[status]}`;
     const reasonCtl = canEdit
-      ? `<input type="text" class="sc-input sc-input-sm sc-carry-reason" placeholder="原因／說明（為何尚未結案）" value="${_scEsc(a.carryReason || '')}" oninput="_scUpdateCarryReason('${last.id}',${idx},this.value)">`
+      ? `<input type="text" class="sc-input sc-input-sm sc-carry-reason" placeholder="原因／說明（為何尚未結案）" value="${_scEsc(a.carryReason || '')}" oninput="_scUpdateCarryReason('${meeting.id}',${idx},this.value)">`
       : (a.carryReason ? `<div class="sc-carry-reason-text">原因：${_scEsc(a.carryReason)}</div>` : '');
     return `<div class="sc-carry-row">
-      <div class="sc-carry-main">${owner}<span class="sc-carry-text">${_scEsc(a.text || '(未填待辦)')}</span></div>
+      <div class="sc-carry-main">${from}${owner}<span class="sc-carry-text">${_scEsc(a.text || '(未填待辦)')}</span></div>
       <div class="sc-carry-meta">${due}${statusCtl}</div>
       ${reasonCtl}
     </div>`;
@@ -1083,8 +1093,7 @@ function _scCarryOverHtml(canEdit) {
   return `<section class="sc-docsec sc-carry${collapsed ? ' is-collapsed' : ''}">
     <div class="sc-docsec-head sc-carry-head" onclick="_scToggleCarry()">
       <span class="sc-docsec-bar sc-carry-bar"></span>
-      <span class="sc-docsec-name">${_scMod().id === 'leadership' ? '上次未結案' : '上週未結案'}</span>
-      <span class="sc-carry-from">${_scEsc(last.meetingDate || '')}</span>
+      <span class="sc-docsec-name">未結案</span>
       <span class="sc-carry-count">${items.length}</span>
       <span class="sc-card-chevron">▾</span>
     </div>
@@ -2019,13 +2028,13 @@ function _scBuildSanchangBlocks(m) {
     blocks.push({ html: `<div class="sc-sheet-empty-block">本次無待辦事項</div>` });
   }
 
-  // === 上週未結案（僅本週會議的紀錄顯示）===
+  // === 未結案（僅本週會議的紀錄顯示，含所有過往尚未結案的待辦）===
   if (m.weekKey === getWeekKey()) {
-    const { last, items } = _scCarryOverActions();
-    if (last && items.length) {
+    const { items } = _scCarryOverActions();
+    if (items.length) {
       blocks.push({
         // 不強制換頁：若與「待辦事項追蹤」放得下同一頁就接著排，放不下才換頁
-        html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>上週未結案<span class="sc-sheet-h2-sub">（${_scEsc(last.meetingDate || '')}）</span></div>`,
+        html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>未結案<span class="sc-sheet-h2-sub">（${items.length} 項）</span></div>`,
         keepWithNext: true
       });
       const carryTable = `<table class="sc-doc-table">
@@ -2040,11 +2049,12 @@ function _scBuildSanchangBlocks(m) {
           <th class="d-col-end">狀態</th>
         </tr></thead>
         <tbody>
-          ${items.map(({ a }, i) => `
+          ${items.map(({ a, meeting }, i) => `
             <tr>
               <td class="d-col-num">${i + 1}</td>
               <td>
                 <div class="d-title">${_scEsc(a.text || '(未填內容)')}</div>
+                ${meeting.meetingDate ? `<div class="d-desc">來自：${_scEsc(meeting.meetingDate)}</div>` : ''}
                 ${a.carryReason ? `<div class="d-desc">原因：${_scEsc(a.carryReason).replace(/\n/g, '<br>')}</div>` : ''}
               </td>
               <td class="d-col-end">${a.owner ? _scEsc(a.owner) : '<span class="d-muted">—</span>'}</td>
@@ -2236,12 +2246,12 @@ function _scBuildLeadershipBlocks(m) {
     }
   }
 
-  // === 上次未結案（僅當前週期的紀錄顯示）===
+  // === 未結案（僅當前週期的紀錄顯示，含所有過往尚未結案的待辦）===
   if (m.weekKey === getWeekKey()) {
-    const { last, items } = _scCarryOverActions();
-    if (last && items.length) {
+    const { items } = _scCarryOverActions();
+    if (items.length) {
       blocks.push({
-        html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>上次未結案<span class="sc-sheet-h2-sub">（${_scEsc(last.meetingDate || '')}）</span></div>`,
+        html: `<div class="sc-sheet-h2"><span class="sc-sheet-h2-bar"></span>未結案<span class="sc-sheet-h2-sub">（${items.length} 項）</span></div>`,
         keepWithNext: true
       });
       const carryTable = `<table class="sc-doc-table">
@@ -2256,11 +2266,12 @@ function _scBuildLeadershipBlocks(m) {
           <th class="d-col-end">狀態</th>
         </tr></thead>
         <tbody>
-          ${items.map(({ a }, i) => `
+          ${items.map(({ a, meeting }, i) => `
             <tr>
               <td class="d-col-num">${i + 1}</td>
               <td>
                 <div class="d-title">${_scEsc(a.text || '(未填內容)')}</div>
+                ${meeting.meetingDate ? `<div class="d-desc">來自：${_scEsc(meeting.meetingDate)}</div>` : ''}
                 ${a.carryReason ? `<div class="d-desc">原因：${_scEsc(a.carryReason).replace(/\n/g, '<br>')}</div>` : ''}
               </td>
               <td class="d-col-end">${a.owner ? _scEsc(a.owner) : '<span class="d-muted">—</span>'}</td>
