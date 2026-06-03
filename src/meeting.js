@@ -830,7 +830,9 @@ function _meetOpenRowEditor(idx) {
         <div style="font-size:11px;color:var(--text-soft);font-weight:500;margin-top:6px">總時長 =「${it.auto.by==='guest'?'來賓':'會員'}人數」× 每人秒數 ÷ 60（進位到整數分），時長欄已鎖定不可手改。人數請在會議設定填；未填則用範本建議時長。</div>
       </div>` : ''}
       <div class="modal-field">
-        <div class="modal-label">備註（可換行多行）${(it.auto && it.auto.ring) ? '<span style="color:var(--text-soft);font-weight:500;margin-left:8px">計時隨每人秒數自動帶入，已鎖定</span>' : ''}</div>
+        <div class="modal-label">備註（可換行多行）${(it.auto && it.auto.ring) ? (it.noteManual
+          ? '<span style="color:var(--text-soft);font-weight:500;margin-left:8px">已解除鎖定，可自行輸入</span>'
+          : '<span style="color:var(--text-soft);font-weight:500;margin-left:8px">計時隨每人秒數自動帶入，已鎖定</span><button type="button" id="mr_noteUnlockBtn" class="meet-tb-btn" style="padding:3px 8px;font-size:11px;margin-left:8px" onclick="_meetUnlockNote()">解除鎖定自行輸入</button>') : ''}</div>
         <textarea class="modal-input" id="mr_note" rows="${noteRows}" style="resize:vertical;line-height:1.4">${_escH(it.note||'')}</textarea>
       </div>
       <div class="modal-btns">
@@ -855,6 +857,29 @@ function _meetCloseRowEditor() {
   if (m) m.remove();
 }
 
+// 解除「計時自動帶入」備註的鎖定，改為手動輸入；標記 noteManual 後不再被自動覆蓋
+function _meetUnlockNote() {
+  const idx = _meetRowModalIdx();
+  const it = idx >= 0 ? _meetState.items[idx] : null;
+  if (!it) return;
+  it.noteManual = true;
+  const note = document.getElementById('mr_note');
+  if (note) {
+    note.removeAttribute('readonly');
+    note.style.background = '';
+    note.style.color = '';
+    note.style.cursor = '';
+    note.focus();
+  }
+  const btn = document.getElementById('mr_noteUnlockBtn');
+  if (btn) {
+    const tip = document.createElement('span');
+    tip.style.cssText = 'color:var(--text-soft);font-weight:500;margin-left:8px';
+    tip.textContent = '已解除鎖定，可自行輸入';
+    btn.replaceWith(tip);
+  }
+}
+
 function _meetCommitRowModal() {
   const idx = _meetRowModalIdx();
   if (idx < 0) return -1;
@@ -877,7 +902,7 @@ function _meetCommitRowModal() {
       it.topic = String(it.topic || '').replace(/\d+(?:\.\d+)?秒/,it.auto.sec + '秒');
       // 計時備註也跟著連動（依 ring 規則：會員按●=秒-10/按●●=秒；來賓按●=秒/按●●=秒+5）
       const autoNote = _meetAutoNote(it);
-      if (autoNote != null) it.note = autoNote;
+      if (autoNote != null && !it.noteManual) it.note = autoNote;
     }
   }
   const f = v('mr_fixed'); if (f) it.fixed = f.checked;
@@ -909,7 +934,7 @@ function _meetModalSyncLock(locked) {
   const idx = _meetRowModalIdx();
   const curIt = idx >= 0 ? _meetState.items[idx] : null;
   const isAuto = !!(curIt && curIt.auto);
-  const isAutoNote = !!(curIt && curIt.auto && curIt.auto.ring);
+  const isAutoNote = !!(curIt && curIt.auto && curIt.auto.ring && !curIt.noteManual);
   const minutes = document.getElementById('mr_minutes');
   const note = document.getElementById('mr_note');
   const autoSec = document.getElementById('mr_autoSec');
@@ -954,7 +979,7 @@ function _meetRowAutoSecPreview() {
   if (topicEl && isFinite(sec) && sec > 0) topicEl.textContent = String(it.topic || '').replace(/\d+(?:\.\d+)?秒/,sec + '秒');
   // 計時備註即時跟著每人秒數預覽（僅有 ring 規則的項目）
   const noteEl = document.getElementById('mr_note');
-  if (noteEl && it.auto.ring && isFinite(sec) && sec > 0) {
+  if (noteEl && it.auto.ring && !it.noteManual && isFinite(sec) && sec > 0) {
     const a = Math.max(0, sec + it.auto.ring.a);
     const b = Math.max(0, sec + it.auto.ring.b);
     noteEl.value = `□計時 ${_meetClock(a)}按●，${_meetClock(b)}按●●`;
