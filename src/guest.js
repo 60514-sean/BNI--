@@ -1,5 +1,5 @@
 // ===== GUEST TRACK =====
-const JOIN_PROBABILITIES = ['未評估','高','中','低'];
+const JOIN_PROBABILITIES = ['未評估','5','4','3','2','1'];
 let _guestData = null;
 let _guestSubTab = 'week';   // 'week' | 'all'
 let _guestSearch = '';
@@ -296,11 +296,11 @@ function _isInWeekGuest(g) {
   });
 }
 
-// 「高潛力」分頁僅顯示秘書手動標「入會機率=高」的來賓。
+// 「高潛力」分頁僅顯示入會機率 4-5 的來賓（相容舊資料的「高」=5）。
 // 互動行為（按想認識 / 看官網 / 撥電話）不再自動升級分類；
 // 改為在原分類裡用熱度排序，把活躍的人排到最上面。
 function _isHotGuest(g) {
-  return g.joinProb === '高';
+  return _joinProbNum(g.joinProb) >= 4;
 }
 
 // 興趣 ★ 觸發條件：有想認識會員 OR 熱度 ≥ 10
@@ -310,14 +310,21 @@ function _hasInterestStar(g) {
   return false;
 }
 
-// 入會機率對應進度條顏色：高=綠 / 中=黃 / 低=紅 / 未評估=灰
+// 入會機率正規化為數字 1-5（0=未評估）；相容舊資料的 高=5 / 中=3 / 低=1
+function _joinProbNum(joinProb) {
+  const legacy = { '高': 5, '中': 3, '低': 1 };
+  if (joinProb in legacy) return legacy[joinProb];
+  const n = parseInt(joinProb, 10);
+  return (n >= 1 && n <= 5) ? n : 0;
+}
+
+// 入會機率對應顏色：4-5=綠 / 3=黃 / 1-2=紅 / 未評估=灰
 function _joinProbColor(joinProb) {
-  switch (joinProb) {
-    case '高': return '#27ae60';
-    case '中': return '#d4ac0d';
-    case '低': return '#c0392b';
-    default:   return '#9ca3af'; // 未評估 / 空
-  }
+  const n = _joinProbNum(joinProb);
+  if (n >= 4) return '#27ae60';
+  if (n === 3) return '#d4ac0d';
+  if (n >= 1) return '#c0392b';
+  return '#9ca3af';
 }
 
 // 進度條：6 步（首訪 / 追蹤 / 二訪 / 填單 / 繳費 / 結案）
@@ -584,11 +591,11 @@ function _matchGuestProbFilter(g) {
   if (_guestProbFilter.size === 0) return true;
   // 'QR自助' chip 命中 → OR 通過（與機率 chip 並列）
   if (_guestProbFilter.has('QR自助') && _isUnmatchedGuest(g)) return true;
-  // 機率 chips
-  const probChips = ['低','中','未評估'].filter(p => _guestProbFilter.has(p));
+  // 機率 chips（追蹤中分頁僅含 1-3 / 未評估；4-5 會歸到高潛力分頁）
+  const probChips = ['1','2','3','未評估'].filter(p => _guestProbFilter.has(p));
   if (probChips.length === 0) return false; // 只勾了 QR自助 但這位不是 stub
-  const raw = g.joinProb;
-  const key = (raw === '低' || raw === '中' || raw === '高') ? raw : '未評估';
+  const n = _joinProbNum(g.joinProb);
+  const key = (n >= 1 && n <= 3) ? String(n) : '未評估';
   return probChips.includes(key);
 }
 
@@ -608,8 +615,9 @@ function _probFilterChipsHtml() {
     </button>`;
   };
   return `<div id="guestProbFilterChips" style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;">
-    ${chip('低','低','#c0392b')}
-    ${chip('中','中','#d4ac0d')}
+    ${chip('3','3','#d4ac0d')}
+    ${chip('2','2','#c0392b')}
+    ${chip('1','1','#c0392b')}
     ${chip('未評估','未評估','#9ca3af')}
     ${chip('QR自助','QR自助','#92400e')}
   </div>`;
@@ -835,7 +843,7 @@ async function openGuestModal(arg, opts) {
       <div class="modal-field" style="flex:2 1 0;">
         <div class="modal-label">入會機率</div>
         <select class="modal-input" id="gm_joinProb" style="appearance:auto;background:white;">
-          ${JOIN_PROBABILITIES.map(p => `<option value="${p}" ${(g?.joinProb||'未評估')===p?'selected':''}>${p}</option>`).join('')}
+          ${(() => { const cur = _joinProbNum(g?.joinProb) ? String(_joinProbNum(g?.joinProb)) : '未評估'; return JOIN_PROBABILITIES.map(p => `<option value="${p}" ${cur===p?'selected':''}>${p}</option>`).join(''); })()}
         </select>
       </div>
     </div>
@@ -1477,16 +1485,12 @@ function _handleImportFile(input) {
   reader.readAsArrayBuffer(file);
 }
 
-// 入會意願 1-5 數字 → 入會機率字串
+// 入會意願 1-5 數字 → 直接存 1-5（空/無效 → 未評估）
 function _mapImportJoinProb(v) {
   const s = String(v || '').trim();
   if (!s) return '未評估';
   const n = parseInt(s, 10);
-  if (isNaN(n)) return '未評估';
-  if (n <= 2) return '低';
-  if (n === 3) return '中';
-  if (n >= 4) return '高';
-  return '未評估';
+  return (n >= 1 && n <= 5) ? String(n) : '未評估';
 }
 
 function _normalizeImportDate(v) {
@@ -1526,7 +1530,7 @@ function _renderImportPreview(rows) {
     extraNote:      String(r['來賓資訊補充說明'] || r['補充說明'] || r['extraNote'] || '').trim(),
     email:          String(r['來賓Email'] || r['Email'] || r['email'] || '').trim(),
     interestedIndustry: String(r['分會內是否有來賓想認識的行業別?'] || r['分會內是否有來賓想認識的行業別？'] || r['想認識行業'] || r['interestedIndustry'] || '').trim(),
-    // 入會意願 1-5 → 入會機率：1-2=低、3=中、4-5=高
+    // 入會意願 1-5 → 直接存 1-5
     joinProb:      _mapImportJoinProb(r['來賓的入會意願'] || r['入會意願'] || '')
   }));
   const valid = parsed.filter(g => g.name && g.phone);
@@ -1753,15 +1757,10 @@ function _buildWeekPrintRow(g, num) {
   const interested = _parseInterested(g.interestedIn);
   const interestedText = interested.length ? interested.map(x => x.member).join('、') : '';
   const dash = (v) => (v && String(v).trim()) ? _escH(v) : '<span style="color:#bbb;">—</span>';
-  // 入會機率顏色（紅綠燈）+ 數字表示（高=5 / 中=3 / 低=1）
-  const probColor = g.joinProb === '高' ? '#27ae60'
-                  : g.joinProb === '中' ? '#d4ac0d'
-                  : g.joinProb === '低' ? '#c0392b'
-                  : '#9ca3af';
-  const probNum = g.joinProb === '高' ? '5'
-                : g.joinProb === '中' ? '3'
-                : g.joinProb === '低' ? '1'
-                : '—';
+  // 入會機率顏色（紅綠燈）+ 數字（1-5；相容舊資料 高/中/低）
+  const probColor = _joinProbColor(g.joinProb);
+  const _pn = _joinProbNum(g.joinProb);
+  const probNum = _pn >= 1 ? String(_pn) : '—';
   // 補充資訊：使用跟主資訊一致的 4 欄 grid 框架
   // 左欄（個性、事業現狀、預期收穫、想認識行業）= 整塊在 cols 1-2 內，內部各自一列
   // 右欄（補充）= 整塊在 cols 3-4 內，斷行時懸掛縮排對齊內文起點
