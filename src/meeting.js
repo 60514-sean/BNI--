@@ -874,7 +874,7 @@ function _meetCommitRowModal() {
     it.auto.sec = Math.max(0, parseFloat(sec.value) || 0);
     if (it.auto.sec > 0) {
       // 標題的「N秒」跟著每人秒數連動（例：每人秒數改 30 → 會員30秒專業呈現）
-      it.topic = String(it.topic || '').replace(/\d+秒/, it.auto.sec + '秒');
+      it.topic = String(it.topic || '').replace(/\d+(?:\.\d+)?秒/,it.auto.sec + '秒');
       // 計時備註也跟著連動（依 ring 規則：會員按●=秒-10/按●●=秒；來賓按●=秒/按●●=秒+5）
       const autoNote = _meetAutoNote(it);
       if (autoNote != null) it.note = autoNote;
@@ -951,7 +951,7 @@ function _meetRowAutoSecPreview() {
   }
   // 標題的「N秒」即時跟著每人秒數預覽
   const topicEl = document.getElementById('mr_topicLabel');
-  if (topicEl && isFinite(sec) && sec > 0) topicEl.textContent = String(it.topic || '').replace(/\d+秒/, sec + '秒');
+  if (topicEl && isFinite(sec) && sec > 0) topicEl.textContent = String(it.topic || '').replace(/\d+(?:\.\d+)?秒/,sec + '秒');
   // 計時備註即時跟著每人秒數預覽（僅有 ring 規則的項目）
   const noteEl = document.getElementById('mr_note');
   if (noteEl && it.auto.ring && isFinite(sec) && sec > 0) {
