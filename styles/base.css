@@ -1799,7 +1799,7 @@ input.is-locked:focus, textarea.is-locked:focus {
 .meet-pv-table .col-st, .meet-pv-table .col-et { width:8%; text-align:left; padding-left:3mm; }
 .meet-pv-table .col-actual { width:12%; }
 .meet-pv-table td.col-actual { font-weight:900; color:#666; letter-spacing:1mm; text-align:center; }
-.meet-pv-table .col-note { width:25%; text-align:left; padding-left:3mm; white-space:nowrap; }
+.meet-pv-table .col-note { width:25%; text-align:left; padding-left:3mm; white-space:normal; word-break:break-word; overflow-wrap:anywhere; }
 .meet-pv-table tr.is-title td.col-topic { color:#1a1a2e; font-weight:900; }
 /* 匯出模式（html2canvas）— 取消縮放確保以原始尺寸截圖 */
 body.meet-print-mode #meetingPrintArea .meet-preview-outer { overflow:visible !important; }
