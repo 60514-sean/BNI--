@@ -48,6 +48,11 @@ function _phoneKey(p) {
   return String(p || '').replace(/\D/g, '').replace(/^0+/, '');
 }
 
+// 姓名正規化（去所有空白、轉小寫）；用於合併時比對是否同一人
+function _nameKey(n) {
+  return String(n || '').replace(/\s/g, '').toLowerCase();
+}
+
 // 把手機格式化為 0900-000-000（台灣 09 開頭 10 碼）；其他格式原樣保留
 function _formatPhoneTw(p) {
   const raw = String(p == null ? '' : p).trim();
@@ -66,39 +71,49 @@ function _formatPhoneTw(p) {
 
 // 把同手機的來賓合併成一筆「展示用」物件：以最新（首訪日最大者）為主，想認識/行為合併
 function _groupGuestsByPhone(list) {
-  const groups = {};
+  // 先依手機分群，再依姓名「寬鬆比對」細分子群：
+  // 同電話且（兩者皆有名 → 一個包含另一個 / 完全相同；任一沒填名 → 視為可併）才算同一人。
+  // 例：龍順雯 / 龍順雯Ada 會合併（保留二訪）；黃芷萱 / 黃距融 互不包含 → 分開。
+  const _nameCompatible = (a, b) => {
+    if (!a || !b) return true;
+    return a === b || a.includes(b) || b.includes(a);
+  };
+  const phoneGroups = {}; // phone -> [ subgroup[], subgroup[], ... ]
   const ungrouped = [];
   list.forEach(g => {
-    const key = _phoneKey(g.phone);
-    if (!key) { ungrouped.push(g); return; }
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(g);
+    const phone = _phoneKey(g.phone);
+    if (!phone) { ungrouped.push(g); return; }
+    const name = _nameKey(g.name);
+    const subs = phoneGroups[phone] || (phoneGroups[phone] = []);
+    let target = subs.find(sub => sub.some(r => _nameCompatible(_nameKey(r.name), name)));
+    if (!target) { target = []; subs.push(target); }
+    target.push(g);
   });
   const merged = [];
-  Object.keys(groups).forEach(k => {
-    const grp = groups[k];
-    grp.sort((a, b) => (a.firstVisit || '').localeCompare(b.firstVisit || ''));
-    if (grp.length === 1) {
-      merged.push({ ...grp[0], _allRows: grp, _hasSecond: false });
-    } else {
-      const first = grp[0];
-      const last = grp[grp.length - 1];
-      merged.push({
-        ...last, // 顯示以最新（二訪）為主
-        _allRows: grp,
-        _hasSecond: true,
-        _firstRow: first,
-        _secondRow: last,
-        // 合併想認識與行為，去重 / 累加
-        interestedIn: _mergeInterestRaw(grp.map(x => x.interestedIn)),
-        behavior:     _mergeBehaviorRaw(grp.map(x => x.behavior)),
-      });
-    }
+  Object.keys(phoneGroups).forEach(phone => {
+    phoneGroups[phone].forEach(grp => {
+      grp.sort((a, b) => (a.firstVisit || '').localeCompare(b.firstVisit || ''));
+      if (grp.length === 1) {
+        merged.push({ ...grp[0], _allRows: grp, _hasSecond: false });
+      } else {
+        const first = grp[0];
+        const last = grp[grp.length - 1];
+        merged.push({
+          ...last, // 顯示以最新（二訪）為主
+          _allRows: grp,
+          _hasSecond: true,
+          _firstRow: first,
+          _secondRow: last,
+          // 合併想認識與行為，去重 / 累加
+          interestedIn: _mergeInterestRaw(grp.map(x => x.interestedIn)),
+          behavior:     _mergeBehaviorRaw(grp.map(x => x.behavior)),
+        });
+      }
+    });
   });
   ungrouped.forEach(g => merged.push({ ...g, _allRows: [g], _hasSecond: false }));
   return merged;
 }
-
 function _mergeInterestRaw(jsons) {
   const map = {};
   jsons.forEach(j => {
@@ -384,23 +399,28 @@ function _isPaid(g)    { return !!g.paid    || ['審核中','已入會'].include
 function _isClosed(g)  { return !!g.closed  || ['婉拒/停止追蹤','轉別分會','已入會','行業別衝突','親友團','工作夥伴'].includes(g.status); }
 
 // Tab 分配採嚴格互斥：每位來賓只會出現在一個 tab
-// 優先順序：暫停追蹤 > 入會流程 > 高潛力 > 本周來賓 > 追蹤中
+// 優先順序：本周來賓（本週一律最優先）> 暫停追蹤 > 入會流程 > 高潛力 > 追蹤中
+// 即：只要 firstVisit 落在本週就留在「本周來賓」，過了本週才依狀態分流。
 // 方案 B：紅色漸進（左到右越深）+ 暫停追蹤用灰
 // QR 自助登記且尚未進入入會流程/結案的 stub：強制歸到「追蹤中」，
 // 避免散落在本周來賓 / 高潛力分頁找不齊（追蹤中 chip 才能一網打盡）
 const _isActiveStub = (g) => _isUnmatchedGuest(g) && !_isApplied(g) && !_isClosed(g);
 
+// 規則：本週來賓「一律」留在「本周來賓」分頁（含已入會/結案/高潛力/入會流程），
+// 過了本週後才依狀態分流到其他分頁。唯一例外是 QR 自助未匹配的 stub，
+// 仍歸「追蹤中」（避免散落找不齊，也對齊簽到表排除未匹配來賓的口徑）。
+// 其餘分頁一律加上 !_isInWeekGuest(g)，確保與「本周來賓」嚴格互斥。
 const GUEST_TAB_DEFS = [
   { id: 'week',     label: '本周來賓', color: '#dc2626', bg: '#fef2f2',
-    filter: (g) => _isInWeekGuest(g) && !_isApplied(g) && !_isClosed(g) && !_isHotGuest(g) && !_isActiveStub(g) },
+    filter: (g) => _isInWeekGuest(g) && !_isActiveStub(g) },
   { id: 'tracking', label: '追蹤中',   color: '#b91c1c', bg: '#fee2e2',
     filter: (g) => !_isApplied(g) && !_isClosed(g) && (_isActiveStub(g) || (!_isInWeekGuest(g) && !_isHotGuest(g))) },
   { id: 'hot',      label: '高潛力',   color: '#991b1b', bg: '#fecaca',
-    filter: (g) => !_isClosed(g) && !_isApplied(g) && _isHotGuest(g) && !_isActiveStub(g) },
+    filter: (g) => !_isInWeekGuest(g) && !_isClosed(g) && !_isApplied(g) && _isHotGuest(g) && !_isActiveStub(g) },
   { id: 'process',  label: '入會流程', color: '#7f1d1d', bg: '#fca5a5',
-    filter: (g) => _isApplied(g) && !_isClosed(g) },
+    filter: (g) => !_isInWeekGuest(g) && _isApplied(g) && !_isClosed(g) },
   { id: 'paused',   label: '暫停追蹤', color: '#475569', bg: '#e5e7eb',
-    filter: _isClosed }
+    filter: (g) => !_isInWeekGuest(g) && _isClosed(g) }
 ];
 
 // localStorage 快取（stale-while-revalidate）：UI 秒顯示舊資料，背景再抓最新
