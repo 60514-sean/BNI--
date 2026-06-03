@@ -25,6 +25,46 @@ function getVisitors() {
 }
 async function saveVisitors(list) { await apiSave('__visitors__', list); }
 
+// ===== 來賓桌牌「已印」追蹤（存後端 cache['__placard_printed__']，跨裝置）=====
+// 結構：{ [year-sheetRow]: true }。以 _guestKey 為鍵，跨週不衝突。
+function _getPlacardPrinted() {
+  const v = cache['__placard_printed__'];
+  return (v && typeof v === 'object') ? v : {};
+}
+function _isPlacardPrinted(g) {
+  return !!_getPlacardPrinted()[_guestKey(g)];
+}
+// 列印後自動把這批標記為已印
+function _markPlacardPrinted(guests) {
+  if (!guests || !guests.length) return;
+  const printed = { ..._getPlacardPrinted() };
+  guests.forEach(g => { printed[_guestKey(g)] = true; });
+  apiSave('__placard_printed__', printed); // apiSave 內會同步更新 cache 並推送雲端
+}
+// 局部重繪來賓選擇面板（讓已印標籤、勾選狀態即時更新；面板開合狀態保留）
+function _placardRerenderGuestSelector() {
+  const old = document.getElementById('gplacardSelector');
+  if (!old) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = _guestSelectorHtml(_getWeekGuestsForSignin());
+  const fresh = tmp.firstElementChild;
+  if (fresh) old.replaceWith(fresh);
+}
+// 手動切換單一來賓的已印狀態（修正用）
+function _togglePlacardPrinted(key) {
+  const printed = { ..._getPlacardPrinted() };
+  if (printed[key]) delete printed[key]; else printed[key] = true;
+  apiSave('__placard_printed__', printed);
+  _placardRerenderGuestSelector();
+}
+// 一鍵勾選所有「未印」的本周來賓
+function _placardSelectUnprinted() {
+  const week = _getWeekGuestsForSignin();
+  _placardGuestSelected = new Set(week.filter(g => !_isPlacardPrinted(g)).map(_guestKey));
+  _placardRerenderGuestSelector();
+  _placardRefreshGuestView();
+}
+
 function _getSelectedMembers() {
   if (!_memberData) return [];
   if (_placardMemberSelected === null) return [..._memberData];
@@ -295,12 +335,18 @@ function _guestSelectorHtml(guests) {
   const sel = _getSelectedGuests();
   const isSelected = (g) => _placardGuestSelected === null || _placardGuestSelected.has(_guestKey(g));
   if (!guests.length) return '';
-  const items = guests.map(g => `
+  const items = guests.map(g => {
+    const k = _guestKey(g);
+    const printed = _isPlacardPrinted(g);
+    const tag = `<button type="button" onclick="event.preventDefault();event.stopPropagation();_togglePlacardPrinted('${k}')" title="點擊切換已印/未印" style="margin-left:auto;font-size:11px;padding:1px 9px;border-radius:999px;cursor:pointer;font-family:inherit;font-weight:700;border:1px solid ${printed?'#16a34a':'var(--gray-border)'};background:${printed?'#dcfce7':'#fff'};color:${printed?'#16a34a':'var(--text-soft)'};">${printed?'已印':'未印'}</button>`;
+    return `
     <label class="mplacard-selector-item gplacard-selector-item">
-      <input type="checkbox" ${isSelected(g) ? 'checked' : ''} onchange="_placardToggleGuest('${_guestKey(g)}')">
+      <input type="checkbox" ${isSelected(g) ? 'checked' : ''} onchange="_placardToggleGuest('${k}')">
       <span>${_escH(g.name || '')}</span>
-    </label>`).join('');
-  return `<div class="mplacard-selector">
+      ${tag}
+    </label>`;
+  }).join('');
+  return `<div class="mplacard-selector" id="gplacardSelector">
     <button class="mplacard-selector-btn" onclick="_placardToggleGuestSelectorPanel()">
       <span id="gplacardSelBtnText">選擇來賓（已選 ${sel.length} / ${guests.length} 位）</span>
       <span id="gplacardSelArrow" style="color:var(--text-soft);font-size:12px;">${_placardGuestPanelOpen ? '▲' : '▼'}</span>
@@ -309,6 +355,7 @@ function _guestSelectorHtml(guests) {
       <div class="mplacard-selector-actions">
         <button onclick="_placardSelectAllGuests()">全選</button>
         <button onclick="_placardSelectNoneGuests()">全不選</button>
+        <button onclick="_placardSelectUnprinted()">只選未印</button>
       </div>
       <div class="mplacard-selector-list">${items}</div>
     </div>
@@ -668,6 +715,8 @@ async function printPlacards() {
                 : '來賓桌牌';
     _downloadPdfBlob(doc.output('blob'), `BNI-${fname}-${_todayIso()}.pdf`);
     showToast('PDF 已下載');
+    // 來賓桌牌：把這次匯出的來賓自動標記為「已印」（之後可用「只選未印」挑出新加入的）
+    if (_placardSubTab === 'guest') { _markPlacardPrinted(_getSelectedGuests()); _placardRerenderGuestSelector(); _placardRefreshGuestView(); }
   } catch (e) {
     console.error(e);
     showToast('PDF 產生失敗，請重試');
