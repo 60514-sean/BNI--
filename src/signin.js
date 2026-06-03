@@ -225,14 +225,18 @@ function _guestSheetHtml(dateText, startIdx, rowCount, pageNum, totalPages) {
   </div>`;
 }
 
+// 姓名筆畫排序器：逐字比較，第一字筆畫少的在前；相同則比次字、第三字…
+// 使用 Unicode stroke collation（瀏覽器/V8 內建），不支援時自動退回預設排序。
+const _strokeCollator = new Intl.Collator('zh-Hant', { collation: 'stroke' });
+
 function _getWeekGuestsForSignin(genderFilter) {
   if (!_guestData) return [];
-  const { mon, sun } = _weekRange();
-  const list = _guestData.filter(g => {
-    if (_isUnmatchedGuest(g)) return false;
-    const d = _parseDateStr(g.firstVisit);
-    return d && d >= mon && d <= sun;
-  }).sort((a,b) => (a.firstVisit||'').localeCompare(b.firstVisit||''));
+  // 與「本周來賓」分頁同口徑：先依手機+姓名合併去重，再取本週、排除未匹配。
+  // 避免同一人本週有多筆紀錄時，簽到表/桌牌印出重複。
+  // 排序：依姓名筆畫（第一字少筆畫在前，平手比下一字）。
+  const list = _groupGuestsByPhone(_guestData)
+    .filter(g => !_isUnmatchedGuest(g) && _isInWeekGuest(g))
+    .sort((a,b) => _strokeCollator.compare(a.name||'', b.name||''));
   const f = genderFilter || 'all';
   if (f === 'male')   return list.filter(_isMaleGuest);
   if (f === 'female') return list.filter(_isFemaleGuest);
