@@ -244,6 +244,7 @@ function _meetRecalcHeadcount() {
   const gc = parseInt(_meetState.guestCount, 10);
   _meetState.items.forEach(it => {
     if (!it.auto) return;
+    if (it.minutesManual) return; // 已解除鎖定改手填的項目，不自動換算覆蓋
     const cnt = it.auto.by === 'guest' ? gc : mc;
     const sec = parseFloat(it.auto.sec);
     if (!isFinite(cnt) || cnt <= 0 || !isFinite(sec) || sec <= 0) {
@@ -818,16 +819,19 @@ function _meetOpenRowEditor(idx) {
       <div class="modal-field">
         <div class="modal-label">
           時長(分)
-          ${it.auto ? `<span style="color:var(--text-soft);font-weight:500;margin-left:8px">由人數×每人秒數自動算，已鎖定</span>` : ((it.defaultMinutes != null) ? `<span style="color:var(--text-soft);font-weight:500;margin-left:8px">建議 ${it.defaultMinutes} 分</span>` : '')}
+          ${it.auto ? (it.minutesManual
+            ? `<span style="color:var(--text-soft);font-weight:500;margin-left:8px">已解除鎖定，可自行輸入</span><button type="button" id="mr_minRelockBtn" class="meet-tb-btn" style="padding:3px 8px;font-size:11px;margin-left:8px" onclick="_meetRelockMinutes()">恢復自動計算</button>`
+            : `<span style="color:var(--text-soft);font-weight:500;margin-left:8px">由人數×每人秒數自動算，已鎖定</span><button type="button" id="mr_minUnlockBtn" class="meet-tb-btn" style="padding:3px 8px;font-size:11px;margin-left:8px" onclick="_meetUnlockMinutes()">解除鎖定自行輸入</button>`)
+            : ((it.defaultMinutes != null) ? `<span style="color:var(--text-soft);font-weight:500;margin-left:8px">建議 ${it.defaultMinutes} 分</span>` : '')}
         </div>
-        <input class="modal-input" id="mr_minutes" type="number" min="0" step="0.5" value="${it.minutes}"${it.auto ? ' readonly' : ''}>
+        <input class="modal-input" id="mr_minutes" type="number" min="0" step="0.5" value="${it.minutes}"${(it.auto && !it.minutesManual) ? ' readonly' : ''}>
         ${(!it.auto && it.defaultMinutes != null) ? `<div style="margin-top:8px"><button type="button" id="mr_revertBtn" class="meet-tb-btn" style="padding:5px 10px;font-size:11px" onclick="_meetModalRevertMinutes(${it.defaultMinutes})">重設為建議 ${it.defaultMinutes} 分</button></div>` : ''}
       </div>
       ${it.auto ? `
       <div class="modal-field">
         <div class="modal-label">每人秒數（含上下台緩衝）</div>
         <input class="modal-input" id="mr_autoSec" type="number" min="0" step="1" value="${it.auto.sec}" oninput="_meetRowAutoSecPreview()">
-        <div style="font-size:11px;color:var(--text-soft);font-weight:500;margin-top:6px">總時長 =「${it.auto.by==='guest'?'來賓':'會員'}人數」× 每人秒數 ÷ 60（進位到整數分），時長欄已鎖定不可手改。人數請在會議設定填；未填則用範本建議時長。</div>
+        <div style="font-size:11px;color:var(--text-soft);font-weight:500;margin-top:6px">總時長 =「${it.auto.by==='guest'?'來賓':'會員'}人數」× 每人秒數 ÷ 60（進位到整數分）${it.minutesManual ? '；時長已解除鎖定改為手填，不再自動換算' : '，時長欄已鎖定不可手改'}。人數請在會議設定填；未填則用範本建議時長。</div>
       </div>` : ''}
       <div class="modal-field">
         <div class="modal-label">備註（可換行多行）${(it.auto && it.auto.ring) ? (it.noteManual
@@ -878,6 +882,58 @@ function _meetUnlockNote() {
     tip.textContent = '已解除鎖定，可自行輸入';
     btn.replaceWith(tip);
   }
+}
+
+// 解除「人數×每人秒數自動算」時長的鎖定，改為手動輸入；標記 minutesManual 後不再被自動換算覆蓋
+function _meetUnlockMinutes() {
+  const idx = _meetRowModalIdx();
+  const it = idx >= 0 ? _meetState.items[idx] : null;
+  if (!it) return;
+  it.minutesManual = true;
+  const inp = document.getElementById('mr_minutes');
+  if (inp && !document.getElementById('mr_fixed')?.checked) {
+    inp.removeAttribute('readonly');
+    inp.style.background = '';
+    inp.style.color = '';
+    inp.style.cursor = '';
+    inp.focus();
+  }
+  const btn = document.getElementById('mr_minUnlockBtn');
+  if (btn) {
+    const relock = document.createElement('button');
+    relock.type = 'button';
+    relock.id = 'mr_minRelockBtn';
+    relock.className = 'meet-tb-btn';
+    relock.style.cssText = 'padding:3px 8px;font-size:11px;margin-left:8px';
+    relock.textContent = '恢復自動計算';
+    relock.onclick = _meetRelockMinutes;
+    btn.previousElementSibling.textContent = '已解除鎖定，可自行輸入';
+    btn.replaceWith(relock);
+  }
+}
+
+// 恢復時長自動計算（人數×每人秒數），清除 minutesManual 並立即重算
+function _meetRelockMinutes() {
+  const idx = _meetRowModalIdx();
+  const it = idx >= 0 ? _meetState.items[idx] : null;
+  if (!it) return;
+  delete it.minutesManual;
+  _meetRecalcHeadcount();
+  const inp = document.getElementById('mr_minutes');
+  if (inp) inp.value = it.minutes;
+  const btn = document.getElementById('mr_minRelockBtn');
+  if (btn) {
+    const unlock = document.createElement('button');
+    unlock.type = 'button';
+    unlock.id = 'mr_minUnlockBtn';
+    unlock.className = 'meet-tb-btn';
+    unlock.style.cssText = 'padding:3px 8px;font-size:11px;margin-left:8px';
+    unlock.textContent = '解除鎖定自行輸入';
+    unlock.onclick = _meetUnlockMinutes;
+    btn.previousElementSibling.textContent = '由人數×每人秒數自動算，已鎖定';
+    btn.replaceWith(unlock);
+  }
+  _meetModalSyncLock(!!document.getElementById('mr_fixed')?.checked);
 }
 
 function _meetCommitRowModal() {
@@ -933,7 +989,7 @@ function _meetModalSyncLock(locked) {
   };
   const idx = _meetRowModalIdx();
   const curIt = idx >= 0 ? _meetState.items[idx] : null;
-  const isAuto = !!(curIt && curIt.auto);
+  const isAuto = !!(curIt && curIt.auto && !curIt.minutesManual);
   const isAutoNote = !!(curIt && curIt.auto && curIt.auto.ring && !curIt.noteManual);
   const minutes = document.getElementById('mr_minutes');
   const note = document.getElementById('mr_note');
@@ -968,11 +1024,13 @@ function _meetRowAutoSecPreview() {
   const secEl = document.getElementById('mr_autoSec');
   if (!minEl || !secEl) return;
   const sec = parseFloat(secEl.value);
-  const cnt = it.auto.by === 'guest' ? parseInt(_meetState.guestCount, 10) : parseInt(_meetState.memberCount, 10);
-  if (isFinite(cnt) && cnt > 0 && isFinite(sec) && sec > 0) {
-    minEl.value = Math.ceil(cnt * sec / 60);
-  } else {
-    minEl.value = (it.defaultMinutes != null ? it.defaultMinutes : it.minutes);
+  if (!it.minutesManual) { // 已解除鎖定改手填的項目，時長欄不隨每人秒數連動
+    const cnt = it.auto.by === 'guest' ? parseInt(_meetState.guestCount, 10) : parseInt(_meetState.memberCount, 10);
+    if (isFinite(cnt) && cnt > 0 && isFinite(sec) && sec > 0) {
+      minEl.value = Math.ceil(cnt * sec / 60);
+    } else {
+      minEl.value = (it.defaultMinutes != null ? it.defaultMinutes : it.minutes);
+    }
   }
   // 標題的「N秒」即時跟著每人秒數預覽
   const topicEl = document.getElementById('mr_topicLabel');
