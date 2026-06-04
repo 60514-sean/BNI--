@@ -808,8 +808,11 @@ async function openGuestModal(arg, opts) {
   const titleText = isEdit
     ? `編輯來賓${g.name ? ' - ' + _escH(g.name) : ''}`
     : '新增來賓';
+  const delBtnStyle = 'padding:6px 12px;background:white;border:1.5px solid #e74c3c;color:#e74c3c;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;flex-shrink:0;';
   const deleteBtnHtml = isEdit
-    ? `<button onclick="_deleteGuestFromModal()" style="padding:6px 12px;background:white;border:1.5px solid #e74c3c;color:#e74c3c;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;flex-shrink:0;">${isMulti ? '刪除全部' : '刪除'}</button>`
+    ? (isMulti
+      ? `<button onclick="_deleteSingleVisitFromModal()" style="${delBtnStyle}">刪除${_editingIdx === 0 ? '一訪' : '二訪'}</button>`
+      : `<button onclick="_deleteGuestFromModal()" style="${delBtnStyle}">刪除</button>`)
     : '';
 
   const overlay = document.createElement('div');
@@ -1044,6 +1047,33 @@ function _onSaveCurrentTab() {
   }
   const g = _editingRows[_editingIdx];
   saveGuest(`${g.year}-${g.sheetRow}`);
+}
+
+// 只刪除目前分頁的單一訪次（一訪或二訪），保留另一筆
+async function _deleteSingleVisitFromModal() {
+  if (!_editingRows || _editingRows.length < 2) return;
+  const g = _editingRows[_editingIdx];
+  const label = _editingIdx === 0 ? '一訪' : '二訪';
+  const name = g.name || '此來賓';
+  const msg = `確定只刪除「${name}」的${label}紀錄${g.firstVisit ? `（${g.firstVisit}）` : ''}？\n\n其他訪次紀錄會保留，刪除後無法復原。`;
+  if (!confirm(msg)) return;
+  closeGuestModal();
+  // 樂觀更新：先從本地移除
+  if (Array.isArray(_guestData)) {
+    _guestData = _guestData.filter(x => !(x.year === g.year && x.sheetRow === g.sheetRow));
+    renderGuestTrack();
+  }
+  showToast('刪除中...');
+  try {
+    await _apiPost({ action: 'deleteGuest', year: g.year, sheetRow: g.sheetRow });
+    showToast(`已刪除${label}`);
+    _guestData = null;
+    renderGuestTrack();
+  } catch (e) {
+    showToast('刪除失敗，請重新整理');
+    _guestData = null;
+    renderGuestTrack();
+  }
 }
 
 async function _deleteGuestFromModal() {
