@@ -228,7 +228,7 @@ async function renderMembers() {
         ${(() => {
           const url = _memberPhotoUrl(m);
           return url
-            ? `<img src="${_escH(url)}" loading="lazy" decoding="async" style="width:60px;height:60px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2.5px solid var(--red);background:#fff;" onerror="this.style.display='none'">`
+            ? `<img src="${_escH(url)}" loading="lazy" decoding="async" style="width:60px;height:60px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2.5px solid var(--red);background:#fff;" onerror="_photoFallback(this)">`
             : `<div style="width:60px;height:60px;border-radius:50%;flex-shrink:0;background:#e8ecf0;border:2.5px solid var(--red);box-sizing:border-box;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:22px;font-weight:900;">?</div>`;
         })()}
         <div style="flex:1;min-width:0;">
@@ -341,7 +341,7 @@ function openEditMember(sheetRow) {
       <div class="modal-field">
         <div class="modal-label">大頭照</div>
         <div style="display:flex;align-items:center;gap:14px;">
-          <img id="mf_photo_preview" src="${_escH(m.photo)}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2.5px solid #c0392b;background:#eee;flex-shrink:0;" onerror="this.style.visibility='hidden'">
+          <img id="mf_photo_preview" src="${_escH(m.photo)}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2.5px solid #c0392b;background:#eee;flex-shrink:0;" onerror="_photoFallback(this,'visibility')">
           <div>
             <input type="file" id="mf_photo_file" accept="image/*" style="display:none" onchange="previewPhoto(this,'mf_photo_preview')">
             <button onclick="document.getElementById('mf_photo_file').click()" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;">更換照片</button>

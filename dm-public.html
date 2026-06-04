@@ -543,6 +543,19 @@ function _optimizedPhotoUrl(url) {
   return url;
 }
 
+// 照片載入失敗備援：Google 圖床對單檔+來源限流（429）時，
+// 先改走 images.weserv.nl 代理重抓一次，仍失敗才顯示問號
+function _photoFallback(img) {
+  const src = img.src || '';
+  if (!img.dataset.proxied && /^https?:/.test(src) && src.indexOf(location.origin) !== 0) {
+    img.dataset.proxied = '1';
+    img.src = 'https://images.weserv.nl/?w=400&url=' + encodeURIComponent(src);
+  } else {
+    img.style.display = 'none';
+    if (img.nextElementSibling) img.nextElementSibling.style.display = 'flex';
+  }
+}
+
 // 會員清單本地快取（stale-while-revalidate）
 function _loadMembersCache() {
   try {
@@ -810,7 +823,7 @@ function renderMembers(members) {
           return `
           <div class="member-card" data-member="${escH(m.name)}" data-uniq="${uniq}">
             ${photoUrl
-              ? `<img class="mc-photo" src="${escH(photoUrl)}" loading="lazy" decoding="async" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+              ? `<img class="mc-photo" src="${escH(photoUrl)}" loading="lazy" decoding="async" onerror="_photoFallback(this)">
                  <div class="mc-photo-empty" style="display:none">?</div>`
               : `<div class="mc-photo-empty">?</div>`}
             <div class="mc-info">

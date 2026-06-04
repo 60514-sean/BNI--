@@ -217,7 +217,7 @@ function _dmCardNew(m, bc, cardH, isLast) {
                     : (m.gender === '女' || m.gender === 'F') ? 'default-female.png' : '';
   const photoSrc = m.photo || fallbackUrl;
   const ph = photoSrc
-    ? `<img style="width:${ps}px;height:${ps}px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${bc};display:block;background:#fff;" src="${_escH(photoSrc)}" onerror="this.style.display='none'">`
+    ? `<img style="width:${ps}px;height:${ps}px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${bc};display:block;background:#fff;" src="${_escH(photoSrc)}" onerror="_photoFallback(this)">`
     : `<div style="width:${ps}px;height:${ps}px;border-radius:50%;flex-shrink:0;border:2px solid ${bc};background:#e8ecf0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:${Math.round(ps*0.3)}px;font-weight:900;">?</div>`;
   const svcLines = cardH >= 48 ? 2 : 1;
   return `<div style="display:flex;gap:4px;align-items:center;${isLast?'':'border-bottom:1px solid rgba(0,0,0,0.07);'}min-height:${cardH}px;box-sizing:border-box;padding:2px 2px;">
@@ -418,6 +418,47 @@ async function printDM() {
   const { panels, colorMap } = _dmDistribute();
   const base = location.origin + location.pathname.replace(/[^/]*$/, '');
 
+  // 預載會員照片成 DataURL（限流分批 + 失敗重試），避免匯出時大量同時請求
+  // Google 圖床被限流，照片載入失敗變成空白圈
+  showLoader(true, '載入照片中...');
+  const photoMap = {};
+  {
+    const urlSet = new Set([base + 'default-male.png', base + 'default-female.png']);
+    panels.flat().forEach(g => g.members.forEach(m => { if (m.photo) urlSet.add(m.photo); }));
+    const urls = [...urlSet];
+    // 必須驗證 HTTP 狀態與 content-type：被限流時 429 錯誤頁也會被轉成假 DataURL
+    const fetchPhoto = async (u) => {
+      const r = await fetch(u);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const blob = await r.blob();
+      if (!/^image\//.test(blob.type)) throw new Error('not image: ' + blob.type);
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    };
+    // Google 圖床會對單一檔案+來源限流（429 且持續很久，重試無效），
+    // 直連失敗 2 次後改走 images.weserv.nl 代理（不同來源抓取可避開限流）
+    const proxyUrl = u => 'https://images.weserv.nl/?w=600&url=' + encodeURIComponent(u);
+    let pi = 0;
+    const worker = async () => {
+      while (pi < urls.length) {
+        const u = urls[pi++];
+        const remote = !u.startsWith(location.origin) && /^https?:/.test(u);
+        for (let t = 0; t < 4; t++) {
+          try {
+            photoMap[u] = await fetchPhoto(remote && t >= 2 ? proxyUrl(u) : u);
+            break;
+          } catch { await new Promise(r => setTimeout(r, 300 * (t + 1))); }
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: 4 }, worker));
+  }
+  showLoader(true, 'PDF 產生中...');
+
   const MG = [
     [10, 5,  10, 10],
     [5,  5,  10, 10],
@@ -445,7 +486,9 @@ async function printDM() {
       : (m.gender === '女' || m.gender === 'F')
       ? (base + 'default-female.png')
       : '';
-    const photoSrc = m.photo || fallbackUrl;
+    const rawSrc = m.photo || fallbackUrl;
+    // 優先用預載的 DataURL；本人照片預載失敗時退回預設頭像，避免照片整個消失
+    const photoSrc = photoMap[rawSrc] || photoMap[fallbackUrl] || rawSrc;
     const ph = photoSrc
       ? `<img style="width:${psMm}mm;height:${psMm}mm;border-radius:50%;object-fit:cover;flex-shrink:0;border:${borderMm}mm solid ${bc};display:block;background:#fff;" src="${_escH(photoSrc)}" crossorigin="anonymous" onerror="this.style.display='none'">`
       : `<div style="width:${psMm}mm;height:${psMm}mm;border-radius:50%;flex-shrink:0;border:${borderMm}mm solid ${bc};background:#e8ecf0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:${+(psMm*0.3).toFixed(2)}mm;font-weight:900;">?</div>`;
@@ -537,7 +580,13 @@ async function printDM() {
 
   const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
   if (!jsPDFCtor) { showToast('jsPDF 初始化失敗'); document.body.removeChild(wrap); showLoader(false); _resumeEditLock(); return; }
-  const doc = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a3', compress: false });
+  const doc = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a3', compress: true });
+
+  // 預先把底圖 DataURL 轉成 Image 物件，供畫布合成使用
+  const bgImages = await Promise.all(bgDataURLs.map(data => data
+    ? new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = data; })
+    : Promise.resolve(null)
+  ));
 
   try {
     for (let i = 0; i < 2; i++) {
@@ -555,16 +604,24 @@ async function printDM() {
         backgroundColor: null
       });
       if (i > 0) doc.addPage();
-      // 1) 先放 4 張底圖（原檔解析度）
+      // 底圖 + overlay 合成單一畫布後輸出 JPEG：
+      // scale 3 在 A3 約 290 DPI（與底圖原檔解析度相當），檔案大小遠小於透明 PNG 疊圖
+      const out = document.createElement('canvas');
+      out.width = canvas.width;
+      out.height = canvas.height;
+      const ctx = out.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, out.width, out.height);
       const startIdx = i === 0 ? 0 : 4;
       for (let p = 0; p < 4; p++) {
-        const data = bgDataURLs[startIdx + p];
-        if (!data) continue;
-        const fmt = dmBgUrls[startIdx + p].toLowerCase().endsWith('.jpg') ? 'JPEG' : 'PNG';
-        doc.addImage(data, fmt, p * 105, 0, 105, 297);
+        const img = bgImages[startIdx + p];
+        if (!img) continue;
+        const x0 = Math.round(p * out.width / 4);
+        const x1 = Math.round((p + 1) * out.width / 4);
+        ctx.drawImage(img, x0, 0, x1 - x0, out.height);
       }
-      // 2) 疊上 overlay PNG（頭像 + 文字 + QR）
-      doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 420, 297);
+      ctx.drawImage(canvas, 0, 0);
+      doc.addImage(out.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 420, 297);
     }
     _downloadPdfBlob(doc.output('blob'), 'BNI-億展分會-會員名錄.pdf');
     showToast('PDF 已下載');

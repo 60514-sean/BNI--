@@ -185,7 +185,7 @@ function _renewalCard(m, canEdit) {
   return `<div class="member-card renewal-card" data-search="${_escH(_ds)}" style="flex-direction:column;gap:0;padding:0;overflow:hidden;align-items:stretch;justify-content:flex-start;">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 14px 10px;">
       ${m.photo
-        ? `<img src="${_escH(m.photo)}" loading="lazy" decoding="async" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--red);" onerror="this.style.display='none'">`
+        ? `<img src="${_escH(m.photo)}" loading="lazy" decoding="async" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--red);" onerror="_photoFallback(this)">`
         : `<div style="width:48px;height:48px;border-radius:50%;flex-shrink:0;background:#e8ecf0;border:2px solid var(--red);display:flex;align-items:center;justify-content:center;color:#bbb;font-size:18px;font-weight:900;">?</div>`}
       <div style="flex:1;min-width:0;">
         <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;">${_escH(m.name)}</div>

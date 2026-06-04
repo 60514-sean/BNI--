@@ -516,6 +516,20 @@ function _mainVisibleTasks() {
   return all.filter(t => _taskVisibleToUser(t, CU));
 }
 
+// 會員照片載入失敗備援：Google 圖床會對單檔+來源限流（429 持續很久），
+// 先改走 images.weserv.nl 代理重抓一次，仍失敗才隱藏
+function _photoFallback(img, mode) {
+  const src = img.src || '';
+  if (!img.dataset.proxied && /^https?:/.test(src) && !src.startsWith(location.origin)) {
+    img.dataset.proxied = '1';
+    img.src = 'https://images.weserv.nl/?w=400&url=' + encodeURIComponent(src);
+  } else if (mode === 'visibility') {
+    img.style.visibility = 'hidden';
+  } else {
+    img.style.display = 'none';
+  }
+}
+
 const DAYS = ['週日','週一','週二','週三','週四','週五','週六'];
 const TODAY_DAY = DAYS[new Date().getDay()];
 

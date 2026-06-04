@@ -1065,7 +1065,7 @@ function _lightsScoreCard(s, idx) {
     <div onclick="_lightsScoreToggleCard('${_escH(s.name)}')" style="display:flex;align-items:center;gap:12px;padding:14px 14px 12px;border-left:4px solid ${lightColor};cursor:pointer;user-select:none;">
       <div style="font-size:18px;font-weight:900;color:#cbd5e0;width:24px;text-align:center;flex-shrink:0;">${idx+1}</div>
       ${photo
-        ? `<img src="${_escH(photo)}" loading="lazy" decoding="async" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${lightColor};" onerror="this.style.display='none'">`
+        ? `<img src="${_escH(photo)}" loading="lazy" decoding="async" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${lightColor};" onerror="_photoFallback(this)">`
         : `<div style="width:48px;height:48px;border-radius:50%;flex-shrink:0;background:#e8ecf0;border:2px solid ${lightColor};display:flex;align-items:center;justify-content:center;color:#bbb;font-size:18px;font-weight:900;">${_escH((s.name || '?').slice(0,1))}</div>`}
       <div style="flex:1;min-width:0;">
         <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;">${_escH(s.name)} <span style="color:var(--text-soft);font-size:13px;font-weight:400;">${arrow}</span>${warningsInline}</div>
@@ -1297,7 +1297,7 @@ function _lightsPredictCard(s, idx) {
     <div onclick="_lightsPredictToggleCard('${_escH(s.name)}')" style="display:flex;align-items:center;gap:12px;padding:14px 14px 12px;border-left:4px solid ${predColor};cursor:pointer;user-select:none;">
       <div style="font-size:18px;font-weight:900;color:#cbd5e0;width:24px;text-align:center;flex-shrink:0;">${idx+1}</div>
       ${photo
-        ? `<img src="${_escH(photo)}" loading="lazy" decoding="async" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${predColor};" onerror="this.style.display='none'">`
+        ? `<img src="${_escH(photo)}" loading="lazy" decoding="async" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${predColor};" onerror="_photoFallback(this)">`
         : `<div style="width:48px;height:48px;border-radius:50%;flex-shrink:0;background:#e8ecf0;border:2px solid ${predColor};display:flex;align-items:center;justify-content:center;color:#bbb;font-size:18px;font-weight:900;">${_escH((s.name || '?').slice(0,1))}</div>`}
       <div style="flex:1;min-width:0;">
         <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;">${_escH(s.name)} <span style="color:var(--text-soft);font-size:13px;font-weight:400;">${arrow}</span>${warningsInline}</div>
@@ -1462,7 +1462,7 @@ async function renderMomentum() {
           <div style="display:flex;align-items:center;gap:12px;padding:14px 14px 10px;">
             <div style="font-size:18px;font-weight:900;color:#cbd5e0;width:24px;text-align:center;flex-shrink:0;">${idx+1}</div>
             ${photo
-              ? `<img src="${_escH(photo)}" loading="lazy" decoding="async" style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${m.color};" onerror="this.style.display='none'">`
+              ? `<img src="${_escH(photo)}" loading="lazy" decoding="async" style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${m.color};" onerror="_photoFallback(this)">`
               : `<div style="width:42px;height:42px;border-radius:50%;flex-shrink:0;background:#e8ecf0;border:2px solid ${m.color};display:flex;align-items:center;justify-content:center;color:#bbb;font-weight:900;">${_escH((m.name || '?').slice(0,1))}</div>`}
             <div style="flex:1;min-width:0;">
               <div style="font-size:15px;font-weight:700;color:var(--text);">${_escH(m.name)}</div>
