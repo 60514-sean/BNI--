@@ -8,6 +8,7 @@ let _placardDirectorSelected = null; // null = 全選；Set<id> = 自訂
 let _placardDirectorPanelOpen = false;
 let _placardVisitorSelected = null;  // null = 全選；Set<id> = 自訂
 let _placardVisitorPanelOpen = false;
+let _placardRenderedGuests = [];     // 最近一次渲染進預覽的來賓（匯出 PDF 後以此標記已印）
 
 function _placardSwitch(v) { _placardSubTab = v; renderPlacard(); }
 
@@ -35,8 +36,10 @@ function _isPlacardPrinted(g) {
   return !!_getPlacardPrinted()[_guestKey(g)];
 }
 // 列印後自動把這批標記為已印
-function _markPlacardPrinted(guests) {
+async function _markPlacardPrinted(guests) {
   if (!guests || !guests.length) return;
+  // 先拉雲端最新狀態再合併，避免本機 cache 過舊時整包覆蓋掉其他裝置的已印標記
+  try { await _bgRefresh(); } catch {}
   const printed = { ..._getPlacardPrinted() };
   guests.forEach(g => { printed[_guestKey(g)] = true; });
   apiSave('__placard_printed__', printed); // apiSave 內會同步更新 cache 並推送雲端
@@ -270,7 +273,12 @@ async function renderPlacard() {
   el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-soft);">載入中...</div>`;
 
   const tab = _placardSubTab;
-  if (tab === 'guest' && _guestData === null) await fetchGuests();
+  if (tab === 'guest') {
+    // 一律抓最新資料再渲染，避免用到過期快取漏印新匯入的來賓；網路失敗才退回舊資料
+    const _oldGuestData = _guestData;
+    await fetchGuests();
+    if (_guestData === null) _guestData = _oldGuestData;
+  }
   if (tab === 'guest' && _guestData === null) { el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試 <button class="btn" style="margin-left:12px;background:var(--red);color:white;" onclick="_guestData=null;renderPlacard()">重試</button></div>`; return; }
   if (tab === 'member' && !_memberData) await fetchMembers();
   if (tab === 'member' && !_memberData) { el.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--red);">載入失敗，請重試</div>`; return; }
@@ -443,6 +451,10 @@ function _directorSelectorHtml(directors) {
 
 function _placardBodyHtml(tab, weekGuests, members) {
   if (tab === 'guest') {
+    // 記錄這次實際渲染進預覽的來賓（= 匯出 PDF 的內容）。
+    // 「已印」標記必須以這份名單為準，不能在匯出完成後重新計算——
+    // PDF 產生期間若資料背景更新，重算會把沒印到的人誤標為已印。
+    _placardRenderedGuests = weekGuests.slice();
     const totalWeek = _getWeekGuestsForSignin().length;
     if (!totalWeek) {
       return `<div class="card" style="padding:40px 24px;text-align:center;color:var(--text-soft);">本周沒有來賓資料<br><span style="font-size:12px;">請先在「來賓追蹤」新增本周邀約的來賓</span></div>`;
@@ -574,7 +586,95 @@ function _visitorSheetHtml(g) {
   </div>`;
 }
 
+// 偵測某字型是否有該字的字形：用 canvas 量寬度，與兩種 generic 字型都同寬 → 視為缺字
+const _glyphCanvas = document.createElement('canvas');
+function _fontHasGlyph(family, ch) {
+  const ctx = _glyphCanvas.getContext('2d');
+  const w = f => { ctx.font = `40px ${f}`; return ctx.measureText(ch).width; };
+  return w(`"${family}", serif`) !== w('serif') || w(`"${family}", monospace`) !== w('monospace');
+}
+
+// 字型統一：若文字中有字 Noto Sans TC 沒收錄（例如日文漢字「薫」），
+// 整段文字改用同一套有收錄的字型渲染，避免單一字粗細/風格突兀。
+// 優先 Noto Sans JP（同家族、有 900 粗體），連 JP 都缺字才退到微軟正黑體。
+async function _unifyPlacardFont() {
+  const els = document.querySelectorAll(
+    '.placard-name-box, .mplacard-name-box, .placard-industry-box, .mplacard-industry-box, .placard-inviter-box'
+  );
+  if (!els.length) return false;
+  try { await document.fonts.ready; } catch {}
+  let changed = false;
+  for (const el of els) {
+    const text = el.textContent.trim();
+    if (!text) continue;
+    // 先確保兩套字型針對這些字的子集已載入，量測才準
+    try {
+      await document.fonts.load('900 40px "Noto Sans TC"', text);
+      await document.fonts.load('900 40px "Noto Sans JP"', text);
+    } catch {}
+    let fam = '';
+    if ([...text].some(ch => !_fontHasGlyph('Noto Sans TC', ch))) {
+      fam = [...text].every(ch => _fontHasGlyph('Noto Sans JP', ch))
+        ? `'Noto Sans JP', sans-serif`
+        : `'Microsoft JhengHei', sans-serif`;
+    }
+    if (el.style.fontFamily !== fam) { el.style.fontFamily = fam; changed = true; }
+  }
+  return changed;
+}
+
+// 文字超出欄寬時自動縮小字級（含 letter-spacing / padding 等比例縮），直到單行塞得下。
+// 調整寫在 inline style，匯出 PDF 時 cloneNode 會一併帶走，預覽與輸出一致。
+function _fitPlacardText() {
+  document.querySelectorAll(
+    '.placard-industry-box, .mplacard-industry-box, .placard-name-box, .mplacard-name-box, .placard-inviter-box'
+  ).forEach(el => {
+    if (!el.textContent.trim()) return;
+    let guard = 30;
+    while (el.scrollWidth > el.clientWidth + 1 && guard--) {
+      const cs = getComputedStyle(el);
+      const ratio = Math.max(0.7, el.clientWidth / el.scrollWidth);
+      const size = parseFloat(cs.fontSize) * ratio;
+      if (size < 8) break; // 最小 8px，避免縮到看不見
+      el.style.fontSize = size + 'px';
+      const ls = parseFloat(cs.letterSpacing);
+      if (ls) el.style.letterSpacing = (ls * ratio) + 'px';
+      const pl = parseFloat(cs.paddingLeft);
+      if (pl) el.style.paddingLeft = (pl * ratio) + 'px';
+    }
+  });
+}
+
+// 行業別齊左對齊姓名第一個字：量測置中後名字的實際起始位置，把行業別欄位的 left 移到同一條線
+function _alignPlacardIndustry() {
+  document.querySelectorAll('.placard-row-lower .placard-content').forEach(content => {
+    const nameEl = content.querySelector('.placard-name-box');
+    const indEl  = content.querySelector('.placard-industry-box');
+    if (!nameEl || !indEl || !nameEl.textContent.trim()) return;
+    const row = content.closest('.placard-row');
+    if (!row) return;
+    const range = document.createRange();
+    range.selectNodeContents(nameEl);
+    const tr = range.getBoundingClientRect();
+    const rr = row.getBoundingClientRect();
+    if (!tr.width || !rr.width) return;
+    const leftPct = ((tr.left - rr.left) / rr.width) * 100;
+    // 同張桌牌上下兩份內容（上半 180 度旋轉版）一起套用，維持對摺後一致
+    const sheet = content.closest('.placard-sheet');
+    (sheet || content).querySelectorAll('.placard-industry-box').forEach(el => {
+      el.style.left = leftPct + '%';
+    });
+  });
+}
+
 function _scalePlacard() {
+  _fitPlacardText();        // 先縮姓名（名字過長時），確保量測到的是最終位置
+  _alignPlacardIndustry();  // 行業別齊左對齊名字第一字
+  _fitPlacardText();        // 欄位變窄後行業別可能需要再縮一次
+  // 缺字字型統一是非同步（需等字型載入），完成且有變動時重跑縮放與對齊
+  _unifyPlacardFont().then(changed => {
+    if (changed) { _fitPlacardText(); _alignPlacardIndustry(); _fitPlacardText(); }
+  });
   const outer = document.getElementById('placardOuter');
   const inner = document.getElementById('placardInner');
   if (!outer || !inner) return;
@@ -715,8 +815,8 @@ async function printPlacards() {
                 : '來賓桌牌';
     _downloadPdfBlob(doc.output('blob'), `BNI-${fname}-${_todayIso()}.pdf`);
     showToast('PDF 已下載');
-    // 來賓桌牌：把這次匯出的來賓自動標記為「已印」（之後可用「只選未印」挑出新加入的）
-    if (_placardSubTab === 'guest') { _markPlacardPrinted(_getSelectedGuests()); _placardRerenderGuestSelector(); _placardRefreshGuestView(); }
+    // 來賓桌牌：把「實際進 PDF」的來賓標記為「已印」（之後可用「只選未印」挑出新加入的）
+    if (_placardSubTab === 'guest') { await _markPlacardPrinted(_placardRenderedGuests); _placardRerenderGuestSelector(); _placardRefreshGuestView(); }
   } catch (e) {
     console.error(e);
     showToast('PDF 產生失敗，請重試');

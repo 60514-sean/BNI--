@@ -8,7 +8,8 @@
   --radius: 14px; --radius-sm: 8px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Noto Sans TC', sans-serif; background: #f0f2f7; color: var(--text); min-height: 100vh; }
+/* Noto Sans JP 作為缺字備援：日文漢字（如「薫」）改用同家族日文版渲染，粗細風格一致 */
+body { font-family: 'Noto Sans TC', 'Noto Sans JP', sans-serif; background: #f0f2f7; color: var(--text); min-height: 100vh; }
 
 /* LOADER */
 .loader-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.85); display: none; align-items: center; justify-content: center; z-index: 9999; flex-direction: column; gap: 12px; }
@@ -990,7 +991,7 @@ input.is-locked:focus, textarea.is-locked:focus {
 .placard-industry-box {
   position: absolute;
   left: 32.04%;
-  right: 24.10%;
+  right: 12%; /* 右界齊「賓」字右緣，長產業別縮字後右緣與賓字對齊 */
   top: 16%;
   height: 20%;
   display: flex;
