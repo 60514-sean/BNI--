@@ -761,6 +761,11 @@ function _guestListHtml(guests) {
 }
 
 // ===== 新增/編輯 Modal =====
+// 訪次標籤：第 1 筆=一訪、第 2 筆=二訪、第 3 筆=三訪...
+function _visitLabel(i) {
+  const nums = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+  return (nums[i] || (i + 1)) + '訪';
+}
 let _guestModalTracks = [];
 let _editingRows = null; // 多訪時為長度 2 的陣列；單訪為 1；新增為 null
 let _editingIdx = 0;     // 目前在編輯哪個 row
@@ -800,7 +805,7 @@ async function openGuestModal(arg, opts) {
   const tabBarHtml = isMulti ? `
     <div style="display:flex;gap:6px;margin-bottom:14px;padding:3px;background:#f4f6f8;border-radius:8px;">
       ${rows.map((r, i) => `
-        <button onclick="_switchGuestEditTab(${i})" style="flex:1;padding:8px 12px;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;${_editingIdx === i ? 'background:white;color:var(--red);box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'background:transparent;color:var(--text-soft);'}">${i === 0 ? '一訪' : '二訪'}${r.firstVisit ? ` ${_escH(r.firstVisit)}` : ''}</button>
+        <button onclick="_switchGuestEditTab(${i})" style="flex:1;padding:8px 12px;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;${_editingIdx === i ? 'background:white;color:var(--red);box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'background:transparent;color:var(--text-soft);'}">${_visitLabel(i)}${r.firstVisit ? ` ${_escH(r.firstVisit)}` : ''}</button>
       `).join('')}
     </div>` : '';
 
@@ -811,7 +816,7 @@ async function openGuestModal(arg, opts) {
   const delBtnStyle = 'padding:6px 12px;background:white;border:1.5px solid #e74c3c;color:#e74c3c;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;flex-shrink:0;';
   const deleteBtnHtml = isEdit
     ? (isMulti
-      ? `<button onclick="_deleteSingleVisitFromModal()" style="${delBtnStyle}">刪除${_editingIdx === 0 ? '一訪' : '二訪'}</button>`
+      ? `<button onclick="_deleteSingleVisitFromModal()" style="${delBtnStyle}">刪除${_visitLabel(_editingIdx)}</button>`
       : `<button onclick="_deleteGuestFromModal()" style="${delBtnStyle}">刪除</button>`)
     : '';
 
@@ -1053,7 +1058,7 @@ function _onSaveCurrentTab() {
 async function _deleteSingleVisitFromModal() {
   if (!_editingRows || _editingRows.length < 2) return;
   const g = _editingRows[_editingIdx];
-  const label = _editingIdx === 0 ? '一訪' : '二訪';
+  const label = _visitLabel(_editingIdx);
   const name = g.name || '此來賓';
   const msg = `確定只刪除「${name}」的${label}紀錄${g.firstVisit ? `（${g.firstVisit}）` : ''}？\n\n其他訪次紀錄會保留，刪除後無法復原。`;
   if (!confirm(msg)) return;
@@ -1449,7 +1454,7 @@ async function openGuestImportModal() {
     <div class="modal-title">匯入來賓（Excel / CSV）</div>
     <div style="font-size:13px;color:var(--text-soft);line-height:1.6;margin-bottom:12px;">
       請先下載範本，填寫資料後上傳。<br>
-      <b>姓名</b> 與 <b>電話</b> 為必填；同手機已存在時會自動成為「二訪」紀錄。
+      <b>姓名</b> 與 <b>電話</b> 為必填。同一人（手機+姓名）<b>同一週</b>的重複資料會自動排除；不同週才視為「二訪」，每位來賓最多二訪。
     </div>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
@@ -1515,6 +1520,17 @@ function _handleImportFile(input) {
   reader.readAsArrayBuffer(file);
 }
 
+// 取得日期所屬的週（以週一為一週起始），回傳該週週一的 YYYY-MM-DD，用來判斷兩筆資料是否同一週
+function _weekKeyOf(dateStr) {
+  const d = new Date(String(dateStr || '').slice(0, 10));
+  if (isNaN(d.getTime())) return String(dateStr || '');
+  const offset = (d.getDay() + 6) % 7; // 週一=0 ... 週日=6
+  d.setDate(d.getDate() - offset);
+  return d.getFullYear() + '-'
+       + String(d.getMonth() + 1).padStart(2, '0') + '-'
+       + String(d.getDate()).padStart(2, '0');
+}
+
 // 入會意願 1-5 數字 → 直接存 1-5（空/無效 → 未評估）
 function _mapImportJoinProb(v) {
   const s = String(v || '').trim();
@@ -1563,8 +1579,65 @@ function _renderImportPreview(rows) {
     // 入會意願 1-5 → 直接存 1-5
     joinProb:      _mapImportJoinProb(r['來賓的入會意願'] || r['入會意願'] || '')
   }));
-  const valid = parsed.filter(g => g.name && g.phone);
+  const validRaw = parsed.filter(g => g.name && g.phone);
   const invalid = parsed.filter(g => !g.name || !g.phone);
+
+  // 去重規則：
+  // 1. 同人（手機+姓名，電話可能共用所以要加姓名）在「同一週」出現 → 重複資料，合併/排除
+  // 2. 同人在「不同週」出現 → 視為二訪
+  // 3. 一位來賓最多參加兩次 → 超過二訪的資料一律略過
+  const _personKey = g => _phoneKey(g.phone) + '|' + _nameKey(g.name);
+  const _dupKey = g => _personKey(g) + '|' + _weekKeyOf(g.firstVisit);
+
+  // 檔案內去重：同人同週合併成一筆（不列成二訪）
+  const byKey = new Map();
+  let mergedCount = 0;
+  const mergedNames = [];
+  for (const g of validRaw) {
+    const key = _dupKey(g);
+    const exist = byKey.get(key);
+    if (!exist) { byKey.set(key, g); continue; }
+    mergedCount++;
+    mergedNames.push(`${g.name}（${g.firstVisit}）`);
+    // 後出現的資料只補前一筆的空欄位
+    for (const k of Object.keys(g)) {
+      if (!exist[k] && g[k]) exist[k] = g[k];
+    }
+  }
+
+  // 系統內：統計每人已存在的訪次（以「週」去重，避免舊重複資料灌水）
+  const sysWeeks = new Map(); // personKey -> Set(weekKey)
+  (Array.isArray(_guestData) ? _guestData : []).forEach(g => {
+    const pk = _personKey(g);
+    if (!sysWeeks.has(pk)) sysWeeks.set(pk, new Set());
+    sysWeeks.get(pk).add(_weekKeyOf(g.firstVisit));
+  });
+
+  let skippedExisting = 0; // 同週已存在系統 → 重複
+  let skippedMax = 0;      // 已達二訪上限
+  const skippedExistingNames = [];
+  const skippedMaxNames = [];
+  const perPersonImporting = new Map(); // personKey -> 本次已收的筆數
+  const valid = [...byKey.values()]
+    .sort((a, b) => (a.firstVisit || '').localeCompare(b.firstVisit || ''))
+    .filter(g => {
+      const pk = _personKey(g);
+      const weeks = sysWeeks.get(pk);
+      if (weeks && weeks.has(_weekKeyOf(g.firstVisit))) {
+        skippedExisting++;
+        skippedExistingNames.push(`${g.name}（${g.firstVisit}）`);
+        return false;
+      }
+      const sysCount = weeks ? weeks.size : 0;
+      const importing = perPersonImporting.get(pk) || 0;
+      if (sysCount + importing >= 2) {
+        skippedMax++;
+        skippedMaxNames.push(`${g.name}（${g.firstVisit}）`);
+        return false;
+      }
+      perPersonImporting.set(pk, importing + 1);
+      return true;
+    });
   _importParsedGuests = valid;
 
   if (parsed.length === 0) {
@@ -1600,11 +1673,21 @@ function _renderImportPreview(rows) {
         </tbody>
       </table>
     </div>`;
+  // 重複提醒區塊：列出被合併 / 略過的名單
+  const _dupNotice = (title, names) => names.length
+    ? `<div style="padding:8px 10px;background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:6px;font-size:12.5px;line-height:1.6;margin-bottom:8px;"><b>${title}（${names.length} 筆）：</b>${names.map(_escH).join('、')}</div>`
+    : '';
+  const noticeHtml =
+    _dupNotice('檔案內重複，已自動合併成一筆', mergedNames) +
+    _dupNotice('同週資料系統已存在，將略過不匯入', skippedExistingNames) +
+    _dupNotice('已達二訪上限（最多兩次），將略過不匯入', skippedMaxNames);
+
   box.innerHTML = `
     <div style="margin-bottom:8px;font-size:13px;">
-      共解析 <b>${parsed.length}</b> 筆，<b style="color:#27ae60;">${valid.length}</b> 筆可匯入${invalid.length ? `，<b style="color:#c0392b;">${invalid.length}</b> 筆缺姓名或電話將略過` : ''}
+      共解析 <b>${parsed.length}</b> 筆，<b style="color:#27ae60;">${valid.length}</b> 筆可匯入${mergedCount ? `，<b style="color:#e67e22;">${mergedCount}</b> 筆檔案內重複已合併` : ''}${skippedExisting ? `，<b style="color:#e67e22;">${skippedExisting}</b> 筆同週已存在將略過` : ''}${skippedMax ? `，<b style="color:#e67e22;">${skippedMax}</b> 筆已達二訪上限將略過` : ''}${invalid.length ? `，<b style="color:#c0392b;">${invalid.length}</b> 筆缺姓名或電話將略過` : ''}
       ${valid.length > 10 ? `<span style="color:var(--text-soft);">（以下預覽前 10 筆）</span>` : ''}
     </div>
+    ${noticeHtml}
     ${tableHtml}`;
   box.style.display = '';
 
