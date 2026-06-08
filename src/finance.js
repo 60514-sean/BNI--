@@ -786,6 +786,12 @@ function openFinanceAdd() {
             </div>
           </div>
         </div>
+
+        <!-- 共用備註 -->
+        <div class="modal-field">
+          <div class="modal-label">備註（選填）</div>
+          <input type="text" class="modal-input" id="finAddV6Note" placeholder="例如：阿寶、文豪未繳">
+        </div>
       </div>
 
       <div class="modal-btns">
@@ -884,6 +890,7 @@ async function submitFinanceAdd() {
     const date = document.getElementById('finAddDateV6').value.trim().replace(/-/g, '/');
     if (!date) { showToast('請填日期'); return; }
     const v6Type = document.getElementById('finAddV6Type').value;
+    const v6note = (document.getElementById('finAddV6Note')?.value || '').trim();
 
     if (kind === 'income' && v6Type === '場餐費') {
       const memN = +document.getElementById('finAddV6MemPaid').value || 0;
@@ -892,15 +899,15 @@ async function submitFinanceAdd() {
       const gstP = +document.getElementById('finAddV6GstPrice').value || 0;
       const memTotal = memN * memP;
       const gstTotal = gstN * gstP;
-      if (memTotal) records.push({ date, type: '場餐費（會員）', kind: 'income', amount: memTotal, paid: memN, total: memN, note: '' });
-      if (gstTotal) records.push({ date, type: '場餐費（來賓）', kind: 'income', amount: gstTotal, paid: gstN, total: gstN, note: '' });
+      if (memTotal) records.push({ date, type: '場餐費（會員）', kind: 'income', amount: memTotal, paid: memN, total: memN, note: v6note });
+      if (gstTotal) records.push({ date, type: '場餐費（來賓）', kind: 'income', amount: gstTotal, paid: gstN, total: gstN, note: v6note });
       if (!records.length) { showToast('會員或來賓兩組至少填一組（人數×單價）'); return; }
     } else if (kind === 'income' && v6Type === '其他') {
       const src = document.getElementById('finAddV6OtherSrc').value.trim();
       const amt = +document.getElementById('finAddV6OtherAmt').value || 0;
       if (!src) { showToast('請填收入來源'); return; }
       if (!amt) { showToast('請填費用'); return; }
-      records.push({ date, type: src, kind: 'income', amount: amt, paid: 0, total: 0, note: '' });
+      records.push({ date, type: src, kind: 'income', amount: amt, paid: 0, total: 0, note: v6note });
     } else if (kind === 'expense' && v6Type === '飯店費用') {
       const m = +document.getElementById('finAddV6HotelMem').value || 0;
       const g = +document.getElementById('finAddV6HotelGst').value || 0;
@@ -912,7 +919,7 @@ async function submitFinanceAdd() {
       if (!total) { showToast('請填單價'); return; }
       records.push({
         date, type: '飯店費用', kind: 'expense', amount: total, paid: sum, total: sum,
-        note: `會員${m}/來賓${g}/董顧${c} × ${p}`
+        note: [`會員${m}/來賓${g}/董顧${c} × ${p}`, v6note].filter(Boolean).join('　')
       });
     } else if (kind === 'expense' && v6Type === '其他') {
       const desc = document.getElementById('finAddV6ExpOtherDesc').value.trim();
@@ -922,7 +929,7 @@ async function submitFinanceAdd() {
       if (!desc)  { showToast('請填內容'); return; }
       if (!p)     { showToast('請填單價'); return; }
       if (!q)     { showToast('請填數量'); return; }
-      records.push({ date, type: desc, kind: 'expense', amount: total, paid: q, total: q, note: q > 1 ? `${p} × ${q}` : '' });
+      records.push({ date, type: desc, kind: 'expense', amount: total, paid: q, total: q, note: [q > 1 ? `${p} × ${q}` : '', v6note].filter(Boolean).join('　') });
     }
   } else {
     const date   = document.getElementById('finAddDate').value.trim().replace(/-/g, '/');
@@ -1001,6 +1008,14 @@ function _findFinanceRecord(rowIndex) {
     if (r) return { term: t, record: r };
   }
   return null;
+}
+
+// 去掉飯店費用 / 其他支出自動產生的明細，還原使用者自填備註
+function _stripV6AutoNote(note) {
+  let s = String(note || '');
+  s = s.replace(/^會員\d+\/來賓\d+\/董顧\d+ × \d+(　)?/, ''); // 飯店費用
+  s = s.replace(/^\d+ × \d+(　)?/, '');                       // 其他支出
+  return s.trim();
 }
 
 function _detectV6EditMode(r) {
@@ -1151,6 +1166,11 @@ function openFinanceEdit(rowIndex) {
         </div>
       </div>
 
+      <div class="modal-field">
+        <div class="modal-label">備註（選填）</div>
+        <input type="text" class="modal-input" id="finEditV6Note" placeholder="例如：阿寶、文豪未繳">
+      </div>
+
       <div class="modal-btns">
         <button class="modal-del" onclick="closeFinanceEdit();confirmFinanceDelete(${rowIndex})">刪除</button>
         <button class="modal-cancel" onclick="closeFinanceEdit()">取消</button>
@@ -1158,6 +1178,10 @@ function openFinanceEdit(rowIndex) {
       </div>
     </div>`;
   document.body.appendChild(overlay);
+
+  // 預填使用者自填備註（去掉自動明細）
+  const _noteEl = document.getElementById('finEditV6Note');
+  if (_noteEl) _noteEl.value = _stripV6AutoNote(r.note);
 
   // 設定子類型下拉選項並切到對應子區塊
   const _sel = document.getElementById('finAddV6Type');
@@ -1213,6 +1237,7 @@ async function _submitFinanceEditApply(rowIndex) {
   const date   = document.getElementById('finAddDateV6').value.trim().replace(/-/g, '/');
   const kind   = document.getElementById('finAddKind').value;
   const v6Type = document.getElementById('finAddV6Type').value;
+  const v6note = (document.getElementById('finEditV6Note')?.value || '').trim();
   if (!date) { showToast('請填日期'); return; }
 
   let updateValues = null;
@@ -1227,19 +1252,19 @@ async function _submitFinanceEditApply(rowIndex) {
     const gstT = gstN * gstP;
     if (!memT && !gstT) { showToast('會員或來賓至少填一組'); return; }
     if (memT && gstT) {
-      updateValues = { date, type: '場餐費（會員）', income: memT, expense: 0, paid: memN, total: memN, note: '' };
-      appendRecords.push({ date, type: '場餐費（來賓）', kind: 'income', amount: gstT, paid: gstN, total: gstN, note: '' });
+      updateValues = { date, type: '場餐費（會員）', income: memT, expense: 0, paid: memN, total: memN, note: v6note };
+      appendRecords.push({ date, type: '場餐費（來賓）', kind: 'income', amount: gstT, paid: gstN, total: gstN, note: v6note });
     } else if (memT) {
-      updateValues = { date, type: '場餐費（會員）', income: memT, expense: 0, paid: memN, total: memN, note: '' };
+      updateValues = { date, type: '場餐費（會員）', income: memT, expense: 0, paid: memN, total: memN, note: v6note };
     } else {
-      updateValues = { date, type: '場餐費（來賓）', income: gstT, expense: 0, paid: gstN, total: gstN, note: '' };
+      updateValues = { date, type: '場餐費（來賓）', income: gstT, expense: 0, paid: gstN, total: gstN, note: v6note };
     }
   } else if (kind === 'income' && v6Type === '其他') {
     const src = document.getElementById('finAddV6OtherSrc').value.trim();
     const amt = +document.getElementById('finAddV6OtherAmt').value || 0;
     if (!src) { showToast('請填收入來源'); return; }
     if (!amt) { showToast('請填費用'); return; }
-    updateValues = { date, type: src, income: amt, expense: 0, paid: 0, total: 0, note: '' };
+    updateValues = { date, type: src, income: amt, expense: 0, paid: 0, total: 0, note: v6note };
   } else if (kind === 'expense' && v6Type === '飯店費用') {
     const m = +document.getElementById('finAddV6HotelMem').value || 0;
     const g = +document.getElementById('finAddV6HotelGst').value || 0;
@@ -1249,7 +1274,7 @@ async function _submitFinanceEditApply(rowIndex) {
     const total = sum * p;
     if (!sum)   { showToast('請填會員/來賓/董顧人數'); return; }
     if (!total) { showToast('請填單價'); return; }
-    updateValues = { date, type: '飯店費用', income: 0, expense: total, paid: sum, total: sum, note: `會員${m}/來賓${g}/董顧${c} × ${p}` };
+    updateValues = { date, type: '飯店費用', income: 0, expense: total, paid: sum, total: sum, note: [`會員${m}/來賓${g}/董顧${c} × ${p}`, v6note].filter(Boolean).join('　') };
   } else if (kind === 'expense' && v6Type === '其他') {
     const desc = document.getElementById('finAddV6ExpOtherDesc').value.trim();
     const p    = +document.getElementById('finAddV6ExpOtherPrice').value || 0;
@@ -1257,7 +1282,7 @@ async function _submitFinanceEditApply(rowIndex) {
     const total = p * q;
     if (!desc)  { showToast('請填內容'); return; }
     if (!total) { showToast('請填單價與數量'); return; }
-    updateValues = { date, type: desc, income: 0, expense: total, paid: q, total: q, note: q > 1 ? `${p} × ${q}` : '' };
+    updateValues = { date, type: desc, income: 0, expense: total, paid: q, total: q, note: [q > 1 ? `${p} × ${q}` : '', v6note].filter(Boolean).join('　') };
   }
 
   if (!updateValues) { showToast('資料不完整'); return; }
