@@ -637,7 +637,7 @@ function _guestCardHtml(g) {
   const unmatched = _isUnmatchedGuest(g);
   const heat = _calcHeatScore(g);
   const hasBeh = _hasBehaviorData(g);
-  const editArg = g.phone ? g.phone : `${g.year}-${g.sheetRow}`;
+  const editArg = `${g.year}-${g.sheetRow}`; // 傳代表 row 當錨點；彈窗再展開同電話+姓名相容的訪次
   const behKey = (g._hasSecond && g.phone) ? `phone:${g.phone}` : `${g.year}-${g.sheetRow}`;
   const interested = _parseInterested(g.interestedIn);
   const hasStar = _hasInterestStar(g);
@@ -770,27 +770,42 @@ let _guestModalTracks = [];
 let _editingRows = null; // 多訪時為長度 2 的陣列；單訪為 1；新增為 null
 let _editingIdx = 0;     // 目前在編輯哪個 row
 
+// 取「同一位來賓」的所有訪次 row：同電話「且」姓名相容（與清單 _groupGuestsByPhone 同一套規則，
+// 避免不同人共用同一支電話時被誤併成多訪）。沒電話 → 只回傳錨點自己。依首訪日由舊到新排序。
+function _sameVisitRows(anchor) {
+  if (!anchor) return [];
+  const _nameCompatible = (a, b) => { if (!a || !b) return true; return a === b || a.includes(b) || b.includes(a); };
+  const key = _phoneKey(anchor.phone);
+  if (!key) return [anchor];
+  const an = _nameKey(anchor.name);
+  return (_guestData || [])
+    .filter(g => _phoneKey(g.phone) === key && _nameCompatible(_nameKey(g.name), an))
+    .sort((a, b) => (a.firstVisit || '').localeCompare(b.firstVisit || ''));
+}
+
 async function openGuestModal(arg, opts) {
   if (!_canEditTab('guesttrack')) { showToast('無編輯權限'); return; }
   opts = opts || {};
   if (!_memberData) fetchMembers();
 
-  // 解析 arg → rows
+  // 解析 arg → rows（以單一 row 為錨點，再展開成同電話+姓名相容的訪次群）
   let rows = null;
   if (arg == null || arg === '' || arg === 'null') {
     rows = null; // 新增
-  } else if (typeof arg === 'string' && /^\d{4}-\d+$/.test(arg)) {
-    // gKey: year-sheetRow
-    const [year, row] = arg.split('-').map(Number);
-    const g = _guestData?.find(x => x.year === year && x.sheetRow === row);
-    if (!g) { showToast('找不到該來賓'); return; }
-    rows = [g];
+  } else if (typeof arg === 'string' && /^(\d{4})-(-?\d+)$/.test(arg)) {
+    // gKey: year-sheetRow（sheetRow 可能為負數的暫存 id，例 2026--1749…）
+    const m = arg.match(/^(\d{4})-(-?\d+)$/);
+    const year = Number(m[1]), row = Number(m[2]);
+    const anchor = _guestData?.find(x => x.year === year && x.sheetRow === row);
+    if (!anchor) { showToast('找不到該來賓'); return; }
+    rows = _sameVisitRows(anchor);
   } else if (typeof arg === 'string') {
-    // 手機 → 撈全部 row
+    // 手機（向後相容）→ 取同電話最新一筆當錨點，再依姓名相容展開
     const key = _phoneKey(arg);
-    rows = (_guestData || []).filter(g => _phoneKey(g.phone) === key);
-    if (!rows.length) { showToast('找不到該來賓'); return; }
-    rows.sort((a, b) => (a.firstVisit || '').localeCompare(b.firstVisit || ''));
+    const samePhone = (_guestData || []).filter(g => _phoneKey(g.phone) === key);
+    if (!samePhone.length) { showToast('找不到該來賓'); return; }
+    const anchor = samePhone.slice().sort((a, b) => (b.firstVisit || '').localeCompare(a.firstVisit || ''))[0];
+    rows = _sameVisitRows(anchor);
   }
 
   _editingRows = rows;
@@ -1039,8 +1054,8 @@ function closeGuestModal() {
 function _switchGuestEditTab(newIdx) {
   if (!_editingRows || newIdx === _editingIdx) return;
   if (!confirm('切換訪次將會丟棄目前未儲存的變更，確定切換？')) return;
-  const phone = _editingRows[0] && _editingRows[0].phone;
-  const arg = phone || `${_editingRows[_editingIdx].year}-${_editingRows[_editingIdx].sheetRow}`;
+  const anchor = _editingRows[0]; // 以第一筆當錨點，展開同電話+姓名相容的訪次群
+  const arg = `${anchor.year}-${anchor.sheetRow}`;
   closeGuestModal();
   openGuestModal(arg, { idx: newIdx });
 }
@@ -1302,28 +1317,53 @@ async function saveGuest(gKey) {
   if (!name) { showToast('請輸入姓名'); return; }
   const phone = _formatPhoneTw(document.getElementById('gm_phone').value);
 
-  // 新增時偵測重複：同姓名（且若兩邊都有電話則需相符）→ 提示改為編輯既有資料
+  // 新增時偵測重複（硬性防呆，杜絕同人灌出多筆資料）：
+  //  - 同人「同一週」已存在 → 一律擋下，改為編輯既有那筆
+  //  - 同人已達二訪上限（不同週各一筆共兩筆）→ 擋下，禁止再新增
+  //  - 不同週、未達上限 → 視為二訪，confirm 確認一次
+  // 比對規則：兩邊都有電話用電話，否則退回用姓名。
   if (!gKey && Array.isArray(_guestData)) {
-    const dupes = _guestData.filter(x => {
-      if ((x.name || '').trim() !== name) return false;
-      const xp = (x.phone || '').trim();
-      if (xp && phone && xp !== phone) return false;
-      return true;
+    const newFirstVisit = document.getElementById('gm_firstVisit').value;
+    const samePerson = _guestData.filter(x => {
+      if (phone && (x.phone || '').trim()) return _phoneKey(x.phone) === _phoneKey(phone);
+      return _nameKey(x.name) === _nameKey(name);
     });
-    if (dupes.length) {
-      dupes.sort((a, b) => (b.firstVisit || '').localeCompare(a.firstVisit || ''));
-      const d = dupes[0];
+
+    if (samePerson.length) {
+      const _openExisting = d => {
+        closeGuestModal();
+        openGuestModal(`${d.year}-${d.sheetRow}`);
+      };
+
+      // 1) 同一週重複 → 硬擋，改為編輯該筆
+      const newWeek = _weekKeyOf(newFirstVisit);
+      const sameWeek = samePerson
+        .filter(x => _weekKeyOf(x.firstVisit) === newWeek)
+        .sort((a, b) => (b.firstVisit || '').localeCompare(a.firstVisit || ''));
+      if (sameWeek.length) {
+        showToast('本週已有這位來賓，改為編輯既有資料');
+        _openExisting(sameWeek[0]);
+        return;
+      }
+
+      // 2) 已達二訪上限（用「不同週」數計算，避免舊重複資料誤判）→ 硬擋
+      const weeks = new Set(samePerson.map(x => _weekKeyOf(x.firstVisit)));
+      if (weeks.size >= 2) {
+        const latest = samePerson.slice().sort((a, b) => (b.firstVisit || '').localeCompare(a.firstVisit || ''))[0];
+        alert(`「${name}」已有 ${weeks.size} 次參訪紀錄，每位來賓最多二訪，無法再新增。\n\n如需修改請編輯既有資料。`);
+        _openExisting(latest);
+        return;
+      }
+
+      // 3) 不同週、未達上限 → 視為二訪，確認一次
+      const d = samePerson.slice().sort((a, b) => (b.firstVisit || '').localeCompare(a.firstVisit || ''))[0];
       const ok = confirm(
         `資料庫中已有「${d.name}」` +
         (d.phone ? `（電話 ${_formatPhoneTw(d.phone)}）` : '') +
         `\n首訪日：${d.firstVisit || '未填'}\n\n` +
-        `按「確定」改為編輯該筆既有資料\n按「取消」仍以新來賓建立`
+        `按「確定」新增為二訪\n按「取消」改為編輯既有資料`
       );
-      if (ok) {
-        closeGuestModal();
-        openGuestModal(`${d.year}-${d.sheetRow}`);
-        return;
-      }
+      if (!ok) { _openExisting(d); return; }
     }
   }
 
