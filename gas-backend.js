@@ -779,10 +779,10 @@ function getPublicMembers() {
 // 前端送出「使用者於登入頁輸入的分會密碼明文」(GET: ?token= / POST: body.auth)，
 // 後端比對其 SHA-256 是否等於預期 hash。原始碼只含 hash，無法被當令牌直接使用。
 //
-// 預設 hash = SHA-256("BNI鳳華2026")，與前端 gate.js 的 fallback 相同。
+// 預設 hash = SHA-256("88888888")，與前端 gate.js 的 fallback 相同。
 // 變更密碼時：在 Apps Script「專案設定 → 指令碼屬性」新增
 //   API_AUTH_HASH = 新密碼的 SHA-256（小寫 hex），即可覆寫此預設值。
-const API_AUTH_HASH_FALLBACK = '80f23b385d21797e74e6ebfa2bbc18becc8ed9c315b81ba8b56153612423d985';
+const API_AUTH_HASH_FALLBACK = '615ed7fb1504b0c724a296d7a69e6c7b2f9ea2c57c1d8206c5afdf392ebdfd25';
 
 function _sha256Hex(str) {
   const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(str), Utilities.Charset.UTF_8);
@@ -903,6 +903,14 @@ function doPost(e) {
     // 非公開 action 一律需登入令牌（含通用 key 寫入與所有 guest/member 管理操作）
     if (PUBLIC_POST_ACTIONS.indexOf(action) === -1 && !_authOk(body.auth)) {
       return _denied();
+    }
+
+    // 變更分會密碼時，前端用「目前有效 token」呼叫此 action，更新本後端預期的密碼 hash
+    if (action === 'setAuthHash') {
+      var nh = String(body.newHash || '');
+      if (!/^[0-9a-f]{64}$/.test(nh)) return _denied();
+      PropertiesService.getScriptProperties().setProperty('API_AUTH_HASH', nh);
+      return ok();
     }
 
     if (action === 'registerGuestInterest') {

@@ -14,8 +14,8 @@ const FINANCE_SHEET_ID = '1Huie4O6tboRVjP3LtTTqAbduCBpzTZ8r9iIRvAi44No';
 
 // =============== 登入令牌驗證 ===============
 // 前端送出使用者輸入的分會密碼明文（GET: ?token= / POST: body.auth），後端比對其 SHA-256。
-// 預設 = SHA-256("BNI鳳華2026")；變更密碼時於「指令碼屬性」設 API_AUTH_HASH 覆寫。
-const API_AUTH_HASH_FALLBACK = '80f23b385d21797e74e6ebfa2bbc18becc8ed9c315b81ba8b56153612423d985';
+// 預設 = SHA-256("88888888")；變更密碼時於「指令碼屬性」設 API_AUTH_HASH 覆寫。
+const API_AUTH_HASH_FALLBACK = '615ed7fb1504b0c724a296d7a69e6c7b2f9ea2c57c1d8206c5afdf392ebdfd25';
 function _sha256Hex(str) {
   const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(str), Utilities.Charset.UTF_8);
   return bytes.map(function (b) { const v = (b < 0 ? b + 256 : b).toString(16); return v.length === 1 ? '0' + v : v; }).join('');
@@ -59,6 +59,12 @@ function doPost(e) {
     const body = JSON.parse(e.postData.contents);
     if (!_authOk(body.auth)) return _resp({ ok: false, error: 'unauthorized' });
     const action = body.action || 'append';
+    if (action === 'setAuthHash') {
+      const nh = String(body.newHash || '');
+      if (!/^[0-9a-f]{64}$/.test(nh)) return _resp({ ok: false, error: 'bad hash' });
+      PropertiesService.getScriptProperties().setProperty('API_AUTH_HASH', nh);
+      return _resp({ ok: true });
+    }
     if (action === 'append')           return _handleAppend(body);
     if (action === 'appendSpecial')    return _handleAppendSpecial(body);
     if (action === 'update')           return _handleUpdate(body);

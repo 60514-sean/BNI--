@@ -592,6 +592,29 @@ async function saveSettings() {
   setTimeout(() => exitSettings(), 600);
 }
 
+// 變更密碼時要同步的所有後端（每個都有 setAuthHash action）
+function _authBackends() {
+  return [
+    { name: '主後端', url: (typeof API_URL !== 'undefined') ? API_URL : '' },
+    { name: '財務',   url: (typeof FINANCE_API_URL !== 'undefined') ? FINANCE_API_URL : '' },
+    { name: '排程',   url: (typeof SCHEDULE_API_URL !== 'undefined') ? SCHEDULE_API_URL : '' },
+    { name: '燈號',   url: (typeof LIGHTS_API_URL !== 'undefined') ? LIGHTS_API_URL : '' }
+  ].filter(b => b.url);
+}
+
+// 用指定 token 把 newHash 推送到單一後端；回傳 true/false
+async function _setAuthHashOn(url, newHash, authToken) {
+  try {
+    const res = await fetch(url, {
+      method: 'POST', mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'setAuthHash', newHash, auth: authToken })
+    });
+    const j = await res.json();
+    return !!(j && j.ok);
+  } catch (e) { return false; }
+}
+
 async function changeSitePassword() {
   if (CR !== 'admin') { showToast('無權限'); return; }
   const oldPw = (document.getElementById('oldSitePw').value || '').trim();
@@ -611,6 +634,32 @@ async function changeSitePassword() {
   if (oldHash !== _currentSiteHash()) { setErr('目前密碼錯誤'); return; }
 
   const newHash = await _sha256Hex(newPw);
+  // 用目前有效的 token（=目前密碼）認證；以實際在用的 token 為準
+  const curToken = (typeof _apiToken === 'function' && _apiToken()) ? _apiToken() : oldPw;
+
+  // 1) 先把新 hash 推送到所有後端，全部成功才繼續
+  setOk('同步後端中…');
+  const backends = _authBackends();
+  const done = [];
+  let failedName = '';
+  for (const b of backends) {
+    const ok = await _setAuthHashOn(b.url, newHash, curToken);
+    if (ok) { done.push(b); }
+    else { failedName = b.name; break; }
+  }
+
+  // 2) 任一後端失敗 → 把已成功的回滾成舊 hash（它們現在預期新密碼，故用 newPw 認證）
+  if (failedName) {
+    for (const b of done) {
+      await _setAuthHashOn(b.url, oldHash, newPw);
+    }
+    setErr(`「${failedName}」後端同步失敗，密碼未變更（已自動還原）。請確認該後端已部署最新版後再試。`);
+    return;
+  }
+
+  // 3) 後端全部成功 → 本機 token 換成新密碼（避免接下來的 config 寫入被自己擋掉）
+  try { sessionStorage.setItem(API_PW_KEY, newPw); } catch {}
+
   const baseCfg = getConfig();
   await saveConfigData({ ...baseCfg, sitePasswordHash: newHash });
   await _bgRefresh();
@@ -621,7 +670,7 @@ async function changeSitePassword() {
   document.getElementById('oldSitePw').value = '';
   document.getElementById('newSitePw').value = '';
   document.getElementById('newSitePw2').value = '';
-  setOk('密碼已更新，請通知所有使用者新密碼');
+  setOk('密碼已更新（含四個後端），請通知所有使用者新密碼');
 }
 
 function exitSettings() {
