@@ -454,7 +454,7 @@ function _saveGuestsToLS(data) {
 
 async function fetchGuests() {
   try {
-    const r = await fetch(API_URL + '?action=listGuests&t=' + Date.now());
+    const r = await fetch(API_URL + '?action=listGuests&token=' + encodeURIComponent(_apiToken()) + '&t=' + Date.now());
     const j = await r.json();
     if (!j || j.ok !== true) throw new Error(j?.error || 'fetch failed');
     _guestData = j.data || [];
@@ -1748,7 +1748,7 @@ async function _doImport() {
       method: 'POST',
       mode: 'cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'batchAddGuests', guests })
+      body: JSON.stringify({ action: 'batchAddGuests', guests, auth: _apiToken() })
     });
     const json = await res.json();
     if (!json || !json.ok) throw new Error(json?.error || 'import failed');

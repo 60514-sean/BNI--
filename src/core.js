@@ -4,6 +4,14 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbzwn_oKfa0vs21GlWdqtjz0
 const FINANCE_API_URL = 'https://script.google.com/macros/s/AKfycbxg-wq2nKPPqB4HwEwNYYExRhYvbsuUNliBpoD_IYRjmA5vTnOwpBhnLERB7vYwUG_oHg/exec';
 const LS_KEY  = 'bni_weekly_v1';
 
+// 登入令牌：使用者於登入頁輸入的分會密碼「明文」，存 sessionStorage，隨每次 API 請求送出。
+// 後端比對其 SHA-256 是否符合，不符則拒絕讀寫。
+// （純前端 app 無法把密鑰藏在原始碼，因此以「使用者輸入的密碼」當令牌；原始碼只看得到 hash，無法當令牌用）
+const API_PW_KEY = 'bni_api_pw';
+function _apiToken() {
+  try { return sessionStorage.getItem(API_PW_KEY) || ''; } catch { return ''; }
+}
+
 let cache = {};
 try { const s = localStorage.getItem(LS_KEY); if (s) cache = JSON.parse(s); } catch {}
 
@@ -19,7 +27,7 @@ let _refreshP = null;
 let _needsPostLoginRender = false; // 登入時設 true，下次背景刷新成功後重新渲染一次
 async function _bgRefresh() {
   if (_refreshP) return _refreshP;
-  _refreshP = fetch(API_URL, { signal: AbortSignal.timeout(8000) })
+  _refreshP = fetch(API_URL + '?token=' + encodeURIComponent(_apiToken()), { signal: AbortSignal.timeout(8000) })
     .then(r => r.json())
     .then(j => {
       if (j && typeof j === 'object' && !j.error) {
@@ -102,10 +110,12 @@ function _debounce(fn, ms) {
 }
 
 function _apiPost(payload) {
+  // 所有寫入（含 key/value 與各 guest/member action）自動附帶登入令牌
+  const body = (payload && typeof payload === 'object') ? { ...payload, auth: _apiToken() } : payload;
   return fetch(API_URL, {
     method: 'POST', mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(body)
   });
 }
 

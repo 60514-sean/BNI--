@@ -337,7 +337,7 @@ function _meetSaveVersions(arr) {
 
 async function _meetFetchVersionsRemote() {
   try {
-    const res = await fetch(API_URL + '?action=listMeetingVersions&t=' + Date.now(), { signal: AbortSignal.timeout(10000) });
+    const res = await fetch(API_URL + '?action=listMeetingVersions&token=' + encodeURIComponent(_apiToken()) + '&t=' + Date.now(), { signal: AbortSignal.timeout(10000) });
     const json = await res.json();
     if (json && json.ok && Array.isArray(json.data)) {
       _meetSaveVersions(json.data);

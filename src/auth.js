@@ -50,6 +50,8 @@ async function doLogin() {
       return;
     }
     _markGateUnlocked(hash);
+    // 存下分會密碼明文當 API 令牌（後端比對其 SHA-256）
+    try { sessionStorage.setItem(API_PW_KEY, pw); } catch {}
     gateInput.style.display = 'none';
   }
 

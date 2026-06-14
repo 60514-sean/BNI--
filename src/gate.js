@@ -26,6 +26,8 @@ function _isGateUnlocked() {
   try {
     const raw = sessionStorage.getItem(SITE_GATE_KEY);
     if (!raw) return false;
+    // 需同時持有 API 令牌（分會密碼明文）才算解鎖，否則 API 會被後端拒絕
+    if (typeof API_PW_KEY !== 'undefined' && !sessionStorage.getItem(API_PW_KEY)) return false;
     const obj = JSON.parse(raw);
     return obj && obj.hash === _currentSiteHash();
   } catch { return false; }
@@ -37,6 +39,8 @@ function _markGateUnlocked(hash) {
 
 function _clearGateToken() {
   try { sessionStorage.removeItem(SITE_GATE_KEY); } catch {}
+  // 一併清除 API 令牌（分會密碼明文）
+  try { if (typeof API_PW_KEY !== 'undefined') sessionStorage.removeItem(API_PW_KEY); } catch {}
 }
 
 (function _initLoginGate() {

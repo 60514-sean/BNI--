@@ -174,7 +174,7 @@ function _parseReceivables(rows) {
 async function _fetchFinance() {
   if (!FINANCE_API_URL) return null;
   try {
-    const res = await fetch(FINANCE_API_URL, { signal: AbortSignal.timeout(20000) });
+    const res = await fetch(FINANCE_API_URL + '?token=' + encodeURIComponent(_apiToken()), { signal: AbortSignal.timeout(20000) });
     const j = await res.json();
     if (!j || !j.ok) throw new Error(j && j.error || 'unknown');
     _financeRaw = j;
@@ -980,7 +980,7 @@ async function submitFinanceAdd() {
     for (const r of records) {
       const res = await fetch(FINANCE_API_URL, {
         method: 'POST',
-        body: JSON.stringify({ action: 'append', sheet, ...r })
+        body: JSON.stringify({ action: 'append', sheet, ...r, auth: _apiToken() })
       });
       const j = await res.json();
       if (!j.ok) throw new Error(j.error || 'unknown');
@@ -1292,14 +1292,14 @@ async function _submitFinanceEditApply(rowIndex) {
   try {
     const r1 = await fetch(FINANCE_API_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'update', sheet, rowIndex, values: updateValues })
+      body: JSON.stringify({ action: 'update', sheet, rowIndex, values: updateValues, auth: _apiToken() })
     });
     const j1 = await r1.json();
     if (!j1.ok) throw new Error(j1.error || 'unknown');
     for (const rec of appendRecords) {
       const r2 = await fetch(FINANCE_API_URL, {
         method: 'POST',
-        body: JSON.stringify({ action: 'append', sheet, ...rec })
+        body: JSON.stringify({ action: 'append', sheet, ...rec, auth: _apiToken() })
       });
       const j2 = await r2.json();
       if (!j2.ok) throw new Error(j2.error || 'unknown');
@@ -1335,7 +1335,7 @@ async function submitFinanceEdit(rowIndex) {
   try {
     const res = await fetch(FINANCE_API_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'update', sheet, rowIndex, values: v })
+      body: JSON.stringify({ action: 'update', sheet, rowIndex, values: v, auth: _apiToken() })
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || 'unknown');
@@ -1364,7 +1364,7 @@ async function _doFinanceDelete(sheet, rowIndex) {
   try {
     const res = await fetch(FINANCE_API_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'delete', sheet, rowIndex })
+      body: JSON.stringify({ action: 'delete', sheet, rowIndex, auth: _apiToken() })
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || 'unknown');
@@ -1467,7 +1467,7 @@ async function submitReceivableAdd() {
   try {
     const res = await fetch(FINANCE_API_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'addReceivable', date, member, item, amount, note })
+      body: JSON.stringify({ action: 'addReceivable', date, member, item, amount, note, auth: _apiToken() })
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || 'unknown');
@@ -1539,7 +1539,7 @@ async function submitReceivableSettle(rowIndex) {
   try {
     const res = await fetch(FINANCE_API_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'settleReceivable', rowIndex, settleSheet, settleDate })
+      body: JSON.stringify({ action: 'settleReceivable', rowIndex, settleSheet, settleDate, auth: _apiToken() })
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || 'unknown');
@@ -1561,7 +1561,7 @@ async function confirmReceivableDelete(rowIndex) {
   try {
     const res = await fetch(FINANCE_API_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'deleteReceivable', rowIndex })
+      body: JSON.stringify({ action: 'deleteReceivable', rowIndex, auth: _apiToken() })
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || 'unknown');

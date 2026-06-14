@@ -326,6 +326,7 @@ async function _lightsHandleTrainingFile(file) {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
         action: 'addTrainingImport',
+        auth: _apiToken(),
         from: parsed.from,
         to: parsed.to,
         importer: (typeof CU !== 'undefined' && CU) ? CU : '',
@@ -430,6 +431,7 @@ async function _lightsHandleWeekFile(file, expectedFridayIso) {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
         action: 'addPalmsImport',
+        auth: _apiToken(),
         from: fromAutoIso,        // 強制為週五 - 6 天
         to: expectedFridayIso,    // 統一以週五日期為 to
         rangeType: 'week',
@@ -690,7 +692,7 @@ function _calcTrainingPoints(activityDate, activityType) {
 // ===== API：拉資料 =====
 async function fetchLightsData() {
   if (!LIGHTS_API_URL) throw new Error('LIGHTS_API_URL 尚未設定');
-  const r = await fetch(LIGHTS_API_URL + '?action=listLightsData&t=' + Date.now());
+  const r = await fetch(LIGHTS_API_URL + '?action=listLightsData&token=' + encodeURIComponent(_apiToken()) + '&t=' + Date.now());
   const j = await r.json();
   if (!j || !j.ok) throw new Error(j?.error || '載入失敗');
   _lightsData = j.data || [];
@@ -699,7 +701,7 @@ async function fetchLightsData() {
 
 async function fetchTrainingData() {
   if (!LIGHTS_API_URL) throw new Error('LIGHTS_API_URL 尚未設定');
-  const r = await fetch(LIGHTS_API_URL + '?action=listTrainingData&t=' + Date.now());
+  const r = await fetch(LIGHTS_API_URL + '?action=listTrainingData&token=' + encodeURIComponent(_apiToken()) + '&t=' + Date.now());
   const j = await r.json();
   if (!j || !j.ok) throw new Error(j?.error || '載入失敗');
   _trainingData = j.data || [];

@@ -34,6 +34,22 @@ const TRAINING_COLS = [
   'importTime', 'importer'
 ];
 
+// ===== 登入令牌驗證 =====
+// 前端送出使用者輸入的分會密碼明文（GET: ?token= / POST: body.auth），後端比對其 SHA-256。
+// 預設 = SHA-256("BNI鳳華2026")；變更密碼時於「指令碼屬性」設 API_AUTH_HASH 覆寫。
+const API_AUTH_HASH_FALLBACK = '80f23b385d21797e74e6ebfa2bbc18becc8ed9c315b81ba8b56153612423d985';
+function _sha256Hex(str) {
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(str), Utilities.Charset.UTF_8);
+  return bytes.map(function (b) { const v = (b < 0 ? b + 256 : b).toString(16); return v.length === 1 ? '0' + v : v; }).join('');
+}
+function _expectedAuthHash() {
+  return PropertiesService.getScriptProperties().getProperty('API_AUTH_HASH') || API_AUTH_HASH_FALLBACK;
+}
+function _authOk(token) {
+  if (!token) return false;
+  try { return _sha256Hex(token) === _expectedAuthHash(); } catch (e) { return false; }
+}
+
 // ===== Web App entry =====
 function doGet(e) {
   return _handle(e, 'GET');
@@ -49,6 +65,9 @@ function _handle(e, method) {
       try { params = JSON.parse(e.postData.contents); } catch (err) { params = {}; }
     }
     Object.assign(params, e.parameter || {});
+
+    // 所有 action 皆需登入令牌（GET 帶 token，POST 帶 auth）
+    if (!_authOk(params.auth || params.token)) return _json({ ok: false, error: 'unauthorized' });
 
     const action = params.action;
     let result;

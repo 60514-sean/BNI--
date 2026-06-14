@@ -222,7 +222,7 @@ async function fetchSchedule() {
   try {
     let rows;
     if (SCHEDULE_API_URL) {
-      const r = await fetch(`${SCHEDULE_API_URL}?action=getSchedule&t=${Date.now()}`, { signal: AbortSignal.timeout(20000) });
+      const r = await fetch(`${SCHEDULE_API_URL}?action=getSchedule&token=${encodeURIComponent(_apiToken())}&t=${Date.now()}`, { signal: AbortSignal.timeout(20000) });
       const json = await r.json();
       if (!json.ok) throw new Error(json.error || 'getSchedule failed');
       rows = json.rows || [];
@@ -869,6 +869,7 @@ async function _schedSaveEdit(rowIdx) {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           action: 'updateSchedule',
+          auth: _apiToken(),
           sheetName: item.sheetName || '',
           row: targetRow,
           data: { presenters: presenters.join('、'), count: finalCount, mentor, deadline, topic, type }

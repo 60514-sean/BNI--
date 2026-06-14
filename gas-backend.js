@@ -775,6 +775,42 @@ function getPublicMembers() {
   return result;
 }
 
+// ===== 登入令牌驗證 =====
+// 前端送出「使用者於登入頁輸入的分會密碼明文」(GET: ?token= / POST: body.auth)，
+// 後端比對其 SHA-256 是否等於預期 hash。原始碼只含 hash，無法被當令牌直接使用。
+//
+// 預設 hash = SHA-256("BNI鳳華2026")，與前端 gate.js 的 fallback 相同。
+// 變更密碼時：在 Apps Script「專案設定 → 指令碼屬性」新增
+//   API_AUTH_HASH = 新密碼的 SHA-256（小寫 hex），即可覆寫此預設值。
+const API_AUTH_HASH_FALLBACK = '80f23b385d21797e74e6ebfa2bbc18becc8ed9c315b81ba8b56153612423d985';
+
+function _sha256Hex(str) {
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(str), Utilities.Charset.UTF_8);
+  return bytes.map(function(b) {
+    const v = (b < 0 ? b + 256 : b).toString(16);
+    return v.length === 1 ? '0' + v : v;
+  }).join('');
+}
+
+function _expectedAuthHash() {
+  return PropertiesService.getScriptProperties().getProperty('API_AUTH_HASH') || API_AUTH_HASH_FALLBACK;
+}
+
+function _authOk(token) {
+  if (!token) return false;
+  try { return _sha256Hex(token) === _expectedAuthHash(); }
+  catch (e) { return false; }
+}
+
+function _denied() {
+  return ContentService
+    .createTextOutput(JSON.stringify({ ok: false, error: 'unauthorized' }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// 公開頁(dm-public.html)專用、免登入的 POST action（自帶 PUBLIC_DM_TOKEN 或為公開來賓表單）
+const PUBLIC_POST_ACTIONS = ['registerGuestInterest', 'lookupGuest', 'batchBehavior'];
+
 // ===== doGet / doPost =====
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
@@ -801,6 +837,10 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
   }
+
+  // 以下所有讀取（listDMBgs / listGuests / listMeetingVersions / 全量 dump）皆需登入令牌；
+  // getPublicDM 為公開頁專用，已於上方處理。
+  if (!_authOk(e && e.parameter && e.parameter.token)) return _denied();
 
   if (action === 'listDMBgs') {
     try {
@@ -859,6 +899,11 @@ function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
     const action = body.action;
+
+    // 非公開 action 一律需登入令牌（含通用 key 寫入與所有 guest/member 管理操作）
+    if (PUBLIC_POST_ACTIONS.indexOf(action) === -1 && !_authOk(body.auth)) {
+      return _denied();
+    }
 
     if (action === 'registerGuestInterest') {
       return ContentService
