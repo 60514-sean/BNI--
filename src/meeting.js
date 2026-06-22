@@ -33,8 +33,15 @@ function _resolveMeetingPresenter(presenter) {
   const map = getConfig().meetingStaff || {};
   return String(presenter).split('\n').map(line => {
     const matched = _meetingPresenterMatch(line);
-    if (matched && map[matched.key]) return line.replace(matched.origPart, map[matched.key]);
-    return line;
+    if (!matched) return line;
+    const val = map[matched.key];
+    if (!val) return line;
+    if (matched.type === 'member') {
+      const names = val.split('\n').map(n => n.trim()).filter(Boolean);
+      if (names.length > 1) return names.map(n => line.replace(matched.origPart, n)).join('\n');
+      return line.replace(matched.origPart, names[0] || val);
+    }
+    return line.replace(matched.origPart, val);
   }).join('\n');
 }
 

@@ -79,6 +79,48 @@ function _meetStaffOnInput(key, val) {
   _meetLiveRender();
 }
 
+function _meetNewMemberSync() {
+  const container = document.getElementById('入會_inputs');
+  if (!container) return;
+  const inputs = container.querySelectorAll('input[data-nm]');
+  cfgMeetingStaff['入會'] = Array.from(inputs).map(inp => inp.value).join('\n');
+  _meetSyncStaffLive();
+  _meetLiveRender();
+}
+
+function _meetNewMemberRebuild() {
+  const container = document.getElementById('入會_inputs');
+  if (!container) return;
+  const arr = (cfgMeetingStaff['入會'] || '').split('\n');
+  const is = 'flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;';
+  const bs = 'flex-shrink:0;width:28px;height:28px;border:1.5px solid var(--gray-border);border-radius:6px;background:white;font-size:16px;line-height:1;cursor:pointer;padding:0;color:var(--text);';
+  container.innerHTML = arr.map((n, i) => `<div style="display:flex;align-items:center;gap:6px;${i>0?'margin-top:4px':''}"><input type="text" data-nm="${i}" value="${_escH(n)}" oninput="_meetNewMemberSync()" placeholder="本週入會會員姓名" style="${is}">${i===0?`<button type="button" onclick="_meetNewMemberAdd()" style="${bs}">+</button>`:`<button type="button" onclick="_meetNewMemberRemove(${i})" style="${bs}">−</button>`}</div>`).join('');
+}
+
+function _meetNewMemberAdd() {
+  _meetNewMemberSync();
+  const arr = (cfgMeetingStaff['入會'] || '').split('\n');
+  arr.push('');
+  cfgMeetingStaff['入會'] = arr.join('\n');
+  _meetSyncStaffLive();
+  _meetNewMemberRebuild();
+  const container = document.getElementById('入會_inputs');
+  if (container) {
+    const inputs = container.querySelectorAll('input[data-nm]');
+    const last = inputs[inputs.length - 1];
+    if (last) last.focus();
+  }
+}
+
+function _meetNewMemberRemove(i) {
+  _meetNewMemberSync();
+  const arr = (cfgMeetingStaff['入會'] || '').split('\n');
+  arr.splice(i, 1);
+  cfgMeetingStaff['入會'] = arr.length ? arr.join('\n') : '';
+  _meetSyncStaffLive();
+  _meetNewMemberRebuild();
+}
+
 function _renderMeetingStaffBlock() {
   const row = (label, key, ph) => `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
@@ -108,6 +150,12 @@ function _renderMeetingStaffBlock() {
         <input type="text" value="${_escH(cfgMeetingStaff['導師']||'')}" oninput="_meetStaffOnInput('導師',this.value)" placeholder="本週導師姓名" style="${inputStyle}">
         <input type="text" value="${_escH(cfgMeetingStaff['導生']||'')}" oninput="_meetStaffOnInput('導生',this.value)" placeholder="本週導生姓名" style="${inputStyle}">
       </div>`;
+    }
+    if (e === '入會') {
+      const arr = (cfgMeetingStaff['入會'] || '').split('\n');
+      const btnStyle = 'flex-shrink:0;width:28px;height:28px;border:1.5px solid var(--gray-border);border-radius:6px;background:white;font-size:16px;line-height:1;cursor:pointer;padding:0;color:var(--text);';
+      const innerRows = arr.map((n, i) => `<div style="display:flex;align-items:center;gap:6px;${i>0?'margin-top:4px':''}"><input type="text" data-nm="${i}" value="${_escH(n)}" oninput="_meetNewMemberSync()" placeholder="本週入會會員姓名" style="${inputStyle}">${i===0?`<button type="button" onclick="_meetNewMemberAdd()" style="${btnStyle}">+</button>`:`<button type="button" onclick="_meetNewMemberRemove(${i})" style="${btnStyle}">−</button>`}</div>`).join('');
+      return `<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;"><div style="flex-shrink:0;width:60px;font-size:13px;font-weight:700;color:var(--text);padding-top:9px;">入會</div><div id="入會_inputs" style="flex:1;">${innerRows}</div></div>`;
     }
     return row(e, e, '本週會員姓名');
   }).join('');
