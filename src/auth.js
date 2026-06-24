@@ -52,6 +52,8 @@ async function doLogin() {
     _markGateUnlocked(hash);
     // 存下分會密碼明文當 API 令牌（後端比對其 SHA-256）
     try { sessionStorage.setItem(API_PW_KEY, pw); } catch {}
+    // 重置舊的無 token refresh，確保後續 _bgRefresh() 用有效 token 重新抓取
+    _refreshP = null;
     gateInput.style.display = 'none';
   }
 
@@ -63,7 +65,7 @@ async function doLogin() {
   let isAdmin = name === cfg.adminPassword;
 
   if (!userObj && !isAdmin) {
-    await Promise.race([_bgRefresh(), new Promise(r => setTimeout(r, 3000))]);
+    await Promise.race([_bgRefresh(), new Promise(r => setTimeout(r, 8000))]);
     cfg = getConfig();
     userObj = cfg.users.find(u => (u.names || []).includes(name)) || null;
     isAdmin = name === cfg.adminPassword;
