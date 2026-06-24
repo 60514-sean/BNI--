@@ -6,8 +6,8 @@
 // 1. cfg.sitePasswordHash（管理員在設定頁改的密碼，存在 Google Sheet config）
 // 2. SITE_PASSWORD_HASH_FALLBACK（cfg 沒設時用的預設值）
 
-// SHA-256 of "BNI鳳華2026"（cfg 未設置時的預設值，可被管理員覆寫）
-const SITE_PASSWORD_HASH_FALLBACK = '80f23b385d21797e74e6ebfa2bbc18becc8ed9c315b81ba8b56153612423d985';
+// SHA-256 of "88888888"（cfg 未設置時的預設值，可被管理員覆寫）
+const SITE_PASSWORD_HASH_FALLBACK = '615ed7fb1504b0c724a296d7a69e6c7b2f9ea2c57c1d8206c5afdf392ebdfd25';
 const SITE_GATE_KEY = 'bni_site_gate_v1';
 
 async function _sha256Hex(str) {
