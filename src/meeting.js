@@ -308,6 +308,15 @@ function _meetLoadDraft() {
         }
       });
     }
+    // 遷移：補齊 plusMin（舊存檔 auto 物件缺少此欄位）
+    if (d && Array.isArray(d.items)) {
+      const _PLUS_MIN_TOPICS = new Set(['會員25秒專業呈現', '會員10秒業務引薦時間']);
+      d.items.forEach(it => {
+        if (it.auto && _PLUS_MIN_TOPICS.has(it.topic) && it.auto.plusMin == null) {
+          it.auto.plusMin = 1;
+        }
+      });
+    }
     // 遷移：BOD 搶答活動報告人預設由「主持」改為「活動」（活動負責）、議程文字可編輯
     if (d && d.templateId === 'bod' && Array.isArray(d.items)) {
       d.items.forEach(it => {
@@ -1242,6 +1251,13 @@ function _meetLoadVersion(id) {
     ceremonies,
     items: JSON.parse(JSON.stringify(v.items || []))
   };
+  // 遷移：補齊 plusMin（舊版本 auto 物件缺少此欄位）
+  const _PLUS_MIN_TOPICS_V = new Set(['會員25秒專業呈現', '會員10秒業務引薦時間']);
+  (_meetState.items || []).forEach(it => {
+    if (it.auto && _PLUS_MIN_TOPICS_V.has(it.topic) && it.auto.plusMin == null) {
+      it.auto.plusMin = 1;
+    }
+  });
   _meetSaveDraft();
   renderMeeting();
   showToast('已載入版本');
