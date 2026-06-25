@@ -55,13 +55,13 @@ const _MEET_NORMAL_BASE = [
   { topic:'教育培訓時間', presenter:'教育', minutes:3, note:'□計時 2:30按●，3:00按●●' },
   { topic:'表揚優秀會員', presenter:'副主席', minutes:2, note:'□計時 1:30按●，2:00按●●', fixed:true },
   { topic:'傳遞會員名片盒', presenter:'主席', minutes:1.5, note:'請跑麥手協助傳遞名片盒\nDJ手側桌開始', fixed:true },
-  { topic:'會員25秒專業呈現', presenter:'主席', minutes:21, auto:{ by:'member', sec:25, ring:{ a:-10, b:0 } }, note:'□計時 0:15按●，0:25按●●' },
+  { topic:'會員25秒專業呈現', presenter:'主席', minutes:21, auto:{ by:'member', sec:25, plusMin:1, ring:{ a:-10, b:0 } }, note:'□計時 0:15按●，0:25按●●' },
   { topic:'來賓10秒自我介紹', presenter:'主席', minutes:2, auto:{ by:'guest', sec:10, ring:{ a:0, b:5 } }, note:'□計時 0:10按●，0:15按●●' },
   { topic:'副主席報告', presenter:'副主席', minutes:3, note:'□計時 2:30按●，3:00按●●', fixed:true },
   { topic:'會員委員會報告', presenter:'委員會', minutes:2, note:'□計時 1:30按●，2:00按●●', fixed:true, serialHighlight:true },
   { topic:'秘書財務報告\n未來六週主題講者', presenter:'秘財', minutes:1.5, note:'□計時 1:00按●，1:30按●●', fixed:true },
   { topic:'主題簡報', presenter:'會員1\n會員2', minutes:11, note:'□計時 4:30按●，5:00按●●', titleHighlight:true, serialHighlight:true },
-  { topic:'會員10秒業務引薦時間', presenter:'主席', minutes:10, auto:{ by:'member', sec:10 }, note:'□計時 0:10按●●' },
+  { topic:'會員10秒業務引薦時間', presenter:'主席', minutes:10, auto:{ by:'member', sec:10, plusMin:1 }, note:'□計時 0:10按●●' },
   { topic:'來賓分享10秒', presenter:'主席', minutes:2, auto:{ by:'guest', sec:10 }, note:'□計時 1:30按●，2:00按●●' },
   { topic:'引薦單查核', presenter:'副主席', minutes:2, note:'□計時 1:30按●，2:00按●●', fixed:true },
   { topic:'秘書財務報告\n會員申請資格', presenter:'秘財', minutes:4, note:'□計時 3:30按●，4:00按●●', fixed:true },
@@ -258,7 +258,7 @@ function _meetRecalcHeadcount() {
       if (it.defaultMinutes != null) it.minutes = it.defaultMinutes;
       return;
     }
-    it.minutes = Math.ceil(cnt * sec / 60);
+    it.minutes = Math.ceil(cnt * sec / 60) + (it.auto.plusMin || 0);
   });
 }
 
