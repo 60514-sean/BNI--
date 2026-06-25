@@ -838,7 +838,7 @@ function _meetOpenRowEditor(idx) {
       <div class="modal-field">
         <div class="modal-label">每人秒數（含上下台緩衝）</div>
         <input class="modal-input" id="mr_autoSec" type="number" min="0" step="1" value="${it.auto.sec}" oninput="_meetRowAutoSecPreview()">
-        <div style="font-size:11px;color:var(--text-soft);font-weight:500;margin-top:6px">總時長 =「${it.auto.by==='guest'?'來賓':'會員'}人數」× 每人秒數 ÷ 60（進位到整數分）${it.minutesManual ? '；時長已解除鎖定改為手填，不再自動換算' : '，時長欄已鎖定不可手改'}。人數請在會議設定填；未填則用範本建議時長。</div>
+        <div style="font-size:11px;color:var(--text-soft);font-weight:500;margin-top:6px">總時長 =「${it.auto.by==='guest'?'來賓':'會員'}人數」× 每人秒數 ÷ 60（進位到整數分）${it.auto.plusMin ? '+1分鐘串場' : ''}${it.minutesManual ? '；時長已解除鎖定改為手填，不再自動換算' : '，時長欄已鎖定不可手改'}。人數請在會議設定填；未填則用範本建議時長。</div>
       </div>` : ''}
       <div class="modal-field">
         <div class="modal-label">備註（可換行多行）${(it.auto && it.auto.ring) ? (it.noteManual
