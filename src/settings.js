@@ -7,7 +7,7 @@ function openSettings() {
   cfgTasks = (cfg.tasks || []).map(t => ({ ...t, owners: [...(t.owners || [])] }));
   cfgCustomRoles = [...(cfg.customRoles || [])];
   cfgMeetingStaff = Object.assign(
-    { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 委員會:'', 入會:'', 續約:'', 出村:'', 導師:'', 導生:'', 會員1:'', 會員2:'' },
+    { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 導師:'', 成長:'', 來賓:'', 網管:'', 委員會:'', 委員會2:'', 入會:'', 續約:'', 出村:'', 導生:'', 會員1:'', 會員2:'' },
     cfg.meetingStaff || {}
   );
   if (!cfgMeetingStaff['會員1'] && cfg.meetingStaff?.['主題1']) cfgMeetingStaff['會員1'] = cfg.meetingStaff['主題1'];
@@ -15,7 +15,7 @@ function openSettings() {
   showSettings();
 }
 
-let cfgMeetingStaff = { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 委員會:'', 入會:'', 續約:'', 出村:'', 導師:'', 導生:'', 會員1:'', 會員2:'' };
+let cfgMeetingStaff = { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 導師:'', 成長:'', 來賓:'', 網管:'', 委員會:'', 委員會2:'', 入會:'', 續約:'', 出村:'', 導生:'', 會員1:'', 會員2:'' };
 let cfgCustomRoles = [];
 
 // 使用者可指派的角色＝內建(GUEST_ROLES)＋自訂(cfgCustomRoles)，去重
@@ -132,6 +132,23 @@ function _renderMeetingStaffBlock() {
 
   // BOD 來賓日：拿掉委員會/本週會員，主題簡報分享者改為 BOD 分享者，大使改為董顧
   const isBod = (typeof _meetState !== 'undefined' && _meetState && _meetState.templateId === 'bod');
+  const isConsensus = (typeof _meetState !== 'undefined' && _meetState && _meetState.templateId === 'consensus');
+  if (isConsensus) {
+    const extraRows = ['導師','成長','來賓','網管'].map(r => row(r, r, r + '姓名')).join('');
+    const memberSepC = `<div style="font-size:11px;color:var(--text-soft);font-weight:600;margin:14px 0 8px;">本週委員會（每週調整）</div>`;
+    const committeeRowC = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="flex-shrink:0;width:60px;font-size:13px;font-weight:700;color:var(--text);">委員會</div>
+      <input type="text" value="${_escH(cfgMeetingStaff['委員會']||'')}" oninput="_meetStaffOnInput('委員會',this.value)" placeholder="委員1姓名" style="${inputStyle}">
+      <input type="text" value="${_escH(cfgMeetingStaff['委員會2']||'')}" oninput="_meetStaffOnInput('委員會2',this.value)" placeholder="委員2姓名" style="${inputStyle}">
+    </div>`;
+    const consensusSep = `<div style="font-size:11px;color:var(--text-soft);font-weight:600;margin:14px 0 8px;">共識會議分享者（每次調整）</div>`;
+    const consensusSpeakerRow = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="flex-shrink:0;width:90px;padding:9px 8px;font-size:13px;font-weight:700;color:var(--text);font-family:inherit;">共識分享者</div>
+      <input type="text" value="${_escH(cfgMeetingStaff['會員1']||'')}" oninput="_meetStaffOnInput('會員1',this.value)" placeholder="分享者1姓名" style="${inputStyle}">
+      <input type="text" value="${_escH(cfgMeetingStaff['會員2']||'')}" oninput="_meetStaffOnInput('會員2',this.value)" placeholder="分享者2姓名" style="${inputStyle}">
+    </div>`;
+    return roles + extraRows + memberSepC + committeeRowC + consensusSep + consensusSpeakerRow;
+  }
   if (isBod) {
     const shareSep = `<div style="font-size:11px;color:var(--text-soft);font-weight:600;margin:14px 0 8px;">BOD 分享者（每次調整）</div>`;
     const sharePh = { 分享1:'How it works 分享者', 分享2:'會員收穫分享者', 分享3:'會員產業合作分享者' };

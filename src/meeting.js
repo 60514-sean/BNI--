@@ -8,11 +8,12 @@ const MEETING_SPEAKER_ROLES = ['會員1','會員2']; // 本週主題簡報講者
 const MEETING_COMMITTEE_ROLES = ['委員會']; // 本週委員會（每週調整）
 const MEETING_BOD_ROLES = ['主持','董顧']; // BOD 來賓日專用（每次調整）
 const MEETING_BOD_SHARE_ROLES = ['分享1','分享2','分享3']; // BOD 三段分享者（每次調整）
+const MEETING_CONSENSUS_EXTRA_ROLES = ['成長', '來賓', '網管', '委員會2']; // 共識會議協調人 + 第二委員會
 
 function _meetingPresenterMatch(line) {
   const trimmed = line.trim();
   // 1) 職務或職務-後綴（如「主席」、「副主席-主持」、「秘財-卸任」、「導師」、「主題1」、「委員會-1」）
-  const allRoles = [...MEETING_ROLES, ...MEETING_EXIT_ROLES, ...MEETING_SPEAKER_ROLES, ...MEETING_COMMITTEE_ROLES, ...MEETING_BOD_ROLES, ...MEETING_BOD_SHARE_ROLES];
+  const allRoles = [...MEETING_ROLES, ...MEETING_EXIT_ROLES, ...MEETING_SPEAKER_ROLES, ...MEETING_COMMITTEE_ROLES, ...MEETING_BOD_ROLES, ...MEETING_BOD_SHARE_ROLES, ...MEETING_CONSENSUS_EXTRA_ROLES];
   const sortedRoles = allRoles.sort((a, b) => b.length - a.length);
   const rolePattern = new RegExp('^(' + sortedRoles.join('|') + ')(-.*)?$');
   let m = trimmed.match(rolePattern);
@@ -71,11 +72,11 @@ const _MEET_NORMAL_BASE = [
   { topic:'會議結束', presenter:'主席', minutes:1, note:'□計時 0:30按●，1:00按●●', fixed:true }
 ];
 
-// 共識會議基底（22 項，屆別交接專用）
-const _MEET_CONSENSUS_BASE = [
+// 期初共識會議（23 項，新屆交接用，含卸任感言/頒獎/聘書，06:30-08:30）
+const _MEET_CONSENSUS_QICHU_BASE = [
   { topic:'會員報到、交流、拍照', presenter:'活動', minutes:20, note:'□計時 06:45拍照' },
   { topic:'開場', presenter:'主席', minutes:1, note:'□計時 0:30按●，1:00按●●' },
-  { topic:'三長卸任感言', presenter:'秘財-卸任\n副主席-卸任\n主席-卸任', minutes:3, note:'□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●' },
+  { topic:'三長卸任感言', presenter:'秘財-卸任\n副主席-卸任\n主席-卸任', minutes:2, note:'□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●\n□計時 0:30按●，1:00按●●' },
   { topic:'頒發上屆\n九長+委員+導師=感謝狀', presenter:'主席', minutes:4, note:'□不傳麥克風，主席統一介紹' },
   { topic:'頒發本屆\n九長+委員+導師=聘書', presenter:'主席', minutes:3, note:'□不傳麥克風，主席統一介紹' },
   { topic:'本屆領導團隊介紹', presenter:'主席', minutes:4, note:'□計時 3:30按●，4:00按●●' },
@@ -83,19 +84,47 @@ const _MEET_CONSENSUS_BASE = [
   { topic:'報告本屆目標', presenter:'主席', minutes:5, note:'□計時 4:30按●，5:00按●●' },
   { topic:'副主席報告', presenter:'副主席', minutes:5, note:'□計時 4:30按●，5:00按●●' },
   { topic:'秘書財務報告', presenter:'秘財', minutes:8, note:'□計時 7:30按●，8:00按●●' },
-  { topic:'會員委員會報告', presenter:'委員會-1\n委員會-2', minutes:18, note:'□計時 8:30按●，9:00按●●\n□計時 8:30按●，9:00按●●', serialHighlight:true },
-  { topic:'教育協調人報告', presenter:'教育', minutes:4, note:'□計時 4:00按●，4:30按●●' },
+  { topic:'會員委員會報告', presenter:'委員會\n委員會2', minutes:15, note:'□計時 7:00按●，7:30按●●\n□計時 7:00按●，7:30按●●', serialHighlight:true },
+  { topic:'教育協調人報告', presenter:'教育', minutes:5, note:'□計時 4:30按●，5:00按●●' },
   { topic:'活動協調人', presenter:'活動', minutes:5, note:'□計時 4:30按●，5:00按●●' },
-  { topic:'來賓接待人', presenter:'來賓接待', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'來賓接待人', presenter:'來賓', minutes:5, note:'□計時 4:30按●，5:00按●●' },
   { topic:'導師協調人', presenter:'導師', minutes:5, note:'□計時 4:30按●，5:00按●●' },
   { topic:'成長協調人', presenter:'成長', minutes:9, note:'□計時 8:30按●，9:00按●●' },
-  { topic:'網站管理員', presenter:'網站', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'網站管理員', presenter:'網管', minutes:5, note:'□計時 4:30按●，5:00按●●' },
   { topic:'上屆五冠王頒獎', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
-  { topic:'個人收穫分享(1)', presenter:'會員-1', minutes:3, note:'□計時 2:30按●，3:00按●●' },
-  { topic:'個人收穫分享(2)', presenter:'會員-2', minutes:3, note:'□計時 2:30按●，3:00按●●' },
+  { topic:'個人收穫分享(1)', presenter:'會員1', minutes:3, note:'□計時 2:30按●，3:00按●●' },
+  { topic:'個人收穫分享(2)', presenter:'會員2', minutes:3, note:'□計時 2:30按●，3:00按●●' },
   { topic:'支持成長董顧時間', presenter:'董顧', minutes:3, note:'□計時 2:30按●，3:00按●●' },
+  { topic:'啟動董顧時間', presenter:'Nancy', minutes:3, note:'□計時 2:30按●，3:00按●●' },
   { topic:'主席結束會議聚能', presenter:'主席', minutes:3, note:'□計時 2:30按●，3:00按●●' }
 ];
+
+// 期中共識會議（19 項，屆中版，無交接儀式，06:30-08:25）
+const _MEET_CONSENSUS_QIZHONG_BASE = [
+  { topic:'會員報到、交流、拍照', presenter:'活動', minutes:30, note:'□計時 06:55拍照' },
+  { topic:'開場', presenter:'主席', minutes:1, note:'□計時 0:30按●，1:00按●●' },
+  { topic:'本屆領導團隊介紹', presenter:'主席', minutes:4, note:'□計時 3:30按●，4:00按●●' },
+  { topic:'布達行政小組', presenter:'主席', minutes:2, note:'□計時 1:30按●，2:00按●●' },
+  { topic:'報告本屆目標', presenter:'主席', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'副主席報告', presenter:'副主席', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'秘書財務報告', presenter:'秘財', minutes:8, note:'□計時 7:30按●，8:00按●●' },
+  { topic:'會員委員會報告', presenter:'委員會\n委員會2', minutes:15, note:'□計時 7:00按●，7:30按●●\n□計時 7:00按●，7:30按●●', serialHighlight:true },
+  { topic:'教育協調人報告', presenter:'教育', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'活動協調人', presenter:'活動', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'來賓接待人', presenter:'來賓', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'導師協調人', presenter:'導師', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'成長協調人', presenter:'成長', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'網站管理員', presenter:'網管', minutes:5, note:'□計時 4:30按●，5:00按●●' },
+  { topic:'個人收穫分享(1)', presenter:'會員1', minutes:3, note:'□計時 2:30按●，3:00按●●' },
+  { topic:'個人收穫分享(2)', presenter:'會員2', minutes:3, note:'□計時 2:30按●，3:00按●●' },
+  { topic:'支持成長董顧時間', presenter:'董顧', minutes:3, note:'□計時 2:30按●，3:00按●●' },
+  { topic:'啟動董顧時間', presenter:'Nancy', minutes:3, note:'□計時 2:30按●，3:00按●●' },
+  { topic:'主席結束會議聚能', presenter:'主席', minutes:3, note:'□計時 2:30按●，3:00按●●' }
+];
+
+function _meetGetConsensusBase(variant) {
+  return variant === 'qizhong' ? _MEET_CONSENSUS_QIZHONG_BASE : _MEET_CONSENSUS_QICHU_BASE;
+}
 
 // 變體插入項目（在「表揚優秀會員」後、「傳遞名片盒」前）
 const _MEET_EVENTS = {
@@ -188,8 +217,7 @@ const _MEET_TEMPLATES = {
     name: '共識會議',
     meetingType: '正式例會 共識會議',
     actualDefault: '',
-    startTime: '06:30',
-    items: _MEET_CONSENSUS_BASE.map(x => ({ ...x }))
+    startTime: '06:30'
   },
   bod: {
     name: 'BOD 來賓日',
@@ -289,11 +317,24 @@ function _meetLoadDraft() {
       d.templateId = 'general';
     }
     if (d && !d.ceremonies) d.ceremonies = _meetEmptyCeremonies();
+    if (d && d.templateId === 'consensus' && !d.consensusVariant) d.consensusVariant = 'qichu';
     // 遷移舊欄位名：主題1/主題2 → 會員1/會員2
     if (d && Array.isArray(d.items)) {
       d.items.forEach(it => {
         if (typeof it.presenter === 'string') {
           it.presenter = it.presenter.replace(/主題1/g, '會員1').replace(/主題2/g, '會員2');
+        }
+      });
+    }
+    // 遷移：共識會議 presenter key 更新（來賓接待→來賓、網站→網管、委員會-1/2→委員會/委員會2）
+    if (d && Array.isArray(d.items)) {
+      d.items.forEach(it => {
+        if (typeof it.presenter === 'string') {
+          it.presenter = it.presenter
+            .replace(/^來賓接待$/m, '來賓')
+            .replace(/^網站$/m, '網管')
+            .replace(/^委員會-1$/m, '委員會')
+            .replace(/^委員會-2$/m, '委員會2');
         }
       });
     }
@@ -556,7 +597,7 @@ function _meetOpenSettings() {
   if (isAdmin) {
     const saved = getConfig().meetingStaff || {};
     cfgMeetingStaff = Object.assign(
-      { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 主持:'', 董顧:'', 分享1:'', 分享2:'', 分享3:'', 委員會:'', 入會:'', 續約:'', 出村:'', 導師:'', 導生:'', 會員1:'', 會員2:'' },
+      { 主席:'', 副主席:'', 秘財:'', 教育:'', 活動:'', 導師:'', 成長:'', 來賓:'', 網管:'', 主持:'', 董顧:'', 分享1:'', 分享2:'', 分享3:'', 委員會:'', 委員會2:'', 入會:'', 續約:'', 出村:'', 導生:'', 會員1:'', 會員2:'' },
       saved
     );
     // 遷移舊欄位 主題1/主題2 → 會員1/會員2
@@ -567,7 +608,7 @@ function _meetOpenSettings() {
       <div class="modal-row" style="margin-top:6px">
         <div class="modal-field" style="flex:1">
           <div class="modal-label">職務名單（例會自動帶人名）</div>
-          <div style="font-size:11px;color:var(--text-soft);font-weight:500;margin-bottom:8px">${_meetState.templateId==='bod' ? '主席/副主席/秘財/教育/活動 + BOD分享者 + 主持/董顧，儲存後即時生效。' : '主席/副主席/秘財/教育/活動 + 本週會員 + 出村導師/導生，儲存後即時生效。'}</div>
+          <div style="font-size:11px;color:var(--text-soft);font-weight:500;margin-bottom:8px">${_meetState.templateId==='bod' ? '主席/副主席/秘財/教育/活動 + BOD分享者 + 主持/董顧，儲存後即時生效。' : _meetState.templateId==='consensus' ? '主席/副主席/秘財/教育/活動 + 委員會 + 共識會議分享者，儲存後即時生效。' : '主席/副主席/秘財/教育/活動 + 本週會員 + 出村導師/導生，儲存後即時生效。'}</div>
           ${_renderMeetingStaffBlock()}
         </div>
       </div>` : '';
@@ -601,15 +642,26 @@ function _meetOpenSettings() {
           </select>
         </div>
       </div>
+      ${_meetState.templateId === 'consensus' ? `
+      <div class="modal-row">
+        <div class="modal-field" style="flex:1">
+          <div class="modal-label">共識會議類型</div>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="meet-tb-btn ${(_meetState.consensusVariant||'qichu')!=='qizhong'?'active':''}" onclick="_meetSettingsToggleConsensusVariant('qichu')">期初</button>
+            <button type="button" class="meet-tb-btn ${(_meetState.consensusVariant||'qichu')==='qizhong'?'active':''}" onclick="_meetSettingsToggleConsensusVariant('qizhong')">期中</button>
+          </div>
+          <div style="font-size:11px;color:var(--text-soft);font-weight:500;margin-top:6px">期初：含三長卸任感言、頒獎頒書儀式（06:30-08:30）；期中：無交接儀式（06:30-08:25）</div>
+        </div>
+      </div>` : ''}
       <div class="modal-row">
         <div class="modal-field" style="flex:1">
           <div class="modal-label">本週會員人數 <span style="color:var(--text-soft);font-weight:500">（現有會員自動帶）</span></div>
           <input class="modal-input" id="ms_memberCount" type="number" value="${_escH(_meetState.memberCount||'')}" readonly title="自動抓現有會員人數，不可編輯" style="background:#f5f5f5;color:var(--text-soft);cursor:not-allowed" placeholder="載入中…">
         </div>
-        <div class="modal-field" style="flex:1">
+        ${_meetState.templateId !== 'consensus' ? `<div class="modal-field" style="flex:1">
           <div class="modal-label">本週來賓人數</div>
           <input class="modal-input" id="ms_guestCount" type="number" min="0" inputmode="numeric" value="${_escH(_meetState.guestCount||'')}" placeholder="例：8" oninput="_meetSettingsOnCount('guest',this.value)">
-        </div>
+        </div>` : ''}
       </div>
       <div class="modal-row" style="margin-top:-4px">
         <div class="modal-field" style="flex:1">
@@ -718,6 +770,21 @@ function _meetSettingsReset() {
 function _meetSettingsSaveVersion() {
   _meetCommitSettingsModal();
   _meetSaveAsVersion();
+  _meetCloseSettings();
+  _meetOpenSettings();
+}
+
+function _meetSettingsToggleConsensusVariant(v) {
+  if (_meetState.templateId !== 'consensus') return;
+  if ((_meetState.consensusVariant || 'qichu') === v) return;
+  _meetCommitSettingsModal();
+  const label = v === 'qizhong' ? '期中' : '期初';
+  if (!confirm(`切換為「${label}」共識會議？流程內容將依範本重新產生（手動編輯將被覆蓋，已存版本不受影響）。`)) return;
+  _meetState.consensusVariant = v;
+  _meetState.items = _meetGetConsensusBase(v).map(x => ({ ...x, auto: x.auto ? { ...x.auto } : undefined, defaultMinutes: x.minutes }));
+  _meetRecalcHeadcount();
+  _meetSaveDraft();
+  _meetAutoSyncVersion();
   _meetCloseSettings();
   _meetOpenSettings();
 }
@@ -1135,7 +1202,8 @@ function _meetApplyTemplate(id) {
   if (t.startTime) _meetState.startTime = t.startTime;
   _meetState.ceremonies = _meetEmptyCeremonies();
   if (id === 'consensus') {
-    _meetState.items = _MEET_CONSENSUS_BASE.map(x => ({ ...x, auto: x.auto ? { ...x.auto } : undefined, defaultMinutes: x.minutes }));
+    if (!_meetState.consensusVariant) _meetState.consensusVariant = 'qichu';
+    _meetState.items = _meetGetConsensusBase(_meetState.consensusVariant).map(x => ({ ...x, auto: x.auto ? { ...x.auto } : undefined, defaultMinutes: x.minutes }));
   } else if (id === 'bod') {
     _meetState.items = _MEET_BOD_BASE.map(x => ({ ...x, auto: x.auto ? { ...x.auto } : undefined, defaultMinutes: x.minutes }));
   } else {
@@ -1179,6 +1247,7 @@ function _meetAutoSyncVersion() {
   Object.assign(dup, {
     title: _meetState.title || '億展',
     templateId: _meetState.templateId,
+    consensusVariant: _meetState.consensusVariant || null,
     ceremonies: { ...(_meetState.ceremonies || _meetEmptyCeremonies()) },
     startTime: _meetState.startTime,
     targetEndTime: _meetState.targetEndTime || '08:30',
@@ -1204,6 +1273,7 @@ function _meetSaveAsVersion() {
     id: dup ? dup.id : `v_${Date.now()}`,
     dateStr, seqNum, title,
     templateId: _meetState.templateId,
+    consensusVariant: _meetState.consensusVariant || null,
     ceremonies: { ...(_meetState.ceremonies || _meetEmptyCeremonies()) },
     startTime: _meetState.startTime,
     targetEndTime: _meetState.targetEndTime || '08:30',
@@ -1239,6 +1309,7 @@ function _meetLoadVersion(id) {
   if (!ceremonies) ceremonies = _meetEmptyCeremonies();
   _meetState = {
     templateId,
+    consensusVariant: (templateId === 'consensus') ? (v.consensusVariant || 'qichu') : null,
     title: v.title || '億展',
     seqNum: v.seqNum || '',
     dateStr: v.dateStr || _meetTodayDate(),
@@ -1256,6 +1327,16 @@ function _meetLoadVersion(id) {
   (_meetState.items || []).forEach(it => {
     if (it.auto && _PLUS_MIN_TOPICS_V.has(it.topic) && it.auto.plusMin == null) {
       it.auto.plusMin = 1;
+    }
+  });
+  // 遷移：共識會議舊 presenter key
+  (_meetState.items || []).forEach(it => {
+    if (typeof it.presenter === 'string') {
+      it.presenter = it.presenter
+        .replace(/^來賓接待$/m, '來賓')
+        .replace(/^網站$/m, '網管')
+        .replace(/^委員會-1$/m, '委員會')
+        .replace(/^委員會-2$/m, '委員會2');
     }
   });
   _meetSaveDraft();
@@ -1319,6 +1400,10 @@ function _meetVersionLabel(v) {
     templateId = 'general';
   }
   const baseName = _MEET_TEMPLATES[templateId]?.name || templateId || '';
+  if (templateId === 'consensus') {
+    const vLabel = (v.consensusVariant === 'qizhong') ? '期中' : '期初';
+    return `${baseName}（${vLabel}）`;
+  }
   if (templateId !== 'general' || !ceremonies) return baseName;
   const extras = _MEET_CEREMONY_KEYS.filter(k => ceremonies[k]).map(k => _MEET_CEREMONY_LABELS[k]);
   return extras.length ? `${baseName}＋${extras.join('＋')}` : baseName;
