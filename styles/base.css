@@ -3136,7 +3136,7 @@ input.sc-input-sm, select.sc-input-sm { min-height:34px; }
 body.sc-print-mode #sanchangPrintArea {
   position:absolute !important; left:0 !important; top:0 !important;
 }
-body.sc-print-mode #sanchangPrintArea .sc-sheet-page { box-shadow:none; margin-top:0; }
+body.sc-print-mode #sanchangPrintArea .sc-sheet-page { box-shadow:none !important; margin-top:0 !important; width:210mm !important; height:297mm !important; overflow:hidden !important; }
 @media print {
   body * { visibility:hidden !important; }
   #sanchangPrintArea, #sanchangPrintArea * { visibility:visible !important; }

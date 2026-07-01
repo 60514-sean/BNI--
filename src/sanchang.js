@@ -2367,7 +2367,14 @@ async function _scExportPDF(mid) {
     const pdf = new jsPDFCtor({ orientation: 'p', unit: 'mm', format: 'a4' });
     try {
       for (let i = 0; i < pages.length; i++) {
-        const canvas = await html2canvas(pages[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+        const page = pages[i];
+        page.style.setProperty('width',    '794px',  'important');
+        page.style.setProperty('height',   '1123px', 'important');
+        page.style.setProperty('overflow', 'hidden', 'important');
+        const canvas = await html2canvas(page, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+        page.style.removeProperty('width');
+        page.style.removeProperty('height');
+        page.style.removeProperty('overflow');
         const imgData = canvas.toDataURL('image/jpeg', 0.92);
         if (i > 0) pdf.addPage();
         pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
@@ -2404,14 +2411,20 @@ async function _scExportJPG(mid) {
     try {
       for (let i = 0; i < total; i++) {
         showLoader(true, `JPG 產生中... (${i + 1}/${total})`);
-        const canvas = await html2canvas(pages[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+        const page = pages[i];
+        page.style.setProperty('width',    '794px',  'important');
+        page.style.setProperty('height',   '1123px', 'important');
+        page.style.setProperty('overflow', 'hidden', 'important');
+        const canvas = await html2canvas(page, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+        page.style.removeProperty('width');
+        page.style.removeProperty('height');
+        page.style.removeProperty('overflow');
         const dataUrl = canvas.toDataURL('image/jpeg', 0.93);
         const suffix = total > 1 ? `_第${i + 1}頁` : '';
         const a = document.createElement('a');
         a.href = dataUrl;
         a.download = `${_scMod().filePrefix}_${baseDate}${suffix}.jpg`;
         document.body.appendChild(a); a.click(); a.remove();
-        // 多檔下載：間隔避免瀏覽器擋下後續下載
         if (i < total - 1) await new Promise(r => setTimeout(r, 450));
       }
     } finally {
