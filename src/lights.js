@@ -10,6 +10,8 @@ let _lightsScoreSearch = '';
 let _lightsPredictFilter = '綠燈';
 let _lightsPredictSearch = '';
 let _lightsImportOpenMonths = null; // 匯入頁展開的月份 set，第一次渲染時自動初始化為「當月」
+let _annReportText = ''; // 公告頁「複製報告」用的純文字版本
+let _annCardTexts = {};  // 公告頁各分類卡片「複製」用的純文字版本，key 為卡片 id
 let _lightsScoreExpanded = new Set();   // 上個月紅綠燈：展開的會員卡牌
 let _lightsPredictExpanded = new Set(); // 預測紅綠燈：展開的會員卡牌
 let _momentumFilter = null;             // 動能觀測：當前篩選狀態（null = 自動選首個有資料的）
@@ -1617,33 +1619,144 @@ async function renderAnnounce() {
     });
   }
 
-  const reportText = lines.join('\n');
+  _annReportText = lines.join('\n');
 
-  // UI
+  // UI：燈號總覽（比例為主視覺，四色分佈條為輔助）
+  const ratioColor = ratio >= 90 ? '#27ae60' : ratio >= 70 ? '#e67e22' : '#c0392b';
+  const segDef = [
+    { lbl: '綠燈', val: lightCounts['綠燈'], color: '#27ae60' },
+    { lbl: '黃燈', val: lightCounts['黃燈'], color: '#f1c40f' },
+    { lbl: '紅燈', val: lightCounts['紅燈'], color: '#c0392b' },
+    { lbl: '黑燈', val: lightCounts['黑燈'], color: '#2c3e50' },
+  ];
+  const barHtml = totalMembers
+    ? segDef.filter(s => s.val > 0).map(s => `<div class="ann-health-seg" style="background:${s.color};width:${(s.val / totalMembers * 100).toFixed(2)}%;"></div>`).join('')
+    : '';
+  const legendHtml = segDef.map(s => `<span class="ann-health-legend-item"><i style="background:${s.color};"></i>${s.lbl} ${s.val}</span>`).join('');
+
+  // UI：期末衝刺預警卡片，依「尚未達標」「快達標可加分」分兩組，組內同色系
+  const deficitCardsHtml = [
+    _annWarnCard('annTrain', '需要補培訓', '需要補培訓的夥伴', '#b9770e', needTrain, it => `差 ${it.gap} 次`),
+    _annWarnCard('annRef',   '需要補引薦', '需要補引薦的夥伴', '#d35400', needRef,   it => `差 ${it.gap} 筆`),
+    _annWarnCard('ann121',   '需要補一對一', '需要補一對一的夥伴', '#e67e22', need121,   it => `差 ${it.gap} 次`),
+  ].join('');
+  const opportunityCardsHtml = [
+    _annWarnCard('annGuest', '來賓分快得分', '來賓分快得分的夥伴', '#2980b9', nearGuest, it => `差 ${it.gap} 位 · 可得 ${it.score} 分`),
+    _annWarnCard('annAmt',   '引薦金額快升級', '引薦金額快升級的夥伴', '#3498db', nearAmt,   it => `差 ${(it.gap/10000).toFixed(0)} 萬 · 可得 ${it.score} 分`),
+  ].join('');
+
+  // UI：五冠王卡片，統一用品牌色，與上方預警的橘/藍區隔開
+  let crownHtml = '';
+  if (crown && crown.label) {
+    crownHtml = `
+      <div class="card-title" style="margin-top:26px;">五冠王<span class="ann-subnote"> · ${_escH(crown.label)} 各項目最佳表現</span></div>
+      <div class="ann-grid">
+        ${['ref','amt','one','train','vis'].map(k => _annCrownCard(crown.titles[k], 'var(--red)', crown.tops[k])).join('')}
+      </div>`;
+  }
+
   c.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
       <h2 style="font-size:18px;font-weight:700;color:var(--red);margin:0;">副主席報告</h2>
       <button class="btn btn-primary" onclick="_lightsCopyReport()">複製報告</button>
     </div>
 
-    <div style="font-size:12px;color:var(--text-soft);margin-bottom:14px;">${totalMembers} 位現役 · 綠黃燈比例 <b style="color:var(--red);">${ratio}%</b> · 衝刺剩餘 ${remainW} 週</div>
+    <div style="font-size:12px;color:var(--text-soft);margin-bottom:14px;">${totalMembers} 位現役 · 衝刺剩餘 ${remainW} 週</div>
 
-    <div class="card" style="padding:18px;">
-      <textarea id="lightsReportText" readonly style="width:100%;height:520px;padding:14px;border:1px solid var(--gray-border);border-radius:8px;font-family:'Noto Sans TC',sans-serif;font-size:14px;line-height:1.7;resize:vertical;outline:none;background:#fafbfc;">${_escH(reportText)}</textarea>
+    <div class="card-title">燈號總覽</div>
+    <div class="ann-health">
+      <div class="ann-health-ratio" style="color:${ratioColor};">
+        <div class="ann-health-ratio-num">${ratio}%</div>
+        <div class="ann-health-ratio-lbl">綠黃燈比例</div>
+      </div>
+      <div class="ann-health-bar-wrap">
+        <div class="ann-health-bar">${barHtml}</div>
+        <div class="ann-health-legend">${legendHtml}</div>
+      </div>
+    </div>
+
+    <div class="card-title" style="margin-top:26px;">期末衝刺預警<span class="ann-subnote"> · 依目前數據 + 剩餘 ${remainW} 週推算</span></div>
+
+    <div class="ann-group-label ann-group-label-warn">尚未達標，需要補足</div>
+    <div class="ann-grid">${deficitCardsHtml}</div>
+
+    <div class="ann-group-label ann-group-label-op">快達標，衝刺就能加分</div>
+    <div class="ann-grid">${opportunityCardsHtml}</div>
+
+    ${crownHtml}`;
+}
+
+// 期末衝刺預警卡片：列出全部名單，左上角提供複製該分類名單
+function _annWarnCard(id, title, blockTitle, color, items, fmt) {
+  const count = items.length;
+  _annCardTexts[id] = `【${blockTitle}】\n` + (count
+    ? items.map((it, i) => `${i + 1}. ${it.name} (${fmt(it)})`).join('\n')
+    : '（皆已達滿分門檻）');
+  const copyBtn = `<button class="ann-card-copy" onclick="_annCopyCard('${id}')">複製</button>`;
+  if (!count) {
+    return `<div class="ann-card" style="--ann-color:${color};">
+      <div class="ann-card-head">
+        ${copyBtn}
+        <span class="ann-card-title">${title}</span>
+        <span class="ann-card-badge" style="background:var(--gray);">0 位</span>
+      </div>
+      <div class="ann-card-empty">皆已達滿分門檻</div>
     </div>`;
+  }
+  const itemsHtml = items.map((it, i) => `<div class="ann-item"><span class="ann-item-num">${i + 1}</span><span class="ann-item-name">${_escH(it.name)}</span><span class="ann-item-gap">${_escH(fmt(it))}</span></div>`).join('');
+  return `<div class="ann-card" id="${id}" style="--ann-color:${color};">
+    <div class="ann-card-head">
+      ${copyBtn}
+      <span class="ann-card-title">${title}</span>
+      <button class="ann-card-badge ann-card-badge-toggle" onclick="_annToggleCard('${id}')">${count} 位<span class="ann-card-arrow">▾</span></button>
+    </div>
+    <div class="ann-card-body">${itemsHtml}</div>
+  </div>`;
+}
+
+function _annToggleCard(id) {
+  document.getElementById(id)?.classList.toggle('open');
+}
+
+// 五冠王卡片：資料本身已限制在前三名並列，無需收合
+function _annCrownCard(title, color, tops) {
+  const body = tops && tops.length
+    ? tops.map((t, i) => `<div class="ann-item"><span class="ann-item-num">${i + 1}</span><span class="ann-item-name">${_escH(t.label)}</span></div>`).join('')
+    : '<div class="ann-card-empty">無資料</div>';
+  return `<div class="ann-card" style="--ann-color:${color};">
+    <div class="ann-card-head">
+      <span class="ann-card-title">${title}</span>
+    </div>
+    <div class="ann-card-list">${body}</div>
+  </div>`;
+}
+
+function _annCopyText(text, doneMsg) {
+  if (!text) { showToast('尚無內容'); return; }
+  const fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showToast(doneMsg); }
+    catch { showToast('複製失敗'); }
+    document.body.removeChild(ta);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => showToast(doneMsg)).catch(fallback);
+  } else {
+    fallback();
+  }
 }
 
 function _lightsCopyReport() {
-  const ta = document.getElementById('lightsReportText');
-  if (!ta) return;
-  ta.select();
-  try {
-    document.execCommand('copy');
-    showToast('報告已複製');
-  } catch {
-    navigator.clipboard.writeText(ta.value).then(() => showToast('報告已複製')).catch(() => showToast('複製失敗'));
-  }
-  window.getSelection().removeAllRanges();
+  _annCopyText(_annReportText, '報告已複製');
+}
+
+function _annCopyCard(id) {
+  _annCopyText(_annCardTexts[id], '已複製');
 }
 
 // 找最近一筆「單月」資料；若無則用最近一筆任意區間

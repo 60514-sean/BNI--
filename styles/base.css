@@ -3428,3 +3428,45 @@ body.rpt-print-mode #rptPrintArea {
   .rpt-editor-actions { flex-wrap:wrap; }
 }
 
+/* ANNOUNCE (公告) */
+.ann-subnote { font-weight:400; font-size:12px; color:var(--text-soft); }
+
+.ann-health { background:white; border-radius:var(--radius); box-shadow:var(--shadow); padding:20px; display:flex; align-items:center; gap:24px; margin-bottom:8px; flex-wrap:wrap; }
+.ann-health-ratio { flex-shrink:0; text-align:center; min-width:100px; }
+.ann-health-ratio-num { font-size:34px; font-weight:900; line-height:1.1; }
+.ann-health-ratio-lbl { font-size:12px; color:var(--text-soft); margin-top:2px; }
+.ann-health-bar-wrap { flex:1; min-width:220px; }
+.ann-health-bar { display:flex; height:14px; border-radius:7px; overflow:hidden; background:var(--gray-light); }
+.ann-health-seg:first-child { border-top-left-radius:7px; border-bottom-left-radius:7px; }
+.ann-health-seg:last-child { border-top-right-radius:7px; border-bottom-right-radius:7px; }
+.ann-health-legend { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; }
+.ann-health-legend-item { display:flex; align-items:center; gap:5px; font-size:12px; color:var(--text-soft); }
+.ann-health-legend-item i { width:9px; height:9px; border-radius:50%; display:inline-block; }
+
+.ann-group-label { font-size:13px; font-weight:700; margin:14px 0 8px; }
+.ann-group-label-warn { color:#d35400; }
+.ann-group-label-op { color:#2980b9; }
+
+.ann-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:12px; margin-bottom:8px; }
+.ann-card { background:white; border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; border-top:3px solid var(--ann-color, var(--red)); }
+.ann-card-head { display:flex; align-items:center; gap:10px; padding:14px 16px; }
+.ann-card-title { flex:1; font-size:14px; font-weight:700; color:var(--text); }
+.ann-card-badge { font-size:12px; font-weight:700; color:white; background:var(--ann-color, var(--red)); border-radius:12px; padding:2px 10px; flex-shrink:0; border:none; }
+.ann-card-badge-toggle { display:inline-flex; align-items:center; gap:4px; cursor:pointer; font-family:inherit; }
+.ann-card-arrow { font-size:10px; transition:transform 0.2s; }
+.ann-card.open .ann-card-arrow { transform:rotate(180deg); }
+.ann-card-copy { flex-shrink:0; font-size:11px; font-weight:700; color:var(--ann-color, var(--red)); background:white; border:1px solid var(--ann-color, var(--red)); border-radius:6px; padding:3px 10px; cursor:pointer; }
+.ann-card-copy:hover { background:var(--ann-color, var(--red)); color:white; }
+.ann-item { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13px; border-bottom:1px dashed var(--gray-border); }
+.ann-item:last-child { border-bottom:none; }
+.ann-item-num { width:20px; flex-shrink:0; color:var(--text-soft); font-size:12px; }
+.ann-item-name { flex:1; font-weight:600; color:var(--text); }
+.ann-item-gap { font-size:12px; color:var(--ann-color, var(--red)); font-weight:700; white-space:nowrap; flex-shrink:0; }
+.ann-card-empty { padding:0 16px 14px; text-align:center; color:var(--text-soft); font-size:13px; }
+.ann-card-body { display:none; padding:6px 16px 14px; border-top:1px solid var(--gray-border); margin-top:4px; }
+.ann-card.open .ann-card-body { display:block; }
+.ann-card-list { padding:0 16px 14px; }
+@media (max-width:640px) {
+  .ann-grid { grid-template-columns:1fr; }
+}
+
