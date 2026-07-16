@@ -21,6 +21,12 @@
  *
  * === 測試（可選）===
  * 部署後在瀏覽器打開 <網址>?action=ping，應該回傳 {"ok":true,"time":"..."}
+ *
+ * === 自動建立下一屆 ===
+ * 每次前端讀取排程（getSchedule）時會自動檢查：若最新屆分頁最後一場距今 <=28 天
+ * 且下一屆分頁還不存在，就自動新增「第X+1屆」分頁，往後排 6 個月的空白週五場次
+ * （特殊場次如暫停/共識會/BOD/年會不會自動猜，仍需在前端手動編輯標記）。
+ * 也可手動測試：<網址>?action=ensureNextTerm&token=xxx
  */
 
 const SHEET_ID = '12cGPw7f8L1HxZv6G5H3yKzPYNKNg8jIdzV3gl2sEN_Y';
@@ -60,8 +66,12 @@ function doGet(e) {
   const p = (e && e.parameter) || {};
   if (p.action === 'ping')        return jsonOut({ ok: true, time: new Date().toISOString() });
   if (!_authOk(p.token)) return jsonOut({ ok: false, error: 'unauthorized' });
-  if (p.action === 'getSchedule') return jsonOut({ ok: true, rows: readSchedule() });
+  if (p.action === 'getSchedule') {
+    try { ensureNextTermIfNeeded(); } catch (e) { /* 自動建立失敗不影響讀取 */ }
+    return jsonOut({ ok: true, rows: readSchedule() });
+  }
   if (p.action === 'listSheets')  return jsonOut({ ok: true, sheets: listSheets() });
+  if (p.action === 'ensureNextTerm') { ensureNextTermIfNeeded(); return jsonOut({ ok: true, sheets: listSheets() }); }
   return jsonOut({ ok: true, message: 'BNI 簡報排程 API（請以 POST 呼叫 updateSchedule，或 GET ?action=ping/getSchedule）' });
 }
 
@@ -152,6 +162,104 @@ function readSchedule() {
     }
   });
   return out;
+}
+
+// ===== 自動建立下一屆空白排程 =====
+// 條件：最新屆分頁的最後一列日期距今 <= NEXT_TERM_TRIGGER_DAYS，且下一屆分頁還不存在時，
+// 自動新增分頁，依「上一屆最後一場之後的下一個週五」起算，往後排滿 NEXT_TERM_MONTHS 個月的週五空白場次。
+// 特殊場次（暫停/共識會/BOD/年會）不自動猜測日期，需事後於前端「編輯」功能手動標記。
+const NEXT_TERM_TRIGGER_DAYS = 28;
+const NEXT_TERM_MONTHS = 6;
+
+function ensureNextTermIfNeeded() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const termSheets = ss.getSheets().filter(function (s) { return TERM_TAB_REGEX.test(s.getName()); });
+  if (!termSheets.length) return;
+  termSheets.sort(function (a, b) { return termOrder(a.getName()) - termOrder(b.getName()); });
+  const latest = termSheets[termSheets.length - 1];
+  const latestNum = termOrder(latest.getName());
+  if (latestNum === 9999) return; // 無法解析屆數，放棄自動建立
+
+  const nextName = _nextTermName(latest.getName(), latestNum + 1);
+  if (ss.getSheetByName(nextName)) return; // 下一屆已存在
+
+  const lastDate = _findLastMeetingDate(latest);
+  if (!lastDate) return;
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const daysLeft = Math.round((lastDate - today) / 86400000);
+  if (daysLeft > NEXT_TERM_TRIGGER_DAYS) return; // 還早，先不建立
+
+  _createNextTermSheet(ss, nextName, lastDate);
+}
+
+// 掃描分頁找出最後一列有效日期（還原年份：靠年份標記列 + 跨年判斷，與前端 _parseScheduleRows 邏輯一致）
+function _findLastMeetingDate(sheet) {
+  const values = sheet.getDataRange().getValues();
+  let curYear = new Date().getFullYear();
+  let lastMonth = 0;
+  let lastDate = null;
+  for (let r = 0; r < values.length; r++) {
+    const row = values[r] || [];
+    const b = String(row[1] || '').trim();
+    const c = String(row[2] || '').trim();
+
+    const ym = b.match(/^(\d{4})年?$/);
+    if (ym) { curYear = parseInt(ym[1], 10); lastMonth = 0; continue; }
+
+    const dm = c.match(/(\d{1,2})\/(\d{1,2})/);
+    if (!dm) continue;
+    const M = parseInt(dm[1], 10), D = parseInt(dm[2], 10);
+    if (lastMonth >= 11 && M <= 2) curYear++;
+    lastMonth = M;
+    lastDate = new Date(curYear, M - 1, D);
+  }
+  return lastDate;
+}
+
+// 「第六屆」→「第七屆」；來源若用阿拉伯數字則沿用阿拉伯數字
+function _nextTermName(latestName, nextNum) {
+  if (/第\d+屆/.test(latestName)) return '第' + nextNum + '屆';
+  return '第' + _numToChinese(nextNum) + '屆';
+}
+
+function _numToChinese(n) {
+  const digits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+  if (n < 10) return digits[n];
+  if (n < 20) return '十' + (n % 10 === 0 ? '' : digits[n % 10]);
+  const tens = Math.floor(n / 10), ones = n % 10;
+  return digits[tens] + '十' + (ones === 0 ? '' : digits[ones]);
+}
+
+function _createNextTermSheet(ss, nextName, lastDate) {
+  const newSheet = ss.insertSheet(nextName, ss.getSheets().length);
+
+  // 下一屆第一場：上一屆最後一列之後的下一個週五
+  const start = new Date(lastDate);
+  start.setDate(start.getDate() + 1);
+  while (start.getDay() !== 5) start.setDate(start.getDate() + 1);
+
+  const termEnd = new Date(start);
+  termEnd.setMonth(termEnd.getMonth() + NEXT_TERM_MONTHS);
+
+  const rows = [];
+  rows.push(['', nextName, '', '', '', '', '']);
+  rows.push(['', '排序', '日期', '主題簡報者', '簡報輔導', '簡報截稿日', '主題']);
+  rows.push(['', String(start.getFullYear()), '', '', '', '', '']);
+
+  const fmt = function (d) { return String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0'); };
+
+  let seq = 1;
+  const d = new Date(start);
+  while (d < termEnd) {
+    const deadline = new Date(d);
+    deadline.setDate(deadline.getDate() - 10);
+    rows.push(['', seq, fmt(d), '', '', fmt(deadline), '']);
+    seq++;
+    d.setDate(d.getDate() + 7);
+  }
+
+  newSheet.getRange(1, 1, rows.length, 7).setValues(rows);
 }
 
 // ===== Debug：列出所有分頁名稱與 GID =====
