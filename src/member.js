@@ -93,6 +93,86 @@ async function fetchMembers() {
   }
 }
 
+// ===== 星座比例（依生日欄「民國/月/日」推算，跨年份區間如摩羯座需處理月份回捲） =====
+const ZODIAC_LIST = [
+  { name: '摩羯座', start: [12,22], end: [1,19] },
+  { name: '水瓶座', start: [1,20],  end: [2,18] },
+  { name: '雙魚座', start: [2,19],  end: [3,20] },
+  { name: '牡羊座', start: [3,21],  end: [4,19] },
+  { name: '金牛座', start: [4,20],  end: [5,20] },
+  { name: '雙子座', start: [5,21],  end: [6,21] },
+  { name: '巨蟹座', start: [6,22],  end: [7,22] },
+  { name: '獅子座', start: [7,23],  end: [8,22] },
+  { name: '處女座', start: [8,23],  end: [9,22] },
+  { name: '天秤座', start: [9,23],  end: [10,23] },
+  { name: '天蠍座', start: [10,24], end: [11,22] },
+  { name: '射手座', start: [11,23], end: [12,21] },
+];
+
+function _getZodiac(month, day) {
+  if (!month || !day) return null;
+  for (const z of ZODIAC_LIST) {
+    const [sm, sd] = z.start, [em, ed] = z.end;
+    if (sm <= em) {
+      if ((month === sm && day >= sd) || (month === em && day <= ed) || (month > sm && month < em)) return z.name;
+    } else {
+      if ((month === sm && day >= sd) || (month === em && day <= ed) || month > sm || month < em) return z.name;
+    }
+  }
+  return null;
+}
+
+function _computeZodiacStats() {
+  const counts = {};
+  ZODIAC_LIST.forEach(z => counts[z.name] = 0);
+  let withData = 0;
+  (_memberData || []).forEach(m => {
+    if (!m.birthday) return;
+    const parts = m.birthday.split('/');
+    if (parts.length !== 3) return;
+    const month = parseInt(parts[1]), day = parseInt(parts[2]);
+    const z = _getZodiac(month, day);
+    if (!z) return;
+    counts[z]++;
+    withData++;
+  });
+  return { counts, total: withData, noData: (_memberData || []).length - withData };
+}
+
+function openZodiacStats() {
+  const { counts, total, noData } = _computeZodiacStats();
+  const rows = ZODIAC_LIST
+    .map(z => ({ name: z.name, count: counts[z.name] }))
+    .sort((a, b) => b.count - a.count)
+    .map(r => {
+      const pct = total ? (r.count / total * 100) : 0;
+      return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <span style="width:56px;flex-shrink:0;font-size:13px;">${r.name}</span>
+        <div style="flex:1;background:#f0f2f5;border-radius:6px;overflow:hidden;height:18px;">
+          <div style="width:${pct}%;background:var(--red);height:100%;"></div>
+        </div>
+        <span style="width:78px;flex-shrink:0;text-align:right;font-size:12px;color:var(--text-soft);">${r.count} 人（${pct.toFixed(1)}%）</span>
+      </div>`;
+    }).join('');
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'zodiacModal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-title">分會星座比例</div>
+      <div style="font-size:12px;color:var(--text-soft);margin-bottom:14px;">依會員生日推算，共 ${total} 位有生日資料${noData ? `，${noData} 位無生日資料未列入統計` : ''}</div>
+      ${rows || `<div style="text-align:center;padding:20px;color:var(--text-soft);">尚無生日資料</div>`}
+      <div class="modal-btns">
+        <button class="modal-cancel" onclick="closeZodiacStats()">關閉</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function closeZodiacStats() {
+  document.getElementById('zodiacModal')?.remove();
+}
+
 let _memberSearch = '';
 let _memberBirthMonth = ''; // '' | '1' .. '12'
 let _defaultIndustry = '';
@@ -213,6 +293,7 @@ async function renderMembers() {
     <span id="memberCount" style="font-size:13px;color:var(--text-soft);">${list.length} 位會員</span>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
       <select onchange="_memberBirthMonth=this.value;renderMembers()" style="${selectStyle}">${monthOpts}</select>
+      <button onclick="openZodiacStats()" style="padding:7px 14px;background:white;border:1.5px solid var(--gray-border);border-radius:7px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text-soft);">星座比例</button>
       ${canEdit ? `<button onclick="openAddMember()" style="padding:7px 16px;background:var(--red);color:white;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">+ 新增會員</button>` : ''}
     </div>
   </div>`);
