@@ -834,7 +834,7 @@ function renderMembers(members) {
               ${m.phone ? `<div class="mc-phone"><a href="tel:${escH(m.phone.replace(/[^0-9+]/g,''))}">${escH(m.phone)}</a></div>` : ''}
               ${m.slogan ? `<div class="mc-slogan">「${escH(m.slogan)}」</div>` : ''}
               <div class="mc-btn-row">
-                ${m.website ? `<a class="mc-web-btn" href="${escH(m.website)}" target="_blank" rel="noopener">看官網 &rarr;</a>` : ''}
+                ${m.website ? `<a class="mc-web-btn" href="${escH(m.website)}" target="_blank" rel="noopener">看官網</a>` : ''}
                 ${renderMeetBtn(m.name, uniq)}
               </div>
               <span class="mc-meet-note" id="note-${uniq}"${isMeetClicked(m.name) ? '' : ' style="display:none"'}>已通知 ${escH(m.name)}，會盡快聯繫您</span>
