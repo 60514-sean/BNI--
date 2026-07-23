@@ -37,7 +37,7 @@ function _resolveMeetingPresenter(presenter) {
     if (!matched) return line;
     const val = map[matched.key];
     if (!val) return line;
-    if (matched.type === 'member') {
+    if (matched.type === 'member' || matched.type === 'exitMember') {
       const names = val.split('\n').map(n => n.trim()).filter(Boolean);
       if (names.length > 1) return names.map(n => line.replace(matched.origPart, n)).join('\n');
       return line.replace(matched.origPart, names[0] || val);

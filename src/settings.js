@@ -79,32 +79,39 @@ function _meetStaffOnInput(key, val) {
   _meetLiveRender();
 }
 
-function _meetNewMemberSync() {
-  const container = document.getElementById('入會_inputs');
+const _MEET_MULTI_NAME_PH = { 入會:'本週入會會員姓名', 續約:'本週續約會員姓名' };
+
+function _meetMultiNameRowsHtml(key) {
+  const arr = (cfgMeetingStaff[key] || '').split('\n');
+  const is = 'flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;';
+  const bs = 'flex-shrink:0;width:28px;height:28px;border:1.5px solid var(--gray-border);border-radius:6px;background:white;font-size:16px;line-height:1;cursor:pointer;padding:0;color:var(--text);';
+  const ph = _MEET_MULTI_NAME_PH[key] || '姓名';
+  return arr.map((n, i) => `<div style="display:flex;align-items:center;gap:6px;${i>0?'margin-top:4px':''}"><input type="text" data-nm="${i}" value="${_escH(n)}" oninput="_meetNewMemberSync('${key}')" placeholder="${ph}" style="${is}">${i===0?`<button type="button" onclick="_meetNewMemberAdd('${key}')" style="${bs}">+</button>`:`<button type="button" onclick="_meetNewMemberRemove('${key}',${i})" style="${bs}">−</button>`}</div>`).join('');
+}
+
+function _meetNewMemberSync(key) {
+  const container = document.getElementById(`${key}_inputs`);
   if (!container) return;
   const inputs = container.querySelectorAll('input[data-nm]');
-  cfgMeetingStaff['入會'] = Array.from(inputs).map(inp => inp.value).join('\n');
+  cfgMeetingStaff[key] = Array.from(inputs).map(inp => inp.value).join('\n');
   _meetSyncStaffLive();
   _meetLiveRender();
 }
 
-function _meetNewMemberRebuild() {
-  const container = document.getElementById('入會_inputs');
+function _meetNewMemberRebuild(key) {
+  const container = document.getElementById(`${key}_inputs`);
   if (!container) return;
-  const arr = (cfgMeetingStaff['入會'] || '').split('\n');
-  const is = 'flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;';
-  const bs = 'flex-shrink:0;width:28px;height:28px;border:1.5px solid var(--gray-border);border-radius:6px;background:white;font-size:16px;line-height:1;cursor:pointer;padding:0;color:var(--text);';
-  container.innerHTML = arr.map((n, i) => `<div style="display:flex;align-items:center;gap:6px;${i>0?'margin-top:4px':''}"><input type="text" data-nm="${i}" value="${_escH(n)}" oninput="_meetNewMemberSync()" placeholder="本週入會會員姓名" style="${is}">${i===0?`<button type="button" onclick="_meetNewMemberAdd()" style="${bs}">+</button>`:`<button type="button" onclick="_meetNewMemberRemove(${i})" style="${bs}">−</button>`}</div>`).join('');
+  container.innerHTML = _meetMultiNameRowsHtml(key);
 }
 
-function _meetNewMemberAdd() {
-  _meetNewMemberSync();
-  const arr = (cfgMeetingStaff['入會'] || '').split('\n');
+function _meetNewMemberAdd(key) {
+  _meetNewMemberSync(key);
+  const arr = (cfgMeetingStaff[key] || '').split('\n');
   arr.push('');
-  cfgMeetingStaff['入會'] = arr.join('\n');
+  cfgMeetingStaff[key] = arr.join('\n');
   _meetSyncStaffLive();
-  _meetNewMemberRebuild();
-  const container = document.getElementById('入會_inputs');
+  _meetNewMemberRebuild(key);
+  const container = document.getElementById(`${key}_inputs`);
   if (container) {
     const inputs = container.querySelectorAll('input[data-nm]');
     const last = inputs[inputs.length - 1];
@@ -112,13 +119,71 @@ function _meetNewMemberAdd() {
   }
 }
 
-function _meetNewMemberRemove(i) {
-  _meetNewMemberSync();
-  const arr = (cfgMeetingStaff['入會'] || '').split('\n');
+function _meetNewMemberRemove(key, i) {
+  _meetNewMemberSync(key);
+  const arr = (cfgMeetingStaff[key] || '').split('\n');
   arr.splice(i, 1);
-  cfgMeetingStaff['入會'] = arr.length ? arr.join('\n') : '';
+  cfgMeetingStaff[key] = arr.length ? arr.join('\n') : '';
   _meetSyncStaffLive();
-  _meetNewMemberRebuild();
+  _meetNewMemberRebuild(key);
+}
+
+function _meetExitPairRowsHtml() {
+  const mentors = (cfgMeetingStaff['導師'] || '').split('\n');
+  const mentees = (cfgMeetingStaff['導生'] || '').split('\n');
+  const rowCount = Math.max(mentors.length, mentees.length, 1);
+  const is = 'flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--gray-border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;';
+  const bs = 'flex-shrink:0;width:28px;height:28px;border:1.5px solid var(--gray-border);border-radius:6px;background:white;font-size:16px;line-height:1;cursor:pointer;padding:0;color:var(--text);';
+  let html = '';
+  for (let i = 0; i < rowCount; i++) {
+    html += `<div style="display:flex;align-items:center;gap:6px;${i>0?'margin-top:4px':''}">
+      <input type="text" data-mt="${i}" value="${_escH(mentors[i]||'')}" oninput="_meetExitPairSync()" placeholder="本週導師姓名" style="${is}">
+      <input type="text" data-mn="${i}" value="${_escH(mentees[i]||'')}" oninput="_meetExitPairSync()" placeholder="本週導生姓名" style="${is}">
+      ${i===0?`<button type="button" onclick="_meetExitPairAdd()" style="${bs}">+</button>`:`<button type="button" onclick="_meetExitPairRemove(${i})" style="${bs}">−</button>`}
+    </div>`;
+  }
+  return html;
+}
+
+function _meetExitPairSync() {
+  const container = document.getElementById('出村_inputs');
+  if (!container) return;
+  cfgMeetingStaff['導師'] = Array.from(container.querySelectorAll('input[data-mt]')).map(inp => inp.value).join('\n');
+  cfgMeetingStaff['導生'] = Array.from(container.querySelectorAll('input[data-mn]')).map(inp => inp.value).join('\n');
+  _meetSyncStaffLive();
+  _meetLiveRender();
+}
+
+function _meetExitPairRebuild() {
+  const container = document.getElementById('出村_inputs');
+  if (!container) return;
+  container.innerHTML = _meetExitPairRowsHtml();
+}
+
+function _meetExitPairAdd() {
+  _meetExitPairSync();
+  cfgMeetingStaff['導師'] = ((cfgMeetingStaff['導師'] || '').split('\n')).concat('').join('\n');
+  cfgMeetingStaff['導生'] = ((cfgMeetingStaff['導生'] || '').split('\n')).concat('').join('\n');
+  _meetSyncStaffLive();
+  _meetExitPairRebuild();
+  const container = document.getElementById('出村_inputs');
+  if (container) {
+    const inputs = container.querySelectorAll('input[data-mt]');
+    const last = inputs[inputs.length - 1];
+    if (last) last.focus();
+  }
+}
+
+function _meetExitPairRemove(i) {
+  _meetExitPairSync();
+  const mentors = (cfgMeetingStaff['導師'] || '').split('\n');
+  const mentees = (cfgMeetingStaff['導生'] || '').split('\n');
+  mentors.splice(i, 1);
+  mentees.splice(i, 1);
+  cfgMeetingStaff['導師'] = mentors.length ? mentors.join('\n') : '';
+  cfgMeetingStaff['導生'] = mentees.length ? mentees.join('\n') : '';
+  _meetSyncStaffLive();
+  _meetExitPairRebuild();
 }
 
 function _renderMeetingStaffBlock() {
@@ -162,17 +227,12 @@ function _renderMeetingStaffBlock() {
   const committeeRow = MEETING_COMMITTEE_ROLES.map(r => row(r, r, '本週委員會姓名')).join('');
   const members = MEETING_MEMBERS.map(e => {
     if (e === '出村') {
-      return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-        <div style="flex-shrink:0;width:60px;font-size:13px;font-weight:700;color:var(--text);">出村</div>
-        <input type="text" value="${_escH(cfgMeetingStaff['導師']||'')}" oninput="_meetStaffOnInput('導師',this.value)" placeholder="本週導師姓名" style="${inputStyle}">
-        <input type="text" value="${_escH(cfgMeetingStaff['導生']||'')}" oninput="_meetStaffOnInput('導生',this.value)" placeholder="本週導生姓名" style="${inputStyle}">
-      </div>`;
+      const innerRows = _meetExitPairRowsHtml();
+      return `<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;"><div style="flex-shrink:0;width:60px;font-size:13px;font-weight:700;color:var(--text);padding-top:9px;">出村</div><div id="出村_inputs" style="flex:1;">${innerRows}</div></div>`;
     }
-    if (e === '入會') {
-      const arr = (cfgMeetingStaff['入會'] || '').split('\n');
-      const btnStyle = 'flex-shrink:0;width:28px;height:28px;border:1.5px solid var(--gray-border);border-radius:6px;background:white;font-size:16px;line-height:1;cursor:pointer;padding:0;color:var(--text);';
-      const innerRows = arr.map((n, i) => `<div style="display:flex;align-items:center;gap:6px;${i>0?'margin-top:4px':''}"><input type="text" data-nm="${i}" value="${_escH(n)}" oninput="_meetNewMemberSync()" placeholder="本週入會會員姓名" style="${inputStyle}">${i===0?`<button type="button" onclick="_meetNewMemberAdd()" style="${btnStyle}">+</button>`:`<button type="button" onclick="_meetNewMemberRemove(${i})" style="${btnStyle}">−</button>`}</div>`).join('');
-      return `<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;"><div style="flex-shrink:0;width:60px;font-size:13px;font-weight:700;color:var(--text);padding-top:9px;">入會</div><div id="入會_inputs" style="flex:1;">${innerRows}</div></div>`;
+    if (e === '入會' || e === '續約') {
+      const innerRows = _meetMultiNameRowsHtml(e);
+      return `<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;"><div style="flex-shrink:0;width:60px;font-size:13px;font-weight:700;color:var(--text);padding-top:9px;">${e}</div><div id="${e}_inputs" style="flex:1;">${innerRows}</div></div>`;
     }
     return row(e, e, '本週會員姓名');
   }).join('');
