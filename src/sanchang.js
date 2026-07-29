@@ -2393,7 +2393,21 @@ async function _scExportPDF(mid) {
   }
 }
 
-// JPG：逐頁輸出，每張 A4 各下載一個檔（不再合成一整條長圖）
+// 逐張下載（桌機用；每張間隔一下避免瀏覽器把它們當成自動連續下載擋掉）
+async function _scDownloadFilesSequentially(files) {
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const url = URL.createObjectURL(f);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = f.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    if (i < files.length - 1) await new Promise(r => setTimeout(r, 450));
+  }
+}
+
+// JPG：逐頁輸出。多頁時優先用系統分享（手機可直接「儲存到照片」），不支援分享的瀏覽器（多為桌機）才逐張下載
 async function _scExportJPG(mid) {
   const m = _scFindMeeting(mid);
   if (!m) return;
@@ -2408,6 +2422,8 @@ async function _scExportJPG(mid) {
     const pages = sheet.querySelectorAll('.sc-sheet-page');
     const total = pages.length;
     const baseDate = (m.meetingDate || '').replace(/[\\/:*?"<>|]/g, '_');
+    const prefix = _scMod().filePrefix;
+    const files = [];
     try {
       for (let i = 0; i < total; i++) {
         showLoader(true, `JPG 產生中... (${i + 1}/${total})`);
@@ -2419,18 +2435,33 @@ async function _scExportJPG(mid) {
         page.style.removeProperty('width');
         page.style.removeProperty('height');
         page.style.removeProperty('overflow');
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.93);
         const suffix = total > 1 ? `_第${i + 1}頁` : '';
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        a.download = `${_scMod().filePrefix}_${baseDate}${suffix}.jpg`;
-        document.body.appendChild(a); a.click(); a.remove();
-        if (i < total - 1) await new Promise(r => setTimeout(r, 450));
+        const fileName = `${prefix}_${baseDate}${suffix}.jpg`;
+        const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.93));
+        files.push(new File([blob], fileName, { type: 'image/jpeg' }));
       }
     } finally {
       document.body.classList.remove('sc-print-mode');
     }
-    showToast(total > 1 ? `已下載 ${total} 張 JPG` : 'JPG 已下載');
+
+    const canShareFiles = total > 1 && navigator.canShare && navigator.canShare({ files });
+    if (canShareFiles) {
+      try {
+        await navigator.share({ files, title: `${prefix}_${baseDate}` });
+        showToast('請在分享選單選擇「儲存到照片」');
+      } catch (shareErr) {
+        if (shareErr && shareErr.name === 'AbortError') {
+          showToast('已取消分享');
+        } else {
+          console.warn('[SC JPG] share 失敗，改用逐張下載', shareErr);
+          await _scDownloadFilesSequentially(files);
+          showToast(`已下載 ${total} 張 JPG`);
+        }
+      }
+    } else {
+      await _scDownloadFilesSequentially(files);
+      showToast(total > 1 ? `已下載 ${total} 張 JPG` : 'JPG 已下載');
+    }
   } catch (e) {
     console.error('[SC JPG]', e);
     showToast('JPG 匯出失敗');
