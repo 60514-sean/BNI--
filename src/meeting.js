@@ -1551,15 +1551,32 @@ async function _meetExportJPG() {
   await new Promise(r => setTimeout(r, 80));
   try {
     const canvas = await html2canvas(sheet, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-    const a = document.createElement('a');
     const safeName = _meetVersionFullTitle(_meetState).replace(/[\\/:*?"<>|]/g,'_');
-    a.href = dataUrl;
-    a.download = safeName + '.jpg';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    showToast('JPG 已下載');
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+    const file = new File([blob], safeName + '.jpg', { type: 'image/jpeg' });
+    const canShareFile = navigator.canShare && navigator.canShare({ files: [file] });
+    if (canShareFile) {
+      try {
+        await navigator.share({ files: [file], title: safeName });
+        showToast('請在分享選單選擇「儲存到照片」');
+      } catch (shareErr) {
+        if (shareErr && shareErr.name === 'AbortError') {
+          showToast('已取消分享');
+        } else {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(file);
+          a.download = file.name;
+          document.body.appendChild(a); a.click(); a.remove();
+          showToast('JPG 已下載');
+        }
+      }
+    } else {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(file);
+      a.download = file.name;
+      document.body.appendChild(a); a.click(); a.remove();
+      showToast('JPG 已下載');
+    }
   } catch (e) {
     showToast('JPG 匯出失敗');
   } finally {
