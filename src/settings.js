@@ -356,7 +356,7 @@ function showSettings() {
   const dayPickerOpts = DAYS.map(d => `<option value="${d}">${d}</option>`).join('');
 
   // 記錄目前展開狀態
-  const ACC_IDS = ['acc0','accSitePw','acc1','accMsg','accInd','acc2'];
+  const ACC_IDS = ['acc0','accSitePw','acc1','accMsg','accInd','acc2','accTrash'];
   const accOpen = ACC_IDS.map(id => { const el = document.getElementById(id); return el ? el.style.display !== 'none' : false; });
   const ctDay   = document.getElementById('ctDayPicker')?.value || DAYS[0];
 
@@ -483,6 +483,16 @@ function showSettings() {
         </div>
       </div>
     </div>
+    <div class="card">
+      <div class="acc-header" onclick="toggleAcc('accTrash')">
+        <div class="card-title" style="margin:0;">垃圾桶</div>
+        <span class="acc-arrow" id="accTrash-arrow">&#9654;</span>
+      </div>
+      <div class="acc-body" id="accTrash" style="display:none;">
+        <p class="hint" style="margin-bottom:12px;">來賓追蹤／財務管理／燈號與會員的刪除操作會先進垃圾桶，7 天後（開啟本頁時）自動清除，逾期前都可以按「還原」復原。</p>
+        <div id="trashList">${_trashListHtml(null)}</div>
+      </div>
+    </div>
     <div class="btn-row">
       <button class="btn btn-primary" onclick="saveSettings()">儲存設定</button>
       <button class="btn btn-secondary" onclick="exitSettings()">取消</button>
@@ -501,6 +511,7 @@ function showSettings() {
   }
   // 渲染產業鏈清單
   if (typeof _renderIndustryListSettings === 'function') _renderIndustryListSettings();
+  _loadTrashList();
 }
 
 function toggleAcc(id) {
@@ -725,6 +736,79 @@ function _authBackends() {
     { name: '排程',   url: (typeof SCHEDULE_API_URL !== 'undefined') ? SCHEDULE_API_URL : '' },
     { name: '燈號',   url: (typeof LIGHTS_API_URL !== 'undefined') ? LIGHTS_API_URL : '' }
   ].filter(b => b.url);
+}
+
+// 有垃圾桶功能的後端（排程 SCHEDULE_API_URL 目前無任何刪除操作，不列入）
+function _trashBackends() {
+  return [
+    { name: '來賓／會員／例會', url: (typeof API_URL !== 'undefined') ? API_URL : '' },
+    { name: '財務',           url: (typeof FINANCE_API_URL !== 'undefined') ? FINANCE_API_URL : '' },
+    { name: '燈號',           url: (typeof LIGHTS_API_URL !== 'undefined') ? LIGHTS_API_URL : '' }
+  ].filter(b => b.url);
+}
+
+let _trashItemsCache = [];
+
+async function _loadTrashList() {
+  const box = document.getElementById('trashList');
+  if (!box) return;
+  box.innerHTML = _trashListHtml(null);
+  const backends = _trashBackends();
+  const results = await Promise.all(backends.map(async b => {
+    try {
+      const res = await fetch(b.url, {
+        method: 'POST', mode: 'cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'listTrash', auth: _apiToken() })
+      });
+      const j = await res.json();
+      if (!j || !j.ok || !Array.isArray(j.data)) return [];
+      return j.data.map(item => ({ ...item, _backendName: b.name, _backendUrl: b.url }));
+    } catch (e) { return []; }
+  }));
+  _trashItemsCache = results.flat().sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
+  const box2 = document.getElementById('trashList');
+  if (box2) box2.innerHTML = _trashListHtml(_trashItemsCache);
+}
+
+function _trashDaysLeft(deletedAt) {
+  const d = new Date(String(deletedAt || '').replace(' ', 'T'));
+  if (isNaN(d.getTime())) return '';
+  const left = 7 - Math.floor((Date.now() - d.getTime()) / 86400000);
+  return left > 0 ? left : 0;
+}
+
+function _trashListHtml(items) {
+  if (items === null) return '<div style="text-align:center;padding:24px;color:var(--text-soft);">載入中...</div>';
+  if (!items.length) return '<div style="text-align:center;padding:24px;color:var(--text-soft);">垃圾桶是空的</div>';
+  return items.map((it, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--gray-border);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);">
+          <span style="display:inline-block;padding:2px 8px;border-radius:999px;background:var(--gray-light);color:var(--text-soft);font-size:11px;font-weight:700;margin-right:6px;">${_escH(it._backendName)}</span>
+          ${_escH(it.summary || it.sourceSheet || '')}
+        </div>
+        <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">刪除於 ${_escH(it.deletedAt)}　剩 ${_trashDaysLeft(it.deletedAt)} 天自動清除</div>
+      </div>
+      <button class="btn" style="padding:6px 14px;font-size:12px;background:white;border:1.5px solid var(--red);color:var(--red);font-weight:700;flex-shrink:0;" onclick="_restoreTrashItem(${i})">還原</button>
+    </div>`).join('');
+}
+
+async function _restoreTrashItem(i) {
+  const it = _trashItemsCache[i];
+  if (!it) return;
+  if (!confirm('確定要還原「' + (it.summary || it.sourceSheet || '') + '」嗎？')) return;
+  try {
+    const res = await fetch(it._backendUrl, {
+      method: 'POST', mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'restoreTrash', id: it.id, scope: it.scope, auth: _apiToken() })
+    });
+    const j = await res.json();
+    if (!j || !j.ok) { showToast('還原失敗：' + ((j && j.error) || '未知錯誤')); return; }
+    showToast('已還原，請重新整理對應頁面確認');
+    _loadTrashList();
+  } catch (e) { showToast('還原失敗，請檢查網路'); }
 }
 
 // 用指定 token 把 newHash 推送到單一後端；回傳 true/false

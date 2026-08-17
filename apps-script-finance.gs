@@ -28,6 +28,119 @@ function _authOk(token) {
   try { return _sha256Hex(token) === _expectedAuthHash(); } catch (e) { return false; }
 }
 
+// =============== 垃圾桶（軟刪除，防誤刪；7 天後開啟垃圾桶面板時自動清除過期項目） ===============
+const TRASH_SHEET_NAME = '垃圾桶';
+const TRASH_RETENTION_DAYS = 7;
+
+function _trashSheet_() {
+  const ss = SpreadsheetApp.openById(FINANCE_SHEET_ID);
+  let sh = ss.getSheetByName(TRASH_SHEET_NAME);
+  if (!sh) {
+    sh = ss.insertSheet(TRASH_SHEET_NAME);
+    sh.getRange(1, 1, 1, 7).setValues([['id', '刪除時間', '來源分頁', '類型', '摘要', '標頭快照', '列資料']]);
+    sh.getRange('A1:G1').setFontWeight('bold').setBackground('#fce8e6');
+    sh.setColumnWidth(1, 220);
+    sh.setColumnWidth(5, 260);
+  }
+  return sh;
+}
+
+// 把一列資料存進垃圾桶；呼叫端仍需自行執行 deleteRow（此函式不刪除來源列）
+function _moveToTrash(sheet, rowIndex, kind, summary) {
+  try {
+    const lastCol = sheet.getLastColumn();
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    const values = sheet.getRange(rowIndex, 1, 1, lastCol).getValues()[0];
+    const trash = _trashSheet_();
+    trash.appendRow([
+      Utilities.getUuid(),
+      Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss'),
+      sheet.getName(),
+      kind || '',
+      summary || '',
+      JSON.stringify(headers),
+      JSON.stringify(values)
+    ]);
+  } catch (e) {
+    // 垃圾桶寫入失敗不應阻擋原本的刪除操作
+  }
+}
+
+function _purgeExpiredTrash_() {
+  const sh = _trashSheet_();
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return;
+  const times = sh.getRange(2, 2, lastRow - 1, 1).getValues();
+  const now = Date.now();
+  const toDelete = [];
+  times.forEach(function (r, i) {
+    const t = new Date(String(r[0]).replace(' ', 'T'));
+    if (!isNaN(t.getTime()) && (now - t.getTime()) > TRASH_RETENTION_DAYS * 86400000) toDelete.push(i + 2);
+  });
+  toDelete.sort(function (a, b) { return b - a; }).forEach(function (r) { sh.deleteRow(r); });
+}
+
+function _listTrash() {
+  _purgeExpiredTrash_();
+  const sh = _trashSheet_();
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const rows = sh.getRange(2, 1, lastRow - 1, 5).getValues();
+  return rows.map(function (r) {
+    return { id: r[0], deletedAt: r[1], sourceSheet: r[2], kind: r[3], summary: r[4] };
+  });
+}
+
+function _restoreTrashItem(id) {
+  if (!id) return { ok: false, error: 'missing id' };
+  const sh = _trashSheet_();
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: false, error: 'not found' };
+  const data = sh.getRange(2, 1, lastRow - 1, 7).getValues();
+  const ss = SpreadsheetApp.openById(FINANCE_SHEET_ID);
+  for (let i = 0; i < data.length; i++) {
+    if (data[i][0] === id) {
+      const sourceName = data[i][2];
+      const target = ss.getSheetByName(sourceName);
+      if (!target) return { ok: false, error: '來源分頁「' + sourceName + '」已不存在，無法還原' };
+      const oldHeaders = JSON.parse(data[i][5] || '[]');
+      const oldValues  = JSON.parse(data[i][6] || '[]');
+      const curHeaders = target.getRange(1, 1, 1, target.getLastColumn()).getValues()[0];
+      const newRow = curHeaders.map(function (h) {
+        const idx = oldHeaders.indexOf(h);
+        return idx >= 0 ? oldValues[idx] : '';
+      });
+      target.appendRow(newRow);
+      sh.deleteRow(i + 2);
+      return { ok: true };
+    }
+  }
+  return { ok: false, error: 'not found' };
+}
+
+function _purgeTrashItem(id) {
+  if (!id) return { ok: false, error: 'missing id' };
+  const sh = _trashSheet_();
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: false, error: 'not found' };
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) {
+    if (ids[i][0] === id) { sh.deleteRow(i + 2); return { ok: true }; }
+  }
+  return { ok: false, error: 'not found' };
+}
+
+// 概略摘要：取列前幾個非空欄位拼接，不假設固定欄位語意（收支/應收表欄位不同）
+function _rowSummary_(sheet, rowIndex) {
+  try {
+    const values = sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0];
+    return values.filter(function (v) { return v !== '' && v !== null; })
+      .slice(0, 4)
+      .map(function (v) { return v instanceof Date ? Utilities.formatDate(v, 'Asia/Taipei', 'yyyy/MM/dd') : String(v); })
+      .join(' ');
+  } catch (e) { return ''; }
+}
+
 // =============== GET：讀取 ===============
 function doGet(e) {
   if (!_authOk(e && e.parameter && e.parameter.token)) return _resp({ ok: false, error: 'unauthorized' });
@@ -72,6 +185,9 @@ function doPost(e) {
     if (action === 'addReceivable')    return _handleAddReceivable(body);
     if (action === 'settleReceivable') return _handleSettleReceivable(body);
     if (action === 'deleteReceivable') return _handleDeleteReceivable(body);
+    if (action === 'listTrash')        return _resp({ ok: true, data: _listTrash() });
+    if (action === 'restoreTrash')     return _resp(_restoreTrashItem(body.id));
+    if (action === 'purgeTrash')       return _resp(_purgeTrashItem(body.id));
     return _resp({ ok: false, error: 'unknown action: ' + action });
   } catch (err) {
     return _resp({ ok: false, error: String(err) });
@@ -324,6 +440,7 @@ function _handleDelete(body) {
   const sheet = ss.getSheetByName(body.sheet);
   if (!sheet) return _resp({ ok: false, error: '找不到分頁：' + body.sheet });
   if (!body.rowIndex || body.rowIndex < 2) return _resp({ ok: false, error: 'rowIndex 必須 >= 2' });
+  _moveToTrash(sheet, body.rowIndex, 'finance', _rowSummary_(sheet, body.rowIndex));
   sheet.deleteRow(body.rowIndex);
   // E/J 欄為公式（=$E$2+SUM(...)-SUM(...)），刪除整列後 SUM 範圍由 Sheets 自動調整，不需重算
   return _resp({ ok: true });
@@ -420,6 +537,7 @@ function _handleSettleReceivable(body) {
 function _handleDeleteReceivable(body) {
   const sheet = _ensureReceivableSheet();
   if (!body.rowIndex || body.rowIndex < 2) return _resp({ ok: false, error: 'rowIndex 必須 >= 2' });
+  _moveToTrash(sheet, body.rowIndex, 'receivable', _rowSummary_(sheet, body.rowIndex));
   sheet.deleteRow(body.rowIndex);
   return _resp({ ok: true });
 }

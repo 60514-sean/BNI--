@@ -343,10 +343,10 @@ function updateGuest(body) {
 
 // 刪除來賓：若帶 phone 則刪除該手機所有 row（包含一訪+二訪）；否則用 year + sheetRow 刪單筆
 function deleteGuest(body) {
+  const ss = getGuestSS();
   if (body.phone) {
     const phoneNorm = normalizePhone(body.phone);
     if (!phoneNorm) return { ok: false, error: 'invalid phone' };
-    const ss = getGuestSS();
     const sheets = ss.getSheets();
     let deleted = 0;
     sheets.forEach(function (sh) {
@@ -354,17 +354,26 @@ function deleteGuest(body) {
       const lastRow = sh.getLastRow();
       if (lastRow < 2) return;
       const phones = sh.getRange(2, 8, lastRow - 1, 1).getValues();
+      const names  = sh.getRange(2, 4, lastRow - 1, 1).getValues();
       // 從底往上收集要刪的 row，避免刪除過程 row index 位移
       const toDelete = [];
       for (let i = phones.length - 1; i >= 0; i--) {
-        if (normalizePhone(phones[i][0]) === phoneNorm) toDelete.push(i + 2);
+        if (normalizePhone(phones[i][0]) === phoneNorm) toDelete.push({ row: i + 2, name: names[i][0] });
       }
-      toDelete.forEach(function (r) { sh.deleteRow(r); deleted++; });
+      toDelete.forEach(function (item) {
+        _moveToTrash(ss, sh, item.row, 'guest', '來賓：' + (item.name || '') + '（' + sh.getName() + '）');
+        sh.deleteRow(item.row);
+        deleted++;
+      });
     });
     invalidateGuestListCache();
     return { ok: true, deleted: deleted };
   }
   const sh = getGuestSheetForYear(body.year);
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const nameIdx = findHeaderIdx(headers, '姓名');
+  const guestName = nameIdx >= 0 ? String(sh.getRange(body.sheetRow, nameIdx + 1).getValue() || '') : '';
+  _moveToTrash(ss, sh, body.sheetRow, 'guest', '來賓：' + guestName + '（' + sh.getName() + '）');
   sh.deleteRow(body.sheetRow);
   invalidateGuestListCache();
   return { ok: true };
@@ -811,6 +820,124 @@ function _denied() {
 // 公開頁(dm-public.html)專用、免登入的 POST action（自帶 PUBLIC_DM_TOKEN 或為公開來賓表單）
 const PUBLIC_POST_ACTIONS = ['registerGuestInterest', 'lookupGuest', 'batchBehavior'];
 
+// ===== 垃圾桶（軟刪除，防誤刪；7 天後開啟垃圾桶面板時自動清除過期項目）=====
+const TRASH_SHEET_NAME = '垃圾桶';
+const TRASH_RETENTION_DAYS = 7;
+
+function _trashSheet_(ss) {
+  let sh = ss.getSheetByName(TRASH_SHEET_NAME);
+  if (!sh) {
+    sh = ss.insertSheet(TRASH_SHEET_NAME);
+    sh.getRange(1, 1, 1, 7).setValues([['id', '刪除時間', '來源分頁', '類型', '摘要', '標頭快照', '列資料']]);
+    sh.getRange('A1:G1').setFontWeight('bold').setBackground('#fce8e6');
+    sh.setColumnWidth(1, 220);
+    sh.setColumnWidth(5, 260);
+  }
+  return sh;
+}
+
+// 把一列資料存進垃圾桶；呼叫端仍需自行執行 deleteRow（此函式不刪除來源列）
+function _moveToTrash(ss, sheet, rowIndex, kind, summary) {
+  try {
+    const lastCol = sheet.getLastColumn();
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    const values = sheet.getRange(rowIndex, 1, 1, lastCol).getValues()[0];
+    const trash = _trashSheet_(ss);
+    trash.appendRow([
+      Utilities.getUuid(),
+      Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss'),
+      sheet.getName(),
+      kind || '',
+      summary || '',
+      JSON.stringify(headers),
+      JSON.stringify(values)
+    ]);
+  } catch (e) {
+    // 垃圾桶寫入失敗不應阻擋原本的刪除操作
+  }
+}
+
+function _purgeExpiredTrash_(ss) {
+  const sh = _trashSheet_(ss);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return;
+  const times = sh.getRange(2, 2, lastRow - 1, 1).getValues();
+  const now = Date.now();
+  const toDelete = [];
+  times.forEach(function (r, i) {
+    const t = new Date(String(r[0]).replace(' ', 'T'));
+    if (!isNaN(t.getTime()) && (now - t.getTime()) > TRASH_RETENTION_DAYS * 86400000) toDelete.push(i + 2);
+  });
+  toDelete.sort(function (a, b) { return b - a; }).forEach(function (r) { sh.deleteRow(r); });
+}
+
+function _listTrashFor_(ss, scope) {
+  _purgeExpiredTrash_(ss);
+  const sh = _trashSheet_(ss);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const rows = sh.getRange(2, 1, lastRow - 1, 5).getValues();
+  return rows.map(function (r) {
+    return { id: r[0], deletedAt: r[1], sourceSheet: r[2], kind: r[3], summary: r[4], scope: scope };
+  });
+}
+
+function _restoreTrashItemIn_(ss, id) {
+  if (!id) return { ok: false, error: 'missing id' };
+  const sh = _trashSheet_(ss);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: false, error: 'not found' };
+  const data = sh.getRange(2, 1, lastRow - 1, 7).getValues();
+  for (let i = 0; i < data.length; i++) {
+    if (data[i][0] === id) {
+      const sourceName = data[i][2];
+      const target = ss.getSheetByName(sourceName);
+      if (!target) return { ok: false, error: '來源分頁「' + sourceName + '」已不存在，無法還原' };
+      const oldHeaders = JSON.parse(data[i][5] || '[]');
+      const oldValues  = JSON.parse(data[i][6] || '[]');
+      const curHeaders = target.getRange(1, 1, 1, target.getLastColumn()).getValues()[0];
+      const newRow = curHeaders.map(function (h) {
+        const idx = oldHeaders.indexOf(h);
+        return idx >= 0 ? oldValues[idx] : '';
+      });
+      target.appendRow(newRow);
+      sh.deleteRow(i + 2);
+      return { ok: true };
+    }
+  }
+  return { ok: false, error: 'not found' };
+}
+
+function _purgeTrashItemIn_(ss, id) {
+  if (!id) return { ok: false, error: 'missing id' };
+  const sh = _trashSheet_(ss);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: false, error: 'not found' };
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) {
+    if (ids[i][0] === id) { sh.deleteRow(i + 2); return { ok: true }; }
+  }
+  return { ok: false, error: 'not found' };
+}
+
+// 本後端管兩個試算表（GUEST_SS_ID 來賓 / SS_ID 會員+例會版本），垃圾桶清單合併回傳，
+// 每筆用 scope 標記所屬試算表，還原/清除時要帶回同一個 scope。
+function listTrash() {
+  const guestList = _listTrashFor_(getGuestSS(), 'guest');
+  const mainList  = _listTrashFor_(SpreadsheetApp.openById(SS_ID), 'main');
+  return guestList.concat(mainList);
+}
+
+function restoreTrashItem(body) {
+  const ss = body.scope === 'guest' ? getGuestSS() : SpreadsheetApp.openById(SS_ID);
+  return _restoreTrashItemIn_(ss, body.id);
+}
+
+function purgeTrashItem(body) {
+  const ss = body.scope === 'guest' ? getGuestSS() : SpreadsheetApp.openById(SS_ID);
+  return _purgeTrashItemIn_(ss, body.id);
+}
+
 // ===== doGet / doPost =====
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
@@ -876,6 +1003,18 @@ function doGet(e) {
     try {
       return ContentService
         .createTextOutput(JSON.stringify({ ok: true, data: listMeetingVersions() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, error: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  if (action === 'listTrash') {
+    try {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: true, data: listTrash() }))
         .setMimeType(ContentService.MimeType.JSON);
     } catch (err) {
       return ContentService
@@ -971,6 +1110,22 @@ function doPost(e) {
     if (action === 'deleteMeetingVersion') {
       return ContentService
         .createTextOutput(JSON.stringify(deleteMeetingVersion(body.id)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'listTrash') {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: true, data: listTrash() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    if (action === 'restoreTrash') {
+      return ContentService
+        .createTextOutput(JSON.stringify(restoreTrashItem(body)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    if (action === 'purgeTrash') {
+      return ContentService
+        .createTextOutput(JSON.stringify(purgeTrashItem(body)))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -1125,6 +1280,10 @@ function doPost(e) {
 
     if (action === 'deleteMember') {
       const sh = getSheet();
+      const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+      const nameIdx = findHeaderIdx(headers, '姓名');
+      const memberName = nameIdx >= 0 ? String(sh.getRange(body.sheetRow, nameIdx + 1).getValue() || '') : '';
+      _moveToTrash(SpreadsheetApp.openById(SS_ID), sh, body.sheetRow, 'member', '會員：' + memberName);
       const slideIndex = body.sheetRow - 2;
       const slides = SlidesApp.openById(PRESENTATION_ID).getSlides();
       if (slideIndex >= 0 && slideIndex < slides.length) {
@@ -1404,7 +1563,14 @@ function deleteMeetingVersion(id) {
   const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
   for (let i = 0; i < ids.length; i++) {
     if (ids[i][0] === id) {
-      sh.deleteRow(i + 2);
+      const rowNum = i + 2;
+      let summary = '例會流程版本';
+      try {
+        const v = JSON.parse(sh.getRange(rowNum, 2).getValue());
+        summary = '例會流程版本：' + (v.name || v.savedAt || id);
+      } catch (e) {}
+      _moveToTrash(SpreadsheetApp.openById(SS_ID), sh, rowNum, 'meetingVersion', summary);
+      sh.deleteRow(rowNum);
       break;
     }
   }
