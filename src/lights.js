@@ -733,6 +733,28 @@ function _aggregateTraining(trainingRows, monthKeys) {
   return map;
 }
 
+// 只保留「PALMS 週資料裡目前仍持續出現」的人，濾掉已離會會員的歷史週資料
+// （_aggregateMembers 純粹依週資料裡出現過的姓名分組，不會自動排除離會的人）
+// 判斷依據：取全部已匯入週資料裡最新的一週，若某人最後出現的週不是這一週，
+// 代表他已經從 PALMS 消失（離會），排除。不用「會員」分頁判斷，因為那份手動維護的
+// 名單可能還沒同步更新（例如剛離會但 PALMS 已經沒有他、或反過來 PALMS 還有他但
+// 會員分頁已經手動刪除）——PALMS 資料本身才是跟官方報表對齊的依據。
+function _filterActiveMembers(grouped) {
+  if (!_lightsData || !_lightsData.length) return grouped;
+  let maxTo = '';
+  const lastSeen = {};
+  _lightsData.forEach(r => {
+    const name = String(r.name || '').trim();
+    if (!name || name === '__休會__') return;
+    const to = String(r.to || '');
+    if (to > maxTo) maxTo = to;
+    if (!lastSeen[name] || to > lastSeen[name]) lastSeen[name] = to;
+  });
+  const out = {};
+  Object.keys(grouped).forEach(name => { if (lastSeen[name] === maxTo) out[name] = grouped[name]; });
+  return out;
+}
+
 // ===== 紅綠燈計算 =====
 // 把多筆 row（同一段期間）按 name 加總，weeks 用區間長度算
 function _aggregateMembers(rows) {
@@ -865,8 +887,10 @@ function _calcLightScore(d) {
   const sVis   = d.vis >= Math.ceil(vt[0]*w) ? 15 : d.vis >= Math.ceil(vt[1]*w) ? 10 : 0;
   const ot = cfg.oneScore;   // 3 個門檻 → 15/10/5
   const sOne   = d.one >= Math.ceil(ot[0]*w) ? 15 : d.one >= Math.ceil(ot[1]*w) ? 10 : d.one >= Math.ceil(ot[2]*w) ? 5 : 0;
+  // 教育單位得分看「培訓報告」累積點數（不是 PALMS 週資料的教育單位欄，那欄跟官方對不上）
   const tt = cfg.trainScore; // 3 個門檻 → 15/10/5
-  const sTrain = d.train >= tt[0] ? 15 : d.train >= tt[1] ? 10 : d.train >= tt[2] ? 5 : 0;
+  const trainPts = d.trainReportPoints || 0;
+  const sTrain = trainPts >= tt[0] ? 15 : trainPts >= tt[1] ? 10 : trainPts >= tt[2] ? 5 : 0;
   const at = cfg.amtScore;   // 3 個門檻 → 15/10/5
   const sAmt   = d.amt >= at[0] ? 15 : d.amt >= at[1] ? 10 : d.amt >= at[2] ? 5 : 0;
   const ab = cfg.absScore;   // [缺0, 缺1, 缺2, 缺3+]
@@ -918,14 +942,14 @@ async function _renderLightsScoreTab() {
     return;
   }
 
-  const grouped = _aggregateMembers(recent);
-  // 培訓分數用 PALMS「分會教育單位」算（跟官方對齊）；培訓報告資料保留供卡牌參考
+  const grouped = _filterActiveMembers(_aggregateMembers(recent));
+  // 教育單位得分看「培訓報告」累積點數（跟官方對齊；PALMS 週資料教育單位欄只保留原始值供參考，不計分）
   const trainByName = _aggregateTraining(_trainingData, months);
   const list = Object.values(grouped).map(d => {
     const t = trainByName[d.name] || { points: 0, count: 0 };
     d.trainReportPoints = t.points;
     d.trainReportCount = t.count;
-    // d.train 保持 PALMS 分會教育單位累計值
+    // d.train 保持 PALMS 分會教育單位原始值，僅供卡牌參考／排序 tie-break
     const s = _calcLightScore(d);
     return { ...d, ...s };
   });
@@ -1120,8 +1144,8 @@ async function _renderLightsPredictTab() {
   }
 
   const remainW = _remainingFridaysInMonth(); // 自動算本月剩餘週五
-  const lastGrouped = _aggregateMembers(lastRows);
-  const predictGrouped = _aggregateMembers(predictRows);
+  const lastGrouped = _filterActiveMembers(_aggregateMembers(lastRows));
+  const predictGrouped = _filterActiveMembers(_aggregateMembers(predictRows));
   // 培訓資料雙窗口聚合
   const lastTrainByName = _aggregateTraining(_trainingData, lastMonths);
   const predTrainByName = _aggregateTraining(_trainingData, predictMonths);
@@ -1133,11 +1157,11 @@ async function _renderLightsPredictTab() {
     d.trainReportPoints = pt.points;
     d.trainReportCount = pt.count;
 
-    // 上個月燈號：從 lastGrouped 取，計算分數
+    // 上個月燈號：從 lastGrouped 取，計算分數（教育單位用「上個月窗口」的培訓報告點數）
     const lastD = lastGrouped[d.name];
     const last = lastD
       ? (function() {
-          lastD.train = lastD.train || 0; // 已經是 PALMS 累計
+          lastD.trainReportPoints = lt.points;
           return _calcLightScore(lastD);
         })()
       : { total: 0, light: '黑燈', sRef: 0, sVis: 0, sOne: 0, sTrain: 0, sAmt: 0, sAbs: 0, ref: 0 };
@@ -1152,7 +1176,7 @@ async function _renderLightsPredictTab() {
       vis:    Math.round(d.vis * factor),
       one:    Math.round(d.one * factor),
       amt:    Math.round(d.amt * factor),
-      train:  d.train,  // 培訓不外推
+      trainReportPoints: pt.points,  // 培訓不外推，用預測窗口目前累積點數
       abs:    d.abs
     });
     return { ...d, last, pred, futureWeeks, lastWeeks: lastD?.weeks || 0 };
@@ -1533,6 +1557,8 @@ async function renderAnnounce() {
       return;
     }
   }
+  if (!_memberData) { try { await fetchMembers(); } catch {} }
+  if (!_trainingData) { try { await fetchTrainingData(); } catch {} }
 
   // 用「過去 6 個月含當月」滾動視窗算燈號
   const recent = _rowsInMonths(_lightsData, _predictMonthWindow());
@@ -1540,8 +1566,14 @@ async function renderAnnounce() {
     c.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--text-soft);">尚無匯入資料。<br>請到「燈號分析 → 匯入」上傳對應週的 PALMS。</div>`;
     return;
   }
-  const grouped = _aggregateMembers(recent);
-  const list = Object.values(grouped).map(d => ({ ...d, ...(_calcLightScore(d)) }));
+  const grouped = _filterActiveMembers(_aggregateMembers(recent));
+  const trainByName = _aggregateTraining(_trainingData, _predictMonthWindow());
+  const list = Object.values(grouped).map(d => {
+    const t = trainByName[d.name] || { points: 0, count: 0 };
+    d.trainReportPoints = t.points;
+    d.trainReportCount = t.count;
+    return { ...d, ...(_calcLightScore(d)) };
+  });
 
   const lightCounts = { '綠燈': 0, '黃燈': 0, '紅燈': 0, '黑燈': 0 };
   list.forEach(x => lightCounts[x.light]++);
