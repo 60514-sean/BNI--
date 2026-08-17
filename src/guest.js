@@ -281,6 +281,10 @@ function _guestKey(g) {
 }
 
 function _toggleGuestExpand(key) {
+  // 使用者剛反白選取文字（例如複製電話、公司名）時，放開滑鼠不應觸發展開/收合，
+  // 否則卡片會重新渲染，剛選取的反白內容瞬間消失
+  const sel = window.getSelection();
+  if (sel && sel.toString().length > 0) return;
   if (_expandedGuests.has(key)) _expandedGuests.delete(key);
   else _expandedGuests.add(key);
   // 只重渲染列表區塊，不重整 stats / tabs（避免閃爍）
