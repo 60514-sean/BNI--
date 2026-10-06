@@ -1,14 +1,32 @@
 {
   "redirects": [
-    { "source": "/:path*", "destination": "https://bni-ejns.vercel.app/legacy-weekly/:path*", "permanent": false }
+    {
+      "source": "/",
+      "destination": "https://bni-ejns.vercel.app/legacy-weekly/",
+      "permanent": false
+    },
+    {
+      "source": "/:path*",
+      "destination": "https://bni-ejns.vercel.app/legacy-weekly/:path*",
+      "permanent": false
+    }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
-        { "key": "Pragma", "value": "no-cache" },
-        { "key": "Expires", "value": "0" }
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "Pragma",
+          "value": "no-cache"
+        },
+        {
+          "key": "Expires",
+          "value": "0"
+        }
       ]
     }
   ]
