@@ -1,4 +1,7 @@
 {
+  "redirects": [
+    { "source": "/:path*", "destination": "https://bni-ejns.vercel.app/legacy-weekly/:path*", "permanent": false }
+  ],
   "headers": [
     {
       "source": "/(.*)",
